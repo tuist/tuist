@@ -17,31 +17,6 @@ defmodule Tuist.MCP.GradleSchemas do
     })
   end
 
-  def graph do
-    %{
-      "status" => string(),
-      "nodes" => %{
-        "type" => "array",
-        "items" =>
-          object(%{
-            "id" => string(),
-            "kind" => string(),
-            "build_path" => string(),
-            "project_path" => string(),
-            "label" => string(),
-            "dependencies" => strings(),
-            "must_run_after" => strings(),
-            "should_run_after" => strings(),
-            "finalized_by" => strings(),
-            "duration_ms" => duration(),
-            "started_at" => %{"type" => ["string", "null"]}
-          })
-      }
-    }
-    |> object()
-    |> Map.put("type", ["object", "null"])
-  end
-
   defp object(properties),
     do: %{
       "type" => "object",

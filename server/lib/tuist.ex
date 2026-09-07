@@ -83,7 +83,6 @@ defmodule Tuist do
       Gradle,
       Gradle.Analytics,
       Gradle.Bottlenecks,
-      Gradle.ExecutionGraph,
       Gradle.Build,
       Gradle.Task,
       Gradle.CacheEvent,

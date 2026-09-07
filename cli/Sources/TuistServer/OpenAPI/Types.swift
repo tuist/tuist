@@ -23709,10 +23709,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -23721,20 +23717,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -66206,12 +66206,8 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
-                        public var tasks_cache_hit_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_branch`.
-                        public var git_branch: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
-                        public var root_project_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
+                        public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/build_options`.
                         public struct build_optionsPayload: Codable, Hashable, Sendable {
                             /// A container of undocumented properties.
@@ -66232,141 +66228,20 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/build_options`.
                         public var build_options: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.build_optionsPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
-                        public var tasks_up_to_date_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph`.
-                        public struct execution_graphPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload`.
-                            public struct nodesPayloadPayload: Codable, Hashable, Sendable {
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/build_path`.
-                                public var build_path: Swift.String
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/dependencies`.
-                                public var dependencies: [Swift.String]
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/duration_ms`.
-                                public var duration_ms: Swift.Int?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/finalized_by`.
-                                public var finalized_by: [Swift.String]?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/id`.
-                                public var id: Swift.String
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/kind`.
-                                @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                    case task = "task"
-                                    case transform = "transform"
-                                }
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/kind`.
-                                public var kind: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload.kindPayload
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/label`.
-                                public var label: Swift.String
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/must_run_after`.
-                                public var must_run_after: [Swift.String]?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/project_path`.
-                                public var project_path: Swift.String
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/should_run_after`.
-                                public var should_run_after: [Swift.String]?
-                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodesPayload/started_at`.
-                                public var started_at: Foundation.Date?
-                                /// Creates a new `nodesPayloadPayload`.
-                                ///
-                                /// - Parameters:
-                                ///   - build_path:
-                                ///   - dependencies:
-                                ///   - duration_ms:
-                                ///   - finalized_by:
-                                ///   - id:
-                                ///   - kind:
-                                ///   - label:
-                                ///   - must_run_after:
-                                ///   - project_path:
-                                ///   - should_run_after:
-                                ///   - started_at:
-                                public init(
-                                    build_path: Swift.String,
-                                    dependencies: [Swift.String],
-                                    duration_ms: Swift.Int? = nil,
-                                    finalized_by: [Swift.String]? = nil,
-                                    id: Swift.String,
-                                    kind: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload.kindPayload,
-                                    label: Swift.String,
-                                    must_run_after: [Swift.String]? = nil,
-                                    project_path: Swift.String,
-                                    should_run_after: [Swift.String]? = nil,
-                                    started_at: Foundation.Date? = nil
-                                ) {
-                                    self.build_path = build_path
-                                    self.dependencies = dependencies
-                                    self.duration_ms = duration_ms
-                                    self.finalized_by = finalized_by
-                                    self.id = id
-                                    self.kind = kind
-                                    self.label = label
-                                    self.must_run_after = must_run_after
-                                    self.project_path = project_path
-                                    self.should_run_after = should_run_after
-                                    self.started_at = started_at
-                                }
-                                public enum CodingKeys: String, CodingKey {
-                                    case build_path
-                                    case dependencies
-                                    case duration_ms
-                                    case finalized_by
-                                    case id
-                                    case kind
-                                    case label
-                                    case must_run_after
-                                    case project_path
-                                    case should_run_after
-                                    case started_at
-                                }
-                            }
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodes`.
-                            public typealias nodesPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload]
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/nodes`.
-                            public var nodes: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.nodesPayload
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/status`.
-                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                case complete = "complete"
-                                case partial = "partial"
-                                case unavailable = "unavailable"
-                            }
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph/status`.
-                            public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.statusPayload
-                            /// Creates a new `execution_graphPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - nodes:
-                            ///   - status:
-                            public init(
-                                nodes: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.nodesPayload,
-                                status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload.statusPayload
-                            ) {
-                                self.nodes = nodes
-                                self.status = status
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case nodes
-                                case status
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/execution_graph`.
-                        public var execution_graph: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/inserted_at`.
-                        public var inserted_at: Foundation.Date?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
-                        public var java_version: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/dependency_chain_duration_ms`.
-                        public var dependency_chain_duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
+                        public var cache_hit_rate: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
+                        public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
                         public var configuration_cache_entry_size: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_invalidation_reasons`.
+                        public var configuration_cache_invalidation_reasons: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_load_duration_ms`.
                         public var configuration_cache_load_duration_ms: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case success = "success"
-                            case failure = "failure"
-                            case cancelled = "cancelled"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
-                        public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_status`.
+                        public var configuration_cache_status: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
+                        public var configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
                         public struct custom_metadataPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata/tags`.
@@ -66410,10 +66285,36 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
                         public var custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_skipped_count`.
-                        public var tasks_skipped_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_local_hit_count`.
-                        public var tasks_local_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/gradle_version`.
+                        public var gradle_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
+                        public var java_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
+                        public var requested_tasks: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
+                        public var root_project_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                            case cancelled = "cancelled"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload`.
                         public struct tasksPayloadPayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/cache_artifact_size`.
@@ -66586,185 +66487,159 @@ public enum Operations {
                         public typealias tasksPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
                         public var tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
-                        public var cacheable_tasks_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_status`.
-                        public var configuration_cache_status: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_ref`.
-                        public var git_ref: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_invalidation_reasons`.
-                        public var configuration_cache_invalidation_reasons: [Swift.String]?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
+                        public var tasks_cache_hit_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_executed_count`.
                         public var tasks_executed_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
-                        public var requested_tasks: [Swift.String]?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
-                        public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
-                        public var cache_hit_rate: Swift.Double?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
-                        public var configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_no_source_count`.
-                        public var tasks_no_source_count: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
-                        public var id: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
                         public var tasks_failed_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_local_hit_count`.
+                        public var tasks_local_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_no_source_count`.
+                        public var tasks_no_source_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_remote_hit_count`.
                         public var tasks_remote_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_skipped_count`.
+                        public var tasks_skipped_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
+                        public var tasks_up_to_date_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/telemetry_version`.
                         public var telemetry_version: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
-                        public var duration_ms: Swift.Int?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/gradle_version`.
-                        public var gradle_version: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_commit_sha`.
-                        public var git_commit_sha: Swift.String?
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
-                        public var is_ci: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
-                        ///   - tasks_cache_hit_count:
-                        ///   - git_branch:
-                        ///   - root_project_name:
-                        ///   - build_options:
-                        ///   - tasks_up_to_date_count:
-                        ///   - execution_graph:
-                        ///   - inserted_at:
-                        ///   - java_version:
-                        ///   - dependency_chain_duration_ms:
-                        ///   - configuration_cache_entry_size:
-                        ///   - configuration_cache_load_duration_ms:
-                        ///   - status:
-                        ///   - custom_metadata:
-                        ///   - tasks_skipped_count:
-                        ///   - tasks_local_hit_count:
-                        ///   - tasks:
-                        ///   - cacheable_tasks_count:
-                        ///   - configuration_cache_status:
-                        ///   - git_ref:
-                        ///   - configuration_cache_invalidation_reasons:
-                        ///   - tasks_executed_count:
-                        ///   - requested_tasks:
                         ///   - artifact_transforms:
+                        ///   - build_options:
                         ///   - cache_hit_rate:
+                        ///   - cacheable_tasks_count:
+                        ///   - configuration_cache_entry_size:
+                        ///   - configuration_cache_invalidation_reasons:
+                        ///   - configuration_cache_load_duration_ms:
+                        ///   - configuration_cache_status:
                         ///   - configuration_operations:
-                        ///   - tasks_no_source_count:
-                        ///   - id:
-                        ///   - tasks_failed_count:
-                        ///   - tasks_remote_hit_count:
-                        ///   - telemetry_version:
+                        ///   - custom_metadata:
                         ///   - duration_ms:
-                        ///   - gradle_version:
+                        ///   - git_branch:
                         ///   - git_commit_sha:
+                        ///   - git_ref:
+                        ///   - gradle_version:
+                        ///   - id:
+                        ///   - inserted_at:
                         ///   - is_ci:
+                        ///   - java_version:
+                        ///   - requested_tasks:
+                        ///   - root_project_name:
+                        ///   - status:
+                        ///   - tasks:
+                        ///   - tasks_cache_hit_count:
+                        ///   - tasks_executed_count:
+                        ///   - tasks_failed_count:
+                        ///   - tasks_local_hit_count:
+                        ///   - tasks_no_source_count:
+                        ///   - tasks_remote_hit_count:
+                        ///   - tasks_skipped_count:
+                        ///   - tasks_up_to_date_count:
+                        ///   - telemetry_version:
                         public init(
-                            tasks_cache_hit_count: Swift.Int? = nil,
-                            git_branch: Swift.String? = nil,
-                            root_project_name: Swift.String? = nil,
-                            build_options: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.build_optionsPayload? = nil,
-                            tasks_up_to_date_count: Swift.Int? = nil,
-                            execution_graph: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.execution_graphPayload? = nil,
-                            inserted_at: Foundation.Date? = nil,
-                            java_version: Swift.String? = nil,
-                            dependency_chain_duration_ms: Swift.Int? = nil,
-                            configuration_cache_entry_size: Swift.Int? = nil,
-                            configuration_cache_load_duration_ms: Swift.Int? = nil,
-                            status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
-                            custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
-                            tasks_skipped_count: Swift.Int? = nil,
-                            tasks_local_hit_count: Swift.Int? = nil,
-                            tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
-                            cacheable_tasks_count: Swift.Int? = nil,
-                            configuration_cache_status: Swift.String? = nil,
-                            git_ref: Swift.String? = nil,
-                            configuration_cache_invalidation_reasons: [Swift.String]? = nil,
-                            tasks_executed_count: Swift.Int? = nil,
-                            requested_tasks: [Swift.String]? = nil,
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            build_options: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.build_optionsPayload? = nil,
                             cache_hit_rate: Swift.Double? = nil,
+                            cacheable_tasks_count: Swift.Int? = nil,
+                            configuration_cache_entry_size: Swift.Int? = nil,
+                            configuration_cache_invalidation_reasons: [Swift.String]? = nil,
+                            configuration_cache_load_duration_ms: Swift.Int? = nil,
+                            configuration_cache_status: Swift.String? = nil,
                             configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
-                            tasks_no_source_count: Swift.Int? = nil,
-                            id: Swift.String? = nil,
-                            tasks_failed_count: Swift.Int? = nil,
-                            tasks_remote_hit_count: Swift.Int? = nil,
-                            telemetry_version: Swift.Int? = nil,
+                            custom_metadata: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
                             duration_ms: Swift.Int? = nil,
-                            gradle_version: Swift.String? = nil,
+                            git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
-                            is_ci: Swift.Bool? = nil
+                            git_ref: Swift.String? = nil,
+                            gradle_version: Swift.String? = nil,
+                            id: Swift.String? = nil,
+                            inserted_at: Foundation.Date? = nil,
+                            is_ci: Swift.Bool? = nil,
+                            java_version: Swift.String? = nil,
+                            requested_tasks: [Swift.String]? = nil,
+                            root_project_name: Swift.String? = nil,
+                            status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
+                            tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
+                            tasks_cache_hit_count: Swift.Int? = nil,
+                            tasks_executed_count: Swift.Int? = nil,
+                            tasks_failed_count: Swift.Int? = nil,
+                            tasks_local_hit_count: Swift.Int? = nil,
+                            tasks_no_source_count: Swift.Int? = nil,
+                            tasks_remote_hit_count: Swift.Int? = nil,
+                            tasks_skipped_count: Swift.Int? = nil,
+                            tasks_up_to_date_count: Swift.Int? = nil,
+                            telemetry_version: Swift.Int? = nil
                         ) {
-                            self.tasks_cache_hit_count = tasks_cache_hit_count
-                            self.git_branch = git_branch
-                            self.root_project_name = root_project_name
-                            self.build_options = build_options
-                            self.tasks_up_to_date_count = tasks_up_to_date_count
-                            self.execution_graph = execution_graph
-                            self.inserted_at = inserted_at
-                            self.java_version = java_version
-                            self.dependency_chain_duration_ms = dependency_chain_duration_ms
-                            self.configuration_cache_entry_size = configuration_cache_entry_size
-                            self.configuration_cache_load_duration_ms = configuration_cache_load_duration_ms
-                            self.status = status
-                            self.custom_metadata = custom_metadata
-                            self.tasks_skipped_count = tasks_skipped_count
-                            self.tasks_local_hit_count = tasks_local_hit_count
-                            self.tasks = tasks
-                            self.cacheable_tasks_count = cacheable_tasks_count
-                            self.configuration_cache_status = configuration_cache_status
-                            self.git_ref = git_ref
-                            self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
-                            self.tasks_executed_count = tasks_executed_count
-                            self.requested_tasks = requested_tasks
                             self.artifact_transforms = artifact_transforms
+                            self.build_options = build_options
                             self.cache_hit_rate = cache_hit_rate
+                            self.cacheable_tasks_count = cacheable_tasks_count
+                            self.configuration_cache_entry_size = configuration_cache_entry_size
+                            self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
+                            self.configuration_cache_load_duration_ms = configuration_cache_load_duration_ms
+                            self.configuration_cache_status = configuration_cache_status
                             self.configuration_operations = configuration_operations
-                            self.tasks_no_source_count = tasks_no_source_count
-                            self.id = id
-                            self.tasks_failed_count = tasks_failed_count
-                            self.tasks_remote_hit_count = tasks_remote_hit_count
-                            self.telemetry_version = telemetry_version
+                            self.custom_metadata = custom_metadata
                             self.duration_ms = duration_ms
-                            self.gradle_version = gradle_version
+                            self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.gradle_version = gradle_version
+                            self.id = id
+                            self.inserted_at = inserted_at
                             self.is_ci = is_ci
+                            self.java_version = java_version
+                            self.requested_tasks = requested_tasks
+                            self.root_project_name = root_project_name
+                            self.status = status
+                            self.tasks = tasks
+                            self.tasks_cache_hit_count = tasks_cache_hit_count
+                            self.tasks_executed_count = tasks_executed_count
+                            self.tasks_failed_count = tasks_failed_count
+                            self.tasks_local_hit_count = tasks_local_hit_count
+                            self.tasks_no_source_count = tasks_no_source_count
+                            self.tasks_remote_hit_count = tasks_remote_hit_count
+                            self.tasks_skipped_count = tasks_skipped_count
+                            self.tasks_up_to_date_count = tasks_up_to_date_count
+                            self.telemetry_version = telemetry_version
                         }
                         public enum CodingKeys: String, CodingKey {
-                            case tasks_cache_hit_count
-                            case git_branch
-                            case root_project_name
-                            case build_options
-                            case tasks_up_to_date_count
-                            case execution_graph
-                            case inserted_at
-                            case java_version
-                            case dependency_chain_duration_ms
-                            case configuration_cache_entry_size
-                            case configuration_cache_load_duration_ms
-                            case status
-                            case custom_metadata
-                            case tasks_skipped_count
-                            case tasks_local_hit_count
-                            case tasks
-                            case cacheable_tasks_count
-                            case configuration_cache_status
-                            case git_ref
-                            case configuration_cache_invalidation_reasons
-                            case tasks_executed_count
-                            case requested_tasks
                             case artifact_transforms
+                            case build_options
                             case cache_hit_rate
+                            case cacheable_tasks_count
+                            case configuration_cache_entry_size
+                            case configuration_cache_invalidation_reasons
+                            case configuration_cache_load_duration_ms
+                            case configuration_cache_status
                             case configuration_operations
-                            case tasks_no_source_count
-                            case id
-                            case tasks_failed_count
-                            case tasks_remote_hit_count
-                            case telemetry_version
+                            case custom_metadata
                             case duration_ms
-                            case gradle_version
+                            case git_branch
                             case git_commit_sha
+                            case git_ref
+                            case gradle_version
+                            case id
+                            case inserted_at
                             case is_ci
+                            case java_version
+                            case requested_tasks
+                            case root_project_name
+                            case status
+                            case tasks
+                            case tasks_cache_hit_count
+                            case tasks_executed_count
+                            case tasks_failed_count
+                            case tasks_local_hit_count
+                            case tasks_no_source_count
+                            case tasks_remote_hit_count
+                            case tasks_skipped_count
+                            case tasks_up_to_date_count
+                            case telemetry_version
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
@@ -71772,121 +71647,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/duration_ms`.
                     public var duration_ms: Swift.Int
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph`.
-                    public struct execution_graphPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload`.
-                        public struct nodesPayloadPayload: Codable, Hashable, Sendable {
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/build_path`.
-                            public var build_path: Swift.String
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/dependencies`.
-                            public var dependencies: [Swift.String]
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/duration_ms`.
-                            public var duration_ms: Swift.Int?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/finalized_by`.
-                            public var finalized_by: [Swift.String]?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/id`.
-                            public var id: Swift.String
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/kind`.
-                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                case task = "task"
-                                case transform = "transform"
-                            }
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/kind`.
-                            public var kind: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload.kindPayload
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/label`.
-                            public var label: Swift.String
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/must_run_after`.
-                            public var must_run_after: [Swift.String]?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/project_path`.
-                            public var project_path: Swift.String
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/should_run_after`.
-                            public var should_run_after: [Swift.String]?
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodesPayload/started_at`.
-                            public var started_at: Foundation.Date?
-                            /// Creates a new `nodesPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - build_path:
-                            ///   - dependencies:
-                            ///   - duration_ms:
-                            ///   - finalized_by:
-                            ///   - id:
-                            ///   - kind:
-                            ///   - label:
-                            ///   - must_run_after:
-                            ///   - project_path:
-                            ///   - should_run_after:
-                            ///   - started_at:
-                            public init(
-                                build_path: Swift.String,
-                                dependencies: [Swift.String],
-                                duration_ms: Swift.Int? = nil,
-                                finalized_by: [Swift.String]? = nil,
-                                id: Swift.String,
-                                kind: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload.kindPayload,
-                                label: Swift.String,
-                                must_run_after: [Swift.String]? = nil,
-                                project_path: Swift.String,
-                                should_run_after: [Swift.String]? = nil,
-                                started_at: Foundation.Date? = nil
-                            ) {
-                                self.build_path = build_path
-                                self.dependencies = dependencies
-                                self.duration_ms = duration_ms
-                                self.finalized_by = finalized_by
-                                self.id = id
-                                self.kind = kind
-                                self.label = label
-                                self.must_run_after = must_run_after
-                                self.project_path = project_path
-                                self.should_run_after = should_run_after
-                                self.started_at = started_at
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case build_path
-                                case dependencies
-                                case duration_ms
-                                case finalized_by
-                                case id
-                                case kind
-                                case label
-                                case must_run_after
-                                case project_path
-                                case should_run_after
-                                case started_at
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodes`.
-                        public typealias nodesPayload = [Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.nodesPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/nodes`.
-                        public var nodes: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.nodesPayload
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/status`.
-                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                            case complete = "complete"
-                            case partial = "partial"
-                            case unavailable = "unavailable"
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph/status`.
-                        public var status: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.statusPayload
-                        /// Creates a new `execution_graphPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - nodes:
-                        ///   - status:
-                        public init(
-                            nodes: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.nodesPayload,
-                            status: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload.statusPayload
-                        ) {
-                            self.nodes = nodes
-                            self.status = status
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case nodes
-                            case status
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/execution_graph`.
-                    public var execution_graph: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload?
                     /// Git branch.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_branch`.
@@ -72238,7 +71998,6 @@ public enum Operations {
                     ///   - configuration_operations: Settings, build, and project configuration operations.
                     ///   - custom_metadata: Custom metadata for the build.
                     ///   - duration_ms: Build duration in milliseconds.
-                    ///   - execution_graph:
                     ///   - git_branch: Git branch.
                     ///   - git_commit_sha: Git commit SHA.
                     ///   - git_ref: Git ref.
@@ -72260,7 +72019,6 @@ public enum Operations {
                         configuration_operations: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_operationsPayload? = nil,
                         custom_metadata: Operations.createGradleBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
                         duration_ms: Swift.Int,
-                        execution_graph: Operations.createGradleBuild.Input.Body.jsonPayload.execution_graphPayload? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
@@ -72282,7 +72040,6 @@ public enum Operations {
                         self.configuration_operations = configuration_operations
                         self.custom_metadata = custom_metadata
                         self.duration_ms = duration_ms
-                        self.execution_graph = execution_graph
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
@@ -72305,7 +72062,6 @@ public enum Operations {
                         case configuration_operations
                         case custom_metadata
                         case duration_ms
-                        case execution_graph
                         case git_branch
                         case git_commit_sha
                         case git_ref

@@ -89,21 +89,7 @@
       selected={@selected_tab == "machine-metrics"}
       patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
     />
-    <.tab_menu_horizontal_item
-      label={dgettext("dashboard_gradle", "Dependencies")}
-      selected={@selected_tab == "dependencies"}
-      patch={"?#{Query.put(@uri.query, "tab", "dependencies")}"}
-    />
   </.tab_menu_horizontal>
-  <.live_component
-    :if={@selected_tab == "dependencies"}
-    module={TuistWeb.GradleExecutionComponent}
-    id="gradle-execution"
-    build={@build}
-    params={@execution_params}
-    account={@selected_account}
-    project={@selected_project}
-  />
   <%= if @selected_tab == "overview" do %>
     <.card
       title={dgettext("dashboard_gradle", "Build Details")}

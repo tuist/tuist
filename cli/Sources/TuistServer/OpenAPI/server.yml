@@ -10541,10 +10541,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -10557,20 +10557,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -24351,18 +24351,12 @@ paths:
             application/json:
               schema:
                 properties:
-                  tasks_cache_hit_count:
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  git_branch:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  root_project_name:
-                    nullable: true
-                    type: string
+                  artifact_transforms:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   build_options:
@@ -24375,136 +24369,12 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
-                  tasks_up_to_date_count:
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  execution_graph:
+                  cache_hit_rate:
                     nullable: true
-                    properties:
-                      nodes:
-                        items:
-                          properties:
-                            build_path:
-                              maxLength: 1024
-                              type: string
-                              x-struct:
-                              x-validate:
-                            dependencies:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 20000
-                              type: array
-                              x-struct:
-                              x-validate:
-                            duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            finalized_by:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 20000
-                              type: array
-                              x-struct:
-                              x-validate:
-                            id:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            kind:
-                              enum:
-                                - task
-                                - transform
-                              type: string
-                              x-struct:
-                              x-validate:
-                            label:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            must_run_after:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 20000
-                              type: array
-                              x-struct:
-                              x-validate:
-                            project_path:
-                              maxLength: 1024
-                              type: string
-                              x-struct:
-                              x-validate:
-                            should_run_after:
-                              items:
-                                maxLength: 4096
-                                type: string
-                                x-struct:
-                                x-validate:
-                              maxItems: 20000
-                              type: array
-                              x-struct:
-                              x-validate:
-                            started_at:
-                              format: date-time
-                              nullable: true
-                              type: string
-                              x-struct:
-                              x-validate:
-                          required:
-                            - id
-                            - kind
-                            - build_path
-                            - project_path
-                            - label
-                            - dependencies
-                          type: object
-                          x-struct:
-                          x-validate:
-                        maxItems: 20000
-                        type: array
-                        x-struct:
-                        x-validate:
-                      status:
-                        enum:
-                          - complete
-                          - partial
-                          - unavailable
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - status
-                      - nodes
-                    type: object
+                    type: number
                     x-struct:
                     x-validate:
-                  inserted_at:
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
-                  java_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  dependency_chain_duration_ms:
-                    nullable: true
+                  cacheable_tasks_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -24513,17 +24383,30 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  configuration_cache_invalidation_reasons:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   configuration_cache_load_duration_ms:
                     nullable: true
                     type: integer
                     x-struct:
                     x-validate:
-                  status:
-                    enum:
-                      - success
-                      - failure
-                      - cancelled
+                  configuration_cache_status:
+                    nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  configuration_operations:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   custom_metadata:
@@ -24547,12 +24430,68 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
-                  tasks_skipped_count:
+                  duration_ms:
                     type: integer
                     x-struct:
                     x-validate:
-                  tasks_local_hit_count:
-                    type: integer
+                  git_branch:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  gradle_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  java_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  root_project_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - success
+                      - failure
+                      - cancelled
+                    type: string
                     x-struct:
                     x-validate:
                   tasks:
@@ -24696,71 +24635,23 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
-                  cacheable_tasks_count:
+                  tasks_cache_hit_count:
                     type: integer
-                    x-struct:
-                    x-validate:
-                  configuration_cache_status:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_ref:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  configuration_cache_invalidation_reasons:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
                     x-struct:
                     x-validate:
                   tasks_executed_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  requested_tasks:
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  artifact_transforms:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  cache_hit_rate:
-                    nullable: true
-                    type: number
-                    x-struct:
-                    x-validate:
-                  configuration_operations:
-                    items:
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  tasks_no_source_count:
+                  tasks_failed_count:
                     type: integer
                     x-struct:
                     x-validate:
-                  id:
-                    format: uuid
-                    type: string
+                  tasks_local_hit_count:
+                    type: integer
                     x-struct:
                     x-validate:
-                  tasks_failed_count:
+                  tasks_no_source_count:
                     type: integer
                     x-struct:
                     x-validate:
@@ -24768,26 +24659,16 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  tasks_skipped_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_up_to_date_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
                   telemetry_version:
                     type: integer
-                    x-struct:
-                    x-validate:
-                  duration_ms:
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  gradle_version:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_commit_sha:
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  is_ci:
-                    type: boolean
                     x-struct:
                     x-validate:
                 type: object
@@ -26615,120 +26496,6 @@ paths:
                   description: Build duration in milliseconds.
                   minimum: 0
                   type: integer
-                  x-struct:
-                  x-validate:
-                execution_graph:
-                  nullable: true
-                  properties:
-                    nodes:
-                      items:
-                        properties:
-                          build_path:
-                            maxLength: 1024
-                            type: string
-                            x-struct:
-                            x-validate:
-                          dependencies:
-                            items:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            maxItems: 20000
-                            type: array
-                            x-struct:
-                            x-validate:
-                          duration_ms:
-                            maximum: 604800000
-                            minimum: 0
-                            nullable: true
-                            type: integer
-                            x-struct:
-                            x-validate:
-                          finalized_by:
-                            items:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            maxItems: 20000
-                            type: array
-                            x-struct:
-                            x-validate:
-                          id:
-                            maxLength: 4096
-                            type: string
-                            x-struct:
-                            x-validate:
-                          kind:
-                            enum:
-                              - task
-                              - transform
-                            type: string
-                            x-struct:
-                            x-validate:
-                          label:
-                            maxLength: 4096
-                            type: string
-                            x-struct:
-                            x-validate:
-                          must_run_after:
-                            items:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            maxItems: 20000
-                            type: array
-                            x-struct:
-                            x-validate:
-                          project_path:
-                            maxLength: 1024
-                            type: string
-                            x-struct:
-                            x-validate:
-                          should_run_after:
-                            items:
-                              maxLength: 4096
-                              type: string
-                              x-struct:
-                              x-validate:
-                            maxItems: 20000
-                            type: array
-                            x-struct:
-                            x-validate:
-                          started_at:
-                            format: date-time
-                            nullable: true
-                            type: string
-                            x-struct:
-                            x-validate:
-                        required:
-                          - id
-                          - kind
-                          - build_path
-                          - project_path
-                          - label
-                          - dependencies
-                        type: object
-                        x-struct:
-                        x-validate:
-                      maxItems: 20000
-                      type: array
-                      x-struct:
-                      x-validate:
-                    status:
-                      enum:
-                        - complete
-                        - partial
-                        - unavailable
-                      type: string
-                      x-struct:
-                      x-validate:
-                  required:
-                    - status
-                    - nodes
-                  type: object
                   x-struct:
                   x-validate:
                 git_branch:

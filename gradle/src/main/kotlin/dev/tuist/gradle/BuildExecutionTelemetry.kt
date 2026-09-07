@@ -1,6 +1,5 @@
 package dev.tuist.gradle
 
-import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.api.tasks.CacheableTask
@@ -11,9 +10,6 @@ import org.gradle.caching.internal.operations.BuildCacheRemoteStoreBuildOperatio
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.OperationFinishEvent
 import org.gradle.internal.taskgraph.CalculateTaskGraphBuildOperationType
-import org.gradle.internal.taskgraph.NodeIdentity
-import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
-import org.gradle.operations.dependencies.transforms.PlannedTransformStepIdentity
 import java.time.Instant
 
 data class TaskExecutionTelemetry(
@@ -29,22 +25,6 @@ data class TaskExecutionTelemetry(
     @SerializedName("remote_cache_download_duration_ms") val remoteCacheDownloadDurationMs: Long?,
     @SerializedName("remote_cache_upload_duration_ms") val remoteCacheUploadDurationMs: Long?
 )
-
-data class ExecutionNode(
-    val id: String,
-    val kind: String,
-    @SerializedName("build_path") val buildPath: String,
-    @SerializedName("project_path") val projectPath: String,
-    val label: String,
-    val dependencies: List<String>,
-    @SerializedName("must_run_after") val mustRunAfter: List<String> = emptyList(),
-    @SerializedName("should_run_after") val shouldRunAfter: List<String> = emptyList(),
-    @SerializedName("finalized_by") val finalizedBy: List<String> = emptyList(),
-    @SerializedName("duration_ms") val durationMs: Long? = null,
-    @SerializedName("started_at") val startedAt: String? = null
-)
-
-data class ExecutionGraph(val status: String, val nodes: List<ExecutionNode>)
 
 /**
  * Receives ordered completion events through Gradle's configuration-cache-aware
@@ -73,13 +53,7 @@ internal class BuildExecutionTelemetry {
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
-    private val nodes = linkedMapOf<String, ExecutionNode>()
-    private var edgeCount = 0
-    private val timings = mutableMapOf<String, Pair<Long, String>>()
     val tasks = mutableListOf<TaskOutcomeData>()
-    var graphCaptured = false
-        private set
-    var incomplete = false
     val requestedTasks = linkedSetOf<String>()
     var firstEventAt: Long? = null
         private set
@@ -145,7 +119,6 @@ internal class BuildExecutionTelemetry {
                     result.cachingDisabledReasonMessage, result.upToDateMessages.orEmpty().take(100),
                     result.isIncremental, work.lookup, work.lookupMs, work.downloadMs, work.uploadMs)
             ))
-            timings[taskId(details.buildPath, details.taskPath)] = duration to startedAt
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {
             operation.parentId?.id?.let { parent -> pending[parent] = (pending[parent] ?: CacheWork()).merge(work) }
@@ -153,70 +126,10 @@ internal class BuildExecutionTelemetry {
 
         if (result is CalculateTaskGraphBuildOperationType.Result) {
             requestedTasks.addAll(result.requestedTaskPaths)
-            val plan = result.getExecutionPlan(NodeIdentity.NodeType.values().toSet())
-            if (plan.size > MAX_NODES) {
-                incomplete = true
-            } else {
-                plan.forEach { node ->
-                    val identity = node.nodeIdentity
-                    val task = node as? CalculateTaskGraphBuildOperationType.PlannedTask
-                    val transform = identity as? PlannedTransformStepIdentity
-                    val taskIdentity = identity as? CalculateTaskGraphBuildOperationType.TaskIdentity
-                    val buildPath = taskIdentity?.buildPath ?: transform?.consumerBuildPath ?: ":"
-                    val label = taskIdentity?.taskPath ?: transform?.artifactName ?: identity.toString()
-                    val captured = ExecutionNode(
-                        id = nodeId(identity), kind = if (taskIdentity != null) "task" else "transform",
-                        buildPath = buildPath, projectPath = taskIdentity?.let { projectPath(it.taskPath) }
-                            ?: transform?.consumerProjectPath.orEmpty(), label = label,
-                        dependencies = node.nodeDependencies.map(::nodeId).distinct(),
-                        mustRunAfter = task?.mustRunAfter.orEmpty().map(::nodeId),
-                        shouldRunAfter = task?.shouldRunAfter.orEmpty().map(::nodeId),
-                        finalizedBy = task?.finalizedBy.orEmpty().map(::nodeId)
-                    )
-                    val previous = nodes[captured.id]
-                    val delta = edgeCount(captured) - (previous?.let(::edgeCount) ?: 0)
-                    if ((previous != null || nodes.size < MAX_NODES) && edgeCount + delta <= MAX_EDGES) {
-                        nodes[captured.id] = captured
-                        edgeCount += delta
-                    } else {
-                        incomplete = true
-                    }
-                }
-                graphCaptured = true
-            }
         }
-        if (details is ExecutePlannedTransformStepBuildOperationType.Details) {
-            timings[nodeId(details.plannedTransformStepIdentity)] = duration to Instant.ofEpochMilli(event.startTime).toString()
-        }
-    }
-
-    fun graph(): ExecutionGraph {
-        val captured = nodes.values.map { node ->
-            val timing = timings[node.id]
-            node.copy(durationMs = timing?.first, startedAt = timing?.second)
-        }
-        val missing = captured.any { node -> node.dependencies.any { it !in nodes } }
-        return ExecutionGraph(when {
-            incomplete || missing -> "partial"
-            graphCaptured -> "complete"
-            else -> "unavailable"
-        }, captured)
-    }
-
-    private fun edgeCount(node: ExecutionNode) = node.dependencies.size + node.mustRunAfter.size +
-        node.shouldRunAfter.size + node.finalizedBy.size
-
-    private fun nodeId(identity: NodeIdentity): String = when (identity) {
-        is CalculateTaskGraphBuildOperationType.TaskIdentity -> taskId(identity.buildPath, identity.taskPath)
-        is PlannedTransformStepIdentity -> "transform:${identity.transformStepNodeId}"
-        else -> { incomplete = true; "unknown:${identity}" }
     }
 
     companion object {
-        const val MAX_NODES = 20_000
-        const val MAX_EDGES = 100_000
-        private val identityJson = GsonBuilder().disableHtmlEscaping().create()
-        fun taskId(buildPath: String, taskPath: String): String = identityJson.toJson(listOf(buildPath, taskPath))
         fun projectPath(taskPath: String): String = taskPath.substringBeforeLast(':').ifEmpty { ":" }
     }
 }

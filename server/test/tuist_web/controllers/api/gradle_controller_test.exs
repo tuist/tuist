@@ -23,24 +23,6 @@ defmodule TuistWeb.API.GradleControllerTest do
     end
 
     test "execution telemetry survives ingestion and both read APIs", %{conn: conn, user: user, project: project} do
-      task_id = JSON.encode!([":included", ":core:compile"])
-
-      graph = %{
-        status: "complete",
-        nodes: [
-          %{
-            id: task_id,
-            kind: "task",
-            build_path: ":included",
-            project_path: ":core",
-            label: ":core:compile",
-            dependencies: [],
-            duration_ms: 300,
-            started_at: "2026-09-05T08:00:00Z"
-          }
-        ]
-      }
-
       execution = %{
         build_path: ":included",
         project_path: ":core",
@@ -58,7 +40,6 @@ defmodule TuistWeb.API.GradleControllerTest do
         status: "success",
         telemetry_version: 1,
         build_options: %{"max_workers" => "4"},
-        execution_graph: graph,
         tasks: [
           %{
             task_path: ":core:compile",
@@ -84,8 +65,6 @@ defmodule TuistWeb.API.GradleControllerTest do
       Buffer.flush()
       Tuist.Gradle.Task.Buffer.flush()
       response = conn |> get(path <> "/" <> id) |> json_response(200)
-      assert response["dependency_chain_duration_ms"] == 300
-      assert response["execution_graph"]["nodes"] |> hd() |> Map.fetch!("id") == task_id
       assert response["build_options"] == %{"max_workers" => "4"}
       assert hd(response["tasks"])["execution"]["incremental"] == true
 
@@ -94,26 +73,6 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       assert hd(tasks["tasks"])["execution"]["remote_cache_upload_duration_ms"] == 30
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
-    end
-
-    test "duplicate graph identities are rejected before writing", %{conn: conn, user: user, project: project} do
-      node = %{id: "same", kind: "task", build_path: ":", project_path: ":", label: ":compile", dependencies: []}
-
-      response =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/projects/#{user.account.name}/#{project.name}/gradle/builds",
-          JSON.encode!(%{
-            duration_ms: 100,
-            status: "success",
-            tasks: [],
-            execution_graph: %{status: "complete", nodes: [node, node]}
-          })
-        )
-        |> json_response(400)
-
-      assert response["message"] =~ "duplicate node IDs"
     end
 
     test "creates a build with tasks and returns the build ID", %{conn: conn, user: user, project: project} do

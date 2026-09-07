@@ -64,4 +64,4 @@ This directory contains the core business logic and domain modules for the serve
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
 
-- Gradle ingestion, bottleneck rankings and execution graphs: [Gradle server context](gradle/AGENTS.md).
+- Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).

@@ -15,7 +15,6 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.ConfigurationOperation
-  alias Tuist.Gradle.ExecutionGraph
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
 
@@ -42,8 +41,7 @@ defmodule Tuist.Gradle do
     * `{:ok, build_id}` on success
   """
   def create_build(attrs) do
-    with :ok <- BuildRun.validate_custom_metadata(Map.get(attrs, :custom_tags, []), Map.get(attrs, :custom_values, %{})),
-         :ok <- ExecutionGraph.validate(Map.get(attrs, :execution_graph)) do
+    with :ok <- BuildRun.validate_custom_metadata(Map.get(attrs, :custom_tags, []), Map.get(attrs, :custom_values, %{})) do
       now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
       build_id = attrs.id
       tasks = Map.get(attrs, :tasks, [])
@@ -76,7 +74,6 @@ defmodule Tuist.Gradle do
       account_id: attrs.account_id,
       telemetry_version: value_or(attrs, :telemetry_version, 0),
       build_options: value_or(attrs, :build_options, %{}),
-      execution_graph: JSON.encode!(Map.get(attrs, :execution_graph) || %{status: "unavailable", nodes: []}),
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
       gradle_version: value_or(attrs, :gradle_version, ""),

@@ -6,7 +6,6 @@ defmodule Tuist.IngestRepo.Migrations.AddGradleExecutionAnalytics do
     ALTER TABLE gradle_builds
       ADD COLUMN IF NOT EXISTS telemetry_version UInt16 DEFAULT 0,
       ADD COLUMN IF NOT EXISTS build_options Map(String, String) DEFAULT map(),
-      ADD COLUMN IF NOT EXISTS execution_graph String DEFAULT '',
       ADD COLUMN IF NOT EXISTS tasks_cache_hit_count UInt32 DEFAULT 0
     """
 
@@ -42,7 +41,6 @@ defmodule Tuist.IngestRepo.Migrations.AddGradleExecutionAnalytics do
     alter table(:gradle_builds) do
       remove :telemetry_version
       remove :build_options
-      remove :execution_graph
       remove :tasks_cache_hit_count
     end
   end

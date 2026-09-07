@@ -677,30 +677,6 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     |> JSON.decode!()
   end
 
-  test "build dependency exploration preserves identity and exposes actual cache reasons", context do
-    %{project: project, conn: conn, organization: organization} = context
-    core = node(":core:compile", 1000)
-    app = %{node(":app:compile", 200) | dependencies: [core.id]}
-
-    id =
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        telemetry_version: 1,
-        execution_graph: %{status: "complete", nodes: [core, app]},
-        tasks: [task(core.label, 1000), task(app.label, 200)]
-      )
-
-    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies"
-    {:ok, view, _} = live(conn, path)
-    assert has_element?(view, "#gradle-execution", "Longest dependency chain")
-    assert has_element?(view, ".graph-neighborhood", ":app:compile")
-    assert has_element?(view, ".graph-metadata", "miss")
-    assert has_element?(view, ".graph-reasons", "Input has changed")
-    render_patch(view, path <> "&node=" <> URI.encode_www_form(app.id))
-    assert has_element?(view, ".graph-focus", ":app:compile")
-    assert has_element?(view, ".graph-timeline-row", ":core:compile")
-  end
-
   test "malformed scalar filters are ignored in task list and detail", context do
     %{project: project, conn: conn, organization: organization} = context
     GradleFixtures.build_fixture(project_id: project.id, tasks: [task(":app:compile", 100)])
@@ -712,66 +688,6 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
       render_async(view, 3000)
       assert has_element?(view, "#bottleneck-executions [data-part=value]", "1")
     end
-  end
-
-  test "large dependency neighborhoods paginate all neighbors", context do
-    %{project: project, conn: conn, organization: organization} = context
-    core = node(":core:compile", 100)
-    consumers = Enum.map(1..60, &%{node(":consumer#{&1}:compile", 100) | dependencies: [core.id]})
-
-    id =
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        execution_graph: %{status: "complete", nodes: [core | consumers]},
-        tasks: []
-      )
-
-    path =
-      "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies&node=#{URI.encode_www_form(core.id)}"
-
-    {:ok, view, _} = live(conn, path)
-    selector = ".graph-neighborhood > div:last-child .graph-node"
-    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 25
-    assert has_element?(view, ".graph-neighborhood > div:last-child h3", "60")
-    view |> element("[data-pagination=dependents-page] a", "Next") |> render_click()
-    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 25
-    view |> element("[data-pagination=dependents-page] a", "Next") |> render_click()
-    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 10
-    assert has_element?(view, "[data-pagination=dependents-page]", "Page 3 of 3")
-
-    target = %{node(":all:compile", 100) | dependencies: Enum.map(consumers, & &1.id)}
-
-    id =
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        execution_graph: %{status: "complete", nodes: [core, target | consumers]},
-        tasks: []
-      )
-
-    {:ok, view, _} =
-      live(
-        conn,
-        "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies&node=#{URI.encode_www_form(target.id)}"
-      )
-
-    assert length(Floki.find(Floki.parse_fragment!(render(view)), ".graph-neighborhood > div:first-child .graph-node")) ==
-             25
-
-    assert has_element?(view, "[data-pagination=dependencies-page]", "Page 1 of 3")
-  end
-
-  test "legacy builds explain missing graphs without invented zero timings", context do
-    %{project: project, conn: conn, organization: organization} = context
-    id = GradleFixtures.build_fixture(project_id: project.id, tasks: [])
-
-    {:ok, view, _} =
-      live(
-        conn,
-        "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies"
-      )
-
-    assert render(view) =~ "A complete duration model is unavailable"
-    refute has_element?(view, ".graph-timeline-row")
   end
 
   defp task(path, duration) do
@@ -789,19 +705,6 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
         remote_cache_lookup_outcome: "miss",
         execution_reasons: ["Input has changed"]
       }
-    }
-  end
-
-  defp node(path, duration) do
-    %{
-      id: JSON.encode!([":", path]),
-      kind: "task",
-      build_path: ":",
-      project_path: Tuist.Gradle.task_project_path(path),
-      label: path,
-      duration_ms: duration,
-      started_at: "2026-09-05T08:00:00Z",
-      dependencies: []
     }
   end
 end

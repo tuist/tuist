@@ -123,7 +123,6 @@ data class BuildReportRequest(
     @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
     @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
-    @SerializedName("execution_graph") val executionGraph: ExecutionGraph? = null,
     @SerializedName("telemetry_version") val telemetryVersion: Int = 1,
     @SerializedName("build_options") val buildOptions: Map<String, String> = emptyMap()
 )
@@ -184,10 +183,8 @@ abstract class TuistBuildInsightsService :
             recordConfigurationCacheMetadata(finishEvent.result, finishEvent)
             recordArtifactTransform(buildOperation.details, finishEvent)
         } catch (error: LinkageError) {
-            executionTelemetry.incomplete = true
             logger.debug("Tuist: Build operation is unavailable on this Gradle version", error)
         } catch (error: Exception) {
-            executionTelemetry.incomplete = true
             logger.debug("Tuist: Could not capture build operation", error)
         }
     }
@@ -340,7 +337,6 @@ abstract class TuistBuildInsightsService :
             configurationCache = configurationCacheReport(),
             configurationOperations = configurationOperations.toList(),
             artifactTransforms = artifactTransforms.toList(),
-            executionGraph = executionTelemetry.graph(),
             buildOptions = parameters.buildOptions.getOrElse(emptyMap())
         )
 
@@ -419,7 +415,6 @@ internal fun buildReport(
     configurationCache: ConfigurationCacheReport? = null,
     configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
-    executionGraph: ExecutionGraph? = null,
     buildOptions: Map<String, String> = emptyMap()
 ): BuildReportRequest {
     val status = when {
@@ -460,7 +455,6 @@ internal fun buildReport(
         configurationCache = configurationCache,
         configurationOperations = configurationOperations,
         artifactTransforms = artifactTransforms,
-        executionGraph = executionGraph,
         buildOptions = buildOptions
     )
 }

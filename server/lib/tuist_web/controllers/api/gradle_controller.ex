@@ -4,7 +4,6 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
-  alias Tuist.Gradle.ExecutionGraph
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.GradleExecution
@@ -44,7 +43,6 @@ defmodule TuistWeb.API.GradleController do
          properties: %{
            id: %Schema{type: :string, nullable: true, description: "Client-provided build ID (UUID)."},
            telemetry_version: %Schema{type: :integer, minimum: 0, maximum: 65_535},
-           execution_graph: GradleExecution.graph(),
            build_options: GradleExecution.options(),
            duration_ms: %Schema{type: :integer, minimum: 0, description: "Build duration in milliseconds."},
            status: %Schema{type: :string, enum: ["success", "failure", "cancelled"], description: "Build status."},
@@ -247,11 +245,6 @@ defmodule TuistWeb.API.GradleController do
         |> put_status(:created)
         |> json(%{id: build_id})
 
-      {:error, :invalid_execution_graph} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "The execution graph exceeds its limits or contains duplicate node IDs."})
-
       {:error, _reason} ->
         conn
         |> put_status(:bad_request)
@@ -267,7 +260,6 @@ defmodule TuistWeb.API.GradleController do
       project_id: project.id,
       account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
       telemetry_version: body[:telemetry_version] || 0,
-      execution_graph: body[:execution_graph],
       build_options: body[:build_options] || %{},
       duration_ms: body.duration_ms,
       status: body.status,
@@ -532,9 +524,7 @@ defmodule TuistWeb.API.GradleController do
            properties: %{
              id: %Schema{type: :string, format: :uuid},
              telemetry_version: %Schema{type: :integer},
-             execution_graph: GradleExecution.graph(),
              build_options: GradleExecution.options(),
-             dependency_chain_duration_ms: %Schema{type: :integer, nullable: true},
              duration_ms: %Schema{type: :integer},
              status: %Schema{type: :string, enum: ["success", "failure", "cancelled"]},
              gradle_version: %Schema{type: :string, nullable: true},
@@ -605,7 +595,6 @@ defmodule TuistWeb.API.GradleController do
 
       {:ok, build} ->
         if build.project_id == project.id do
-          graph = ExecutionGraph.decode(build.execution_graph)
           tasks = Gradle.list_tasks(build_id)
           configuration_operations = Gradle.list_configuration_operations(build_id)
           artifact_transforms = Gradle.list_artifact_transforms(build_id)
@@ -613,9 +602,7 @@ defmodule TuistWeb.API.GradleController do
           json(conn, %{
             id: build.id,
             telemetry_version: build.telemetry_version,
-            execution_graph: graph,
             build_options: build.build_options,
-            dependency_chain_duration_ms: ExecutionGraph.analyze(graph).duration_ms,
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,

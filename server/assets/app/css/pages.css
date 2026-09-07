@@ -61,5 +61,3 @@
 @import "./pages/machine_metrics.css";
 @import "./pages/usage.css";
 @import "./pages/xcode_cache.css";
-
-@import "./pages/gradle_execution.css";

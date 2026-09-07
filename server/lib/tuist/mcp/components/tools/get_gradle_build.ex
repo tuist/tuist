@@ -10,11 +10,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
     schema: %{
       "type" => "object",
       "properties" => %{
-        "include_execution_graph" => %{
-          "type" => "boolean",
-          "description" =>
-            "Include the captured task/transform graph (default false). Dependencies and hard ordering model potential impact; this is not the actual critical path."
-        },
         "build_run_id" => %{
           "type" => "string",
           "description" => "The ID of the Gradle build run, or a Tuist dashboard URL."
@@ -45,9 +40,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
           "required" => ["tags", "values"],
           "additionalProperties" => false
         },
-        "execution_graph" => Tuist.MCP.GradleSchemas.graph(),
         "telemetry_version" => %{"type" => "integer"},
-        "dependency_chain_duration_ms" => %{"type" => ["integer", "null"]},
         "tasks_cache_hit_count" => %{"type" => "integer"},
         "build_options" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}},
         "tasks_local_hit_count" => %{"type" => "integer"},
@@ -74,9 +67,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "root_project_name",
         "requested_tasks",
         "custom_metadata",
-        "execution_graph",
         "telemetry_version",
-        "dependency_chain_duration_ms",
         "build_options",
         "tasks_cache_hit_count",
         "tasks_local_hit_count",
@@ -94,7 +85,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
     }
 
   alias Tuist.Gradle
-  alias Tuist.Gradle.ExecutionGraph
   alias Tuist.MCP.Formatter
   alias Tuist.MCP.Tool, as: MCPTool
 
@@ -114,14 +104,10 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
-      graph = ExecutionGraph.decode(build.execution_graph)
-
       {:ok,
        %{
          id: build.id,
-         execution_graph: if(args["include_execution_graph"] == true, do: graph),
          telemetry_version: build.telemetry_version,
-         dependency_chain_duration_ms: ExecutionGraph.analyze(graph).duration_ms,
          tasks_cache_hit_count: build.tasks_cache_hit_count,
          build_options: build.build_options,
          duration_ms: build.duration_ms,

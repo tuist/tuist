@@ -25,7 +25,7 @@ class BuildExecutionTelemetryIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = ["8.14.3", "9.2.1"])
-    fun `reports actual remote operations and graph on configuration cache reuse`(version: String) {
+    fun `reports actual remote operations on configuration cache reuse`(version: String) {
         val reports = LinkedBlockingQueue<JsonObject>()
         val artifacts = ConcurrentHashMap<String, ByteArray>()
         MockWebServer().use { server ->
@@ -113,11 +113,6 @@ class BuildExecutionTelemetryIntegrationTest {
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("remote_hit", cached["outcome"].asString)
             assertTrue(cached.getAsJsonObject("execution")["remote_cache_download_duration_ms"].asLong >= 0)
-            assertEquals("complete", warm.getAsJsonObject("execution_graph")["status"].asString)
-            val nodes = warm.getAsJsonObject("execution_graph").getAsJsonArray("nodes").map { it.asJsonObject }
-            val appNode = nodes.first { it["label"].asString == ":app:compileJava" }
-            assertTrue(appNode.getAsJsonArray("dependencies").size() >= 2)
-            assertNotNull(appNode["duration_ms"])
             assertTrue(cold["id"] != warm["id"], "Each configuration-cache reuse needs a fresh build identity")
 
             val (_, uncached) = run("--no-build-cache")
@@ -188,13 +183,6 @@ class BuildExecutionTelemetryIntegrationTest {
             val compile = tasks.filter { it["task_path"].asString == ":compile" }
             assertEquals(setOf(":", ":included&tools"), compile.map { it.getAsJsonObject("execution")["build_path"].asString }.toSet())
             assertEquals("failed", tasks.first { it["task_path"].asString == ":verify" }["outcome"].asString)
-            val graph = report.getAsJsonObject("execution_graph")
-            assertEquals("complete", graph["status"].asString)
-            val nodes = graph.getAsJsonArray("nodes").map { it.asJsonObject }
-            assertEquals(
-                setOf("""[":",":compile"]""", """[":included&tools",":compile"]"""),
-                nodes.filter { it["label"].asString == ":compile" }.map { it["id"].asString }.toSet()
-            )
         }
     }
 

@@ -102,7 +102,6 @@ defmodule TuistWeb.GradleBuildLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     socket
-    |> assign(:execution_params, params)
     |> assign(:selected_tab, selected_tab)
     |> assign(:uri, uri)
     |> assign_tab_data(selected_tab, params)
