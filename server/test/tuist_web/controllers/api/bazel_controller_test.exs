@@ -30,8 +30,27 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert invocation["git_branch"] == "feature/bazel"
       assert invocation["git_commit_sha"] == "abcdef"
       assert invocation["is_ci"]
+      assert invocation["bazel_version"] == "9.1.0"
+      assert invocation["cache_endpoint"] == "cache.tuist.dev"
       assert invocation["status"] == "success"
       assert invocation["duration_ms"] == 15_000
+      assert invocation["build_metrics"]["actions_created"] == 11
+
+      assert invocation["build_timeline"]["spans"] == [
+               %{
+                 "category" => "execution",
+                 "description" => "Compile //app:app",
+                 "duration_ms" => 1_000,
+                 "lane" => 0,
+                 "start_ms" => 500
+               }
+             ]
+
+      assert invocation["critical_path"] == %{
+               "actions" => [%{"description" => "Compile //app:app", "duration_ms" => 1_000}],
+               "duration_ms" => 1_000
+             }
+
       assert invocation["cache"]["hits"] == 1
       assert invocation["cache"]["misses"] == 1
       assert invocation["cache"]["download_bytes"] == 2048
@@ -45,6 +64,22 @@ defmodule TuistWeb.API.BazelControllerTest do
       conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations?status=failure")
 
       assert %{"invocations" => [%{"invocation_id" => "failed"}]} = json_response(conn, 200)
+    end
+
+    test "keeps a critical-path duration when Bazel reports no component actions", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_invocation(project, "invocation-1",
+        critical_path_action_descriptions: [],
+        critical_path_action_durations_ms: []
+      )
+
+      conn = get(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/invocations")
+
+      assert %{"invocations" => [%{"critical_path" => critical_path}]} = json_response(conn, 200)
+      assert critical_path == %{"actions" => [], "duration_ms" => 1_000}
     end
   end
 
@@ -124,6 +159,29 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert event["outcome"] == "hit"
       assert event["size"] == 2048
     end
+
+    test "filters cache events by operation and returns diagnostic context", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_cache_event(project, "invocation-1", "hit", 2048)
+      observed_at = ~U[2026-09-04 12:00:00.123000Z]
+      create_cache_event(project, "invocation-1", "write", 1024, operation: "cas", observed_at: observed_at)
+
+      conn =
+        get(
+          conn,
+          ~p"/api/projects/#{user.account.name}/#{project.name}/bazel/cache-events?operation=cas"
+        )
+
+      assert %{"cache_events" => [event], "pagination_metadata" => _} = json_response(conn, 200)
+      assert event["client_kind"] == "bazel"
+      assert event["operation"] == "cas"
+      assert event["outcome"] == "write"
+      assert event["cache_endpoint"] == "cache.tuist.dev"
+      assert event["observed_at"] == "2026-09-04T12:00:00.123Z"
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/bazel/cache-events/:cache_event_id" do
@@ -170,6 +228,23 @@ defmodule TuistWeb.API.BazelControllerTest do
         git_branch: "feature/bazel",
         git_commit_sha: "abcdef",
         is_ci: true,
+        bazel_version: "9.1.0",
+        cpu_time_ms: 1_250,
+        actions_created: 11,
+        actions_executed: 10,
+        targets_configured: 4,
+        packages_loaded: 2,
+        build_timeline_duration_ms: 15_000,
+        build_timeline_lanes: ["Execution lane 1"],
+        build_timeline_span_lanes: [0],
+        build_timeline_span_start_ms: [500],
+        build_timeline_span_durations_ms: [1_000],
+        build_timeline_span_categories: ["execution"],
+        build_timeline_span_descriptions: ["Compile //app:app"],
+        critical_path_duration_ms: Keyword.get(options, :critical_path_duration_ms, 1_000),
+        critical_path_action_descriptions:
+          Keyword.get(options, :critical_path_action_descriptions, ["Compile //app:app"]),
+        critical_path_action_durations_ms: Keyword.get(options, :critical_path_action_durations_ms, [1_000]),
         status: Keyword.get(options, :status, "success"),
         exit_code: Keyword.get(options, :exit_code, 0),
         started_at: started_at,
@@ -201,11 +276,11 @@ defmodule TuistWeb.API.BazelControllerTest do
     id
   end
 
-  defp create_cache_event(project, invocation_id, outcome, size) do
+  defp create_cache_event(project, invocation_id, outcome, size, options \\ []) do
     ReapiCache.create_cache_events([
       %{
         client_kind: "bazel",
-        operation: "action_cache",
+        operation: Keyword.get(options, :operation, "action_cache"),
         outcome: outcome,
         action_digest: "digest-#{outcome}-#{size}",
         size: size,
@@ -217,7 +292,8 @@ defmodule TuistWeb.API.BazelControllerTest do
         project_id: project.id,
         account_handle: project.account.name,
         project_handle: project.name,
-        cache_endpoint: "cache.tuist.dev"
+        cache_endpoint: "cache.tuist.dev",
+        observed_at: Keyword.get(options, :observed_at, DateTime.utc_now())
       }
     ])
   end

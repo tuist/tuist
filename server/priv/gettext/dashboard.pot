@@ -2633,14 +2633,14 @@ msgstr ""
 msgid "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:33
-#, elixir-autogen, elixir-format
-msgid "Invocations"
-msgstr ""
-
 #: lib/tuist_web/controllers/error_html.ex:112
 #, elixir-autogen, elixir-format
 msgid "503"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:33
+#, elixir-autogen, elixir-format
+msgid "Invocations"
 msgstr ""
 
 #: lib/tuist_web/plugs/loader_plug.ex:108
@@ -2671,4 +2671,14 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:245
 #, elixir-autogen, elixir-format
 msgid "Tasks"
+msgstr ""
+
+#: lib/tuist_web/components/error_card_section.ex:36
+#, elixir-autogen, elixir-format
+msgid "Something went wrong"
+msgstr ""
+
+#: lib/tuist_web/components/error_card_section.ex:39
+#, elixir-autogen, elixir-format
+msgid "We couldn't load the data. Reload the page and try again."
 msgstr ""

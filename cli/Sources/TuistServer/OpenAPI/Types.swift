@@ -67098,6 +67098,148 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/bazel_version`.
+                        public var bazel_version: Swift.String
+                        /// Build metrics reported by Bazel.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics`.
+                        public struct build_metricsPayload: Codable, Hashable, Sendable {
+                            /// Actions Bazel created while analyzing the requested targets.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/actions_created`.
+                            public var actions_created: Swift.Int
+                            /// Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/actions_executed`.
+                            public var actions_executed: Swift.Int
+                            /// Total central processing unit time in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/cpu_time_ms`.
+                            public var cpu_time_ms: Swift.Int
+                            /// Packages Bazel loaded.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/packages_loaded`.
+                            public var packages_loaded: Swift.Int
+                            /// Targets Bazel configured.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/targets_configured`.
+                            public var targets_configured: Swift.Int
+                            /// Creates a new `build_metricsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - actions_created: Actions Bazel created while analyzing the requested targets.
+                            ///   - actions_executed: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                            ///   - cpu_time_ms: Total central processing unit time in milliseconds.
+                            ///   - packages_loaded: Packages Bazel loaded.
+                            ///   - targets_configured: Targets Bazel configured.
+                            public init(
+                                actions_created: Swift.Int,
+                                actions_executed: Swift.Int,
+                                cpu_time_ms: Swift.Int,
+                                packages_loaded: Swift.Int,
+                                targets_configured: Swift.Int
+                            ) {
+                                self.actions_created = actions_created
+                                self.actions_executed = actions_executed
+                                self.cpu_time_ms = cpu_time_ms
+                                self.packages_loaded = packages_loaded
+                                self.targets_configured = targets_configured
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case actions_created
+                                case actions_executed
+                                case cpu_time_ms
+                                case packages_loaded
+                                case targets_configured
+                            }
+                        }
+                        /// Build metrics reported by Bazel.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics`.
+                        public var build_metrics: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_metricsPayload
+                        /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline`.
+                        public struct build_timelinePayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/duration_ms`.
+                            public var duration_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/lanes`.
+                            public var lanes: [Swift.String]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload`.
+                            public struct spansPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/category`.
+                                @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case analysis = "analysis"
+                                    case execution = "execution"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/category`.
+                                public var category: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload.categoryPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/description`.
+                                public var description: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/lane`.
+                                public var lane: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/start_ms`.
+                                public var start_ms: Swift.Int
+                                /// Creates a new `spansPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - category:
+                                ///   - description:
+                                ///   - duration_ms:
+                                ///   - lane:
+                                ///   - start_ms:
+                                public init(
+                                    category: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload.categoryPayload,
+                                    description: Swift.String,
+                                    duration_ms: Swift.Int,
+                                    lane: Swift.Int,
+                                    start_ms: Swift.Int
+                                ) {
+                                    self.category = category
+                                    self.description = description
+                                    self.duration_ms = duration_ms
+                                    self.lane = lane
+                                    self.start_ms = start_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case category
+                                    case description
+                                    case duration_ms
+                                    case lane
+                                    case start_ms
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spans`.
+                            public typealias spansPayload = [Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spans`.
+                            public var spans: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayload
+                            /// Creates a new `build_timelinePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration_ms:
+                            ///   - lanes:
+                            ///   - spans:
+                            public init(
+                                duration_ms: Swift.Int,
+                                lanes: [Swift.String],
+                                spans: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayload
+                            ) {
+                                self.duration_ms = duration_ms
+                                self.lanes = lanes
+                                self.spans = spans
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration_ms
+                                case lanes
+                                case spans
+                            }
+                        }
+                        /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline`.
+                        public var build_timeline: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache`.
                         public struct cachePayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache/download_bytes`.
@@ -67141,8 +67283,64 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache`.
                         public var cache: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.cachePayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache_endpoint`.
+                        public var cache_endpoint: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/command`.
                         public var command: Swift.String
+                        /// The critical path reported by Bazel, bounded to 32 actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path`.
+                        public struct critical_pathPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload`.
+                            public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload/description`.
+                                public var description: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// Creates a new `actionsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - description:
+                                ///   - duration_ms:
+                                public init(
+                                    description: Swift.String,
+                                    duration_ms: Swift.Int
+                                ) {
+                                    self.description = description
+                                    self.duration_ms = duration_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case description
+                                    case duration_ms
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actions`.
+                            public typealias actionsPayload = [Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actions`.
+                            public var actions: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/duration_ms`.
+                            public var duration_ms: Swift.Int
+                            /// Creates a new `critical_pathPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - actions:
+                            ///   - duration_ms:
+                            public init(
+                                actions: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayload,
+                                duration_ms: Swift.Int
+                            ) {
+                                self.actions = actions
+                                self.duration_ms = duration_ms
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case actions
+                                case duration_ms
+                            }
+                        }
+                        /// The critical path reported by Bazel, bounded to 32 actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path`.
+                        public var critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/exit_code`.
@@ -67171,8 +67369,13 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - bazel_version:
+                        ///   - build_metrics: Build metrics reported by Bazel.
+                        ///   - build_timeline: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
                         ///   - cache:
+                        ///   - cache_endpoint:
                         ///   - command:
+                        ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
                         ///   - duration_ms:
                         ///   - exit_code:
                         ///   - finished_at:
@@ -67184,8 +67387,13 @@ public enum Operations {
                         ///   - status:
                         ///   - target_patterns:
                         public init(
+                            bazel_version: Swift.String,
+                            build_metrics: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_metricsPayload,
+                            build_timeline: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload? = nil,
                             cache: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.cachePayload,
+                            cache_endpoint: Swift.String,
                             command: Swift.String,
+                            critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload? = nil,
                             duration_ms: Swift.Int,
                             exit_code: Swift.Int,
                             finished_at: Foundation.Date,
@@ -67197,8 +67405,13 @@ public enum Operations {
                             status: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.statusPayload,
                             target_patterns: [Swift.String]
                         ) {
+                            self.bazel_version = bazel_version
+                            self.build_metrics = build_metrics
+                            self.build_timeline = build_timeline
                             self.cache = cache
+                            self.cache_endpoint = cache_endpoint
                             self.command = command
+                            self.critical_path = critical_path
                             self.duration_ms = duration_ms
                             self.exit_code = exit_code
                             self.finished_at = finished_at
@@ -67211,8 +67424,13 @@ public enum Operations {
                             self.target_patterns = target_patterns
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case bazel_version
+                            case build_metrics
+                            case build_timeline
                             case cache
+                            case cache_endpoint
                             case command
+                            case critical_path
                             case duration_ms
                             case exit_code
                             case finished_at
@@ -68714,6 +68932,15 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/outcome`.
                 public var outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/operation`.
+                @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case action_cache = "action_cache"
+                    case cas = "cas"
+                }
+                /// Filter by action cache or content-addressable storage operation.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/operation`.
+                public var operation: Operations.listBazelCacheEvents.Input.Query.operationPayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -68721,16 +68948,19 @@ public enum Operations {
                 ///   - page: The page number to return.
                 ///   - invocation_id: Filter by Bazel invocation identifier.
                 ///   - outcome: Filter by cache outcome.
+                ///   - operation: Filter by action cache or content-addressable storage operation.
                 public init(
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
                     invocation_id: Swift.String? = nil,
-                    outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload? = nil
+                    outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload? = nil,
+                    operation: Operations.listBazelCacheEvents.Input.Query.operationPayload? = nil
                 ) {
                     self.page_size = page_size
                     self.page = page
                     self.invocation_id = invocation_id
                     self.outcome = outcome
+                    self.operation = operation
                 }
             }
             public var query: Operations.listBazelCacheEvents.Input.Query
@@ -68773,9 +69003,13 @@ public enum Operations {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/action_digest`.
                             public var action_digest: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/action_mnemonic`.
-                            public var action_mnemonic: Swift.String?
+                            public var action_mnemonic: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/cache_endpoint`.
+                            public var cache_endpoint: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/client_kind`.
+                            public var client_kind: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/configuration_id`.
-                            public var configuration_id: Swift.String?
+                            public var configuration_id: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/id`.
@@ -68784,6 +69018,15 @@ public enum Operations {
                             public var inserted_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/invocation_id`.
                             public var invocation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/observed_at`.
+                            public var observed_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/operation`.
+                            @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case action_cache = "action_cache"
+                                case cas = "cas"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/operation`.
+                            public var operation: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.operationPayload
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/outcome`.
                             @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case hit = "hit"
@@ -68795,39 +69038,51 @@ public enum Operations {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/size`.
                             public var size: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/target_label`.
-                            public var target_label: Swift.String?
+                            public var target_label: Swift.String
                             /// Creates a new `cache_eventsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - action_digest:
                             ///   - action_mnemonic:
+                            ///   - cache_endpoint:
+                            ///   - client_kind:
                             ///   - configuration_id:
                             ///   - duration_ms:
                             ///   - id:
                             ///   - inserted_at:
                             ///   - invocation_id:
+                            ///   - observed_at:
+                            ///   - operation:
                             ///   - outcome:
                             ///   - size:
                             ///   - target_label:
                             public init(
                                 action_digest: Swift.String,
-                                action_mnemonic: Swift.String? = nil,
-                                configuration_id: Swift.String? = nil,
+                                action_mnemonic: Swift.String,
+                                cache_endpoint: Swift.String,
+                                client_kind: Swift.String,
+                                configuration_id: Swift.String,
                                 duration_ms: Swift.Int,
                                 id: Swift.String,
                                 inserted_at: Foundation.Date,
                                 invocation_id: Swift.String,
+                                observed_at: Foundation.Date,
+                                operation: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.operationPayload,
                                 outcome: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.outcomePayload,
                                 size: Swift.Int,
-                                target_label: Swift.String? = nil
+                                target_label: Swift.String
                             ) {
                                 self.action_digest = action_digest
                                 self.action_mnemonic = action_mnemonic
+                                self.cache_endpoint = cache_endpoint
+                                self.client_kind = client_kind
                                 self.configuration_id = configuration_id
                                 self.duration_ms = duration_ms
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.invocation_id = invocation_id
+                                self.observed_at = observed_at
+                                self.operation = operation
                                 self.outcome = outcome
                                 self.size = size
                                 self.target_label = target_label
@@ -68835,11 +69090,15 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case action_digest
                                 case action_mnemonic
+                                case cache_endpoint
+                                case client_kind
                                 case configuration_id
                                 case duration_ms
                                 case id
                                 case inserted_at
                                 case invocation_id
+                                case observed_at
+                                case operation
                                 case outcome
                                 case size
                                 case target_label
@@ -69538,9 +69797,13 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/action_digest`.
                         public var action_digest: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/action_mnemonic`.
-                        public var action_mnemonic: Swift.String?
+                        public var action_mnemonic: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/cache_endpoint`.
+                        public var cache_endpoint: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/client_kind`.
+                        public var client_kind: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/configuration_id`.
-                        public var configuration_id: Swift.String?
+                        public var configuration_id: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/id`.
@@ -69549,6 +69812,15 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/invocation_id`.
                         public var invocation_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/observed_at`.
+                        public var observed_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/operation`.
+                        @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case action_cache = "action_cache"
+                            case cas = "cas"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/operation`.
+                        public var operation: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.operationPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/outcome`.
                         @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case hit = "hit"
@@ -69560,39 +69832,51 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/size`.
                         public var size: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/target_label`.
-                        public var target_label: Swift.String?
+                        public var target_label: Swift.String
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - action_digest:
                         ///   - action_mnemonic:
+                        ///   - cache_endpoint:
+                        ///   - client_kind:
                         ///   - configuration_id:
                         ///   - duration_ms:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - invocation_id:
+                        ///   - observed_at:
+                        ///   - operation:
                         ///   - outcome:
                         ///   - size:
                         ///   - target_label:
                         public init(
                             action_digest: Swift.String,
-                            action_mnemonic: Swift.String? = nil,
-                            configuration_id: Swift.String? = nil,
+                            action_mnemonic: Swift.String,
+                            cache_endpoint: Swift.String,
+                            client_kind: Swift.String,
+                            configuration_id: Swift.String,
                             duration_ms: Swift.Int,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             invocation_id: Swift.String,
+                            observed_at: Foundation.Date,
+                            operation: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.operationPayload,
                             outcome: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.outcomePayload,
                             size: Swift.Int,
-                            target_label: Swift.String? = nil
+                            target_label: Swift.String
                         ) {
                             self.action_digest = action_digest
                             self.action_mnemonic = action_mnemonic
+                            self.cache_endpoint = cache_endpoint
+                            self.client_kind = client_kind
                             self.configuration_id = configuration_id
                             self.duration_ms = duration_ms
                             self.id = id
                             self.inserted_at = inserted_at
                             self.invocation_id = invocation_id
+                            self.observed_at = observed_at
+                            self.operation = operation
                             self.outcome = outcome
                             self.size = size
                             self.target_label = target_label
@@ -69600,11 +69884,15 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case action_digest
                             case action_mnemonic
+                            case cache_endpoint
+                            case client_kind
                             case configuration_id
                             case duration_ms
                             case id
                             case inserted_at
                             case invocation_id
+                            case observed_at
+                            case operation
                             case outcome
                             case size
                             case target_label
@@ -72943,6 +73231,148 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload`.
                         public struct invocationsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/bazel_version`.
+                            public var bazel_version: Swift.String
+                            /// Build metrics reported by Bazel.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics`.
+                            public struct build_metricsPayload: Codable, Hashable, Sendable {
+                                /// Actions Bazel created while analyzing the requested targets.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/actions_created`.
+                                public var actions_created: Swift.Int
+                                /// Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/actions_executed`.
+                                public var actions_executed: Swift.Int
+                                /// Total central processing unit time in milliseconds.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/cpu_time_ms`.
+                                public var cpu_time_ms: Swift.Int
+                                /// Packages Bazel loaded.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/packages_loaded`.
+                                public var packages_loaded: Swift.Int
+                                /// Targets Bazel configured.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/targets_configured`.
+                                public var targets_configured: Swift.Int
+                                /// Creates a new `build_metricsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - actions_created: Actions Bazel created while analyzing the requested targets.
+                                ///   - actions_executed: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                                ///   - cpu_time_ms: Total central processing unit time in milliseconds.
+                                ///   - packages_loaded: Packages Bazel loaded.
+                                ///   - targets_configured: Targets Bazel configured.
+                                public init(
+                                    actions_created: Swift.Int,
+                                    actions_executed: Swift.Int,
+                                    cpu_time_ms: Swift.Int,
+                                    packages_loaded: Swift.Int,
+                                    targets_configured: Swift.Int
+                                ) {
+                                    self.actions_created = actions_created
+                                    self.actions_executed = actions_executed
+                                    self.cpu_time_ms = cpu_time_ms
+                                    self.packages_loaded = packages_loaded
+                                    self.targets_configured = targets_configured
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case actions_created
+                                    case actions_executed
+                                    case cpu_time_ms
+                                    case packages_loaded
+                                    case targets_configured
+                                }
+                            }
+                            /// Build metrics reported by Bazel.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics`.
+                            public var build_metrics: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_metricsPayload
+                            /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline`.
+                            public struct build_timelinePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/lanes`.
+                                public var lanes: [Swift.String]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload`.
+                                public struct spansPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/category`.
+                                    @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case analysis = "analysis"
+                                        case execution = "execution"
+                                    }
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/category`.
+                                    public var category: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload.categoryPayload
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/description`.
+                                    public var description: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/duration_ms`.
+                                    public var duration_ms: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/lane`.
+                                    public var lane: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/start_ms`.
+                                    public var start_ms: Swift.Int
+                                    /// Creates a new `spansPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - category:
+                                    ///   - description:
+                                    ///   - duration_ms:
+                                    ///   - lane:
+                                    ///   - start_ms:
+                                    public init(
+                                        category: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload.categoryPayload,
+                                        description: Swift.String,
+                                        duration_ms: Swift.Int,
+                                        lane: Swift.Int,
+                                        start_ms: Swift.Int
+                                    ) {
+                                        self.category = category
+                                        self.description = description
+                                        self.duration_ms = duration_ms
+                                        self.lane = lane
+                                        self.start_ms = start_ms
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case category
+                                        case description
+                                        case duration_ms
+                                        case lane
+                                        case start_ms
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spans`.
+                                public typealias spansPayload = [Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spans`.
+                                public var spans: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayload
+                                /// Creates a new `build_timelinePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration_ms:
+                                ///   - lanes:
+                                ///   - spans:
+                                public init(
+                                    duration_ms: Swift.Int,
+                                    lanes: [Swift.String],
+                                    spans: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayload
+                                ) {
+                                    self.duration_ms = duration_ms
+                                    self.lanes = lanes
+                                    self.spans = spans
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration_ms
+                                    case lanes
+                                    case spans
+                                }
+                            }
+                            /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline`.
+                            public var build_timeline: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache`.
                             public struct cachePayload: Codable, Hashable, Sendable {
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache/download_bytes`.
@@ -72986,8 +73416,64 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache`.
                             public var cache: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.cachePayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache_endpoint`.
+                            public var cache_endpoint: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/command`.
                             public var command: Swift.String
+                            /// The critical path reported by Bazel, bounded to 32 actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path`.
+                            public struct critical_pathPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload`.
+                                public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload/description`.
+                                    public var description: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload/duration_ms`.
+                                    public var duration_ms: Swift.Int
+                                    /// Creates a new `actionsPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - description:
+                                    ///   - duration_ms:
+                                    public init(
+                                        description: Swift.String,
+                                        duration_ms: Swift.Int
+                                    ) {
+                                        self.description = description
+                                        self.duration_ms = duration_ms
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case description
+                                        case duration_ms
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actions`.
+                                public typealias actionsPayload = [Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayloadPayload]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actions`.
+                                public var actions: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// Creates a new `critical_pathPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - actions:
+                                ///   - duration_ms:
+                                public init(
+                                    actions: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayload,
+                                    duration_ms: Swift.Int
+                                ) {
+                                    self.actions = actions
+                                    self.duration_ms = duration_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case actions
+                                    case duration_ms
+                                }
+                            }
+                            /// The critical path reported by Bazel, bounded to 32 actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path`.
+                            public var critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/exit_code`.
@@ -73016,8 +73502,13 @@ public enum Operations {
                             /// Creates a new `invocationsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - bazel_version:
+                            ///   - build_metrics: Build metrics reported by Bazel.
+                            ///   - build_timeline: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
                             ///   - cache:
+                            ///   - cache_endpoint:
                             ///   - command:
+                            ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
                             ///   - duration_ms:
                             ///   - exit_code:
                             ///   - finished_at:
@@ -73029,8 +73520,13 @@ public enum Operations {
                             ///   - status:
                             ///   - target_patterns:
                             public init(
+                                bazel_version: Swift.String,
+                                build_metrics: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_metricsPayload,
+                                build_timeline: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload? = nil,
                                 cache: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.cachePayload,
+                                cache_endpoint: Swift.String,
                                 command: Swift.String,
+                                critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload? = nil,
                                 duration_ms: Swift.Int,
                                 exit_code: Swift.Int,
                                 finished_at: Foundation.Date,
@@ -73042,8 +73538,13 @@ public enum Operations {
                                 status: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.statusPayload,
                                 target_patterns: [Swift.String]
                             ) {
+                                self.bazel_version = bazel_version
+                                self.build_metrics = build_metrics
+                                self.build_timeline = build_timeline
                                 self.cache = cache
+                                self.cache_endpoint = cache_endpoint
                                 self.command = command
+                                self.critical_path = critical_path
                                 self.duration_ms = duration_ms
                                 self.exit_code = exit_code
                                 self.finished_at = finished_at
@@ -73056,8 +73557,13 @@ public enum Operations {
                                 self.target_patterns = target_patterns
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case bazel_version
+                                case build_metrics
+                                case build_timeline
                                 case cache
+                                case cache_endpoint
                                 case command
+                                case critical_path
                                 case duration_ms
                                 case exit_code
                                 case finished_at

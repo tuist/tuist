@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-#MISE description="Fail when a marketing image exceeds its size budget"
+#MISE description="Fail when a marketing or app image exceeds its size budget"
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../.."
 
-readonly ROOT="server/priv/static/marketing/images"
+readonly ROOT="server/priv/static"
 
 # Static images are Largest Contentful Paint candidates: the marketing hero and
-# every blog post header render eagerly and above the fold. Animated GIFs are
+# every blog post header and the signup artwork render above the fold. Animated GIFs are
 # lazy and below the fold, so they get a looser budget, but they still land on
 # the reader's connection in full.
 readonly STATIC_MAX_KB=500
@@ -27,7 +27,7 @@ while IFS= read -r file; do
     printf '%s is %s KB, over the %s KB budget\n' "${file#"$ROOT"/}" "$size_kb" "$budget" >&2
     offenders=$((offenders + 1))
   fi
-done < <(find "$ROOT" -type f \( \
+done < <(find "$ROOT/marketing/images" "$ROOT/app/images" -type f \( \
   -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' -o \
   -name '*.webp' -o -name '*.gif' -o -name '*.avif' \
 \) | sort)
@@ -48,5 +48,5 @@ EOF
   exit 1
 fi
 
-total_mb=$(find "$ROOT" -type f -exec wc -c {} \; | awk '{ total += $1 } END { printf "%.1f", total / 1048576 }')
-echo "All marketing images are within budget (${total_mb} MB total)"
+total_mb=$(find "$ROOT/marketing/images" "$ROOT/app/images" -type f -exec wc -c {} \; | awk '{ total += $1 } END { printf "%.1f", total / 1048576 }')
+echo "All marketing and app images are within budget (${total_mb} MB total)"

@@ -49,6 +49,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
+    {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
@@ -57,7 +58,10 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
     {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
-    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker},
+    # Inert unless a second ClickHouse is configured and mirrored to, which is
+    # only true mid-migration (spec #73).
+    {"@hourly", Tuist.ClickHouse.Workers.ParityWorker}
   ]
 
   @database_artifact_retention_resource_types [

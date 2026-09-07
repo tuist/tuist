@@ -37,6 +37,24 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert invocation["git_branch"] == "feature/bazel"
     assert invocation["git_commit_sha"] == "abcdef"
     assert invocation["is_ci"]
+    assert invocation["bazel_version"] == "9.1.0"
+    assert invocation["build_metrics"]["actions_executed"] == 10
+
+    assert invocation["build_timeline"]["spans"] == [
+             %{
+               "category" => "execution",
+               "description" => "Compile //app:app",
+               "duration_ms" => 1_000,
+               "lane" => 0,
+               "start_ms" => 500
+             }
+           ]
+
+    assert invocation["critical_path"]["actions"] == [
+             %{"description" => "Compile //app:app", "duration_ms" => 1_000}
+           ]
+
+    assert invocation["cache_endpoint"] == "cache.tuist.dev"
     assert invocation["cache"]["hits"] == 1
     assert invocation["cache"]["invocation_id"] == nil
   end
@@ -53,6 +71,24 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
 
     assert %{"content" => [%{"type" => "text", "text" => text}]} = result
     assert %{"invocation_id" => "invocation-1", "cache" => %{"hits" => 0}} = JSON.decode!(text)
+  end
+
+  test "keeps a critical-path duration when Bazel reports no component actions", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    create_invocation(project, "invocation-1", critical_path_actions: false)
+
+    result =
+      GetBazelInvocation.call(conn, %{
+        "account_handle" => user.account.name,
+        "project_handle" => project.name,
+        "invocation_id" => "invocation-1"
+      })
+
+    assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+    assert %{"critical_path" => %{"actions" => [], "duration_ms" => 1_000}} = JSON.decode!(text)
   end
 
   test "lists and gets sanitized invocation logs", %{conn: conn, user: user, project: project} do
@@ -95,18 +131,37 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert message =~ "Bazel invocation log not found"
   end
 
-  test "lists raw cache events", %{conn: conn, user: user, project: project} do
+  test "lists raw cache events with diagnostic context and filters by operation", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
     create_cache_event(project, "invocation-1")
+    observed_at = ~U[2026-09-04 12:00:00.123000Z]
+    create_cache_event(project, "invocation-1", operation: "cas", outcome: "write", observed_at: observed_at)
 
     result =
       ListBazelCacheEvents.call(conn, %{
         "account_handle" => user.account.name,
         "project_handle" => project.name,
-        "invocation_id" => "invocation-1"
+        "invocation_id" => "invocation-1",
+        "operation" => "cas"
       })
 
     assert %{"content" => [%{"type" => "text", "text" => text}]} = result
-    assert %{"cache_events" => [%{"invocation_id" => "invocation-1", "outcome" => "hit"}]} = JSON.decode!(text)
+
+    assert %{
+             "cache_events" => [
+               %{
+                 "invocation_id" => "invocation-1",
+                 "client_kind" => "bazel",
+                 "operation" => "cas",
+                 "outcome" => "write",
+                 "cache_endpoint" => "cache.tuist.dev",
+                 "observed_at" => "2026-09-04T12:00:00.123Z"
+               }
+             ]
+           } = JSON.decode!(text)
   end
 
   test "gets a raw cache event", %{conn: conn, user: user, project: project} do
@@ -126,7 +181,7 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert event_id == event.id
   end
 
-  defp create_invocation(project, invocation_id) do
+  defp create_invocation(project, invocation_id, options \\ []) do
     Bazel.create_invocations([
       %{
         invocation_id: invocation_id,
@@ -135,6 +190,23 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         git_branch: "feature/bazel",
         git_commit_sha: "abcdef",
         is_ci: true,
+        bazel_version: "9.1.0",
+        cpu_time_ms: 1_250,
+        actions_created: 11,
+        actions_executed: 10,
+        targets_configured: 4,
+        packages_loaded: 2,
+        build_timeline_duration_ms: 15_000,
+        build_timeline_lanes: ["Execution lane 1"],
+        build_timeline_span_lanes: [0],
+        build_timeline_span_start_ms: [500],
+        build_timeline_span_durations_ms: [1_000],
+        build_timeline_span_categories: ["execution"],
+        build_timeline_span_descriptions: ["Compile //app:app"],
+        critical_path_duration_ms: 1_000,
+        critical_path_action_descriptions:
+          if(Keyword.get(options, :critical_path_actions, true), do: ["Compile //app:app"], else: []),
+        critical_path_action_durations_ms: if(Keyword.get(options, :critical_path_actions, true), do: [1_000], else: []),
         status: "success",
         exit_code: 0,
         started_at: ~N[2023-11-14 22:13:20],
@@ -166,13 +238,16 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     id
   end
 
-  defp create_cache_event(project, invocation_id) do
+  defp create_cache_event(project, invocation_id, options \\ []) do
+    operation = Keyword.get(options, :operation, "action_cache")
+    outcome = Keyword.get(options, :outcome, "hit")
+
     ReapiCache.create_cache_events([
       %{
         client_kind: "bazel",
-        operation: "action_cache",
-        outcome: "hit",
-        action_digest: "action-hit",
+        operation: operation,
+        outcome: outcome,
+        action_digest: "#{operation}-#{outcome}",
         size: 2048,
         duration_ms: 10,
         invocation_id: invocation_id,
@@ -182,7 +257,8 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         project_id: project.id,
         account_handle: project.account.name,
         project_handle: project.name,
-        cache_endpoint: "cache.tuist.dev"
+        cache_endpoint: "cache.tuist.dev",
+        observed_at: Keyword.get(options, :observed_at, DateTime.utc_now())
       }
     ])
   end

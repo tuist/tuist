@@ -40,6 +40,14 @@
     margin-top: var(--noora-spacing-7);
   }
 
+  /* A list item is not a prose child, so the rule above reaches nothing
+     nested in one. Code blocks and callouts both render as bare divs
+     with no margin of their own, so without this they sit flush against
+     the text they follow. */
+  & li > * + * {
+    margin-top: var(--noora-spacing-5);
+  }
+
   & p + p {
     margin-top: var(--noora-spacing-7);
   }

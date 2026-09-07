@@ -19995,6 +19995,13 @@ public struct Client: APIProtocol {
                     name: "outcome",
                     value: input.query.outcome
                 )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "operation",
+                    value: input.query.operation
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept

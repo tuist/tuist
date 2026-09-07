@@ -11,6 +11,10 @@
 #
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
+#     200 carrying ONE provider's credential set. GitHub sends
+#       `encoded_jit_config`; Buildkite sends `buildkite_acquisition_token`
+#       plus `buildkite_job_uuid`, and the agent launched below is chosen
+#       on which is present.
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
 #                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
 #       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
@@ -826,7 +830,13 @@ cas_store_dirs() {
 #
 # The teardown call site applies an rc gate; the attach one does not need it
 # (nothing has been drained yet because nothing has been written yet).
+#
+# `$1` names the call site and is echoed into every line this emits. The two
+# passes are otherwise indistinguishable in the logs, and telling them apart is
+# what says whether an account is being saved on the way IN (it inherited a
+# store over budget) or merely kept tidy on the way OUT.
 prune_cas_stores() {
+  local when="${1:-teardown}"
   [ -n "${CACHE_MOUNT}" ] || return 0
   local stores
   stores=$(cas_store_dirs)
@@ -872,11 +882,29 @@ prune_cas_stores() {
     # `--prune` and falls through to its SERVE path, which unlinks the machine's
     # socket and binds its own — killing the live proxy from a teardown script.
     # Without that variable it exits before reaching the bind, every time.
-    if env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
-      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}"; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned: ${store} (limit ${budget}B/generation)"
+    # Captured rather than left to stream: the client reports the bytes it
+    # freed and which route it took, and both belong ON this line. Loose on
+    # stderr they land in the runner's own multi-MB log, attributable to
+    # neither the store nor the pass that produced them.
+    local output reclaimed via
+    if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
+      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
+      # 0 is the ordinary healthy answer — a store inside its budget has no
+      # generation to collect — so it must stay distinguishable from "no figure
+      # reported", which would mean the client changed under us.
+      reclaimed=$(printf '%s\n' "${output}" | sed -n 's/.*reclaiming \([0-9][0-9]*\) bytes.*/\1/p' | tail -1)
+      # Which path actually ran. A store the proxy holds can ONLY be rotated
+      # through the proxy, so a `local` route on the plugin lane is the shape of
+      # a prune that collected nothing while reporting success.
+      case "${output}" in
+        *"proxy pruned"*) via="proxy" ;;
+        *"holds no handle"*) via="local, proxy holds no handle" ;;
+        *"could not ask the proxy"*) via="local, no proxy" ;;
+        *) via="local" ;;
+      esac
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
     else
-      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store ${store}"
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store (${when}) ${store}: ${output}"
     fi
   done <<EOF
 ${stores}
@@ -936,7 +964,7 @@ wait_for_cache_ready() {
       # Deliberately not time-bounded. It delays the job's start only by what it
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
-      prune_cas_stores
+      prune_cas_stores attach
       return 0
     fi
     sleep 1
@@ -1343,8 +1371,15 @@ while true; do
       # optional whitespace lets a future pretty-printer not
       # break this path.
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -z "${jit}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
+      # Buildkite's counterpart. The server sends one credential set or
+      # the other, never both, so which key is present is what selects
+      # the agent to launch further down. Same value-safety as the JIT:
+      # a `bkjat_` token and a UUID are both opaque ASCII with no quotes.
+      bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
       fi
@@ -1375,6 +1410,39 @@ while true; do
       if [ -n "${cache_grant}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
+      fi
+      # The GitHub runner inherits this process's environment, so exporting
+      # is enough there. The Buildkite agent sanitizes the job environment
+      # instead, so anything the build needs has to be re-exported from
+      # inside a hook — which can only read what is on disk.
+      if [ -n "${bk_token}" ]; then
+        # This script runs as `runner`, and a shell redirect into /etc is
+        # performed by the shell as that user, not by sudo — so writing
+        # the file directly fails with EACCES. It did, silently, and the
+        # pre-exit hook then found no credential and skipped reporting
+        # while the job itself passed: the run looked fine on Buildkite
+        # and arrived on the dashboard with no logs and no conclusion.
+        #
+        # `sudo tee` puts the privileged process on the writing side, and
+        # the outcome is checked rather than discarded.
+        job_env_tmp=$(mktemp)
+        {
+          [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
+          [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+          # The credential the pre-exit hook reports with. Job-scoped, so
+          # unlike the SA token it can only write this job's log and
+          # declare this job's outcome — which is why the hook may read it
+          # from inside the job at all.
+          printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
+          printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+        } >"${job_env_tmp}"
+        if sudo tee /etc/tuist-runner-job.env <"${job_env_tmp}" >/dev/null 2>&1; then
+          sudo chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: staged buildkite job env for the hooks"
+        else
+          echo "$(date -u +%FT%TZ) dispatch-poll: FAILED to stage /etc/tuist-runner-job.env; the job will run but report no logs or outcome"
+        fi
+        rm -f "${job_env_tmp}"
       fi
       # Stage the account's volume HEAD for the host to converge a stale master
       # toward before it materializes into this VM's branch.
@@ -1480,6 +1548,33 @@ HOOK
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
+      if [ -n "${bk_token}" ]; then
+        # Buildkite needs none of the idle-watchdog machinery below. The
+        # acquisition token names one job UUID, so the assignment already
+        # happened server-side before this VM was handed anything: the
+        # agent either takes that job or exits. There is no window in
+        # which a registered agent sits waiting to be given work, which
+        # is the whole hazard the GitHub watchdog exists to bound.
+        #
+        # `--enable-job-log-tmpfile` is what makes the log ours to ship.
+        # The agent writes the job's output verbatim to the path it
+        # exports as BUILDKITE_JOB_LOG_TMPFILE, and the global pre-exit
+        # hook posts it to the server while the file still exists (the
+        # agent removes it when the job ends).
+        export BUILDKITE_AGENT_TOKEN="${bk_token}"
+        export BUILDKITE_AGENT_ACQUIRE_JOB="${bk_job_uuid}"
+        echo "$(date -u +%FT%TZ) dispatch-poll: acquiring buildkite job ${bk_job_uuid}"
+        /opt/tuist/buildkite-agent start \
+          --name "$(hostname)" \
+          --hooks-path /opt/tuist/buildkite-hooks \
+          --build-path /Users/runner/work \
+          --enable-job-log-tmpfile \
+          --job-log-path /var/log/tuist-runner \
+          --disconnect-after-job &
+        runner_pid=$!
+        wait "${runner_pid}"
+        rc=$?
+      else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
@@ -1524,6 +1619,7 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      fi
       # Cache teardown. The order here is load-bearing:
       #   0. wait for the compilation cache's asynchronous publications to reach
       #      the remote, while the spool is still mounted and the publisher can
@@ -1570,7 +1666,7 @@ HOOK
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
       if [ "${rc}" = "0" ]; then
-        prune_cas_stores
+        prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
       # (the host must be handed a settled file either way) but the reporting
