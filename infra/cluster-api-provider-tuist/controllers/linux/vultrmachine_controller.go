@@ -112,6 +112,20 @@ type VultrMachineReconciler struct {
 
 	// DefaultRegion fills a spec that left it empty.
 	DefaultRegion string
+
+	// runScript is the SSH runner the conversion stage uses. A seam rather than a
+	// direct call because the conversion is the one stage with no counterpart in
+	// the other kinds, and it is what stands between a box and hosting unbounded
+	// cache volumes, so it is worth being able to test without a box. Nil uses
+	// runScriptOverSSH.
+	runScript func(ctx context.Context, user, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) (string, error)
+}
+
+func (r *VultrMachineReconciler) runner() func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
+	if r.runScript != nil {
+		return r.runScript
+	}
+	return runScriptOverSSH
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vultrmachines,verbs=get;list;watch;create;update;patch;delete
@@ -386,7 +400,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 		known = creds.HostFingerprint
 	}
 	hk := bootstrap.NewHostKeyState(known)
-	out, err := runScriptOverSSH(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
+	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
 	if observed := hk.Observed(); observed != "" && observed != known {
 		if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
 			logger.Error(perr, "persist host fingerprint; will retry")
