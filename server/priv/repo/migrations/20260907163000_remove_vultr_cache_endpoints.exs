@@ -12,18 +12,8 @@ defmodule Tuist.Repo.Migrations.RemoveVultrCacheEndpoints do
     execute "DELETE FROM cache_endpoints WHERE url = '#{@url}'"
   end
 
-  def down do
-    if Tuist.Environment.tuist_hosted?() and Tuist.Environment.env() == :prod do
-      now =
-        DateTime.utc_now()
-        |> DateTime.truncate(:second)
-        |> DateTime.to_naive()
-        |> NaiveDateTime.to_iso8601()
-
-      execute """
-      INSERT INTO cache_endpoints (id, url, display_name, enabled, inserted_at, updated_at)
-      VALUES (gen_random_uuid(), '#{@url}', 'South America West', true, '#{now}', '#{now}')
-      """
-    end
-  end
+  # Irreversible: the machines behind these endpoints are destroyed, so restoring
+  # the row would publish an endpoint that resolves to nothing and cost every
+  # client a probe timeout during endpoint selection.
+  def down, do: :ok
 end
