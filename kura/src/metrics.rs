@@ -182,6 +182,8 @@ pub struct MetricsInner {
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
     memory_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_reserved_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -751,6 +753,8 @@ impl Metrics {
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
         let memory_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_reserved_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -1547,6 +1551,16 @@ impl Metrics {
             memory_transient_capacity_bytes.clone(),
         );
         registry.register(
+            "kura_memory_elastic_transient_capacity_bytes",
+            "Ceiling headroom above the floor-derived transient budget, lent to remote-execution write decoding while memory pressure is normal. Zero when no floor is published, because the budget is already the whole headroom",
+            memory_elastic_transient_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_memory_elastic_transient_reserved_bytes",
+            "Borrowed ceiling headroom currently held. Non-zero means writes are outgrowing the pod's floor and are being served from headroom rather than shed; sustained residency is the signal to raise the account's memory profile",
+            memory_elastic_transient_reserved_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1859,6 +1873,8 @@ impl Metrics {
                 memory_protection_low_bytes,
                 memory_transient_reserved_bytes,
                 memory_transient_capacity_bytes,
+                memory_elastic_transient_capacity_bytes,
+                memory_elastic_transient_reserved_bytes,
                 foreground_memory_waiters,
                 response_stream_pool_capacity_bytes,
                 response_stream_foreground_pool_capacity_bytes,
@@ -2823,9 +2839,20 @@ impl Metrics {
             .set(reserved_bytes as i64);
     }
 
-    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+    pub fn update_transient_memory_capacity(
+        &self,
+        capacity_bytes: u64,
+        elastic_capacity_bytes: u64,
+    ) {
         self.memory_transient_capacity_bytes
             .set(capacity_bytes as i64);
+        self.memory_elastic_transient_capacity_bytes
+            .set(elastic_capacity_bytes as i64);
+    }
+
+    pub fn update_elastic_transient_reserved(&self, reserved_bytes: u64) {
+        self.memory_elastic_transient_reserved_bytes
+            .set(reserved_bytes as i64);
     }
 
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {

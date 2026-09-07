@@ -791,6 +791,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                 state
                     .metrics
                     .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+                state.metrics.update_elastic_transient_reserved(
+                    state.memory.elastic_transient_reserved_bytes(),
+                );
 
                 let pressure = state.memory.pressure();
                 let snapshot_target = state
