@@ -17,6 +17,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildSteps do
       add :start_ms, :Float64, null: false
       add :duration_ms, :Float64, null: false
       add :status, :String, null: false
+      add :log, :String, default: ""
+      add :log_truncated, :Bool, default: false
       add :inserted_at, :DateTime, null: false
     end
   end

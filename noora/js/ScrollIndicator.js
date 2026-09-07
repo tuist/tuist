@@ -5,6 +5,7 @@ export function bindScrollIndicator(
   track,
   thumb,
   axis = "horizontal",
+  { autoUpdate = true } = {},
 ) {
   const horizontal = axis === "horizontal";
   const position = horizontal ? "scrollLeft" : "scrollTop";
@@ -36,7 +37,7 @@ export function bindScrollIndicator(
     thumb.style[size] = `${thumbSize}px`;
     thumb.style.transform = `translate${horizontal ? "X" : "Y"}(${offset}px)`;
   };
-  on(viewport, "scroll", update);
+  if (autoUpdate) on(viewport, "scroll", update);
   on(thumb, "pointerdown", (event) => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -75,7 +76,7 @@ export function bindScrollIndicator(
       viewport[position] =
         ((event[coordinate] - origin - thumbSize / 2) / travel) * overflow;
   });
-  update();
+  if (autoUpdate) update();
   return {
     update,
     destroy: () => {

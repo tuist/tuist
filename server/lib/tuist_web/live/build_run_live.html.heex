@@ -217,17 +217,10 @@
         </:loading>
         <:failed>
           <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
-            <.card_section>
-              <.table_empty_state title={
-                dgettext(
-                  "dashboard_builds",
-                  "The timeline could not be loaded. Please try again."
-                )
-              } />
-            </.card_section>
+            <.error_card_section data-part="timeline-error" />
           </.card>
         </:failed>
-        <.build_timeline timeline={timeline} duration={@run.duration} />
+        <.build_timeline timeline={timeline} duration={@run.duration} version={@timeline_version} />
       </.async_result>
     </section>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>

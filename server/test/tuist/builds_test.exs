@@ -30,6 +30,27 @@ defmodule Tuist.BuildsTest do
       assert %{events: [%{title: "Other.swift"}]} = Builds.build_timeline(other.id)
     end
 
+    test "fills optional step metadata and retains records across ingestion batches" do
+      steps = for id <- 1..501, do: %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success"}
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: stored} = Builds.build_timeline(build.id)
+      assert length(stored) == 501
+      assert Enum.all?(stored, &(&1.target == "" and &1.project == "" and &1.category == ""))
+      assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
+    end
+
+    test "the timeline display limit does not discard reusable build steps" do
+      steps =
+        for id <- 1..50_001 do
+          %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: events, truncated: true} = Builds.build_timeline(build.id)
+      assert length(events) == 50_000
+      assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
+    end
+
     test "fetches logs separately and scopes them to their build" do
       event = %{
         event_id: 3,

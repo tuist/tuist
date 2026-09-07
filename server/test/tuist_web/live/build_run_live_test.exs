@@ -51,20 +51,95 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(lv, "#timeline-status")
     refute has_element?(lv, "[data-control=zoom-in]")
     refute has_element?(lv, "[data-control=pan]")
-    [encoded] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-events")
-    assert [%{"title" => "Compile <App>.swift", "start_ms" => 100.0}] = JSON.decode!(encoded)
-    refute encoded =~ "cd /workspace"
-    socket = %Phoenix.LiveView.Socket{assigns: %{run: build}}
+    refute has_element?(lv, "#build-timeline[data-events]")
+    refute render(lv) =~ "Compile &lt;App&gt;.swift"
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    version = String.to_integer(version)
+    timeline = Tuist.Builds.build_timeline(build.id)
 
-    assert {:reply, %{log: %{log: "EmitSwiftModule normal arm64\ncd /workspace", log_truncated: false}}, ^socket} =
-             TuistWeb.BuildRunLive.handle_event(
-               "load-timeline-log",
-               %{"event_id" => 1, "build_run_id" => Ecto.UUID.generate()},
-               socket
-             )
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{timeline_version: version, timeline: Phoenix.LiveView.AsyncResult.ok(timeline)}
+    }
 
-    assert {:reply, %{log: nil}, ^socket} =
+    assert {:reply, %{timeline: ^timeline}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version}, socket)
+
+    assert {:reply, %{error: true}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version - 1}, socket)
+
+    refute Map.has_key?(hd(timeline.events), :log)
+
+    render_hook(lv, "load-timeline-log", %{"event_id" => 1, "request_id" => 1, "build_run_id" => Ecto.UUID.generate()})
+    render_async(lv)
+
+    assert_push_event(lv, "timeline-log", %{
+      request_id: 1,
+      log: %{log: "EmitSwiftModule normal arm64\ncd /workspace", log_truncated: false}
+    })
+
+    assert {:reply, %{error: true}, ^socket} =
              TuistWeb.BuildRunLive.handle_event("load-timeline-log", %{"event_id" => -1}, socket)
+
+    render_patch(
+      lv,
+      ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
+    )
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[data-version='#{version}']")
+  end
+
+  test "log loading stays asynchronous and superseded requests do not update the inspector", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+
+    render_async(lv)
+    owner = self()
+
+    stub(Tuist.Builds, :build_step_log, fn _, id ->
+      if id == 1 do
+        send(owner, {:log_started, self()})
+
+        receive do
+          :release -> %{log: "Stale", log_truncated: false}
+        end
+      else
+        %{log: "Latest", log_truncated: false}
+      end
+    end)
+
+    render_hook(lv, "load-timeline-log", %{event_id: 1, request_id: 11})
+    assert_receive {:log_started, task}
+    monitor = Process.monitor(task)
+
+    render_patch(
+      lv,
+      ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
+    )
+
+    render_hook(lv, "load-timeline-log", %{event_id: 2, request_id: 12})
+    assert_receive {:DOWN, ^monitor, :process, ^task, _}
+    render_async(lv)
+    assert_push_event(lv, "timeline-log", %{request_id: 12, log: %{log: "Latest", log_truncated: false}})
+    refute_push_event(lv, "timeline-log", %{request_id: 11})
+  end
+
+  @tag :capture_log
+  test "timeline query failures use the shared error panel", %{conn: conn, organization: organization, project: project} do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+    stub(Tuist.Builds, :build_timeline, fn _ -> raise "query failed" end)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+
+    render_async(lv)
+    assert has_element?(lv, "[data-part=timeline-error][data-error]")
   end
 
   test "shows an explicit empty timeline for older builds", %{conn: conn, organization: organization, project: project} do

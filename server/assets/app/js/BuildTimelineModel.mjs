@@ -21,6 +21,7 @@ export function normalizeEvents(events) {
       ...event,
       end: event.start_ms + event.duration_ms,
       kind: categoryFor(event.category),
+      searchText: `${event.title} ${event.target} ${event.project}`.toLowerCase(),
     }))
     .sort((a, b) => a.start_ms - b.start_ms || a.event_id - b.event_id);
 }

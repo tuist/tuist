@@ -202,19 +202,29 @@ defmodule Tuist.Builds do
   defp create_build_steps(build, steps) do
     inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
 
-    entries =
-      Enum.map(steps, fn step ->
-        step
-        |> Map.take([:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
-        |> Map.merge(%{
-          build_run_id: build.id,
-          inserted_at: inserted_at,
-          log: Map.get(step, :log, ""),
-          log_truncated: Map.get(step, :log_truncated, false)
-        })
-      end)
+    steps
+    |> Stream.chunk_every(500)
+    |> Enum.each(fn batch ->
+      entries = Enum.map(batch, &build_step_entry(build.id, inserted_at, &1))
+      Step.Buffer.insert_all(entries)
+    end)
+  end
 
-    Step.Buffer.insert_all(entries)
+  defp build_step_entry(build_run_id, inserted_at, step) do
+    %{
+      build_run_id: build_run_id,
+      event_id: step.event_id,
+      title: step.title,
+      target: Map.get(step, :target, ""),
+      project: Map.get(step, :project, ""),
+      category: Map.get(step, :category, ""),
+      start_ms: step.start_ms,
+      duration_ms: step.duration_ms,
+      status: step.status,
+      inserted_at: inserted_at,
+      log: Map.get(step, :log, ""),
+      log_truncated: Map.get(step, :log_truncated, false)
+    }
   end
 
   def build_timeline(build_run_id) do

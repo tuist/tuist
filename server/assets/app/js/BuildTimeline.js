@@ -1,3 +1,4 @@
+import { debounce, hitInLane, nextStep } from "./BuildTimelineInteractions.mjs";
 import { bindInspectorResize } from "./BuildTimelineResize.mjs";
 import { bindScrollIndicator } from "noora";
 import {
@@ -15,14 +16,39 @@ import {
 import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
 import { bindDragFocus } from "./BuildTimelineFocus.mjs";
 
+let nextLogRequest = 0;
+
 export default {
   mounted() {
-    this.payload = this.el.dataset.events;
-    this.events = normalizeEvents(JSON.parse(this.payload));
-    this.duration = Math.max(Number(this.el.dataset.duration) || 1, ...this.events.map((e) => e.end));
-    this.range = { start: 0, span: this.duration };
-    this.logRequest = 0;
+    this.payload = this.el.dataset.version;
     this.abort = new AbortController();
+    this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
+    const signal = this.abort.signal;
+    this.pushEvent("load-timeline", { version: Number(this.payload) })
+      .then(({ timeline }) => {
+        if (signal.aborted) return;
+        if (!timeline) throw new Error("Timeline unavailable");
+        this.initialize(timeline.events);
+      })
+      .catch(() => {
+        if (signal.aborted) return;
+        this.part("payload-loading").hidden = true;
+        this.part("payload-error").hidden = false;
+      });
+  },
+
+  initialize(events) {
+    this.events = normalizeEvents(events);
+    this.duration = this.events.reduce((end, event) => Math.max(end, event.end), Number(this.el.dataset.duration) || 1);
+    this.range = { start: 0, span: this.duration };
+    this.logRequest = ++nextLogRequest;
+    this.palette = null;
+    this.part("payload-loading").hidden = true;
+    this.part("payload-error").hidden = true;
+    this.part("timeline-content").hidden = false;
+    this.part("summary").hidden = false;
+    this.requestLog = debounce((event, request) => this.loadLog(event, request), 150, this.abort.signal);
+    this.logHandler = this.handleEvent("timeline-log", (response) => this.receiveLog(response));
     const on = (el, name, fn) => el.addEventListener(name, fn, { signal: this.abort.signal });
     this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
     this.control = (name) => this.el.querySelector(`[data-control="${name}"]`);
@@ -68,7 +94,11 @@ export default {
     this.el.querySelector('[data-stat="targets"]').textContent = new Set(
       this.events.filter((e) => e.target).map((e) => JSON.stringify([e.project, e.target])),
     ).size;
-    on(this.control("search"), "input", () => this.filter());
+    on(
+      this.control("search"),
+      "input",
+      debounce(() => this.filter(), 150, this.abort.signal),
+    );
     bindPinchZoom(
       this.part("timeline-chart"),
       (factor, event) => {
@@ -92,7 +122,14 @@ export default {
       }
       this.scheduleDraw();
     });
-    on(window, "changed-preferred-theme", () => this.scheduleDraw());
+    const resetPalette = () => {
+      this.palette = null;
+      this.scheduleDraw();
+    };
+    on(window, "changed-preferred-theme", resetPalette);
+    if (document.fonts) {
+      on(document.fonts, "loadingdone", resetPalette);
+    }
     on(this.chart, "click", (e) => this.select(this.hit(e)));
     on(this.chart, "dblclick", (e) => this.focusStep(this.hit(e)));
     on(this.chart, "mousemove", (e) => this.hover(e));
@@ -118,7 +155,7 @@ export default {
   },
 
   updated() {
-    if (this.payload !== this.el.dataset.events) {
+    if (this.payload !== this.el.dataset.version) {
       this.destroyed();
       this.frame = null;
       this.mounted();
@@ -126,20 +163,24 @@ export default {
   },
 
   destroyed() {
-    this.cancelFocus();
-    this.logRequest++;
+    this.cancelFocus?.();
+    this.logRequest = ++nextLogRequest;
     this.abort.abort();
-    for (const indicator of this.scrollIndicators) {
+    if (this.logHandler) this.removeHandleEvent(this.logHandler);
+    this.logHandler = null;
+    for (const indicator of this.scrollIndicators || []) {
       indicator.destroy();
       indicator.track.remove();
     }
-    this.resize.disconnect();
+    this.resize?.disconnect();
+    this.scrollIndicators = [];
+    this.layout = null;
     cancelAnimationFrame(this.frame);
   },
 
   filter() {
     const query = this.control("search").value.toLowerCase();
-    this.filtered = this.events.filter((e) => `${e.title} ${e.target} ${e.project}`.toLowerCase().includes(query));
+    this.filtered = this.events.filter((e) => e.searchText.includes(query));
     this.select(null);
     this.relayout();
   },
@@ -286,7 +327,7 @@ export default {
 
   draw() {
     if (!this.layout) return;
-    const colors = this.colors();
+    const colors = (this.palette ||= this.colors());
     const height = this.scrollport.clientHeight;
     const { ctx, width } = this.context(this.chart, height);
     const inset = 12;
@@ -310,7 +351,8 @@ export default {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    this.rects = [];
+    this.rectsByLane = [];
+    this.rowHeight = rowHeight;
     for (const event of this.layout.events) {
       const top = 8 + (event.y - 8) * laneScale + gap;
       const left = Math.max(inset, x(event.start_ms));
@@ -334,7 +376,8 @@ export default {
           barWidth - 14,
         );
       }
-      this.rects.push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
+      const lane = Math.round((event.y - 8) / ROW_HEIGHT);
+      (this.rectsByLane[lane] ||= []).push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
     }
     const cursorLabel = this.part("cursor-time");
     cursorLabel.style.backgroundColor = colors.accent;
@@ -391,12 +434,13 @@ export default {
     const rect = this.chart.getBoundingClientRect();
     const x = event.clientX - rect.left,
       y = event.clientY - rect.top;
-    return this.rects?.find((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)?.event;
+    const lane = Math.floor((y - 8) / this.rowHeight);
+    return hitInLane(this.rectsByLane?.[lane], x, y);
   },
 
   select(event) {
     this.selected = event;
-    const logRequest = ++this.logRequest;
+    const logRequest = (this.logRequest = ++nextLogRequest);
     this.hideTooltip();
     this.part("inspector").hidden = !event;
     this.part("inspector-divider").hidden = !event;
@@ -413,37 +457,51 @@ export default {
             ? this.part("legend").querySelector('[data-kind="failure"]').textContent
             : this.el.dataset.successLabel,
       };
-      this.loadLog(event, logRequest);
+      this.showLogLoading();
+      this.requestLog(event, logRequest);
       for (const [key, value] of Object.entries(details))
         this.el.querySelector(`[data-detail="${key}"]`).textContent = value;
     }
     this.scheduleDraw();
   },
 
-  loadLog(event, request) {
-    const signal = this.abort.signal;
+  showLogLoading() {
     const status = this.part("log-status");
-    const content = this.part("log-content");
     status.hidden = false;
     status.textContent = this.el.dataset.logLoading;
+    const content = this.part("log-content");
     content.hidden = true;
     content.textContent = "";
     this.part("log-truncated").hidden = true;
-    this.pushEvent("load-timeline-log", { event_id: event.event_id })
-      .then(({ log }) => {
-        if (request !== this.logRequest || signal.aborted) return;
-        const text = log?.log || "";
-        content.textContent = text;
-        content.hidden = !text;
-        content.scrollTop = 0;
-        status.hidden = !!text;
-        status.textContent = this.el.dataset.logEmpty;
-        this.part("log-truncated").hidden = !log?.log_truncated;
+  },
+
+  loadLog(event, request) {
+    if (request !== this.logRequest) return;
+    const signal = this.abort.signal;
+    this.pushEvent("load-timeline-log", { event_id: event.event_id, request_id: request })
+      .then((reply) => {
+        if (reply?.error && !signal.aborted) this.receiveLog({ request_id: request, error: true });
       })
       .catch(() => {
-        if (request !== this.logRequest || signal.aborted) return;
-        status.textContent = this.el.dataset.logError;
+        if (!signal.aborted) this.receiveLog({ request_id: request, error: true });
       });
+  },
+
+  receiveLog({ request_id, log, error }) {
+    if (request_id !== this.logRequest || this.abort.signal.aborted) return;
+    const status = this.part("log-status");
+    if (error) {
+      status.textContent = this.el.dataset.logError;
+      return;
+    }
+    const text = log?.log || "";
+    const content = this.part("log-content");
+    content.textContent = text;
+    content.hidden = !text;
+    content.scrollLeft = 0;
+    status.hidden = !!text;
+    status.textContent = this.el.dataset.logEmpty;
+    this.part("log-truncated").hidden = !log?.log_truncated;
   },
 
   keydown(event) {
@@ -458,13 +516,12 @@ export default {
       this.focusStep(this.selected);
       return;
     }
-    const events = this.layout.events;
-    if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key) || !events.length) return;
+    if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key) || !this.filtered.length) return;
     event.preventDefault();
-    const current = events.indexOf(this.selected);
-    let index = current + (event.key === "ArrowLeft" ? -1 : 1);
-    if (event.key === "End") index = events.length - 1;
-    const selected = events[Math.max(0, Math.min(events.length - 1, index))];
+    const selected = nextStep(this.filtered, this.selected, event.key);
     this.select(selected);
+    if (selected.end <= this.range.start || selected.start_ms >= this.range.start + this.range.span) {
+      this.setRange(selected.start_ms - this.range.span * 0.1, this.range.span);
+    }
   },
 };

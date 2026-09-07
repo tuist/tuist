@@ -48,6 +48,8 @@ export default {
         this.container,
         this.overlayBar,
         this.overlayThumb,
+        "horizontal",
+        { autoUpdate: false },
       );
     }
 

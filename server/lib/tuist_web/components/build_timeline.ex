@@ -3,8 +3,12 @@ defmodule TuistWeb.Components.BuildTimeline do
   use TuistWeb, :html
   use Noora
 
+  import TuistWeb.Components.ErrorCardSection
+  import TuistWeb.Components.Skeleton
+
   attr :timeline, :map, required: true
   attr :duration, :integer, required: true
+  attr :version, :integer, required: true
 
   def build_timeline(assigns) do
     ~H"""
@@ -32,7 +36,7 @@ defmodule TuistWeb.Components.BuildTimeline do
       class="tuist-build-timeline"
       phx-hook="BuildTimeline"
       phx-update="ignore"
-      data-events={JSON.encode!(@timeline.events)}
+      data-version={@version}
       data-duration={@duration}
       data-log-loading={dgettext("dashboard_builds", "Loading log…")}
       data-log-empty={dgettext("dashboard_builds", "No log recorded for this step.")}
@@ -44,13 +48,17 @@ defmodule TuistWeb.Components.BuildTimeline do
     >
       <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
         <:actions>
-          <span data-part="summary">
+          <span data-part="summary" hidden>
             <span><span data-stat="duration"></span> {dgettext("dashboard_builds", "elapsed")}</span>
             <span><span data-stat="tasks"></span> {dgettext("dashboard_builds", "steps")}</span>
             <span><span data-stat="targets"></span> {dgettext("dashboard_builds", "targets")}</span>
           </span>
         </:actions>
-        <.card_section data-part="timeline-content">
+        <.card_section data-part="payload-loading">
+          <.skeleton_chart height="532px" />
+        </.card_section>
+        <.error_card_section data-part="payload-error" hidden />
+        <.card_section data-part="timeline-content" hidden>
           <p :if={@timeline.truncated} data-part="notice">
             {dgettext(
               "dashboard_builds",

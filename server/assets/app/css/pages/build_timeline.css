@@ -226,7 +226,7 @@
     }
   }
   & [data-part="inspector"] {
-    flex: 0 0 var(--timeline-inspector-width, 240px);
+    flex: 0 0 var(--timeline-inspector-width);
     box-sizing: border-box;
     padding: var(--noora-spacing-5) 0;
     min-width: 0;

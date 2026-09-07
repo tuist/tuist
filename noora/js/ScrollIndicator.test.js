@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { bindScrollIndicator } from "./ScrollIndicator.js";
 
-function setup(axis) {
+function setup(axis, options) {
   const viewport = document.createElement("div");
   const track = document.createElement("div");
   const thumb = document.createElement("div");
@@ -37,11 +37,22 @@ function setup(axis) {
     position,
     extent,
     pointer,
-    ...bindScrollIndicator(viewport, track, thumb, axis),
+    ...bindScrollIndicator(viewport, track, thumb, axis, options),
   };
 }
 
 describe("scroll indicators", () => {
+  it("allows the table to drive updates only when its overlay is visible", () => {
+    const bar = setup("horizontal", { autoUpdate: false });
+    expect(bar.thumb.style.width).toBe("");
+    bar.viewport.scrollLeft = 400;
+    bar.viewport.dispatchEvent(new Event("scroll"));
+    expect(bar.thumb.style.width).toBe("");
+    bar.update();
+    expect(bar.thumb.style.width).toBe("24px");
+    expect(bar.thumb.style.transform).toBe("translateX(38px)");
+    bar.destroy();
+  });
   for (const axis of ["horizontal", "vertical"]) {
     it(`keeps the ${axis} thumb aligned with native scrolling and resizing`, () => {
       const bar = setup(axis);
