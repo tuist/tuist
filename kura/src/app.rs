@@ -277,9 +277,7 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
-    if state.config.action_cache_eviction_cascade_enabled {
-        spawn_action_cache_blob_refs_backfill_task(state.clone());
-    }
+    spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
@@ -791,6 +789,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                 state
                     .metrics
                     .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+                state.metrics.update_elastic_transient_reserved(
+                    state.memory.elastic_transient_reserved_bytes(),
+                );
 
                 let pressure = state.memory.pressure();
                 let snapshot_target = state
@@ -921,38 +922,46 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     );
 }
 
-/// Expires REAPI action-cache entries whose write time predates the TTL.
-/// Clients publish new keys on every source change and nothing else removes
-/// the stale ones, so this recency sweep is what bounds a namespace's
-/// keyspace (and with it the snapshot reconcile scan and index memory). An
-/// expired entry that is still genuinely used costs its next cold reader one
-/// recompile + republish, which refreshes it for the whole fleet. Node-local
-/// by design: peers apply the same rule over the replicated version_ms and
-/// converge on their own. The manifest-keyspace walk is a full scan, so it
-/// runs on the blocking pool at a long interval.
-/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
-/// from the entries already on disk, then arm the readiness flag that lets the
-/// eviction cascade consult it. Runs on the blocking pool because it scans the
-/// manifest keyspace. Idempotent and marker-gated, so a restart after
-/// completion is cheap; a failure leaves the cascade inert (the serve-side
-/// presence gates keep clients safe) and it retries on the next boot.
-fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+/// One-shot startup migration: rebuild the action-cache and chunk-recipe
+/// reverse maps from the entries already on disk. Runs on the blocking pool
+/// because it scans the manifest keyspace. Each map is independently
+/// idempotent and cursor-resumable, so a restart after completion is cheap.
+fn spawn_cache_reverse_refs_backfill_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
-            let mut rows = 0_usize;
+            let mut action_rows = 0_usize;
+            let mut recipe_rows = 0_usize;
+            let mut action_complete = !state.config.action_cache_eviction_cascade_enabled;
+            let mut recipes_complete = false;
             loop {
                 state.memory.wait_for_background_headroom().await;
                 let backfill_state = state.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                let result = tokio::task::spawn_blocking(move || -> Result<_, String> {
+                    let action = (!action_complete)
+                        .then(|| backfill_state.store.backfill_action_cache_blob_refs_step())
+                        .transpose()?;
+                    let recipes = (!recipes_complete)
+                        .then(|| backfill_state.store.backfill_chunk_recipe_refs_step())
+                        .transpose()?;
+                    Ok((action, recipes))
                 })
                 .await;
                 match result {
-                    Ok(Ok(step)) => {
-                        rows += step.rows;
-                        if step.complete {
-                            if rows > 0 {
-                                info!(rows, "action-cache blob-refs backfill complete");
+                    Ok(Ok((action, recipes))) => {
+                        if let Some(step) = action {
+                            action_rows += step.rows;
+                            action_complete = step.complete;
+                        }
+                        if let Some(step) = recipes {
+                            recipe_rows += step.rows;
+                            recipes_complete = step.complete;
+                        }
+                        if action_complete && recipes_complete {
+                            if action_rows > 0 || recipe_rows > 0 {
+                                info!(
+                                    action_rows,
+                                    recipe_rows, "cache reverse-reference backfill complete"
+                                );
                             }
                             break;
                         }
@@ -1034,6 +1043,14 @@ async fn backfill_index_task_loop(state: SharedState) {
     }
 }
 
+/// Expires REAPI action-cache entries and chunk recipes whose write time
+/// predates the TTL. Both are inline records outside segment-capacity
+/// eviction, so this recency sweep bounds their metadata even when shared
+/// chunks remain hot forever. An expired record that is still genuinely used
+/// costs its next cold reader one recompile and republish. Node-local by
+/// design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
@@ -1056,10 +1073,10 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
                 match expired {
                     Ok(Ok(0)) => {}
                     Ok(Ok(expired)) => {
-                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                        info!(expired, cutoff_ms, "expired stale cache metadata records");
                     }
-                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
-                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                    Ok(Err(error)) => warn!("cache metadata expiry sweep failed: {error}"),
+                    Err(error) => warn!("cache metadata expiry task panicked: {error}"),
                 }
             }
         }

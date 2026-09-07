@@ -41,6 +41,7 @@ const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
+const KURA_REAPI_BLOB_CHUNKING_ENABLED: &str = "KURA_REAPI_BLOB_CHUNKING_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -174,6 +175,10 @@ pub struct Config {
     /// being complete (an incomplete reverse map must not drive deletes). The
     /// serve-side presence gates stay on regardless as the backstop.
     pub action_cache_eviction_cascade_enabled: bool,
+    /// Advertises and accepts new content-defined chunk recipes. Existing
+    /// recipes remain readable when disabled so a rollback flag change cannot
+    /// strand data that is already stored.
+    pub reapi_blob_chunking_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -784,6 +789,17 @@ impl Config {
                 value.parse::<bool>().map_err(|_| {
                     format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
                 })
+            },
+        )
+        .unwrap_or(true);
+        let reapi_blob_chunking_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_BLOB_CHUNKING_ENABLED,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_REAPI_BLOB_CHUNKING_ENABLED} must be a valid bool"))
             },
         )
         .unwrap_or(true);
@@ -1814,6 +1830,7 @@ impl Config {
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
+            reapi_blob_chunking_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -2639,6 +2656,7 @@ mod tests {
 
         assert_eq!(config.internal_port, 7443);
         assert!(config.peers.is_empty());
+        assert!(config.reapi_blob_chunking_enabled);
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
@@ -2855,6 +2873,7 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
+            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "false"),
             (
                 KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
                 "10485760",
@@ -2890,6 +2909,7 @@ mod tests {
             ]
         );
         assert_eq!(config.discovery_dns_name, None);
+        assert!(!config.reapi_blob_chunking_enabled);
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
@@ -3098,6 +3118,7 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
+            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (KURA_REPLICATION_UPLOAD_STALL_MS, "invalid"),
@@ -3132,6 +3153,7 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
+        assert!(error.contains(KURA_REAPI_BLOB_CHUNKING_ENABLED));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
         assert!(error.contains(KURA_REPLICATION_UPLOAD_STALL_MS));

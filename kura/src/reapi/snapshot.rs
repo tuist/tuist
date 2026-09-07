@@ -9,12 +9,12 @@ use futures_util::{StreamExt, future::BoxFuture};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
 
-use super::{protobuf_shape::inspect_action_result_wire, service::read_manifest_bytes};
-use crate::{
-    artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    state::SharedState,
-    utils::blob_key,
+use super::{
+    chunking::{PresenceBudget, is_presence_budget_error, manifest_presence_keys},
+    protobuf_shape::inspect_action_result_wire,
+    service::read_manifest_bytes,
 };
+use crate::{artifact::manifest::ArtifactManifest, state::SharedState, utils::blob_key};
 
 /// Reserved action key whose lookup returns the namespace's action-cache
 /// snapshot instead of a stored result. Clients hash these exact bytes the
@@ -968,7 +968,17 @@ pub(super) async fn reconcile_snapshot_index(
     // pressure-only gate pass (`gate_snapshot_index`) runs under sustained
     // pressure. Mostly existence-cache hits; a dead entry is dropped from
     // the cache too — a republish bumps its version and reloads it.
-    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
+    let presence = match collect_dead_snapshot_entries(state, namespace_id, &index).await {
+        Ok(presence) => presence,
+        Err(error) => {
+            index.entries.clear();
+            index.compact_nodes();
+            return Err((
+                index,
+                format!("snapshot presence gate could not complete: {error}"),
+            ));
+        }
+    };
     // Cascade: an entry whose blobs were evicted is unserveable by
     // construction (the per-key path would hand out a manifest whose
     // batch_read then misses), so delete it from the store too, not just
@@ -976,13 +986,15 @@ pub(super) async fn reconcile_snapshot_index(
     // peer replication that delivers an entry before its blobs finish
     // syncing.
     let now = crate::utils::now_ms();
-    let cascade: Vec<ArtifactManifest> = dead
+    let cascade: Vec<ArtifactManifest> = presence
+        .dead
         .iter()
         .filter_map(|hash| current.get(hash))
         .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
         .map(|(_, manifest)| manifest.clone())
         .collect();
-    for hash in dead {
+    let unverified = presence.unverified.len();
+    for hash in presence.dead.into_iter().chain(presence.unverified) {
         index.remove_entry(&hash);
     }
     if !cascade.is_empty() {
@@ -1021,6 +1033,7 @@ pub(super) async fn reconcile_snapshot_index(
         invalid,
         budget_rejected,
         interrupted,
+        unverified,
         estimated_bytes = index.estimated_bytes(),
         index_max_bytes = budgets.index_bytes,
         scan_ms,
@@ -1038,31 +1051,52 @@ pub(super) async fn reconcile_snapshot_index(
 /// Shared by the full reconcile and the pressure-only gate pass so the two
 /// cannot drift. Mostly existence-cache hits; the reads are synchronous, so
 /// yield periodically to keep from parking a runtime worker on a cold cache.
+struct SnapshotPresenceResult {
+    dead: Vec<[u8; 32]>,
+    unverified: Vec<[u8; 32]>,
+}
+
 async fn collect_dead_snapshot_entries(
     state: &SharedState,
     namespace_id: &str,
     index: &NamespaceSnapshotIndex,
-) -> Vec<[u8; 32]> {
+) -> Result<SnapshotPresenceResult, String> {
     let mut dead: Vec<[u8; 32]> = Vec::new();
+    let mut unverified: Vec<[u8; 32]> = Vec::new();
+    let mut presence_budget = PresenceBudget::for_snapshot_scan();
     for (gated, (hash, entry)) in index.entries.iter().enumerate() {
         if gated % 1024 == 1023 {
             tokio::task::yield_now().await;
         }
-        let missing = entry.nodes.iter().any(|&node| {
-            !state
-                .store
-                .artifact_manifest_exists(
-                    ArtifactProducer::Reapi,
-                    namespace_id,
-                    &index.nodes[node as usize].blob_key,
-                )
-                .unwrap_or(false)
-        });
+        let mut missing = false;
+        for &node in &entry.nodes {
+            let node = &index.nodes[node as usize];
+            let digest = reapi::Digest {
+                hash: hex::encode(node.blob_hash),
+                size_bytes: node.blob_size as i64,
+            };
+            match manifest_presence_keys(state, namespace_id, &digest, &mut presence_budget).await {
+                Ok(None) => {
+                    missing = true;
+                    break;
+                }
+                Ok(Some(_)) => {}
+                Err(error) if is_presence_budget_error(&error) => {
+                    state
+                        .metrics
+                        .record_reapi_chunking_event("probe_budget_exhausted", "snapshot");
+                    unverified.push(*hash);
+                    missing = false;
+                    break;
+                }
+                Err(error) => return Err(error),
+            }
+        }
         if missing {
             dead.push(*hash);
         }
     }
-    dead
+    Ok(SnapshotPresenceResult { dead, unverified })
 }
 
 /// Pressure-only reconcile: drops action-cache entries whose blobs were
@@ -1082,9 +1116,18 @@ pub(super) async fn gate_snapshot_index(
     namespace_id: &str,
     mut index: NamespaceSnapshotIndex,
 ) -> NamespaceSnapshotIndex {
-    let dead = collect_dead_snapshot_entries(state, namespace_id, &index).await;
-    let removed = dead.len();
-    for hash in dead {
+    let presence = match collect_dead_snapshot_entries(state, namespace_id, &index).await {
+        Ok(presence) => presence,
+        Err(error) => {
+            tracing::warn!(namespace_id, error, "snapshot presence gate deferred");
+            index.entries.clear();
+            index.compact_nodes();
+            return index;
+        }
+    };
+    let removed = presence.dead.len();
+    let unverified = presence.unverified.len();
+    for hash in presence.dead.into_iter().chain(presence.unverified) {
         index.remove_entry(&hash);
     }
     index.compact_nodes();
@@ -1092,6 +1135,7 @@ pub(super) async fn gate_snapshot_index(
         tracing::info!(
             namespace_id,
             removed,
+            unverified,
             entries = index.entries.len(),
             "action-cache snapshot index presence-gated under memory pressure"
         );
