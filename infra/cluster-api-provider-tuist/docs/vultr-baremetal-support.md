@@ -120,10 +120,42 @@ os, os_id, plan, power_status, preemptible, region, snapshot_id, status, tag,
 tags, user_scheme, v6_main_ip, v6_network, v6_network_size, vpcs`. `status` reads
 `active` on a healthy box; `power_status` is separate.
 
-**Still unverified: what `status` reads through a reinstall**, which is what
-`InstallState` has to interpret. Testing it means wiping `kura-sa-west-1`, which
-is prepared and hand-joinable, so it is left for the first box that is genuinely
-disposable, or for the moment the fleet has a second one.
+### Reinstall, measured
+
+Observed end to end on `kura-sa-west-1`, 2026-09-07:
+
+| t after POST | `status` / `power_status` | reachable |
+|---|---|---|
+| 0s (the 202 body) | `active` / `running` | yes, the OLD system |
+| ~54s | `pending` / `running` | no |
+| ~313s | `active` / `running` | **no** |
+| ~399s | `active` / `running` | yes, uptime 34s |
+
+Three traps for `InstallState`, all of which would produce a controller that
+self-joins a box that is not ready:
+
+1. **The 202 body echoes the pre-transition state.** `StartInstall` learns
+   nothing from its own response; only polling tells you anything.
+2. **SSH stays up for roughly a minute after the 202**, because the old system
+   is still running. Reachability is not a start signal, and a naive poller
+   that waits for SSH returns instantly against a system about to be wiped.
+3. **`status` returns to `active` about 86s before the box answers.** `active`
+   alone is not ready. The condition that works is a *fresh* system: SSH
+   answers and uptime is small.
+
+Reinstall **preserves** the hostname passed in the request, the registered fleet
+SSH key, the label, the tags, and the RAID 1 disk configuration chosen at order
+time. It **wipes** `/data` and its fstab entry, which is the conversion stage
+argued for above, now demonstrated rather than predicted.
+
+It also triggers a **fresh array resync of roughly 75 minutes**, during which the
+conversion must not run: splitting a rebuilding mirror leaves the root on a leg
+that was never fully populated, and `prep-vultr` refuses (verified against a
+real resyncing array). So the release-to-adoptable cycle is about 6.5 minutes of
+install plus over an hour of resync before the box can be converted and marked
+back into the pool. A `VultrMachine` reconciler has to treat that as a normal
+duration rather than a stall, and it is worth knowing before anyone sizes a
+`MachineHealthCheck` timeout against it.
 
 ## Credential
 
