@@ -2185,7 +2185,12 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 	}
 	localPV := func(ordinal int, hostname string) *corev1.PersistentVolume {
 		return &corev1.PersistentVolume{
-			ObjectMeta: metav1.ObjectMeta{Name: pvName(ordinal)},
+			// Carved well before any refusal the pod has recorded, which is what
+			// a pin the pod is stuck behind looks like.
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              pvName(ordinal),
+				CreationTimestamp: metav1.NewTime(now.Add(-30 * 24 * time.Hour)),
+			},
 			Spec: corev1.PersistentVolumeSpec{
 				PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimDelete,
 				NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
@@ -2512,6 +2517,43 @@ func TestReconcileDataVolumeRebuildsAWedgedPin(t *testing.T) {
 		}
 		if !exists(t, c, claimName(1), &corev1.PersistentVolumeClaim{}) || !exists(t, c, podName(1), &corev1.Pod{}) {
 			t.Fatal("expected the recreated claim and pod to be left alone")
+		}
+
+		// Capacity appears and the scheduler places the pod. It binds the volume
+		// first and the pod second (the volumebinding plugin's PreBind provisions
+		// and waits for the claim, and only then does the Bind extension point set
+		// nodeName), so in between the claim reads Bound while the pod still
+		// carries the Unschedulable condition from its last refusal -- which is
+		// older than the grace period, because waiting for capacity is what it was
+		// doing. Deleting here destroys a volume that was one API call from
+		// serving, and leaves the region right back where it started.
+		boundOnBind := pendingClaim(1)
+		boundOnBind.Spec.VolumeName = pvName(1)
+		boundOnBind.Status.Phase = corev1.ClaimBound
+		freshPV := localPV(1, filledNode)
+		freshPV.CreationTimestamp = metav1.NewTime(later)
+		if err := c.Delete(ctx, pendingClaim(1)); err != nil {
+			t.Fatal(err)
+		}
+		for _, object := range []client.Object{boundOnBind, freshPV} {
+			if err := c.Update(ctx, object); err != nil && apierrors.IsNotFound(err) {
+				if err := c.Create(ctx, object); err != nil {
+					t.Fatal(err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		inProgress, err = r.reconcileDataVolumeRebuilds(ctx, instance, later.Add(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a claim bound mid-scheduling is not a wedge")
+		}
+		if !exists(t, c, claimName(1), &corev1.PersistentVolumeClaim{}) || !exists(t, c, podName(1), &corev1.Pod{}) {
+			t.Fatal("expected the just-bound claim and its pod to survive scheduling")
 		}
 	})
 }

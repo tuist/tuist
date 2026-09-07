@@ -2894,11 +2894,35 @@ func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *
 // gapless, which is the Service selector moving between two Ready pods. Split
 // with two replicas beats co-located with one.
 //
-// The Bound claim is also what makes the rebuild self-limiting. The fleet's
-// storage classes bind WaitForFirstConsumer, so the claim the StatefulSet
-// recreates is unbound until a pod is scheduled onto it -- and once one is,
-// the pod is no longer Pending. The trigger cannot fire twice for the same
-// wedge, with no backoff state to keep.
+// A Bound claim alone does not mean the pin is what is in the way, which is
+// why the refusal has to postdate the volume. Scheduling a WaitForFirstConsumer
+// claim binds the volume first and the pod second: the volumebinding plugin
+// provisions and waits for the claim in PreBind, and only the later Bind sets
+// nodeName. In between, the claim reads Bound while the pod still carries the
+// Unschedulable condition from its last refusal -- necessarily older than the
+// grace period, because waiting for capacity is what it was doing. Acting there
+// would destroy a volume one API call from serving and put the replica back at
+// the start, on the schedule that made it wait in the first place. Comparing
+// against the volume's creation is what separates the two: a wedge is a pod the
+// scheduler refused *while* this volume already existed, and a pod refused
+// before it is a pod that volume was just created for. Second-granularity
+// timestamps make a tie read as "not after", which fails towards leaving the
+// volume alone.
+//
+// That comparison is also what makes the rebuild self-limiting, with no backoff
+// state to keep. The claim the StatefulSet recreates is unbound, and when it
+// does bind, it binds newer than every refusal the pod has recorded, so the
+// trigger cannot fire twice for the same wedge.
+//
+// It gives up one case to buy that. The scheduler leaves LastTransitionTime at
+// the first refusal and rewrites only the message on later ones, so a pod that
+// was refused, then had a volume provisioned for it by a scheduling pass that
+// failed to bind, keeps a refusal older than its own volume and is never
+// rebuilt. Deleting a pod resets it, so a rollout, an eviction or an operator
+// clears it; and the alert on an instance below its replica count is what
+// covers a wedge this does not. That is the right way round: the cost here is
+// a wedge left for a human, and the cost of the other choice is destroying a
+// healthy volume every time a full region finally finds room.
 func (r *KuraInstanceReconciler) wedgedPinnedNode(
 	ctx context.Context,
 	instance *kurav1alpha1.KuraInstance,
@@ -2924,7 +2948,17 @@ func (r *KuraInstanceReconciler) wedgedPinnedNode(
 	if !refused || now.Sub(since) < wedgedPinGrace {
 		return "", nil
 	}
-	return r.pvSchedulableHostname(ctx, pvc.Spec.VolumeName)
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	if !since.After(pv.CreationTimestamp.Time) {
+		return "", nil
+	}
+	return r.schedulableHostname(ctx, pv)
 }
 
 // podUnschedulableSince reports when the scheduler first refused to place a
@@ -2956,8 +2990,8 @@ func podUnschedulableSince(pod *corev1.Pod) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// pvSchedulableHostname returns the node a PV's required affinity pins it to
-// when that node is present, Ready and not cordoned, and "" otherwise.
+// schedulableHostname returns the node a PV's required affinity pins it to when
+// that node is present, Ready and not cordoned, and "" otherwise.
 //
 // Every rejected case belongs to another path, and rebuilding over it would
 // discard a volume that path still has a use for. A PV with no hostname
@@ -2967,14 +3001,7 @@ func podUnschedulableSince(pod *corev1.Pod) (time.Time, bool) {
 // NotReady, cordoned or draining is a box being worked on: the volume is
 // intact, the replica comes back with the box, and node evacuation decides
 // when it should not.
-func (r *KuraInstanceReconciler) pvSchedulableHostname(ctx context.Context, pvName string) (string, error) {
-	pv := &corev1.PersistentVolume{}
-	if err := r.Get(ctx, types.NamespacedName{Name: pvName}, pv); err != nil {
-		if apierrors.IsNotFound(err) {
-			return "", nil
-		}
-		return "", err
-	}
+func (r *KuraInstanceReconciler) schedulableHostname(ctx context.Context, pv *corev1.PersistentVolume) (string, error) {
 	hostnames := pvRequiredHostnames(pv)
 	if len(hostnames) == 0 {
 		return "", nil
