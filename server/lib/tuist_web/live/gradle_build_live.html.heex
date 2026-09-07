@@ -1054,7 +1054,7 @@
                 )
               }
               id="widget-download-throughput"
-              empty={@download_throughput == 0}
+              empty={@download_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
             <.widget
@@ -1072,7 +1072,7 @@
                 )
               }
               id="widget-upload-throughput"
-              empty={@upload_throughput == 0}
+              empty={@upload_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
           </div>

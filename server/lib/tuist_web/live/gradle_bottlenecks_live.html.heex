@@ -369,7 +369,12 @@
     >
       <.card_section data-part="task-executions-section">
         <div data-part="table-toolbar">
-          <.form for={%{}} phx-change="search_task_executions" phx-debounce="200">
+          <.form
+            id="task-executions-search-form"
+            for={%{}}
+            phx-change="search_task_executions"
+            phx-debounce="200"
+          >
             <.text_input
               type="search"
               id="search-task-executions"
@@ -420,35 +425,10 @@
           row_navigate={fn execution -> execution_path(assigns, execution) end}
         >
           <:col :let={execution} label={dgettext("dashboard_gradle", "Project")}>
-            <div data-part="cell" data-type="text">
-              <div
-                data-part="project-with-tags"
-                style="display: flex; align-items: center; gap: 8px;"
-              >
-                <span data-part="label">{execution.build.root_project_name}</span>
-                <.badge
-                  :if={Enum.any?(execution.build.custom_tags || [])}
-                  label={List.first(execution.build.custom_tags)}
-                  color="success"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(execution.build.custom_tags || []) == 2}
-                  label={Enum.at(execution.build.custom_tags, 1)}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(execution.build.custom_tags || []) > 2}
-                  label={"+#{length(execution.build.custom_tags) - 1}"}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-              </div>
-            </div>
+            <.project_with_tags_cell
+              label={execution.build.root_project_name}
+              tags={execution.build.custom_tags || []}
+            />
           </:col>
           <:col :let={execution} label={dgettext("dashboard_gradle", "Outcome")}>
             <.badge_cell
@@ -474,7 +454,7 @@
           <:col
             :let={execution}
             label={dgettext("dashboard_gradle", "Duration")}
-            patch={@execution_sort == "duration" && execution_sort_patch(assigns, "duration")}
+            patch={execution_sort_patch(assigns, "duration")}
             sort_order={@execution_sort == "duration" && @execution_order}
           >
             <.text_cell label={duration(execution.duration_ms)} icon="history" />
@@ -482,7 +462,7 @@
           <:col
             :let={execution}
             label={dgettext("dashboard_gradle", "Ran at")}
-            patch={@execution_sort == "ran_at" && execution_sort_patch(assigns, "ran_at")}
+            patch={execution_sort_patch(assigns, "ran_at")}
             sort_order={@execution_sort == "ran_at" && @execution_order}
           >
             <.text_cell sublabel={DateFormatter.from_now(execution.ran_at)} />

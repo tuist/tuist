@@ -12,12 +12,12 @@
           <strong>{duration(@model.duration_ms)}</strong><span>{dgettext(
             "dashboard_gradle",
             "%{count} operations on the chain",
-            count: length(@chain)
+            count: @chain.total
           )}</span>
         </div>
         <div class="graph-chain">
           <.link
-            :for={node <- @chain}
+            :for={node <- @chain.rows}
             patch={patch(assigns, %{"node" => node.id})}
             class="graph-node"
             data-selected={@selected && @selected.id == node.id}
@@ -25,6 +25,7 @@
             <span>{node.label}</span><strong>{duration(node.duration_ms)}</strong>
           </.link>
         </div>
+        <.graph_pages pagination={@chain} param="chain-page" context={assigns} />
       <% else %>
         <div class="graph-empty">
           <.subtask /><h3>
@@ -56,16 +57,17 @@
       <div class="graph-neighborhood">
         <div>
           <h3>
-            {dgettext("dashboard_gradle", "Depends on")} <span>{length(@dependencies)}</span>
+            {dgettext("dashboard_gradle", "Depends on")} <span>{@dependencies.total}</span>
           </h3>
-          <p :if={@dependencies == []} class="graph-note">
+          <p :if={@dependencies.total == 0} class="graph-note">
             {dgettext("dashboard_gradle", "No captured dependencies")}
           </p>
           <.link
-            :for={node <- @dependencies}
+            :for={node <- @dependencies.rows}
             patch={patch(assigns, %{"node" => node.id})}
             class="graph-node"
           ><span>{node.label}</span><small>{node.build_path} · {duration(node.duration_ms)}</small></.link>
+          <.graph_pages pagination={@dependencies} param="dependencies-page" context={assigns} />
         </div>
         <div class="graph-focus">
           <h3>{dgettext("dashboard_gradle", "Selected operation")}</h3>
@@ -97,15 +99,16 @@
           </dl>
         </div>
         <div>
-          <h3>{dgettext("dashboard_gradle", "Used by")} <span>{length(@dependents)}</span></h3>
-          <p :if={@dependents == []} class="graph-note">
+          <h3>{dgettext("dashboard_gradle", "Used by")} <span>{@dependents.total}</span></h3>
+          <p :if={@dependents.total == 0} class="graph-note">
             {dgettext("dashboard_gradle", "No captured consumers")}
           </p>
           <.link
-            :for={node <- @dependents}
+            :for={node <- @dependents.rows}
             patch={patch(assigns, %{"node" => node.id})}
             class="graph-node"
           ><span>{node.label}</span><small>{node.build_path} · {duration(node.duration_ms)}</small></.link>
+          <.graph_pages pagination={@dependents} param="dependents-page" context={assigns} />
         </div>
       </div>
       <div
@@ -118,11 +121,12 @@
           <li :for={reason <- @task.execution_reasons}>{reason}</li>
         </ul>
       </div>
-      <div :if={@ordering != []} class="graph-ordering">
+      <div :if={@ordering.total > 0} class="graph-ordering">
         <h3>{dgettext("dashboard_gradle", "Ordering constraints")}</h3>
-        <div :for={edge <- @ordering}>
+        <div :for={edge <- @ordering.rows}>
           <span>{edge.label}</span><.link patch={patch(assigns, %{"node" => edge.node.id})}>{edge.node.label}</.link>
         </div>
+        <.graph_pages pagination={@ordering} param="ordering-page" context={assigns} />
       </div>
     </.card_section>
   </.card>

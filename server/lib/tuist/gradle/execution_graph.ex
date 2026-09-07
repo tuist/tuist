@@ -61,14 +61,6 @@ defmodule Tuist.Gradle.ExecutionGraph do
 
   def successors(nodes), do: nodes |> Map.new(&{&1.id, &1.dependencies}) |> reverse()
 
-  def downstream(nodes, ids), do: downstream_from(successors(nodes), ids)
-
-  def downstream_from(successors, ids) do
-    ids |> reachable(successors, MapSet.new(ids)) |> MapSet.difference(MapSet.new(ids))
-  end
-
-  def task_id(build_path, task_path), do: JSON.encode!([build_path, task_path])
-
   def decode(value) when value in [nil, ""], do: %{status: "unavailable", nodes: []}
 
   def decode(value) do
@@ -102,13 +94,6 @@ defmodule Tuist.Gradle.ExecutionGraph do
     Enum.reduce(predecessors, %{}, fn {id, deps}, acc ->
       Enum.reduce(deps, acc, &Map.update(&2, &1, [id], fn ids -> [id | ids] end))
     end)
-  end
-
-  defp reachable([], _successors, seen), do: seen
-
-  defp reachable([id | rest], successors, seen) do
-    next = Enum.reject(Map.get(successors, id, []), &MapSet.member?(seen, &1))
-    reachable(next ++ rest, successors, Enum.reduce(next, seen, &MapSet.put(&2, &1)))
   end
 
   defp walk(queue, counts, successors, predecessors, index, distances) do

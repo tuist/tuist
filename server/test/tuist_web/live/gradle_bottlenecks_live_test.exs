@@ -6,7 +6,6 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Gradle.ExecutionGraph
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
 
@@ -238,17 +237,17 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     assert has_element?(view, "#gradle-bottleneck-history th", "Ran at")
     refute has_element?(view, "#gradle-bottleneck-history th", "Cumulative time")
 
-    sort =
-      view
-      |> render()
-      |> Floki.parse_fragment!()
-      |> Floki.attribute("#task-executions-sort-by-content-portal a[data-value=duration]", "href")
-      |> hd()
-
-    render_patch(view, sort)
+    view |> element("#gradle-bottleneck-history th a", "Duration") |> render_click()
     render_async(view, 3000)
     assert has_element?(view, "#gradle-bottleneck-history tbody tr:first-child", "300ms")
     assert has_element?(view, "#gradle-bottleneck-history tbody tr:first-child", "feature")
+
+    assert has_element?(view, "#gradle-bottleneck-history th a", "Ran at")
+    view |> element("#gradle-bottleneck-history th a", "Duration") |> render_click()
+    render_async(view, 3000)
+    assert has_element?(view, "#gradle-bottleneck-history tbody tr:first-child", "100ms")
+    view |> element("#gradle-bottleneck-history th a", "Ran at") |> render_click()
+    render_async(view, 3000)
 
     view |> element("form[phx-change=search_task_executions]") |> render_change(%{"search" => "main"})
     render_async(view, 3000)
@@ -702,6 +701,65 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
     assert has_element?(view, ".graph-timeline-row", ":core:compile")
   end
 
+  test "malformed scalar filters are ignored in task list and detail", context do
+    %{project: project, conn: conn, organization: organization} = context
+    GradleFixtures.build_fixture(project_id: project.id, tasks: [task(":app:compile", 100)])
+    path = "/#{organization.account.name}/#{project.name}/builds/tasks"
+    malformed = "?root_project_name[]=other&task_type[]=Other&build_path[]=other&q[]=other&execution-search[]=other"
+
+    for suffix <- ["", "/%3Aapp%3Acompile"] do
+      {:ok, view, _} = live(conn, path <> suffix <> malformed)
+      render_async(view, 3000)
+      assert has_element?(view, "#bottleneck-executions [data-part=value]", "1")
+    end
+  end
+
+  test "large dependency neighborhoods paginate all neighbors", context do
+    %{project: project, conn: conn, organization: organization} = context
+    core = node(":core:compile", 100)
+    consumers = Enum.map(1..60, &%{node(":consumer#{&1}:compile", 100) | dependencies: [core.id]})
+
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        execution_graph: %{status: "complete", nodes: [core | consumers]},
+        tasks: []
+      )
+
+    path =
+      "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies&node=#{URI.encode_www_form(core.id)}"
+
+    {:ok, view, _} = live(conn, path)
+    selector = ".graph-neighborhood > div:last-child .graph-node"
+    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 25
+    assert has_element?(view, ".graph-neighborhood > div:last-child h3", "60")
+    view |> element("[data-pagination=dependents-page] a", "Next") |> render_click()
+    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 25
+    view |> element("[data-pagination=dependents-page] a", "Next") |> render_click()
+    assert length(Floki.find(Floki.parse_fragment!(render(view)), selector)) == 10
+    assert has_element?(view, "[data-pagination=dependents-page]", "Page 3 of 3")
+
+    target = %{node(":all:compile", 100) | dependencies: Enum.map(consumers, & &1.id)}
+
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        execution_graph: %{status: "complete", nodes: [core, target | consumers]},
+        tasks: []
+      )
+
+    {:ok, view, _} =
+      live(
+        conn,
+        "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}?tab=dependencies&node=#{URI.encode_www_form(target.id)}"
+      )
+
+    assert length(Floki.find(Floki.parse_fragment!(render(view)), ".graph-neighborhood > div:first-child .graph-node")) ==
+             25
+
+    assert has_element?(view, "[data-pagination=dependencies-page]", "Page 1 of 3")
+  end
+
   test "legacy builds explain missing graphs without invented zero timings", context do
     %{project: project, conn: conn, organization: organization} = context
     id = GradleFixtures.build_fixture(project_id: project.id, tasks: [])
@@ -736,7 +794,7 @@ defmodule TuistWeb.GradleBottlenecksLiveTest do
 
   defp node(path, duration) do
     %{
-      id: ExecutionGraph.task_id(":", path),
+      id: JSON.encode!([":", path]),
       kind: "task",
       build_path: ":",
       project_path: Tuist.Gradle.task_project_path(path),

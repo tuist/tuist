@@ -35,7 +35,6 @@ defmodule Tuist.Gradle.Build do
     field :telemetry_version, Ch, type: "UInt16"
     field :build_options, Ch, type: "Map(String, String)", default: %{}
     field :execution_graph, Ch, type: "String"
-    field :dependency_chain_duration_ms, Ch, type: "Nullable(UInt64)"
     field :tasks_cache_hit_count, Ch, type: "UInt32"
     field :duration_ms, Ch, type: "UInt64"
     field :gradle_version, Ch, type: "String"

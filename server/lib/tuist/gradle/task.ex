@@ -30,7 +30,6 @@ defmodule Tuist.Gradle.Task do
     field :remote_cache_lookup_duration_ms, Ch, type: "Nullable(UInt64)"
     field :remote_cache_download_duration_ms, Ch, type: "Nullable(UInt64)"
     field :remote_cache_upload_duration_ms, Ch, type: "Nullable(UInt64)"
-    field :on_dependency_chain, Ch, type: "Nullable(Bool)"
     field :task_type, Ch, type: "String"
     field :outcome, Ch, type: "LowCardinality(String)"
     field :cacheable, Ch, type: "Bool"

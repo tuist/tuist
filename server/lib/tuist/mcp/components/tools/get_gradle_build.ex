@@ -96,7 +96,6 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   alias Tuist.Gradle
   alias Tuist.Gradle.ExecutionGraph
   alias Tuist.MCP.Formatter
-  alias Tuist.MCP.GradleSchemas
   alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
@@ -115,12 +114,14 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
+      graph = ExecutionGraph.decode(build.execution_graph)
+
       {:ok,
        %{
          id: build.id,
-         execution_graph: if(args["include_execution_graph"] == true, do: ExecutionGraph.decode(build.execution_graph)),
+         execution_graph: if(args["include_execution_graph"] == true, do: graph),
          telemetry_version: build.telemetry_version,
-         dependency_chain_duration_ms: build.dependency_chain_duration_ms,
+         dependency_chain_duration_ms: ExecutionGraph.analyze(graph).duration_ms,
          tasks_cache_hit_count: build.tasks_cache_hit_count,
          build_options: build.build_options,
          duration_ms: build.duration_ms,

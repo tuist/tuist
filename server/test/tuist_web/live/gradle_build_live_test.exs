@@ -137,7 +137,6 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     assert html =~ ":app:compileKotlin"
     refute html =~ ":app:compileJava"
-    refute html =~ ":lib:test"
   end
 
   test "search partial match filters tasks via URL params", %{
@@ -218,6 +217,11 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert html =~ ":app:compileKotlin"
     assert html =~ ":app:assembleDebug"
     refute html =~ ":app:compileJava"
+    document = Floki.parse_fragment!(html)
+    assert document |> Floki.find("#widget-download-throughput") |> Floki.text() =~ "No data"
+    assert document |> Floki.find("#widget-upload-throughput") |> Floki.text() =~ "No data"
+
+    refute html =~ ":lib:test"
   end
 
   test "shows cache-miss diagnostics and setup telemetry", %{

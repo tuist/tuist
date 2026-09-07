@@ -3,6 +3,7 @@ package dev.tuist.gradle
 import com.google.gson.GsonBuilder
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
+import org.gradle.api.tasks.CacheableTask
 import org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheLocalLoadBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperationType
@@ -130,8 +131,8 @@ internal class BuildExecutionTelemetry {
             }
             val cacheability = when {
                 work.hit != null || work.key != null -> "cacheable"
-                result.cachingDisabledReasonCategory == "UNKNOWN" -> "unknown"
-                result.cachingDisabledReasonMessage != null -> "disabled"
+                result.cachingDisabledReasonCategory !in listOf(null, "UNKNOWN", "BUILD_CACHE_DISABLED") -> "disabled"
+                details.taskClass.isAnnotationPresent(CacheableTask::class.java) -> "cacheable"
                 else -> "unknown"
             }
             val startedAt = Instant.ofEpochMilli(event.startTime).toString()

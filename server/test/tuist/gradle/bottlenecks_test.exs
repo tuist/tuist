@@ -22,16 +22,13 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [task(":app:compileJava", "up_to_date", 5, false)])
 
     %{rows: [row]} = Bottlenecks.list(project.id)
-    assert row.builds == 4
     assert row.executions == 2
     assert row.misses == 1
     assert row.hit_rate == 50.0
     assert row.cumulative_duration_ms == 400
     assert row.p50_duration_ms == 200
-    assert row.p95_duration_ms == 290
     assert row.p90_duration_ms == 280
     assert row.p99_duration_ms == 298
-    assert row.chain_samples == 0
   end
 
   test "cohort filters and project isolation apply to rankings and build history", %{project: project, account: account} do
@@ -46,7 +43,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(other, account, [task(":app:compileJava", "executed", 9000, true)])
     opts = [is_ci: true, git_branch: "main", requested_task: ":app:jar"]
     assert %{rows: [%{cumulative_duration_ms: 100}]} = Bottlenecks.list(project.id, opts)
-    assert [%{cumulative_duration_ms: 100}] = Bottlenecks.history(project.id, ":app:compileJava", opts)
+    assert %{rows: [%{duration_ms: 100}]} = Bottlenecks.task_executions(project.id, ":app:compileJava", opts)
   end
 
   test "a cacheable task without remote lookups has a zero hit rate and no execution percentiles", %{
@@ -56,7 +53,6 @@ defmodule Tuist.Gradle.BottlenecksTest do
     build(project, account, [task(":app:compileJava", "local_hit", 10, false)])
     %{rows: [row]} = Bottlenecks.list(project.id)
     assert row.hit_rate == 0.0
-    assert row.p95_duration_ms == nil
     assert row.p50_duration_ms == nil
     assert row.p90_duration_ms == nil
     assert row.p99_duration_ms == nil
@@ -145,7 +141,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     assert detail.total.cumulative_duration_ms == 100
   end
 
-  test "dropdown operators apply consistently to totals, charts, history and graphs", %{
+  test "dropdown operators apply consistently to totals, charts, task executions", %{
     project: project,
     account: account
   } do
@@ -177,8 +173,7 @@ defmodule Tuist.Gradle.BottlenecksTest do
     ]
 
     assert %{rows: [%{cumulative_duration_ms: 100}]} = Bottlenecks.list(project.id, opts)
-    assert [%{id: ^matching}] = Bottlenecks.history(project.id, ":app:compileJava", opts)
-    assert %{build: %{id: ^matching}} = Bottlenecks.latest_graph(project.id, opts)
+    assert %{rows: [%{build_id: ^matching}]} = Bottlenecks.task_executions(project.id, ":app:compileJava", opts)
     analytics = Bottlenecks.analytics(project.id, opts)
     assert analytics.total.cumulative_duration_ms == 100
     assert Enum.sum(Enum.map(analytics.points, & &1.cumulative_duration_ms)) == 100

@@ -48,16 +48,13 @@ defmodule Tuist.Gradle do
       build_id = attrs.id
       tasks = Map.get(attrs, :tasks, [])
 
-      graph = Map.get(attrs, :execution_graph) || %{status: "unavailable", nodes: []}
-      chain = ExecutionGraph.analyze(graph)
-      attrs = Map.put(attrs, :dependency_chain_duration_ms, chain.duration_ms)
       task_counts = compute_task_counts(tasks)
       build_entry = build_entry(attrs, build_id, task_counts, now)
 
       Build.Buffer.insert(build_entry)
 
       if !Enum.empty?(tasks) do
-        create_tasks(build_id, attrs.project_id, tasks, now, chain)
+        create_tasks(build_id, attrs.project_id, tasks, now)
       end
 
       machine_metrics = Map.get(attrs, :machine_metrics, [])
@@ -80,7 +77,6 @@ defmodule Tuist.Gradle do
       telemetry_version: value_or(attrs, :telemetry_version, 0),
       build_options: value_or(attrs, :build_options, %{}),
       execution_graph: JSON.encode!(Map.get(attrs, :execution_graph) || %{status: "unavailable", nodes: []}),
-      dependency_chain_duration_ms: Map.get(attrs, :dependency_chain_duration_ms),
       tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
       gradle_version: value_or(attrs, :gradle_version, ""),
@@ -159,14 +155,11 @@ defmodule Tuist.Gradle do
     IngestRepo.insert_all(BuildMachineMetric, entries)
   end
 
-  defp create_tasks(build_id, project_id, tasks, now, chain) do
-    chain_ids = MapSet.new(chain.node_ids)
-
+  defp create_tasks(build_id, project_id, tasks, now) do
     task_entries =
       Enum.map(tasks, fn task ->
         execution = Map.get(task, :execution) || %{}
         build_path = value_or(execution, :build_path, "")
-        task_id = ExecutionGraph.task_id(build_path, task.task_path)
 
         %{
           build_path: build_path,
@@ -179,7 +172,6 @@ defmodule Tuist.Gradle do
           remote_cache_lookup_duration_ms: Map.get(execution, :remote_cache_lookup_duration_ms),
           remote_cache_download_duration_ms: Map.get(execution, :remote_cache_download_duration_ms),
           remote_cache_upload_duration_ms: Map.get(execution, :remote_cache_upload_duration_ms),
-          on_dependency_chain: if(chain.status == "available", do: MapSet.member?(chain_ids, task_id)),
           id: UUIDv7.generate(),
           gradle_build_id: build_id,
           task_path: task.task_path,
@@ -484,10 +476,7 @@ defmodule Tuist.Gradle do
               t.remote_cache_upload_duration_ms,
               t.remote_cache_stored,
               t.cache_artifact_size
-            ),
-          confirmed_remote_cache_miss_count: fragment("countIf(?)", t.remote_cache_miss),
-          confirmed_remote_cache_miss_duration_ms: fragment("sumIf(?, ?)", t.duration_ms, t.remote_cache_miss),
-          remote_cache_entries_stored_count: fragment("countIf(? = true)", t.remote_cache_stored)
+            )
         }
       )
     )

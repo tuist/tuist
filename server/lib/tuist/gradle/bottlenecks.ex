@@ -7,7 +7,6 @@ defmodule Tuist.Gradle.Bottlenecks do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
-  alias Tuist.Gradle.ExecutionGraph
   alias Tuist.Gradle.Task
   alias Tuist.Repo
 
@@ -155,12 +154,9 @@ defmodule Tuist.Gradle.Bottlenecks do
     rows =
       query
       |> select_merge([t, b], %{
-        builds: fragment("uniqExact(?)", t.gradle_build_id),
-        affected_builds: fragment("uniqExactIf(?, ?)", t.gradle_build_id, t.remote_cache_miss),
         executions: fragment("countIf(? = 'executed')", t.outcome),
         misses: fragment("countIf(?)", t.remote_cache_miss),
         remote_hits: fragment("countIf(? = 'remote_hit')", t.outcome),
-        local_hits: fragment("countIf(? = 'local_hit')", t.outcome),
         observations: count(),
         cacheable_observations:
           fragment(
@@ -173,15 +169,10 @@ defmodule Tuist.Gradle.Bottlenecks do
           ),
         non_cacheable_observations:
           fragment("countIf(? = 'disabled' OR (? = 0 AND NOT ?))", t.cacheability, b.telemetry_version, t.cacheable),
-        up_to_date: fragment("countIf(? = 'up_to_date')", t.outcome),
         cumulative_duration_ms: fragment("sumIf(?, ? = 'executed')", t.duration_ms, t.outcome),
         p50_duration_ms: fragment("quantileIf(0.5)(?, ? = 'executed')", t.duration_ms, t.outcome),
         p90_duration_ms: fragment("quantileIf(0.9)(?, ? = 'executed')", t.duration_ms, t.outcome),
-        p99_duration_ms: fragment("quantileIf(0.99)(?, ? = 'executed')", t.duration_ms, t.outcome),
-        p95_duration_ms: fragment("quantileIf(0.95)(?, ? = 'executed')", t.duration_ms, t.outcome),
-        chain_builds: fragment("uniqExactIf(?, ? = true)", t.gradle_build_id, t.on_dependency_chain),
-        chain_samples: fragment("uniqExactIf(?, isNotNull(?))", t.gradle_build_id, t.on_dependency_chain),
-        last_seen_at: max(t.inserted_at)
+        p99_duration_ms: fragment("quantileIf(0.99)(?, ? = 'executed')", t.duration_ms, t.outcome)
       })
       |> order_by([t], desc: fragment("sumIf(?, ? = 'executed')", t.duration_ms, t.outcome))
       |> limit(^(@max_entities + 1))
@@ -191,29 +182,6 @@ defmodule Tuist.Gradle.Bottlenecks do
       rows: rows |> Enum.take(@max_entities) |> Enum.map(&normalize/1),
       truncated: length(rows) > @max_entities
     }
-  end
-
-  def history(project_id, name, opts \\ []) do
-    project_id
-    |> task_query(opts)
-    |> where([t], t.task_path == ^name)
-    |> group_by([t, b], [b.id, b.inserted_at, b.git_branch, b.git_commit_sha, b.requested_tasks, b.is_ci])
-    |> select([t, b], %{
-      id: b.id,
-      inserted_at: b.inserted_at,
-      git_branch: b.git_branch,
-      git_commit_sha: b.git_commit_sha,
-      requested_tasks: b.requested_tasks,
-      is_ci: b.is_ci,
-      executions: fragment("countIf(? = 'executed')", t.outcome),
-      misses: fragment("countIf(?)", t.remote_cache_miss),
-      remote_hits: fragment("countIf(? = 'remote_hit')", t.outcome),
-      local_hits: fragment("countIf(? = 'local_hit')", t.outcome),
-      cumulative_duration_ms: fragment("sumIf(?, ? = 'executed')", t.duration_ms, t.outcome)
-    })
-    |> order_by([_t, b], desc: b.inserted_at, desc: b.id)
-    |> limit(50)
-    |> ClickHouseRepo.all()
   end
 
   def task_executions(project_id, name, opts \\ []) do
@@ -275,55 +243,7 @@ defmodule Tuist.Gradle.Bottlenecks do
     %{rows: rows, page: page, total_pages: total_pages}
   end
 
-  def latest_graph(project_id, opts \\ []) do
-    query = build_query(project_id, opts)
-
-    build =
-      query
-      |> where([b], b.telemetry_version > 0)
-      |> order_by([b], desc: b.inserted_at, desc: b.id)
-      |> limit(1)
-      |> ClickHouseRepo.one()
-
-    if build do
-      %{build: build, graph: ExecutionGraph.decode(build.execution_graph)}
-    else
-      %{build: nil, graph: %{status: "unavailable", nodes: []}}
-    end
-  end
-
-  def with_dependents(rows, %{build: build, graph: %{status: "complete", nodes: nodes}}) when not is_nil(build) do
-    index = Map.new(nodes, &{&1.id, &1})
-    successors = ExecutionGraph.successors(nodes)
-
-    entities =
-      nodes
-      |> Enum.filter(&(&1 && &1.kind == "task"))
-      |> Enum.group_by(&{&1.build_path, &1.label})
-
-    Enum.map(rows, fn row ->
-      matching = Map.get(entities, {row.build_path, row.name}, [])
-
-      count =
-        if matching != [] and row.root_project_name == build.root_project_name do
-          downstream = ExecutionGraph.downstream_from(successors, Enum.map(matching, & &1.id))
-
-          downstream
-          |> Enum.map(&index[&1])
-          |> Enum.filter(&(&1 && &1.kind == "task"))
-          |> Enum.map(&{&1.build_path, &1.project_path})
-          |> Enum.reject(&(&1 == {row.build_path, row.project_path}))
-          |> Enum.uniq()
-          |> length()
-        end
-
-      Map.put(row, :dependents, count)
-    end)
-  end
-
-  def with_dependents(rows, _graph), do: Enum.map(rows, &Map.put(&1, :dependents, nil))
-
-  def build_query(project_id, opts) do
+  defp build_query(project_id, opts) do
     start_at = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_at = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
@@ -340,14 +260,43 @@ defmodule Tuist.Gradle.Bottlenecks do
   end
 
   defp task_query(project_id, opts) do
-    builds = build_query(project_id, opts)
+    builds =
+      project_id
+      |> build_query(opts)
+      |> select(
+        [b],
+        struct(b, [
+          :id,
+          :root_project_name,
+          :inserted_at,
+          :telemetry_version,
+          :custom_tags,
+          :account_id,
+          :is_ci,
+          :requested_tasks,
+          :git_branch,
+          :git_commit_sha
+        ])
+      )
+
     start_at = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_at = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     tasks =
       from(t in Task,
         where: t.project_id == ^project_id and t.inserted_at >= ^start_at and t.inserted_at <= ^end_at,
-        select_merge: %{
+        select: %{
+          id: t.id,
+          gradle_build_id: t.gradle_build_id,
+          build_path: t.build_path,
+          task_path: t.task_path,
+          task_type: t.task_type,
+          outcome: t.outcome,
+          duration_ms: t.duration_ms,
+          cacheable: t.cacheable,
+          cacheability: t.cacheability,
+          remote_cache_miss: t.remote_cache_miss,
+          started_at: t.started_at,
           project_path:
             fragment(
               "if(? = '', if(position(reverse(?), ':') = length(?), ':', replaceRegexpOne(?, ':[^:]*$', '')), ?)",
@@ -364,8 +313,8 @@ defmodule Tuist.Gradle.Bottlenecks do
 
     Enum.reduce([:project_path, :task_type, :build_path, :task_path], query, fn key, query ->
       case Keyword.get(opts, key) do
-        nil -> query
-        value -> where(query, [t], field(t, ^key) == ^value)
+        value when is_binary(value) -> where(query, [t], field(t, ^key) == ^value)
+        _ -> query
       end
     end)
   end
@@ -404,12 +353,18 @@ defmodule Tuist.Gradle.Bottlenecks do
 
   defp filter(query, opts, key) do
     case Keyword.get(opts, key) do
-      value when value in [nil, ""] -> query
-      value -> where(query, [b], field(b, ^key) == ^value)
+      value when value in [nil, ""] ->
+        query
+
+      value when is_binary(value) or (key == :is_ci and is_boolean(value)) ->
+        where(query, [b], field(b, ^key) == ^value)
+
+      _ ->
+        query
     end
   end
 
-  defp requested_task(query, task) when task in [nil, ""], do: query
+  defp requested_task(query, task) when not is_binary(task) or task == "", do: query
   defp requested_task(query, task), do: where(query, [b], fragment("has(?, ?)", b.requested_tasks, ^task))
 
   defp normalize(row) do
@@ -431,7 +386,7 @@ defmodule Tuist.Gradle.Bottlenecks do
   end
 
   defp normalize_percentiles(row) do
-    Enum.reduce([:p50_duration_ms, :p90_duration_ms, :p95_duration_ms, :p99_duration_ms], row, fn field, row ->
+    Enum.reduce([:p50_duration_ms, :p90_duration_ms, :p99_duration_ms], row, fn field, row ->
       Map.update!(row, field, &if(row.executions > 0 and is_number(&1), do: round(&1)))
     end)
   end

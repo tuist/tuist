@@ -5,6 +5,7 @@ This area owns shared UI components for LiveView and templates.
 ## Responsibilities
 - Provide reusable UI components (navigation, auth components, forms).
 - Keep rendering logic here; avoid domain logic.
+- `Runs.ProjectWithTags` shares project/scheme cells and tag overflow rules across build and task tables; detail headings reuse its uncollapsed tags.
 - Widgets and trend badges accept an optional formatted trend value for absolute changes when a percentage is undefined. Default percentage rendering remains shared across pages.
 
 ## Boundaries

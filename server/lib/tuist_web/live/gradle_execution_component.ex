@@ -7,19 +7,40 @@ defmodule TuistWeb.GradleExecutionComponent do
   alias Tuist.Gradle.ExecutionGraph
   alias Tuist.Utilities.DateFormatter
 
+  @page_size 25
+
   def update(assigns, socket) do
-    graph = ExecutionGraph.decode(assigns.build.execution_graph)
-    model = ExecutionGraph.analyze(graph)
-    index = Map.new(graph.nodes, &{&1.id, &1})
+    assigns = Map.update!(assigns, :params, &Map.filter(&1, fn {_key, value} -> is_binary(value) end))
+    socket = cache_graph(socket, assigns.build)
+    %{graph: graph, model: model, index: index} = socket.assigns.graph_cache
     selected = index[assigns.params["node"]] || index[List.first(model.node_ids)] || List.first(graph.nodes)
     search = assigns.params["graph-search"] || ""
-    filtered = Enum.filter(graph.nodes, &String.contains?(String.downcase(&1.label), String.downcase(search)))
 
-    page_count = max(ceil(length(filtered) / 25), 1)
-    page = min(page_number(assigns.params), page_count)
-    {start_at, end_at} = time_range(graph.nodes)
-    {dependencies, dependents} = neighbors(selected, index, graph.nodes)
-    task = selected_task(assigns.build.id, selected)
+    filtered =
+      Enum.filter(
+        socket.assigns.graph_cache.timeline,
+        &String.contains?(String.downcase(&1.label), String.downcase(search))
+      )
+
+    timeline = paginate(filtered, assigns.params, "graph-page")
+    selection_key = {assigns.build.id, selected && selected.id}
+
+    socket =
+      if socket.assigns[:selection_key] == selection_key do
+        socket
+      else
+        {dependencies, dependents} = neighbors(selected, socket.assigns.graph_cache)
+
+        assign(socket,
+          selection_key: selection_key,
+          task: selected_task(assigns.build.id, selected),
+          neighbors: %{
+            dependencies: dependencies,
+            dependents: dependents,
+            ordering: if(selected, do: ordering(selected, index), else: [])
+          }
+        )
+      end
 
     {:ok,
      socket
@@ -28,25 +49,55 @@ defmodule TuistWeb.GradleExecutionComponent do
        graph: graph,
        model: model,
        selected: selected,
-       task: task,
        search: search,
-       chain: Enum.map(model.node_ids, &index[&1]),
-       rows: filtered |> Enum.sort_by(&{&1.started_at || "", &1.id}) |> Enum.slice((page - 1) * 25, 25),
-       page: page,
-       page_count: page_count,
-       start_at: start_at,
-       span: max(end_at - start_at, 1),
-       dependencies: dependencies,
-       dependents: dependents,
-       ordering: if(selected, do: ordering(selected, index), else: [])
+       chain: paginate(socket.assigns.graph_cache.chain, assigns.params, "chain-page"),
+       rows: timeline.rows,
+       page: timeline.page,
+       page_count: timeline.page_count,
+       start_at: socket.assigns.graph_cache.start_at,
+       span: socket.assigns.graph_cache.span,
+       dependencies: paginate(socket.assigns.neighbors.dependencies, assigns.params, "dependencies-page"),
+       dependents: paginate(socket.assigns.neighbors.dependents, assigns.params, "dependents-page"),
+       ordering: paginate(socket.assigns.neighbors.ordering, assigns.params, "ordering-page")
      )}
   end
 
-  defp page_number(params) do
-    case Integer.parse(params["graph-page"] || "1") do
-      {number, ""} -> max(number, 1)
-      _ -> 1
+  defp cache_graph(socket, build) do
+    if socket.assigns[:graph_build_id] == build.id do
+      socket
+    else
+      graph = ExecutionGraph.decode(build.execution_graph)
+      model = ExecutionGraph.analyze(graph)
+      index = Map.new(graph.nodes, &{&1.id, &1})
+      {start_at, end_at} = time_range(graph.nodes)
+
+      assign(socket,
+        graph_build_id: build.id,
+        graph_cache: %{
+          graph: graph,
+          model: model,
+          index: index,
+          successors: ExecutionGraph.successors(graph.nodes),
+          chain: Enum.map(model.node_ids, &index[&1]),
+          timeline: Enum.sort_by(graph.nodes, &{&1.started_at || "", &1.id}),
+          start_at: start_at,
+          span: max(end_at - start_at, 1)
+        }
+      )
     end
+  end
+
+  defp paginate(rows, params, key) do
+    total = length(rows)
+    page_count = max(ceil(total / @page_size), 1)
+
+    page =
+      case Integer.parse(params[key] || "1") do
+        {number, ""} -> number |> max(1) |> min(page_count)
+        _ -> 1
+      end
+
+    %{rows: Enum.slice(rows, (page - 1) * @page_size, @page_size), page: page, page_count: page_count, total: total}
   end
 
   defp time_range(nodes) do
@@ -56,11 +107,11 @@ defmodule TuistWeb.GradleExecutionComponent do
     {start_at, end_at}
   end
 
-  defp neighbors(nil, _index, _nodes), do: {[], []}
+  defp neighbors(nil, _cache), do: {[], []}
 
-  defp neighbors(selected, index, nodes) do
-    {selected.dependencies |> Enum.map(&index[&1]) |> Enum.reject(&is_nil/1),
-     Enum.filter(nodes, &(selected.id in &1.dependencies))}
+  defp neighbors(selected, %{index: index, successors: successors}) do
+    nodes = fn ids -> ids |> Enum.map(&index[&1]) |> Enum.reject(&is_nil/1) |> Enum.sort_by(&{&1.label, &1.id}) end
+    {nodes.(selected.dependencies), nodes.(Map.get(successors, selected.id, []))}
   end
 
   defp selected_task(build_id, %{kind: "task"} = selected) do
@@ -87,8 +138,40 @@ defmodule TuistWeb.GradleExecutionComponent do
       (assigns.params
        |> Map.drop(~w(account_handle project_handle build_run_id))
        |> Map.put("tab", "dependencies")
+       |> then(fn params ->
+         if Map.has_key?(changes, "node"),
+           do: Map.drop(params, ~w(dependencies-page dependents-page ordering-page)),
+           else: params
+       end)
        |> Map.merge(changes)
        |> URI.encode_query())
+  end
+
+  attr :pagination, :map, required: true
+  attr :param, :string, required: true
+  attr :context, :map, required: true
+
+  defp graph_pages(assigns) do
+    ~H"""
+    <div :if={@pagination.page_count > 1} class="graph-pages" data-pagination={@param}>
+      <.button
+        :if={@pagination.page > 1}
+        label={dgettext("dashboard_gradle", "Previous")}
+        variant="secondary"
+        patch={patch(@context, %{@param => to_string(@pagination.page - 1)})}
+      />
+      <span>{dgettext("dashboard_gradle", "Page %{page} of %{count}",
+        page: @pagination.page,
+        count: @pagination.page_count
+      )}</span>
+      <.button
+        :if={@pagination.page < @pagination.page_count}
+        label={dgettext("dashboard_gradle", "Next")}
+        variant="secondary"
+        patch={patch(@context, %{@param => to_string(@pagination.page + 1)})}
+      />
+    </div>
+    """
   end
 
   defp ordering(node, index) do

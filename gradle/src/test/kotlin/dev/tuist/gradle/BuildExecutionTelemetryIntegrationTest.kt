@@ -70,6 +70,7 @@ class BuildExecutionTelemetryIntegrationTest {
             """.trimIndent())
             File(directory, "build.gradle").writeText("""
                 subprojects { apply plugin: 'java-library' }
+                project(':core') { tasks.named('compileJava') { outputs.doNotCacheIf('Disabled for this task') { true } } }
                 project(':app') {
                     dependencies {
                         implementation project(':core')
@@ -100,6 +101,11 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("miss", compile.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
             assertEquals(":app", compile.getAsJsonObject("execution")["project_path"].asString)
             assertTrue(compile["remote_cache_stored"].asBoolean)
+            val disabled = cold.getAsJsonArray("tasks").map { it.asJsonObject }
+                .first { it["task_path"].asString == ":core:compileJava" }
+            assertEquals("disabled", disabled.getAsJsonObject("execution")["cacheability"].asString)
+            assertTrue(!disabled["cacheable"].asBoolean)
+
 
             val (output, warm) = run()
             assertTrue(output.contains("Reusing configuration cache"), output)
@@ -120,7 +126,17 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("executed", executed["outcome"].asString)
             assertEquals("not_requested", executed.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
             assertTrue(!executed["remote_cache_miss"].asBoolean)
-            assertEquals("disabled", executed.getAsJsonObject("execution")["cacheability"].asString)
+            assertEquals("cacheable", executed.getAsJsonObject("execution")["cacheability"].asString)
+            assertTrue(executed["cacheable"].asBoolean)
+
+            val (_, unchanged) = run("--no-build-cache", "-x", "clean")
+            val upToDate = unchanged.getAsJsonArray("tasks").map { it.asJsonObject }
+                .first { it["task_path"].asString == ":app:compileJava" }
+            assertEquals("up_to_date", upToDate["outcome"].asString)
+            assertEquals("cacheable", upToDate.getAsJsonObject("execution")["cacheability"].asString)
+            val clean = cold.getAsJsonArray("tasks").map { it.asJsonObject }
+                .first { it["task_path"].asString == ":app:clean" }
+            assertEquals("disabled", clean.getAsJsonObject("execution")["cacheability"].asString)
 
             File(directory, "settings.gradle").appendText("\nbuildCache { local { enabled = true; directory = file('local-cache') }; remote { enabled = false } }\n")
             run()

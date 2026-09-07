@@ -605,6 +605,7 @@ defmodule TuistWeb.API.GradleController do
 
       {:ok, build} ->
         if build.project_id == project.id do
+          graph = ExecutionGraph.decode(build.execution_graph)
           tasks = Gradle.list_tasks(build_id)
           configuration_operations = Gradle.list_configuration_operations(build_id)
           artifact_transforms = Gradle.list_artifact_transforms(build_id)
@@ -612,9 +613,9 @@ defmodule TuistWeb.API.GradleController do
           json(conn, %{
             id: build.id,
             telemetry_version: build.telemetry_version,
-            execution_graph: ExecutionGraph.decode(build.execution_graph),
+            execution_graph: graph,
             build_options: build.build_options,
-            dependency_chain_duration_ms: build.dependency_chain_duration_ms,
+            dependency_chain_duration_ms: ExecutionGraph.analyze(graph).duration_ms,
             duration_ms: build.duration_ms,
             status: build.status,
             gradle_version: build.gradle_version,

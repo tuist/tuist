@@ -6,6 +6,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.GradleTask
+  import TuistWeb.Runs.ProjectWithTags
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -23,7 +24,12 @@ defmodule TuistWeb.GradleBottlenecksLive do
   def mount(_params, _session, socket), do: {:ok, assign(socket, :available_filters, define_filters())}
 
   def handle_params(params, uri, socket) do
-    params = params |> normalize_environment() |> normalize_filters(socket.assigns.available_filters)
+    params =
+      params
+      |> Map.filter(fn {_key, value} -> is_binary(value) end)
+      |> normalize_environment()
+      |> normalize_filters(socket.assigns.available_filters)
+
     name = params["name"]
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     %{preset: preset, period: new_period} = DatePicker.date_picker_params(params, "analytics")

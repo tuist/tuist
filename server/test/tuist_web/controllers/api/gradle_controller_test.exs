@@ -6,7 +6,6 @@ defmodule TuistWeb.API.GradleControllerTest do
 
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
-  alias Tuist.Gradle.ExecutionGraph
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -24,7 +23,7 @@ defmodule TuistWeb.API.GradleControllerTest do
     end
 
     test "execution telemetry survives ingestion and both read APIs", %{conn: conn, user: user, project: project} do
-      task_id = ExecutionGraph.task_id(":included", ":core:compile")
+      task_id = JSON.encode!([":included", ":core:compile"])
 
       graph = %{
         status: "complete",
@@ -95,8 +94,6 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       assert hd(tasks["tasks"])["execution"]["remote_cache_upload_duration_ms"] == 30
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
-      {:ok, stored} = Gradle.get_build(id)
-      assert stored.id |> Gradle.list_tasks() |> hd() |> Map.fetch!(:on_dependency_chain)
     end
 
     test "duplicate graph identities are rejected before writing", %{conn: conn, user: user, project: project} do
