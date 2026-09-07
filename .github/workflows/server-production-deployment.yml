@@ -21,11 +21,14 @@ on:
       - gradle/**
       - skills/**
       - infra/hetzner-robot-controller/**
+      - infra/mdm/**
+      - infra/helm/mdm/**
       - .github/workflows/cache-release.yml
       - .github/workflows/gradle-release.yml
       - .github/workflows/noora-release.yml
       - .github/workflows/skills-release.yml
       - .github/workflows/hetzner-robot-controller-release.yml
+      - .github/workflows/mdm-deployment.yml
       # Management-cluster state has its own apply workflow and must not
       # redeploy the customer-facing server.
       - infra/k8s/clusters/**
