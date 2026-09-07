@@ -61,53 +61,74 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert Enum.at(run_urls, 1) =~ run_two.id
     end
 
-    test "lists second page", %{conn: conn, user: user, project: project} do
+    test "paginates forward with cursors", %{conn: conn, user: user, project: project} do
       # Given
-      date = DateTime.utc_now()
+      date = ~U[2026-09-01 10:00:00.000000Z]
 
       run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          name: "test",
+          name: "install",
           test_targets: ["ATests", "BTests", "CTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
           cacheable_targets: ["A", "B", "C"],
           local_cache_target_hits: ["A", "B"],
           remote_cache_target_hits: ["C"],
-          created_at: date
+          is_ci: true,
+          ran_at: date
         )
 
-      _run_two =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
 
-      _run_three =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+      run_three =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 2, :second)
+        )
 
-      _run_four = CommandEventsFixtures.command_event_fixture(created_at: date)
+      _run_of_another_project = CommandEventsFixtures.command_event_fixture(ran_at: date)
 
       # When
-      conn =
-        get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2")
+        |> json_response(:ok)
 
       # Then
-      response = json_response(conn, :ok)
+      assert Enum.map(first_page["runs"], & &1["id"]) == [run_three.id, run_two.id]
+      assert first_page["pagination_metadata"]["has_next_page"] == true
+      assert first_page["pagination_metadata"]["page_size"] == 2
 
-      # Check the returned run
-      assert length(response["runs"]) == 1
-      run = hd(response["runs"])
+      # When
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
 
-      # Check all the expected fields except id and url which we'll check separately
+      # Then
+      assert length(second_page["runs"]) == 1
+      run = hd(second_page["runs"])
+
+      assert run["id"] == run_one.id
       assert run["git_branch"] == nil
       assert run["git_commit_sha"] == nil
       assert run["cacheable_targets"] == ["A", "B", "C"]
       assert run["command_arguments"] == ""
       assert run["duration"] == 0
+      assert run["error_message"] == nil
       assert run["git_ref"] == nil
+      assert run["is_ci"] == true
       assert run["local_cache_target_hits"] == ["A", "B"]
       assert run["local_test_target_hits"] == ["ATests", "BTests"]
       assert run["macos_version"] == "10.15"
-      assert run["name"] == "test"
+      assert run["name"] == "install"
       assert run["preview_id"] == nil
       assert run["remote_cache_target_hits"] == ["C"]
       assert run["remote_test_target_hits"] == ["CTests"]
@@ -118,9 +139,237 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["tuist_version"] == "4.1.0"
       assert run["ran_at"] == DateTime.to_unix(date)
       assert run["ran_by"] == nil
-
-      # Check that URL contains the UUID
       assert run["url"] =~ run_one.id
+    end
+
+    test "paginates backwards with cursors", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
+
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      assert Enum.map(second_page["runs"], & &1["id"]) == [run_one.id]
+
+      # When
+      previous_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&before=#{second_page["pagination_metadata"]["start_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(previous_page["runs"], & &1["id"]) == [run_two.id]
+    end
+
+    test "pages across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      # The CLI sends ran_at as ISO8601 without fractional seconds, so concurrent
+      # runs routinely land on the same timestamp.
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      # When
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert length(first_page["runs"]) == 1
+      assert length(second_page["runs"]) == 1
+
+      assert MapSet.new(first_page["runs"] ++ second_page["runs"], & &1["id"]) ==
+               MapSet.new([run_one.id, run_two.id])
+    end
+
+    test "pages backwards across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # When
+      previous_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&before=#{second_page["pagination_metadata"]["start_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(previous_page["runs"], & &1["id"]) == Enum.map(first_page["runs"], & &1["id"])
+
+      assert MapSet.new([run_one.id, run_two.id]) ==
+               MapSet.new(previous_page["runs"] ++ second_page["runs"], & &1["id"])
+    end
+
+    test "returns a bad request when a cursor is malformed", %{conn: conn, user: user, project: project} do
+      # When
+      after_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?after=invalid")
+        |> json_response(:bad_request)
+
+      before_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?before=invalid")
+        |> json_response(:bad_request)
+
+      # Then
+      assert after_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+      assert before_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+    end
+
+    test "ignores the deprecated page parameter", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      _run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=1")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [run_two.id]
+    end
+
+    test "filters runs by status", %{conn: conn, user: user, project: project} do
+      # Given
+      failed_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "install",
+          status: :failure,
+          error_message: "The command 'swift package resolve' terminated with the code 1"
+        )
+
+      _successful_run =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "install")
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?name=install&status=failure")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [failed_run.id]
+      run = hd(response["runs"])
+      assert run["status"] == "failure"
+      assert run["error_message"] == "The command 'swift package resolve' terminated with the code 1"
+    end
+
+    test "filters runs by is_ci", %{conn: conn, user: user, project: project} do
+      # Given
+      ci_run = CommandEventsFixtures.command_event_fixture(project_id: project.id, is_ci: true)
+      local_run = CommandEventsFixtures.command_event_fixture(project_id: project.id, is_ci: false)
+
+      # When
+      ci_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?is_ci=true")
+        |> json_response(:ok)
+
+      local_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?is_ci=false")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(ci_response["runs"], & &1["id"]) == [ci_run.id]
+      assert Enum.map(local_response["runs"], & &1["id"]) == [local_run.id]
+    end
+
+    test "filters runs by the ran_at range", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      _older_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, -1, :day)
+        )
+
+      run_in_range = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      _newer_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :day)
+        )
+
+      from = date |> DateTime.add(-1, :hour) |> DateTime.to_unix()
+      to = date |> DateTime.add(1, :hour) |> DateTime.to_unix()
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?from=#{from}&to=#{to}")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [run_in_range.id]
+    end
+
+    test "returns a bad request when to is before from", %{conn: conn, user: user, project: project} do
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?from=200&to=100")
+        |> json_response(:bad_request)
+
+      # Then
+      assert response["message"] == "`to` must be greater than or equal to `from`."
     end
 
     test "lists no runs when there are none", %{conn: conn, user: user, project: project} do
