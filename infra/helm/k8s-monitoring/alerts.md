@@ -3019,9 +3019,9 @@ The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
 being-deleted StatefulSet is `0 - 0`.
 
 **Thirty minutes, for the same reason as *Pod cannot be scheduled*.** It clears
-a rolling deploy, a node drain, and the kura-controller's own volume rebuild,
-which takes a replica down deliberately and gets it back Ready in about two
-minutes. It is short enough that a wedge surfaces the same morning.
+a rolling deploy, a node drain, and a replica taken down deliberately by a
+storage rebuild, which is back Ready in about two minutes. It is short enough
+that a wedge surfaces the same morning rather than after two days.
 
 **What this exists for.** On 2026-09-07 a `kura-<account>-us-east-1-1` replica
 was found to have sat `Pending` for roughly two days while `-0` served, so a
@@ -3034,11 +3034,28 @@ help because the pin predated it. None of the 22 Kura rules that predate this
 one covered it: **Kura cache telemetry missing** is fleet-wide
 `absent_over_time`, **Kura cache pod restart
 loop** cannot fire because a `Pending` pod never restarts, and the region rules
-describe the region rather than the tenant. The kura-controller now rebuilds
-that volume on its own, so this rule's subject is the shortfall the self-heal
-does not clear: no capacity anywhere in the region, a sibling that is also down
-(the rebuild is gated on it, deliberately, so an instance can never lose both
-copies), a crash loop, or a wedge the trigger does not recognise.
+describe the region rather than the tenant.
+
+**Repairing a pinned wedge by hand.** Delete the replica's data PVC. The
+StatefulSet recreates it, the storage class provisions a fresh volume on a box
+that has room (`WaitForFirstConsumer` binds it wherever the pod is placed rather
+than where the old one was), and the pod refills its ring from its sibling over
+the peer mesh. It took about two minutes end to end when this was done for the
+2026-09-07 wedge, with no customer-visible interruption, because the replica
+being replaced was `Pending` and serving nothing. Check the sibling is Ready
+first: the volume is one of the account's two copies and the rebuilt pod refills
+from the other one.
+
+Having the controller do this automatically was written and then deliberately
+dropped from the change that added this rule. The trigger has to infer "the pin
+is what is in the way" from a Pending pod, a bound claim, a grace period and a
+set of node-health guards, and two review passes each found a case where it
+would discard a healthy volume (a claim caught mid-bind, and a node carrying an
+untolerated taint). Automating a destructive action behind an inference that
+needed two corrections was judged the wrong trade against a repair that is one
+command, when what actually failed here was that nobody knew for two days. This
+rule is what fixes that. Revisit the automation if the wedge recurs often enough
+to be worth the risk.
 
 **Why *Pod cannot be scheduled* did not save us, which is not that it is
 missing.** That rule matches any unschedulable production pod outside
@@ -3104,7 +3121,7 @@ max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_memory_
 **Why the seat is not simply held, which is what makes this worth watching.**
 Kubernetes accounts extended resources against *scheduled pods*, not against
 volumes. The moment a replica is deleted for any reason (a rollout, an eviction,
-a drain, the controller's own volume rebuild) its request stops being counted
+a drain, a storage rebuild) its request stops being counted
 and another instance can take the headroom. Two things that look like they would
 fix that do not. Kura pods run at priority 0 with no PriorityClass, so a
 returning replica cannot preempt whatever took its seat; and on these boxes
