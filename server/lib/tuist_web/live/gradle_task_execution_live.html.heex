@@ -23,7 +23,7 @@
     </div>
     <.link_button
       navigate={overview_path(assigns)}
-      label={dgettext("dashboard_gradle", "Task overview")}
+      label={dgettext("dashboard_gradle", "Task: %{name}", name: @task.task_path)}
       size="large"
       underline
       data-part="task-overview-link"

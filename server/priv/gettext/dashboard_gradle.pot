@@ -1602,11 +1602,6 @@ msgstr ""
 msgid "Task execution not found."
 msgstr ""
 
-#: lib/tuist_web/live/gradle_task_execution_live.html.heex:26
-#, elixir-autogen, elixir-format
-msgid "Task overview"
-msgstr ""
-
 #: lib/tuist_web/live/gradle_task_execution_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Task type"
@@ -1625,4 +1620,9 @@ msgstr ""
 #: lib/tuist_web/live/gradle_task_execution_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Error"
+msgstr ""
+
+#: lib/tuist_web/live/gradle_task_execution_live.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Task: %{name}"
 msgstr ""
