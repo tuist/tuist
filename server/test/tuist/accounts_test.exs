@@ -30,6 +30,7 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -4891,7 +4892,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _kura_endpoint} =
         Accounts.create_account_cache_endpoint(account, %{
           url: "https://kura-cache.example.com",
-          technology: :kura
+          technology: :kura_self_hosted_peer
         })
 
       # When
@@ -5043,11 +5044,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
@@ -5230,11 +5227,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://acme-us-east-1.kura.tuist.dev",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
       resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
@@ -5301,11 +5294,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)

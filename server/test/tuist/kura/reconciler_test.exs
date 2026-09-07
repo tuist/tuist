@@ -207,7 +207,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
     mark_deployment_succeeded(deployment)
 
-    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
 
     # The region template now renders a different host (e.g. an
     # environment-scoped public-host rename). The image is unchanged, so only
@@ -222,67 +222,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Server{status: :active, url: "http://localhost:4200"} = Repo.get!(Server, server.id)
-    assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
-  end
-
-  test "republishes an active server whose cache endpoint mirror is missing" do
-    {account, server, deployment} = create_server()
-    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
-    mark_deployment_succeeded(deployment)
-
-    # `account_cache_endpoints`, not `kura_servers`, is what the CLI resolves,
-    # and the image and URL checks both read this server as steady state.
-    [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
-    Accounts.delete_account_cache_endpoint(endpoint)
-
-    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
-
-    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
-      assert id == server.id
-      {:ok, "0.5.2"}
-    end)
-
-    assert :ok = Reconciler.reconcile()
-
-    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
-    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
-  end
-
-  test "leaves a converged published server alone instead of re-activating it every tick" do
-    {_account, server, deployment} = create_server()
-    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
-    mark_deployment_succeeded(deployment)
-
-    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
-    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
-
-    # Reading the mirror must not cost a healthy server a DB write and a
-    # broadcast to every open settings LiveView each tick.
-    reject(&Kura.activate_server/2)
-
-    assert :ok = Reconciler.reconcile()
-
-    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
-  end
-
-  test "looks up endpoint publication once per tick, not once per server" do
-    for _ <- 1..3 do
-      {_account, server, deployment} = create_server()
-      {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
-      mark_deployment_succeeded(deployment)
-    end
-
-    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
-    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
-
-    # The projection already spends two Kubernetes round trips per server; an
-    # existence check each would add one DB round trip per server on top.
-    expect(Kura, :published_cache_endpoint_server_ids, 1, fn server_ids ->
-      assert length(server_ids) == 3
-      MapSet.new(server_ids)
-    end)
-
-    assert :ok = Reconciler.reconcile()
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4200"]
   end
 
   # A rollout abort or supersede cancels the open deployments it owns, which
@@ -308,7 +248,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
-    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
   end
 
   test "refreshes a converged node-port server instead of re-activating it every tick" do

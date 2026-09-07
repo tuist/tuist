@@ -3,7 +3,6 @@ defmodule Tuist.Kura.PromExPluginTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
@@ -166,41 +165,31 @@ defmodule Tuist.Kura.PromExPluginTest do
     end
   end
 
-  describe "execute_unpublished_endpoints_telemetry_event/0" do
-    test "counts active instances the CLI cannot resolve" do
-      published = account()
-      unpublished = account()
+  describe "execute_unroutable_instances_telemetry_event/0" do
+    test "counts instances that exist but cannot be resolved" do
+      instance(account())
 
-      publish(instance(published), "https://published-us-east-1.kura.tuist.dev")
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :failed, url: nil, current_image_tag: nil)
+      |> Repo.update!()
 
-      # An active instance with no mirror row is an account routed to the
-      # legacy cache lane while every other Kura signal reads healthy.
-      Repo.update!(Ecto.Changeset.change(instance(unpublished), url: "https://unpublished-us-east-1.kura.tuist.dev"))
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
 
-      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :endpoint_publication]])
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
 
-      PromExPlugin.execute_unpublished_endpoints_telemetry_event()
-
-      assert_received {[:tuist, :kura, :lifecycle, :endpoint_publication], ^ref, %{unpublished: 1}, %{region: @region}}
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1}, %{region: @region}}
     end
 
-    test "reports zero for a region with nothing unpublished rather than dropping the series" do
-      publish(instance(account()), "https://published-us-east-1.kura.tuist.dev")
+    test "reports zero for a healthy region rather than dropping the series" do
+      instance(account())
 
-      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :endpoint_publication]])
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
 
-      PromExPlugin.execute_unpublished_endpoints_telemetry_event()
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
 
-      assert_received {[:tuist, :kura, :lifecycle, :endpoint_publication], ^ref, %{unpublished: 0}, %{region: @region}}
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 0}, %{region: @region}}
     end
-  end
-
-  defp publish(%Server{} = server, url) do
-    server = Repo.update!(Ecto.Changeset.change(server, url: url))
-
-    {:ok, _} = Accounts.create_account_cache_endpoint(%Account{id: server.account_id}, %{url: url, technology: :kura})
-
-    server
   end
 
   # Capacity reads the region's nodes and pods, so sizing a region in a test

@@ -312,46 +312,50 @@ defmodule Tuist.Kura do
   defdelegate sized_storage_claim(account), to: PlacerClaims, as: :claim_for
 
   @doc """
-  Orders an account's managed cache endpoints so the one nearest the caller
-  comes first, leaving the order alone when there is no origin to order by or
-  only one endpoint to order.
+  The Tuist-managed Kura cache endpoint URLs the CLI resolves for this account,
+  nearest the caller first.
+
+  Derived from `kura_servers`, which is the only record of them. An instance is
+  resolvable exactly when it is `:active` in a public region, and `Server`
+  requires a `url` to be `:active`, so the row is the endpoint: there is no
+  second place for it to be missing from, and no state in which a serving
+  instance is not offered to the account.
 
   The server's ordering is what a client that simply takes the first entry
-  relies on; newer clients probe the list and refine it locally. Region
-  attribution is computed from the deterministic per-region URL rather than
-  read from the row, so this costs no query on the resolution path.
+  relies on; newer clients probe the list and refine it locally. Each server
+  carries its own region, so ordering by distance reads the row rather than
+  re-deriving the region from the URL.
   """
-  def order_endpoints_by_origin(endpoints, account, origin)
+  def managed_cache_endpoint_urls(account, origin \\ nil)
 
-  def order_endpoints_by_origin(endpoints, _account, nil), do: endpoints
+  def managed_cache_endpoint_urls(%Account{id: account_id}, origin) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status == :active)
+    |> where([s], s.region in ^public_region_ids())
+    |> select([s], %{url: s.url, region: s.region})
+    |> Repo.all()
+    |> order_by_origin(origin)
+    |> Enum.map(& &1.url)
+    # A warm handoff has the draining source and the promoted target on the
+    # same deterministic customer URL for the length of the drain.
+    |> Enum.uniq()
+  end
 
-  # Nothing to order, and the clause below would rebuild the whole region
-  # catalog to sort it. The common shape on the resolution path for an account
-  # that is archived or still provisioning.
-  def order_endpoints_by_origin([], _account, _origin), do: []
+  defp order_by_origin(servers, nil), do: Enum.sort_by(servers, & &1.region)
 
-  def order_endpoints_by_origin([endpoint], _account, _origin), do: [endpoint]
+  defp order_by_origin(servers, origin) do
+    Enum.sort_by(servers, &{OriginMap.distance(origin, &1.region), &1.region})
+  end
 
-  def order_endpoints_by_origin(endpoints, %Account{name: handle}, origin) do
-    regions_by_url =
-      Regions.all()
-      |> Enum.reject(&Regions.private?/1)
-      |> Enum.flat_map(fn region ->
-        case Regions.public_url(handle, region) do
-          nil -> []
-          url -> [{url, region.id}]
-        end
-      end)
-      |> Map.new()
-
-    Enum.sort_by(endpoints, fn endpoint ->
-      case Map.fetch(regions_by_url, endpoint.url) do
-        {:ok, region_id} -> {0, OriginMap.distance(origin, region_id)}
-        # An endpoint no region claims keeps its place behind the ones that
-        # were ordered, rather than jumping to a distance it does not have.
-        :error -> {1, 0}
-      end
-    end)
+  # The CLI cannot reach a private region: its URL is in-cluster Service DNS,
+  # and runner builds get it through `runner_cache_endpoint_url/2` instead.
+  # Read from `all/0` rather than `available/0` so an instance in a region that
+  # has been dropped from the environment's catalog keeps serving the account
+  # until teardown actually removes it.
+  defp public_region_ids do
+    Regions.all()
+    |> Enum.reject(&Regions.private?/1)
+    |> Enum.map(& &1.id)
   end
 
   @doc """
@@ -1077,7 +1081,7 @@ defmodule Tuist.Kura do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
          :ok <- ensure_public_endpoint_ready(url),
-         {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
+         {:ok, server} <- activate_server_transaction(server, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
@@ -1326,24 +1330,16 @@ defmodule Tuist.Kura do
 
   defp public_in_cluster_runner_cache_url(%Account{}, _platform), do: nil
 
-  # Candidates come from the CLI's own endpoint list so selection can't
-  # drift from what the CLI resolves. The URL match is exact by
-  # construction — the mirror writes `Server.url` verbatim
-  # (`activate_server_transaction/4`). URLs with no matching active
-  # server are registered self-hosted nodes and drop out deliberately:
-  # their hosts are external IPs the runner egress already reaches, so
-  # staging one would override the CLI's own working selection.
-  defp managed_cli_endpoint_servers(%Account{id: account_id} = account) do
-    case Accounts.kura_cache_endpoint_urls(account) do
-      [] ->
-        []
-
-      urls ->
-        Server
-        |> where([s], s.account_id == ^account_id and s.status == :active and s.url in ^urls)
-        |> order_by(asc: :region)
-        |> Repo.all()
-    end
+  # The same instances the CLI resolves, on the same predicate, so selection
+  # cannot drift from it. Registered self-hosted nodes are deliberately not
+  # among them: their hosts are external IPs the runner egress already reaches,
+  # so staging one would override the CLI's own working selection.
+  defp managed_cli_endpoint_servers(%Account{id: account_id}) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status == :active)
+    |> where([s], s.region in ^public_region_ids())
+    |> order_by(asc: :region)
+    |> Repo.all()
   end
 
   defp in_cluster_url(nil, _account), do: nil
@@ -1431,7 +1427,7 @@ defmodule Tuist.Kura do
 
   defp ensure_public_https_up(_uri), do: :ok
 
-  defp activate_server_transaction(server, account, url, image_tag) do
+  defp activate_server_transaction(server, url, image_tag) do
     Repo.transaction(fn ->
       case lock_server(server.id, server.account_id) do
         nil ->
@@ -1453,21 +1449,17 @@ defmodule Tuist.Kura do
         %Server{status: status} when status in [:drain_pending, :archived] ->
           Repo.rollback(:server_reclaimed)
 
-        %Server{url: previous_url} = server ->
-          with {:ok, server} <-
-                 server
-                 |> Server.observation_changeset(%{
-                   status: :active,
-                   url: url,
-                   current_image_tag: image_tag,
-                   observed_image_tag: image_tag,
-                   last_observed_at: now_truncated()
-                 })
-                 |> Repo.update(),
-               :ok <- ensure_cache_endpoint(account, url),
-               :ok <- prune_superseded_cache_endpoint(account, previous_url, url) do
-            server
-          else
+        %Server{} = server ->
+          case server
+               |> Server.observation_changeset(%{
+                 status: :active,
+                 url: url,
+                 current_image_tag: image_tag,
+                 observed_image_tag: image_tag,
+                 last_observed_at: now_truncated()
+               })
+               |> Repo.update() do
+            {:ok, server} -> server
             {:error, reason} -> Repo.rollback(reason)
           end
       end
@@ -1555,11 +1547,8 @@ defmodule Tuist.Kura do
   """
   def destroy_server(%Server{} = server) do
     case Repo.transaction(fn ->
-           with {:ok, server} <-
-                  server |> Server.status_changeset(%{status: :destroying}) |> Repo.update(),
-                :ok <- remove_cache_endpoint(server) do
-             server
-           else
+           case server |> Server.status_changeset(%{status: :destroying}) |> Repo.update() do
+             {:ok, server} -> server
              {:error, reason} -> Repo.rollback(reason)
            end
          end) do
@@ -1611,21 +1600,20 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Enters drain-pending: unpublishes the account's cache endpoint so no new
-  cache traffic is routed here, and leaves the workload running so in-flight
-  work finishes. New requests stop being routed here from this moment, which is
-  why the endpoint comes down first and teardown waits out `drain_seconds/0`.
+  Enters drain-pending, and leaves the workload running so in-flight work
+  finishes. Only an `:active` server is offered to the account, so the status
+  change is what stops new cache traffic being routed here; teardown then waits
+  out `drain_seconds/0` for what is already in flight.
 
-  The server keeps its `url`, so cancelling the drain only has to republish
-  the endpoint rather than rediscover it.
+  The server keeps its `url`, so cancelling the drain returns it to service
+  without rediscovering it.
   """
   def begin_drain(%Server{status: :active} = server) do
     case Repo.transaction(fn ->
            server = lock_with_status(server, :active, :not_drainable)
 
            with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
-                :ok <- cancel_open_deployments(server),
-                :ok <- remove_cache_endpoint(server) do
+                :ok <- cancel_open_deployments(server) do
              server
            else
              {:error, reason} -> Repo.rollback(reason)
@@ -1663,16 +1651,15 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Cancels a drain and returns the instance to service: republishes the cache
-  endpoint the drain unpublished and flips the status back to `:active`.
+  Cancels a drain and returns the instance to service: flips the status back to
+  `:active`, which is what puts its endpoint back in front of the account.
 
   Only valid before teardown has been issued. Once the backing resource is
   being deleted there is nothing to return to, and the next cache demand cold
   provisions instead.
   """
   def cancel_drain(%Server{status: :drain_pending} = server) do
-    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         {:ok, server} <- cancel_drain_transaction(server, account) do
+    with {:ok, server} <- cancel_drain_transaction(server) do
       broadcast_server(server, :updated)
       {:ok, server}
     end
@@ -1680,14 +1667,12 @@ defmodule Tuist.Kura do
 
   def cancel_drain(%Server{}), do: {:error, :not_draining}
 
-  defp cancel_drain_transaction(server, account) do
+  defp cancel_drain_transaction(server) do
     Repo.transaction(fn ->
       server = lock_with_status(server, :drain_pending, :not_draining)
 
-      with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update(),
-           :ok <- ensure_cache_endpoint_for_region(account, server) do
-        server
-      else
+      case server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update() do
+        {:ok, server} -> server
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
@@ -1704,19 +1689,6 @@ defmodule Tuist.Kura do
       %Server{status: ^expected_status} = locked_server -> locked_server
       %Server{} -> Repo.rollback(mismatch_reason)
       nil -> Repo.rollback(:not_found)
-    end
-  end
-
-  # Private regions never mirror their URL into `account_cache_endpoints` (the
-  # CLI cannot reach an in-cluster endpoint), so republishing has to respect
-  # the same rule activation does.
-  defp ensure_cache_endpoint_for_region(account, %Server{region: region_id} = server) do
-    case Regions.fetch(region_id) do
-      {:ok, region} ->
-        if Regions.private?(region), do: :ok, else: ensure_cache_endpoint(account, server.url)
-
-      {:error, _reason} ->
-        {:error, {:unknown_region, server.region}}
     end
   end
 
@@ -2090,117 +2062,31 @@ defmodule Tuist.Kura do
     {:ok, server}
   end
 
-  @doc """
-  The subset of `server_ids` whose URL is mirrored into
-  `account_cache_endpoints`, the table the CLI resolves.
-
-  The mirror, not `kura_servers`, is what routes an account: an instance
-  missing from it is one the CLI cannot see, so the account keeps building
-  against the legacy cache lane with nothing to error on. The reconciler
-  converges on this, so it is read rather than assumed.
-
-  Answered for a whole batch in one query. The reconciler asks per server, and
-  a `Repo.exists?/1` each would be up to `@reconcile_batch_size` round trips a
-  tick, nearly all of them for servers that are already published.
-  """
-  def published_cache_endpoint_server_ids([]), do: MapSet.new()
-
-  def published_cache_endpoint_server_ids(server_ids) do
-    Server
-    |> from(as: :server)
-    |> where([s], s.id in ^server_ids)
-    |> where([s], exists(subquery(published_cache_endpoint_query())))
-    |> select([s], s.id)
-    |> Repo.all()
-    |> MapSet.new()
-  end
+  # A public-region instance the account exists to be served by, that the CLI
+  # cannot currently be handed. `:drain_pending`, `:archived`, `:destroying`
+  # and `:destroyed` are deliberate and excluded; these three are an instance
+  # that should be serving and is not.
+  @unroutable_statuses [:provisioning, :replicating, :failed]
 
   @doc """
-  Counts, per region, the active servers in `region_ids` whose URL is not
-  mirrored into `account_cache_endpoints`.
+  Counts, per region, the instances in `region_ids` that exist but cannot be
+  resolved by the CLI.
 
-  Steady state is zero for every region, and not approximately: activation
-  writes the server's `url` and its mirror row in one transaction, so an
-  active server is published from the instant it is active. Any non-zero
-  count is an account paying for an instance it is not being routed to.
+  Resolution reads `kura_servers` directly, so an instance is offered to its
+  account the moment it is `:active` and there is no separate publication step
+  to fall behind. What remains is an instance that never gets there: the
+  account holds an allocation, builds against the legacy cache lane, and
+  nothing errors. Provisioning passes through here for a minute or two, so this
+  is a signal about how long a count persists rather than about any single
+  sample.
   """
-  def unpublished_cache_endpoint_counts(region_ids) do
+  def unroutable_instance_counts(region_ids) do
     Server
-    |> from(as: :server)
-    |> where([s], s.status == :active and s.region in ^region_ids)
-    |> where([s], not exists(subquery(published_cache_endpoint_query())))
+    |> where([s], s.status in ^@unroutable_statuses and s.region in ^region_ids)
     |> group_by([s], s.region)
     |> select([s], {s.region, count(s.id)})
     |> Repo.all()
     |> Map.new()
-  end
-
-  # Correlated against the `:server` binding the callers name, so both readers
-  # share one definition of what published means. A server with a nil `url`
-  # matches nothing and is therefore unpublished, which is what it is: an
-  # address the CLI cannot be handed.
-  defp published_cache_endpoint_query do
-    from(e in AccountCacheEndpoint,
-      where:
-        e.technology == :kura and e.account_id == parent_as(:server).account_id and
-          e.url == parent_as(:server).url
-    )
-  end
-
-  defp ensure_cache_endpoint(_account, nil), do: :ok
-
-  defp ensure_cache_endpoint(account, url) do
-    # Kura URLs are deterministic for `(account, region)`, so this
-    # derived endpoint row survives destroy/re-create cycles without
-    # accumulating stale alternatives for the same server.
-    case %AccountCacheEndpoint{}
-         |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
-         |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url]) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  # Drops the endpoint row left behind when a server's `public_url` changes
-  # (e.g. an environment-scoped host rename). Scoped to the server's *previous*
-  # URL so an account's endpoints for other regions — which carry their own
-  # distinct URLs — are never touched. A no-op when the URL is unchanged or the
-  # stale row is already gone.
-  defp prune_superseded_cache_endpoint(_account, previous_url, url) when previous_url in [nil, url], do: :ok
-
-  defp prune_superseded_cache_endpoint(%Account{id: account_id}, previous_url, _url) do
-    Repo.delete_all(
-      from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^previous_url
-      )
-    )
-
-    :ok
-  end
-
-  defp remove_cache_endpoint(%Server{url: nil}), do: :ok
-
-  defp remove_cache_endpoint(%Server{id: id, account_id: account_id, url: url}) do
-    # During a warm handoff the draining source and the promoted target share the
-    # same deterministic customer URL. Only drop the derived endpoint when no
-    # other live server still serves it, so tearing down the source never
-    # unpublishes the URL the target now owns.
-    shared? =
-      Server
-      |> where([s], s.account_id == ^account_id and s.url == ^url and s.id != ^id and s.status != :destroyed)
-      |> Repo.exists?()
-
-    if shared? do
-      :ok
-    else
-      Repo.delete_all(
-        from(e in AccountCacheEndpoint,
-          where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
-        )
-      )
-
-      :ok
-    end
   end
 
   defp lock_server(id, account_id) do
