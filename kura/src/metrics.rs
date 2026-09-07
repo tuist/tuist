@@ -68,6 +68,8 @@ pub struct MetricsInner {
     // cascade doing its job; compare against the serve-side presence-gate hit
     // rate, which should trend to zero once the cascade carries the load.
     action_cache_cascade_removed: Counter,
+    reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
+    reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -576,6 +578,8 @@ impl Metrics {
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
         let action_cache_cascade_removed = Counter::default();
+        let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
+        let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -940,6 +944,16 @@ impl Metrics {
             "kura_action_cache_cascade_removed_total",
             "Action-cache entries removed by the eviction cascade when a blob they reference was evicted",
             action_cache_cascade_removed.clone(),
+        );
+        registry.register(
+            "kura_reapi_chunking_events_total",
+            "Content-defined chunking events by operation and bounded outcome",
+            reapi_chunking_events.clone(),
+        );
+        registry.register(
+            "kura_reapi_chunking_bytes_total",
+            "Content-defined chunking bytes by logical or recipe representation",
+            reapi_chunking_bytes.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -1735,6 +1749,8 @@ impl Metrics {
                 artifact_writes,
                 segment_fsyncs,
                 action_cache_cascade_removed,
+                reapi_chunking_events,
+                reapi_chunking_bytes,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -2198,6 +2214,23 @@ impl Metrics {
             return;
         }
         self.action_cache_cascade_removed.inc_by(removed_entries);
+    }
+
+    pub fn record_reapi_chunking_event(&self, operation: &str, outcome: &str) {
+        self.reapi_chunking_events
+            .get_or_create(&ReapiChunkingEventLabels {
+                operation: operation.to_owned(),
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {
+        self.reapi_chunking_bytes
+            .get_or_create(&ReapiChunkingBytesLabels {
+                kind: kind.to_owned(),
+            })
+            .inc_by(bytes);
     }
 
     pub fn record_replication(
@@ -3195,6 +3228,17 @@ struct PublicRequestLatencyLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingEventLabels {
+    operation: String,
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingBytesLabels {
+    kind: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactOpLabels {
     producer: String,
     result: String,
@@ -4184,6 +4228,8 @@ mod tests {
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_segment_shed_age(7_200.0);
         metrics.record_capacity_eviction_report_dropped();
+        metrics.record_reapi_chunking_event("splice", "ok");
+        metrics.record_reapi_chunking_bytes("logical", 2048);
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -4311,6 +4357,9 @@ mod tests {
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_segment_shed_age_seconds"));
         assert!(rendered.contains("kura_capacity_eviction_reports_dropped_total"));
+        assert!(rendered.contains("kura_reapi_chunking_events_total"));
+        assert!(rendered.contains("operation=\"splice\""));
+        assert!(rendered.contains("kura_reapi_chunking_bytes_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));

@@ -43,6 +43,10 @@ const CAS_BATCH_READ_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs";
 const CAS_GET_TREE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree";
+const CAS_SPLIT_BLOB_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob";
+pub(super) const CAS_SPLICE_BLOB_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob";
 pub(super) const BUILD_EVENT_STREAM_PATH: &str =
     "/google.devtools.build.v1.PublishBuildEvent/PublishBuildToolEventStream";
 #[derive(Clone)]
@@ -274,6 +278,7 @@ impl GrpcWriteAdmissionBody {
             }
             GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
             GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
+            GrpcWriteShapePolicy::Splice => inspect_splice_wire(&payload)?,
         };
         self.admission
             .try_grow_decode(self.validation_message_bytes as u64, shape.structural_bytes)?;
@@ -400,6 +405,7 @@ pub(super) fn is_reapi_write_path(path: &str) -> bool {
         BYTESTREAM_WRITE_PATH
             | ACTION_CACHE_UPDATE_PATH
             | CAS_BATCH_UPDATE_PATH
+            | CAS_SPLICE_BLOB_PATH
             | BUILD_EVENT_STREAM_PATH
     )
 }
@@ -437,6 +443,7 @@ pub(super) fn grpc_write_shape_policy(path: &str) -> Option<GrpcWriteShapePolicy
         BYTESTREAM_WRITE_PATH => Some(GrpcWriteShapePolicy::ByteStream),
         CAS_BATCH_UPDATE_PATH => Some(GrpcWriteShapePolicy::BatchUpdate),
         ACTION_CACHE_UPDATE_PATH => Some(GrpcWriteShapePolicy::ActionUpdate),
+        CAS_SPLICE_BLOB_PATH => Some(GrpcWriteShapePolicy::Splice),
         BUILD_EVENT_STREAM_PATH => Some(GrpcWriteShapePolicy::BuildEventStream),
         _ => None,
     }
@@ -528,6 +535,8 @@ fn grpc_accounting_route(path: &str) -> Cow<'static, str> {
         CAS_BATCH_UPDATE_PATH => Cow::Borrowed(CAS_BATCH_UPDATE_PATH),
         CAS_BATCH_READ_PATH => Cow::Borrowed(CAS_BATCH_READ_PATH),
         CAS_GET_TREE_PATH => Cow::Borrowed(CAS_GET_TREE_PATH),
+        CAS_SPLIT_BLOB_PATH => Cow::Borrowed(CAS_SPLIT_BLOB_PATH),
+        CAS_SPLICE_BLOB_PATH => Cow::Borrowed(CAS_SPLICE_BLOB_PATH),
         path => Cow::Owned(path.to_owned()),
     }
 }
@@ -603,6 +612,8 @@ mod tests {
             CAS_BATCH_UPDATE_PATH,
             CAS_BATCH_READ_PATH,
             CAS_GET_TREE_PATH,
+            CAS_SPLIT_BLOB_PATH,
+            CAS_SPLICE_BLOB_PATH,
         ] {
             assert!(matches!(grpc_accounting_route(route), Cow::Borrowed(_)));
         }
