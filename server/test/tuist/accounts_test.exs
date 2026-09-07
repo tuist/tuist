@@ -5568,7 +5568,7 @@ defmodule Tuist.AccountsTest do
                issued_by: %{id: ^claimed_by_user_id, email: ^email}
              } = Authentication.authenticated_subject(claimed.credential)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                claimed.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5629,8 +5629,8 @@ defmodule Tuist.AccountsTest do
       assert resent.registration.claim_requested_ip == "192.0.2.10"
 
       assert [
-               %AgentRegistrationEvent{event_type: :created},
-               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata}
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata},
+               %AgentRegistrationEvent{event_type: :created}
              ] = agent_registration_events(result.registration.id)
 
       assert metadata == %{
@@ -5714,7 +5714,7 @@ defmodule Tuist.AccountsTest do
       assert claimed_user_id == claimed_user.id
       refute claimed_user_id == anonymous_user_id
 
-      assert [:created, :claim_resent, :claimed] =
+      assert [:claim_resent, :claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5750,7 +5750,7 @@ defmodule Tuist.AccountsTest do
                assertion_jti: "id-jag-to-revoke"
              } = Repo.get!(AgentRegistration, result.registration.id)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5765,7 +5765,7 @@ defmodule Tuist.AccountsTest do
 
       assert revoked_at
 
-      assert [:created, :claimed, :revoked] =
+      assert [:claimed, :created, :revoked] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -6097,13 +6097,12 @@ defmodule Tuist.AccountsTest do
     }
   end
 
+  # Compare audit contents by type: occurred_at has second precision and cannot order events within a second.
   defp agent_registration_events(agent_registration_id) do
-    Repo.all(
-      from(e in AgentRegistrationEvent,
-        where: e.agent_registration_id == ^agent_registration_id,
-        order_by: e.occurred_at
-      )
-    )
+    AgentRegistrationEvent
+    |> where([e], e.agent_registration_id == ^agent_registration_id)
+    |> Repo.all()
+    |> Enum.sort_by(& &1.event_type)
   end
 
   defp id_jag_with_jwk(email, jti) do

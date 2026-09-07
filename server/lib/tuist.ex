@@ -82,6 +82,7 @@ defmodule Tuist do
       Kura.RegisteredEndpoint,
       Gradle,
       Gradle.Analytics,
+      Gradle.TaskAnalytics,
       Gradle.Build,
       Gradle.Task,
       Gradle.CacheEvent,

@@ -44,20 +44,7 @@
               else: @run.scheme
             )}
           </h1>
-          <.badge
-            :if={Enum.any?(@run.custom_tags || [])}
-            label={List.first(@run.custom_tags)}
-            color="success"
-            style="light-fill"
-            size="large"
-          />
-          <.badge
-            :for={tag <- Enum.slice(@run.custom_tags || [], 1..-1//1)}
-            label={tag}
-            color="information"
-            style="light-fill"
-            size="large"
-          />
+          <.run_tags tags={@run.custom_tags || []} />
         </div>
         <.link_button
           :if={@test_run}

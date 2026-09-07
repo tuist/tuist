@@ -58,16 +58,22 @@ commit_preprocessors = [
 # hardwareDetails. Distinct from runners-controller (workload-
 # cluster pod scaler).
 commit_parsers = [
-    { message = "^feat\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bhetzner-robot-controller\\b[^)]*\\)", skip = true },
-    { message = "^[a-z]+\\([^)]+\\)", skip = true },
+    # `include_paths` in mise/tasks/release/components.json already restricts
+    # this changelog to this controller's files, so accept conventional commits
+    # regardless of their scope, the way infra/helm/cliff.toml does. Matching on
+    # a `hetzner-robot-controller` scope instead is how the four-disk WWN fix
+    # merged under `feat(server)` and never shipped: the check found nothing
+    # releasable, no tag was cut, and the mgmt cluster stayed on 0.1.0 while
+    # main carried the fix.
+    { message = "^feat(\\([^)]*\\))?!?:", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix(\\([^)]*\\))?!?:", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?(\\([^)]*\\))?!?:", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf(\\([^)]*\\))?!?:", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor(\\([^)]*\\))?!?:", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style(\\([^)]*\\))?!?:", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test(\\([^)]*\\))?!?:", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore(\\([^)]*\\))?!?:", skip = true },
+    { message = "^ci(\\([^)]*\\))?!?:", skip = true },
 ]
 protect_breaking_commits = false
 filter_commits = true

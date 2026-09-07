@@ -2321,16 +2321,10 @@ defmodule Tuist.Builds.Analytics do
             xt.binary_cache_hit AS hit,
             e.ran_at AS ran_at,
             coalesce(e.git_branch, '') AS branch,
-            cityHash64(
-              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash,
-              xt.additional_hashing_inputs_hash
-            ) AS own,
-            xt.dependencies_hash AS deps,
-            xt.external_hash AS ext
-          FROM xcode_targets AS xt
+            xt.own_hash AS own,
+            cityHash64(xt.dependencies_hash) AS deps,
+            cityHash64(xt.external_hash) AS ext
+          FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
           WHERE e.project_id = {project_id:Int64}
             AND e.ran_at >= {start:DateTime64(6)}
@@ -2404,7 +2398,7 @@ defmodule Tuist.Builds.Analytics do
         xt.dependencies AS dependencies,
         e.ran_at AS ran_at,
         coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) AS commit
-      FROM xcode_targets AS xt
+      FROM xcode_targets_by_project AS xt
       INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
@@ -2413,7 +2407,7 @@ defmodule Tuist.Builds.Analytics do
     )
     WHERE commit = (
       SELECT argMax(coalesce(nullIf(e2.git_commit_sha, ''), toString(e2.id)), e2.ran_at)
-      FROM xcode_targets AS xt2
+      FROM xcode_targets_by_project AS xt2
       INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
       WHERE e2.project_id = {project_id:Int64}
         AND e2.ran_at >= {start:DateTime64(6)}
@@ -2608,16 +2602,10 @@ defmodule Tuist.Builds.Analytics do
             coalesce(e.git_commit_sha, '') AS commit_sha,
             xt.binary_cache_hit AS hit,
             xt.product AS product,
-            cityHash64(
-              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-              xt.target_settings_hash, xt.buildable_folders_hash,
-              xt.additional_hashing_inputs_hash
-            ) AS own,
-            xt.dependencies_hash AS deps,
-            xt.external_hash AS ext
-          FROM xcode_targets AS xt
+            xt.own_hash AS own,
+            cityHash64(xt.dependencies_hash) AS deps,
+            cityHash64(xt.external_hash) AS ext
+          FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
@@ -2782,7 +2770,7 @@ defmodule Tuist.Builds.Analytics do
     SELECT
       toDate(e.ran_at) AS day,
       uniqExact(xt.name) AS modules
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
@@ -2844,7 +2832,7 @@ defmodule Tuist.Builds.Analytics do
     SELECT uniqExact(name)
     FROM (
       SELECT xt.name AS name, #{String.replace(commit_key, "%{alias}", "e")} AS commit
-      FROM xcode_targets AS xt
+      FROM xcode_targets_by_project AS xt
       INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
@@ -2854,7 +2842,7 @@ defmodule Tuist.Builds.Analytics do
     )
     WHERE commit = (
       SELECT argMax(#{String.replace(commit_key, "%{alias}", "e2")}, e2.ran_at)
-      FROM xcode_targets AS xt2
+      FROM xcode_targets_by_project AS xt2
       INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
       WHERE e2.project_id = {project_id:Int64}
         AND e2.ran_at >= {start:DateTime64(6)}
@@ -2968,7 +2956,7 @@ defmodule Tuist.Builds.Analytics do
       toDate(e.ran_at) AS day,
       countIf(xt.binary_cache_hit = 'miss') AS invalidations,
       countIf(xt.binary_cache_hit != 'miss') AS reuses
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}
@@ -3047,16 +3035,10 @@ defmodule Tuist.Builds.Analytics do
           xt.name AS name,
           xt.product AS product,
           xt.binary_cache_hit AS hit,
-          cityHash64(
-            xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
-            xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
-            xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
-            xt.target_settings_hash, xt.buildable_folders_hash,
-            xt.additional_hashing_inputs_hash
-          ) AS own,
-          xt.dependencies_hash AS deps,
-          xt.external_hash AS ext
-        FROM xcode_targets AS xt
+          xt.own_hash AS own,
+          cityHash64(xt.dependencies_hash) AS deps,
+          cityHash64(xt.external_hash) AS ext
+        FROM xcode_targets_by_project AS xt
         INNER JOIN command_events AS e ON xt.command_event_id = e.id
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
@@ -3125,7 +3107,7 @@ defmodule Tuist.Builds.Analytics do
       -- a CLI that does not send edges, which would drop this module's edges
       -- for the day while its neighbours keep theirs.
       argMaxIf(xt.dependencies, e.ran_at, notEmpty(xt.dependencies)) AS deps
-    FROM xcode_targets AS xt
+    FROM xcode_targets_by_project AS xt
     INNER JOIN command_events AS e ON xt.command_event_id = e.id
     WHERE e.project_id = {project_id:Int64}
       AND e.ran_at >= {start:DateTime64(6)}

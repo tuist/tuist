@@ -137,7 +137,6 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     assert html =~ ":app:compileKotlin"
     refute html =~ ":app:compileJava"
-    refute html =~ ":lib:test"
   end
 
   test "search partial match filters tasks via URL params", %{
@@ -218,6 +217,60 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert html =~ ":app:compileKotlin"
     assert html =~ ":app:assembleDebug"
     refute html =~ ":app:compileJava"
+    document = Floki.parse_fragment!(html)
+    assert document |> Floki.find("#widget-download-throughput") |> Floki.text() =~ "No data"
+    assert document |> Floki.find("#widget-upload-throughput") |> Floki.text() =~ "No data"
+
+    refute html =~ ":lib:test"
+  end
+
+  test "cache throughput uses matching transfer bytes and timings rather than task duration", context do
+    %{conn: conn, organization: organization, project: project} = context
+
+    tasks =
+      [
+        %{outcome: "remote_hit", cache_artifact_size: 1_000_000, execution: %{remote_cache_download_duration_ms: 1000}},
+        %{outcome: "remote_hit", cache_artifact_size: 2_000_000, execution: %{remote_cache_download_duration_ms: 500}},
+        %{outcome: "remote_hit", cache_artifact_size: 9_000_000},
+        %{outcome: "remote_hit", execution: %{remote_cache_download_duration_ms: 9000}},
+        %{outcome: "remote_hit", cache_artifact_size: 9_000_000, execution: %{remote_cache_download_duration_ms: 0}},
+        %{outcome: "local_hit", cache_artifact_size: 9_000_000, execution: %{remote_cache_download_duration_ms: 9000}},
+        %{
+          remote_cache_stored: true,
+          cache_artifact_size: 500_000,
+          execution: %{remote_cache_upload_duration_ms: 500}
+        },
+        %{remote_cache_stored: true, cache_artifact_size: 9_000_000},
+        %{remote_cache_stored: true, execution: %{remote_cache_upload_duration_ms: 9000}},
+        %{
+          remote_cache_stored: true,
+          cache_artifact_size: 9_000_000,
+          execution: %{remote_cache_upload_duration_ms: 0}
+        },
+        %{
+          remote_cache_stored: false,
+          cache_artifact_size: 9_000_000,
+          execution: %{remote_cache_upload_duration_ms: 9000}
+        }
+      ]
+      |> Enum.with_index()
+      |> Enum.map(fn {attrs, index} ->
+        Map.merge(%{task_path: ":app:task#{index}", outcome: "executed", cacheable: true, duration_ms: 60_000}, attrs)
+      end)
+
+    build_id = GradleFixtures.build_fixture(project_id: project.id, inserted_at: @now, tasks: tasks)
+
+    aggregates = Gradle.task_cache_aggregates(build_id)
+    assert aggregates.timed_download_bytes == 3_000_000
+    assert aggregates.download_duration_ms == 1500
+    assert aggregates.timed_upload_bytes == 500_000
+    assert aggregates.upload_duration_ms == 500
+
+    {:ok, view, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=gradle-cache")
+
+    assert has_element?(view, "#widget-download-throughput", "16.0 Mbps")
+    assert has_element?(view, "#widget-upload-throughput", "8.0 Mbps")
   end
 
   test "shows cache-miss diagnostics and setup telemetry", %{
@@ -295,7 +348,10 @@ defmodule TuistWeb.GradleBuildLiveTest do
       )
 
     assert cache_html =~ "No remote entry, then stored"
-    assert cache_html =~ "Confirmed remote misses"
+    refute cache_html =~ "Confirmed remote misses"
+    refute cache_html =~ "Missed execution time"
+    refute cache_html =~ "Remote entries stored"
+    assert length(Floki.find(Floki.parse_fragment!(cache_html), "[data-part=cache-summary-card] .tuist-widget")) == 5
 
     {:ok, lv, setup_html} =
       live(
