@@ -64,6 +64,59 @@
     overflow-wrap: anywhere;
   }
 
+  & [data-part="cache-disabled-reason"] {
+    display: block;
+    margin-top: var(--noora-spacing-3);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="metadata"] dd > a,
+  & [data-part="metadata"] dd > span:has(svg) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  & [data-part="diagnostics"] {
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-5);
+
+    & summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      & svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    &[open] summary svg {
+      transform: rotate(180deg);
+    }
+  }
+
+  & [data-part="diagnostics-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-6);
+  }
+
   @media (max-width: 900px) {
     & [data-part="metadata-grid"] {
       grid-template-columns: repeat(2, minmax(0, 1fr));

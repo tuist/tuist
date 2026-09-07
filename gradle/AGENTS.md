@@ -10,3 +10,5 @@ Settings plugin written in Kotlin. `TuistBuildInsights` uploads build reports; `
 - Run tests with `./gradlew test --no-build-cache --no-watch-fs`. When validating source changed outside Gradle's file watcher, force compilation with `--rerun-tasks`.
 
 Related: `server/lib/tuist/gradle/AGENTS.md`.
+
+- Initialize local end-to-end demo projects as Git repositories and commit their fixture sources before recording builds, so branch and commit metadata is present in dashboard examples.

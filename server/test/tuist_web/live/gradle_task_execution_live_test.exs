@@ -25,6 +25,7 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
         is_ci: true,
         telemetry_version: 1,
         git_branch: "main",
+        git_commit_sha: "d73a6294ef18476e86391c98e5a52da986cc1b20",
         tasks: [task(":included"), task(":")]
       )
 
@@ -43,6 +44,11 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
       |> follow_redirect(conn)
 
     assert html =~ "Execution details"
+    assert length(Floki.find(Floki.parse_fragment!(html), "#gradle-task-execution .noora-card")) == 1
+    assert has_element?(detail, "#execution-diagnostics:not([open])")
+    assert has_element?(detail, "[data-part=metadata]", "main")
+    assert has_element?(detail, "[data-part=metadata]", "d73a6294ef18")
+    refute html =~ "d73a6294ef18476e86391c98e5a52da986cc1b20"
     assert has_element?(detail, "h1", ":app:compileJava")
     assert has_element?(detail, "[data-part=title] .noora-badge[data-color=success]", "Succeeded")
     assert has_element?(detail, "[data-part=metadata]", "CI")

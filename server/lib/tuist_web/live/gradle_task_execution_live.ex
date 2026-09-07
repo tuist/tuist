@@ -4,6 +4,7 @@ defmodule TuistWeb.GradleTaskExecutionLive do
   use Noora
 
   import TuistWeb.Helpers.GradleTask
+  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Gradle
@@ -21,6 +22,7 @@ defmodule TuistWeb.GradleTaskExecutionLive do
          true <- build.project_id == project.id do
       {:ok,
        socket
+       |> assign(:selected_project, Repo.preload(project, vcs_connection: :github_app_installation))
        |> assign(:task, task)
        |> assign(:build, Repo.preload(build, :built_by_account))
        |> assign(:head_title, "#{task.task_path} · Task execution · Tuist")}
@@ -55,8 +57,6 @@ defmodule TuistWeb.GradleTaskExecutionLive do
 
   defp duration(nil), do: "—"
   defp duration(value), do: DateFormatter.format_duration_from_milliseconds(value)
-  defp value(value) when value in [nil, ""], do: "—"
-  defp value(value), do: value
 
   attr :label, :string, required: true
   slot :inner_block, required: true
