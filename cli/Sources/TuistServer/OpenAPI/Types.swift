@@ -270,11 +270,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
     func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
-    @available(*, deprecated)
     func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output
     /// Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.
     ///
@@ -1583,11 +1582,10 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
-    @available(*, deprecated)
     public func listRuns(
         path: Operations.listRuns.Input.Path,
         query: Operations.listRuns.Input.Query = .init(),
@@ -5908,7 +5906,7 @@ public enum Components {
                 case xcode_version
             }
         }
-        /// The page number to return.
+        /// Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
@@ -10230,6 +10228,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
         public typealias GradleBuildsIndexPage = Swift.Int
+        /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexBefore`.
+        public typealias RunsIndexBefore = Swift.String
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
@@ -10841,6 +10843,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/duration`.
             public var duration: Swift.Double
+            /// Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/error_message`.
+            public var error_message: Swift.String?
             /// Git branch of the repository
             ///
             /// - Remark: Generated from `#/components/schemas/Run/git_branch`.
@@ -10857,6 +10863,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/id`.
             public var id: Swift.Double
+            /// Whether the run was executed on CI
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/is_ci`.
+            public var is_ci: Swift.Bool
             /// Local cache target hits of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/local_cache_target_hits`.
@@ -10896,7 +10906,14 @@ public enum Components {
             /// Status of the command event
             ///
             /// - Remark: Generated from `#/components/schemas/Run/status`.
-            public var status: Swift.String
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+            }
+            /// Status of the command event
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/status`.
+            public var status: Components.Schemas.Run.statusPayload
             /// Subcommand of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/subcommand`.
@@ -10923,10 +10940,12 @@ public enum Components {
             ///   - cacheable_targets: Cacheable targets of the run
             ///   - command_arguments: Arguments passed to the command
             ///   - duration: Duration of the run
+            ///   - error_message: Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
             ///   - git_branch: Git branch of the repository
             ///   - git_commit_sha: Git commit SHA of the repository
             ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
             ///   - id: ID of the run
+            ///   - is_ci: Whether the run was executed on CI
             ///   - local_cache_target_hits: Local cache target hits of the run
             ///   - local_test_target_hits: Local test target hits of the run
             ///   - macos_version: Version of macOS used
@@ -10946,10 +10965,12 @@ public enum Components {
                 cacheable_targets: [Swift.String]? = nil,
                 command_arguments: [Swift.String],
                 duration: Swift.Double,
+                error_message: Swift.String? = nil,
                 git_branch: Swift.String,
                 git_commit_sha: Swift.String,
                 git_ref: Swift.String,
                 id: Swift.Double,
+                is_ci: Swift.Bool,
                 local_cache_target_hits: [Swift.String]? = nil,
                 local_test_target_hits: [Swift.String]? = nil,
                 macos_version: Swift.String,
@@ -10959,7 +10980,7 @@ public enum Components {
                 ran_by: Swift.String? = nil,
                 remote_cache_target_hits: [Swift.String]? = nil,
                 remote_test_target_hits: [Swift.String]? = nil,
-                status: Swift.String,
+                status: Components.Schemas.Run.statusPayload,
                 subcommand: Swift.String,
                 swift_version: Swift.String,
                 test_targets: [Swift.String]? = nil,
@@ -10969,10 +10990,12 @@ public enum Components {
                 self.cacheable_targets = cacheable_targets
                 self.command_arguments = command_arguments
                 self.duration = duration
+                self.error_message = error_message
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
                 self.git_ref = git_ref
                 self.id = id
+                self.is_ci = is_ci
                 self.local_cache_target_hits = local_cache_target_hits
                 self.local_test_target_hits = local_test_target_hits
                 self.macos_version = macos_version
@@ -10993,10 +11016,12 @@ public enum Components {
                 case cacheable_targets
                 case command_arguments
                 case duration
+                case error_message
                 case git_branch
                 case git_commit_sha
                 case git_ref
                 case id
+                case is_ci
                 case local_cache_target_hits
                 case local_test_target_hits
                 case macos_version
@@ -11878,10 +11903,15 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexAfter`.
+        public typealias RunsIndexAfter = Swift.String
         /// - Remark: Generated from `#/components/schemas/GradleTaskOutcome`.
         @frozen public enum GradleTaskOutcome: String, Codable, Hashable, Sendable, CaseIterable {
             case local_hit = "local_hit"
             case remote_hit = "remote_hit"
+            case cache_hit = "cache_hit"
             case up_to_date = "up_to_date"
             case executed = "executed"
             case failed = "failed"
@@ -32922,7 +32952,7 @@ public enum Operations {
             }
         }
     }
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
@@ -32955,7 +32985,7 @@ public enum Operations {
             public var path: Operations.listRuns.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// The name of the run.
+                /// Filter by command name, such as `install` or `generate`.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/name`.
                 public var name: Swift.String?
@@ -32971,6 +33001,27 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/git_commit_sha`.
                 public var git_commit_sha: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// Filter by run status.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/status`.
+                public var status: Operations.listRuns.Input.Query.statusPayload?
+                /// Filter to runs executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return runs that ran at or after this Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return runs that ran at or before this Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/to`.
+                public var to: Swift.Int64?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page_size`.
@@ -32978,30 +33029,57 @@ public enum Operations {
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page`.
+                @available(*, deprecated)
                 public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/after`.
+                public var after: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/before`.
+                public var before: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - name: The name of the run.
+                ///   - name: Filter by command name, such as `install` or `generate`.
                 ///   - git_ref: The git ref of the run.
                 ///   - git_branch: The git branch of the run.
                 ///   - git_commit_sha: The git commit SHA of the run.
+                ///   - status: Filter by run status.
+                ///   - is_ci: Filter to runs executed on CI (true) or locally (false).
+                ///   - from: Only return runs that ran at or after this Unix timestamp in seconds.
+                ///   - to: Only return runs that ran at or before this Unix timestamp in seconds.
                 ///   - page_size:
                 ///   - page:
+                ///   - after:
+                ///   - before:
                 public init(
                     name: Swift.String? = nil,
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
+                    status: Operations.listRuns.Input.Query.statusPayload? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
+                    page: Swift.Int? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil
                 ) {
                     self.name = name
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
+                    self.status = status
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
                     self.page_size = page_size
                     self.page = page
+                    self.after = after
+                    self.before = before
                 }
             }
             public var query: Operations.listRuns.Input.Query
@@ -33039,16 +33117,24 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json/runs`.
                         public var runs: [Components.Schemas.Run]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - runs:
-                        public init(runs: [Components.Schemas.Run]) {
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            runs: [Components.Schemas.Run]
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.runs = runs
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case runs
                         }
                     }
@@ -33095,6 +33181,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRuns.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRuns.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listRuns.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listRuns.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -68683,6 +68820,7 @@ public enum Operations {
                 @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case local_hit = "local_hit"
                     case remote_hit = "remote_hit"
+                    case cache_hit = "cache_hit"
                     case up_to_date = "up_to_date"
                     case executed = "executed"
                     case failed = "failed"
@@ -68779,6 +68917,75 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/duration_ms`.
                             public var duration_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution`.
+                            public struct executionPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/build_path`.
+                                public var build_path: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case cacheable = "cacheable"
+                                    case disabled = "disabled"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                public var cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/incremental`.
+                                public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case hit = "hit"
+                                    case miss = "miss"
+                                    case error = "error"
+                                    case not_requested = "not_requested"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                public var remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/task_type`.
+                                public var task_type: Swift.String
+                                /// Creates a new `executionPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - build_path:
+                                ///   - cacheability:
+                                ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
+                                ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
+                                ///   - task_type:
+                                public init(
+                                    build_path: Swift.String,
+                                    cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                    incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
+                                    remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                    task_type: Swift.String
+                                ) {
+                                    self.build_path = build_path
+                                    self.cacheability = cacheability
+                                    self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                    self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                    self.task_type = task_type
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case build_path
+                                    case cacheability
+                                    case incremental
+                                    case remote_cache_download_duration_ms
+                                    case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
+                                    case task_type
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution`.
+                            public var execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                             /// The task ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/id`.
@@ -68789,6 +68996,7 @@ public enum Operations {
                             @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case local_hit = "local_hit"
                                 case remote_hit = "remote_hit"
+                                case cache_hit = "cache_hit"
                                 case up_to_date = "up_to_date"
                                 case executed = "executed"
                                 case failed = "failed"
@@ -68818,6 +69026,7 @@ public enum Operations {
                             ///   - cache_key: Cache key for cacheable tasks.
                             ///   - cacheable: Whether the task is cacheable.
                             ///   - duration_ms: Task duration in milliseconds.
+                            ///   - execution:
                             ///   - id: The task ID.
                             ///   - outcome: Task outcome.
                             ///   - started_at: When the task started executing.
@@ -68828,6 +69037,7 @@ public enum Operations {
                                 cache_key: Swift.String? = nil,
                                 cacheable: Swift.Bool,
                                 duration_ms: Swift.Int,
+                                execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                                 id: Swift.String,
                                 outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                                 started_at: Foundation.Date? = nil,
@@ -68838,6 +69048,7 @@ public enum Operations {
                                 self.cache_key = cache_key
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
+                                self.execution = execution
                                 self.id = id
                                 self.outcome = outcome
                                 self.started_at = started_at
@@ -68849,6 +69060,7 @@ public enum Operations {
                                 case cache_key
                                 case cacheable
                                 case duration_ms
+                                case execution
                                 case id
                                 case outcome
                                 case started_at
@@ -75549,6 +75761,75 @@ public enum Operations {
                             public var cacheable: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/duration_ms`.
                             public var duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution`.
+                            public struct executionPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/build_path`.
+                                public var build_path: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case cacheable = "cacheable"
+                                    case disabled = "disabled"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                public var cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/incremental`.
+                                public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case hit = "hit"
+                                    case miss = "miss"
+                                    case error = "error"
+                                    case not_requested = "not_requested"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                public var remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/task_type`.
+                                public var task_type: Swift.String
+                                /// Creates a new `executionPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - build_path:
+                                ///   - cacheability:
+                                ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
+                                ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
+                                ///   - task_type:
+                                public init(
+                                    build_path: Swift.String,
+                                    cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                    incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
+                                    remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                    task_type: Swift.String
+                                ) {
+                                    self.build_path = build_path
+                                    self.cacheability = cacheability
+                                    self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                    self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                    self.task_type = task_type
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case build_path
+                                    case cacheability
+                                    case incremental
+                                    case remote_cache_download_duration_ms
+                                    case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
+                                    case task_type
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution`.
+                            public var execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/outcome`.
                             public var outcome: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/remote_cache_miss`.
@@ -75568,6 +75849,7 @@ public enum Operations {
                             ///   - cache_key:
                             ///   - cacheable:
                             ///   - duration_ms:
+                            ///   - execution:
                             ///   - outcome:
                             ///   - remote_cache_miss:
                             ///   - remote_cache_stored:
@@ -75579,6 +75861,7 @@ public enum Operations {
                                 cache_key: Swift.String? = nil,
                                 cacheable: Swift.Bool? = nil,
                                 duration_ms: Swift.Int? = nil,
+                                execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                                 outcome: Swift.String? = nil,
                                 remote_cache_miss: Swift.Bool? = nil,
                                 remote_cache_stored: Swift.Bool? = nil,
@@ -75590,6 +75873,7 @@ public enum Operations {
                                 self.cache_key = cache_key
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
+                                self.execution = execution
                                 self.outcome = outcome
                                 self.remote_cache_miss = remote_cache_miss
                                 self.remote_cache_stored = remote_cache_stored
@@ -75602,6 +75886,7 @@ public enum Operations {
                                 case cache_key
                                 case cacheable
                                 case duration_ms
+                                case execution
                                 case outcome
                                 case remote_cache_miss
                                 case remote_cache_stored
@@ -75614,6 +75899,8 @@ public enum Operations {
                         public typealias tasksPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
                         public var tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
+                        public var tasks_cache_hit_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_executed_count`.
                         public var tasks_executed_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
@@ -75653,6 +75940,7 @@ public enum Operations {
                         ///   - root_project_name:
                         ///   - status:
                         ///   - tasks:
+                        ///   - tasks_cache_hit_count:
                         ///   - tasks_executed_count:
                         ///   - tasks_failed_count:
                         ///   - tasks_local_hit_count:
@@ -75683,6 +75971,7 @@ public enum Operations {
                             root_project_name: Swift.String? = nil,
                             status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
                             tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
+                            tasks_cache_hit_count: Swift.Int? = nil,
                             tasks_executed_count: Swift.Int? = nil,
                             tasks_failed_count: Swift.Int? = nil,
                             tasks_local_hit_count: Swift.Int? = nil,
@@ -75713,6 +76002,7 @@ public enum Operations {
                             self.root_project_name = root_project_name
                             self.status = status
                             self.tasks = tasks
+                            self.tasks_cache_hit_count = tasks_cache_hit_count
                             self.tasks_executed_count = tasks_executed_count
                             self.tasks_failed_count = tasks_failed_count
                             self.tasks_local_hit_count = tasks_local_hit_count
@@ -75744,6 +76034,7 @@ public enum Operations {
                             case root_project_name
                             case status
                             case tasks
+                            case tasks_cache_hit_count
                             case tasks_executed_count
                             case tasks_failed_count
                             case tasks_local_hit_count
@@ -80613,6 +80904,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_cache_hit_count`.
+                            public var tasks_cache_hit_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_executed_count`.
                             public var tasks_executed_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_local_hit_count`.
@@ -80642,6 +80935,7 @@ public enum Operations {
                             ///   - requested_tasks:
                             ///   - root_project_name:
                             ///   - status:
+                            ///   - tasks_cache_hit_count:
                             ///   - tasks_executed_count:
                             ///   - tasks_local_hit_count:
                             ///   - tasks_remote_hit_count:
@@ -80665,6 +80959,7 @@ public enum Operations {
                                 requested_tasks: [Swift.String]? = nil,
                                 root_project_name: Swift.String? = nil,
                                 status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload? = nil,
+                                tasks_cache_hit_count: Swift.Int? = nil,
                                 tasks_executed_count: Swift.Int? = nil,
                                 tasks_local_hit_count: Swift.Int? = nil,
                                 tasks_remote_hit_count: Swift.Int? = nil,
@@ -80688,6 +80983,7 @@ public enum Operations {
                                 self.requested_tasks = requested_tasks
                                 self.root_project_name = root_project_name
                                 self.status = status
+                                self.tasks_cache_hit_count = tasks_cache_hit_count
                                 self.tasks_executed_count = tasks_executed_count
                                 self.tasks_local_hit_count = tasks_local_hit_count
                                 self.tasks_remote_hit_count = tasks_remote_hit_count
@@ -80712,6 +81008,7 @@ public enum Operations {
                                 case requested_tasks
                                 case root_project_name
                                 case status
+                                case tasks_cache_hit_count
                                 case tasks_executed_count
                                 case tasks_local_hit_count
                                 case tasks_remote_hit_count
@@ -81366,12 +81663,82 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/duration_ms`.
                         public var duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution`.
+                        public struct executionPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/build_path`.
+                            public var build_path: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/cacheability`.
+                            @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case cacheable = "cacheable"
+                                case disabled = "disabled"
+                                case unknown = "unknown"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/cacheability`.
+                            public var cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/incremental`.
+                            public var incremental: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                            public var remote_cache_download_duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                            @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case hit = "hit"
+                                case miss = "miss"
+                                case error = "error"
+                                case not_requested = "not_requested"
+                                case unknown = "unknown"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                            public var remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                            public var remote_cache_upload_duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/task_type`.
+                            public var task_type: Swift.String
+                            /// Creates a new `executionPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - build_path:
+                            ///   - cacheability:
+                            ///   - incremental:
+                            ///   - remote_cache_download_duration_ms:
+                            ///   - remote_cache_lookup_outcome:
+                            ///   - remote_cache_upload_duration_ms:
+                            ///   - task_type:
+                            public init(
+                                build_path: Swift.String,
+                                cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                incremental: Swift.Bool? = nil,
+                                remote_cache_download_duration_ms: Swift.Int? = nil,
+                                remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                task_type: Swift.String
+                            ) {
+                                self.build_path = build_path
+                                self.cacheability = cacheability
+                                self.incremental = incremental
+                                self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                self.task_type = task_type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case build_path
+                                case cacheability
+                                case incremental
+                                case remote_cache_download_duration_ms
+                                case remote_cache_lookup_outcome
+                                case remote_cache_upload_duration_ms
+                                case task_type
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution`.
+                        public var execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                         /// Task outcome.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/outcome`.
                         @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case local_hit = "local_hit"
                             case remote_hit = "remote_hit"
+                            case cache_hit = "cache_hit"
                             case up_to_date = "up_to_date"
                             case executed = "executed"
                             case failed = "failed"
@@ -81409,6 +81776,7 @@ public enum Operations {
                         ///   - cache_key: Cache key for cacheable tasks.
                         ///   - cacheable: Whether the task is cacheable.
                         ///   - duration_ms: Task duration in milliseconds.
+                        ///   - execution:
                         ///   - outcome: Task outcome.
                         ///   - remote_cache_miss: Whether the remote cache was checked and did not contain the task output.
                         ///   - remote_cache_stored: Whether this build wrote the task output to the remote cache.
@@ -81420,6 +81788,7 @@ public enum Operations {
                             cache_key: Swift.String? = nil,
                             cacheable: Swift.Bool? = nil,
                             duration_ms: Swift.Int? = nil,
+                            execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                             outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                             remote_cache_miss: Swift.Bool? = nil,
                             remote_cache_stored: Swift.Bool? = nil,
@@ -81431,6 +81800,7 @@ public enum Operations {
                             self.cache_key = cache_key
                             self.cacheable = cacheable
                             self.duration_ms = duration_ms
+                            self.execution = execution
                             self.outcome = outcome
                             self.remote_cache_miss = remote_cache_miss
                             self.remote_cache_stored = remote_cache_stored
@@ -81443,6 +81813,7 @@ public enum Operations {
                             case cache_key
                             case cacheable
                             case duration_ms
+                            case execution
                             case outcome
                             case remote_cache_miss
                             case remote_cache_stored

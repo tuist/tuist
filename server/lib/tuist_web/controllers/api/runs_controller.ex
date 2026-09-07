@@ -1,13 +1,12 @@
 defmodule TuistWeb.API.RunsController do
   @moduledoc """
-  Controller for the deprecated /runs API endpoint.
+  Controller for the /runs API endpoint.
 
-  DEPRECATED: This endpoint is deprecated. Please use the specific endpoints instead:
-  - POST /builds for creating builds
-  - POST /tests for creating test runs
-  - GET /builds for listing builds
+  `GET /runs` lists a project's command events, covering commands that have no
+  dedicated endpoint of their own, such as `install`.
 
-  This controller is kept for backward compatibility and will be removed in a future version.
+  `POST /runs` is deprecated: use `POST /builds` for builds and `POST /tests`
+  for test runs.
   """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
@@ -19,6 +18,7 @@ defmodule TuistWeb.API.RunsController do
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Run
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
@@ -33,10 +33,12 @@ defmodule TuistWeb.API.RunsController do
 
   tags ["Runs"]
 
+  # ran_at alone is not unique: the CLI sends it without fractional seconds, so
+  # concurrent runs share a timestamp and a keyset seek on it would skip them.
+  @cursor_order_fields [:ran_at, :id]
+
   operation(:index,
-    summary:
-      "List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.",
-    deprecated: true,
+    summary: "List runs associated with a given project.",
     operation_id: "listRuns",
     parameters: [
       account_handle: [
@@ -54,7 +56,7 @@ defmodule TuistWeb.API.RunsController do
       name: [
         in: :query,
         type: :string,
-        description: "The name of the run."
+        description: "Filter by command name, such as `install` or `generate`."
       ],
       git_ref: [
         in: :query,
@@ -71,6 +73,26 @@ defmodule TuistWeb.API.RunsController do
         type: :string,
         description: "The git commit SHA of the run."
       ],
+      status: [
+        in: :query,
+        type: %Schema{type: :string, enum: ["success", "failure"]},
+        description: "Filter by run status."
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        description: "Filter to runs executed on CI (true) or locally (false)."
+      ],
+      from: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return runs that ran at or after this Unix timestamp in seconds."
+      ],
+      to: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return runs that ran at or before this Unix timestamp in seconds."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -84,12 +106,31 @@ defmodule TuistWeb.API.RunsController do
       ],
       page: [
         in: :query,
+        deprecated: true,
         type: %Schema{
           title: "RunsIndexPage",
-          description: "The page number to return.",
+          description:
+            "Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.",
           type: :integer,
-          default: 1,
           minimum: 1
+        }
+      ],
+      after: [
+        in: :query,
+        type: %Schema{
+          title: "RunsIndexAfter",
+          description:
+            "Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.",
+          type: :string
+        }
+      ],
+      before: [
+        in: :query,
+        type: %Schema{
+          title: "RunsIndexBefore",
+          description:
+            "Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.",
+          type: :string
         }
       ]
     ],
@@ -102,73 +143,103 @@ defmodule TuistWeb.API.RunsController do
              runs: %Schema{
                type: :array,
                items: Run
-             }
+             },
+             pagination_metadata: PaginationMetadata
            },
-           required: [:runs]
+           required: [:runs, :pagination_metadata]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
 
-  def index(
-        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
-        _params
-      ) do
-    filters =
-      [
-        %{field: :project_id, op: :==, value: selected_project.id}
-      ] ++ filters_from_params(params)
+  def index(%{assigns: %{selected_project: selected_project}, params: %{page_size: page_size} = params} = conn, _params) do
+    with {:ok, time_filters} <- ran_at_filters(params),
+         :ok <- validate_cursors(params) do
+      filters =
+        [%{field: :project_id, op: :==, value: selected_project.id}] ++
+          filters_from_params(params) ++ time_filters
 
-    {command_events, _meta} =
-      Tuist.CommandEvents.list_command_events(%{
-        page: page,
-        page_size: page_size,
-        filters: filters,
-        order_by: [:ran_at],
-        order_directions: [:desc]
+      # Cursor (keyset) pagination only: a seek reads one page regardless of how
+      # far it has walked. Omitting both cursors returns the first page.
+      pagination =
+        if is_nil(Map.get(params, :before)) do
+          %{first: page_size, after: Map.get(params, :after)}
+        else
+          %{last: page_size, before: params.before}
+        end
+
+      {command_events, meta} =
+        Tuist.CommandEvents.list_command_events(
+          Map.merge(pagination, %{
+            filters: filters,
+            order_by: @cursor_order_fields,
+            order_directions: [:desc, :desc]
+          })
+        )
+
+      {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, @cursor_order_fields)
+
+      json(conn, %{
+        runs: Enum.map(command_events, &run_json(&1, selected_project)),
+        pagination_metadata: %{
+          has_next_page: meta.has_next_page?,
+          has_previous_page: meta.has_previous_page?,
+          current_page: meta.current_page,
+          page_size: meta.page_size,
+          total_count: meta.total_count,
+          total_pages: meta.total_pages,
+          start_cursor: start_cursor,
+          end_cursor: end_cursor
+        }
       })
+    else
+      {:error, message} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: message})
+    end
+  end
 
-    json(conn, %{
-      runs:
-        Enum.map(command_events, fn event ->
-          ran_by =
-            if event.user_account_name,
-              do: %{handle: event.user_account_name}
+  defp run_json(event, selected_project) do
+    ran_by =
+      if event.user_account_name,
+        do: %{handle: event.user_account_name}
 
-          event
-          |> Map.take([
-            :id,
-            :name,
-            :duration,
-            :subcommand,
-            :command_arguments,
-            :tuist_version,
-            :swift_version,
-            :macos_version,
-            :status,
-            :git_ref,
-            :git_commit_sha,
-            :git_branch,
-            :cacheable_targets,
-            :local_cache_target_hits,
-            :remote_cache_target_hits,
-            :test_targets,
-            :local_test_target_hits,
-            :remote_test_target_hits,
-            :preview_id
-          ])
-          |> Map.put(
-            :url,
-            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
-          )
-          |> Map.put(
-            :ran_at,
-            event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
-          )
-          |> Map.put(:ran_by, ran_by)
-        end)
-    })
+    event
+    |> Map.take([
+      :id,
+      :name,
+      :duration,
+      :subcommand,
+      :command_arguments,
+      :tuist_version,
+      :swift_version,
+      :macos_version,
+      :error_message,
+      :git_ref,
+      :git_commit_sha,
+      :git_branch,
+      :cacheable_targets,
+      :local_cache_target_hits,
+      :remote_cache_target_hits,
+      :test_targets,
+      :local_test_target_hits,
+      :remote_test_target_hits,
+      :preview_id
+    ])
+    |> Map.put(:status, status_to_string(event.status))
+    |> Map.put(:is_ci, event.is_ci)
+    |> Map.put(
+      :url,
+      ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
+    )
+    |> Map.put(
+      :ran_at,
+      event.ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
+    )
+    |> Map.put(:ran_by, ran_by)
   end
 
   operation(:create,
@@ -921,8 +992,69 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp filters_from_params(params) do
-    [:name, :git_ref, :git_branch, :git_commit_sha]
-    |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
-    |> Enum.filter(&(&1.value != nil))
+    equality_filters =
+      [:name, :git_ref, :git_branch, :git_commit_sha, :is_ci]
+      |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
+      |> Enum.filter(&(&1.value != nil))
+
+    equality_filters ++ status_filters(Map.get(params, :status))
   end
+
+  defp status_filters(nil), do: []
+  defp status_filters("success"), do: [%{field: :status, op: :==, value: 0}]
+  defp status_filters("failure"), do: [%{field: :status, op: :==, value: 1}]
+
+  defp validate_cursors(params) do
+    if Enum.all?([:after, :before], &valid_cursor?(Map.get(params, &1))) do
+      :ok
+    else
+      {:error, "`after` and `before` must be cursors returned by a previous response."}
+    end
+  end
+
+  defp valid_cursor?(nil), do: true
+
+  defp valid_cursor?(cursor) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Enum.sort(Map.keys(decoded)) == Enum.sort(@cursor_order_fields)
+      :error -> false
+    end
+  end
+
+  defp ran_at_filters(params) do
+    from = Map.get(params, :from)
+    to = Map.get(params, :to)
+
+    with :ok <- validate_range_order(from, to),
+         {:ok, start_datetime} <- unix_to_datetime(from),
+         {:ok, end_datetime} <- unix_to_datetime(to) do
+      {:ok, ran_at_filter(:>=, start_datetime) ++ ran_at_filter(:<=, end_datetime)}
+    else
+      {:error, message} -> {:error, message}
+      :error -> {:error, "`from` and `to` must be valid Unix timestamps."}
+    end
+  end
+
+  defp validate_range_order(from, to) when is_integer(from) and is_integer(to) and to < from,
+    do: {:error, "`to` must be greater than or equal to `from`."}
+
+  defp validate_range_order(_from, _to), do: :ok
+
+  defp unix_to_datetime(nil), do: {:ok, nil}
+
+  defp unix_to_datetime(unix) do
+    case DateTime.from_unix(unix) do
+      {:ok, datetime} -> {:ok, datetime}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp ran_at_filter(_op, nil), do: []
+  defp ran_at_filter(op, datetime), do: [%{field: :ran_at, op: op, value: datetime}]
+
+  defp status_to_string(0), do: "success"
+  defp status_to_string(1), do: "failure"
+  defp status_to_string(nil), do: "success"
+  defp status_to_string(status) when is_atom(status), do: Atom.to_string(status)
+  defp status_to_string(status), do: to_string(status)
 end

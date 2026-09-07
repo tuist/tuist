@@ -1279,6 +1279,8 @@ defmodule TuistWeb.Router do
       live "/module-cache/modules/:module", ModuleCacheModuleLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
+      live "/builds/tasks", GradleTasksLive, :tasks
+      live "/builds/tasks/:name", GradleTasksLive, :task
       live "/connect", ConnectLive
       live "/invocations", BazelInvocationsLive
       live "/", OverviewLive
@@ -1287,6 +1289,7 @@ defmodule TuistWeb.Router do
       live "/bundles/:bundle_id", BundleLive
       live "/builds", BuildsLive
       live "/builds/build-runs", BuildRunsLive
+      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive

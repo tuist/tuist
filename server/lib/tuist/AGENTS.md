@@ -64,3 +64,5 @@ This directory contains the core business logic and domain modules for the serve
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
+
+- Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).

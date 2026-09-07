@@ -13,3 +13,5 @@ This area owns helper functions for views, forms, and UI utilities.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- `GradleTask` shares task outcome labels and colors between build tables, task overviews, and individual execution details.

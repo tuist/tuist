@@ -187,10 +187,13 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :air, service_region: "us-east"}}
     end
 
-    test "refuses a Europe-restricted Air account until a deployment serves Air in Europe" do
+    test "resolves a Europe-restricted Air account into the European region" do
+      # Refused outright while Air was funded per region: nothing funded Air in
+      # Europe, so the account's residency admitted no region it was allowed
+      # into and resolution had nothing to answer with.
       account = update_region!(organization_account(), :europe)
 
-      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-central"}}
     end
 
     test "does not include open-source accounts in the first rollout" do
@@ -360,11 +363,13 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
   end
 
-  describe "Asia Pacific Southeast is assignment-only" do
+  describe "no storage-region preference names Asia Pacific Southeast" do
     test "no storage-region preference derives to it on any plan" do
-      # The point of the region: nothing places an account there implicitly, so
-      # a reader looking for a derivation rule finds this instead. Every
-      # accounts.region value crossed with every plan that resolves at all.
+      # `accounts.region` is `all | europe | usa`, and none of the three names
+      # this region, so nothing here reaches it. What does reach it is where an
+      # account's traffic comes from — see "placement by origin" — and an
+      # operator assignment. Every accounts.region value crossed with every
+      # plan that resolves at all.
       for region <- [:all, :europe, :usa],
           plan <- [:air, :pro, :enterprise] do
         account = update_region!(organization_account(), region)
@@ -531,29 +536,31 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
   end
 
-  describe "Air funded in a region the deployment does not serve" do
-    test "refuses rather than resolving into an unserved funded region" do
-      # What canary was doing for 63 days: Air is funded in `us-east` by
-      # default, canary serves `eu-central`/`ca-east`, and resolution handed
-      # back `us-east` anyway. Demand landed in a region the lifecycle loop
-      # never iterates, no instance was ever created, and the endpoints API
+  describe "Air where the deployment does not serve the residency default" do
+    test "resolves into a region the deployment does serve" do
+      # What canary was doing for 63 days, seen from the other side: Air used
+      # to be admitted only to regions carrying an explicit budget, that budget
+      # named `us-east` by default, and a deployment serving `eu-central` and
+      # `ca-east` resolved every Air account into a region the lifecycle loop
+      # never iterates. No instance was ever created, and the endpoints API
       # reported the account as provisioning on every poll.
       account = organization_account()
       account = update_region!(account, :all)
       serving(["eu-central", "ca-east"])
-      stub(Environment, :kura_air_region_ids, fn -> ["us-east"] end)
-
-      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
-    end
-
-    test "places Air in a funded region the deployment serves" do
-      account = organization_account()
-      account = update_region!(account, :all)
-      serving(["eu-central", "ca-east"])
-      stub(Environment, :kura_air_region_ids, fn -> ["ca-east", "eu-central"] end)
 
       assert {:ok, %{plan: :air, service_region: service_region}} = AccountPolicies.resolve(account)
       assert service_region in ["ca-east", "eu-central"]
+    end
+
+    test "prefers the residency default where the deployment serves it" do
+      # Not merely the first region the deployment serves: `ca-east` sorts
+      # ahead of `us-east` among the regions this account is admitted to, and
+      # the default is still what an account with nothing else to go on gets.
+      account = organization_account()
+      account = update_region!(account, :all)
+      serving(["ca-east", "eu-central", "us-east"])
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "us-east"}}
     end
   end
 
@@ -720,65 +727,43 @@ defmodule Tuist.Kura.AccountPoliciesTest do
     end
   end
 
-  describe "the Air region" do
-    test "is United States East for an account that states no storage region" do
-      assert Environment.kura_air_region(:all) == "us-east"
-      assert Environment.kura_air_region(:usa) == "us-east"
+  describe "Air is placed on the same rule as every other plan" do
+    test "follows the origin its traffic comes from" do
+      # The point of dropping the per-region Air budget. This account used to
+      # resolve to `us-east` whatever its traffic said, because `us-east` was
+      # the only region Air was admitted to.
+      account = update_region!(organization_account(), :all)
+      serving(["us-east", "eu-central"])
+      seed_origin(account, "PL")
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-central"}}
     end
 
-    test "is unnamed for Europe until a deployment serves Air from there" do
-      assert Environment.kura_air_region(:europe) == nil
-    end
-
-    test "is where an Air account resolves" do
+    test "resolves into the only region the deployment serves" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      stub(Environment, :kura_air_region_ids, fn -> ["ca-east"] end)
       serving(["ca-east"])
 
       assert {:ok, %{plan: :air, service_region: "ca-east"}} = AccountPolicies.resolve(account)
     end
 
-    test "does not move a paid account restricted to a storage region" do
-      # Where the free tier runs is a deployment decision. A paid account that
-      # chose Europe or the USA chose it, and no deployment setting relocates
-      # it.
-      account = update_region!(organization_account(), :europe)
-      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
-
-      stub(Environment, :kura_air_region, fn :europe -> "ca-east" end)
-
-      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
-    end
-
-    test "keeps a Europe-restricted Air account in Europe once a deployment serves it" do
-      account = update_region!(organization_account(), :europe)
-
-      stub(Environment, :kura_air_region_ids, fn -> ["us-east", "eu-central"] end)
-      deploy_regions(["us-east", "eu-central"])
-
-      assert AccountPolicies.resolve(account) == {:ok, %{plan: :air, service_region: "eu-central"}}
-    end
-
-    test "refuses a Europe-restricted Air account while no deployment serves Air in Europe" do
+    test "refuses a Europe-restricted Air account where no European region is served" do
       # "Storage region" names module cache binaries, which is what a Kura
       # instance holds, so an account that chose Europe is refused rather than
-      # served from the United States pool the rest of Air runs in.
+      # served from the United States.
       account = update_region!(organization_account(), :europe)
 
-      deploy_regions(["us-east", "eu-central"])
-
-      assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
-    end
-
-    test "refuses a Europe-restricted Air account when the named region is not served here" do
-      account = update_region!(organization_account(), :europe)
-
-      stub(Environment, :kura_air_region, fn :europe -> "eu-central" end)
       deploy_regions(["us-east"])
 
       assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
+    end
+
+    test "does not move a paid account restricted to a storage region" do
+      account = update_region!(organization_account(), :europe)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "eu-central"}}
     end
   end
 
@@ -838,7 +823,11 @@ defmodule Tuist.Kura.AccountPoliciesTest do
 
       assert {:ok, %{plan: :air}} = AccountPolicies.resolve(account)
 
-      refute_receive {_event_name, ^event_ref, _measurements, _metadata}
+      # `refute_received` rather than `refute_receive`: the handler is global,
+      # so its 100ms wait is a window for any async test file that refuses a
+      # resolution to deliver into this mailbox. `resolve/1` emits
+      # synchronously, so an event from this call is already here.
+      refute_received {_event_name, ^event_ref, _measurements, _metadata}
     end
   end
 end
