@@ -4,6 +4,7 @@ defmodule TuistWeb.ModulesLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
 
