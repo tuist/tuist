@@ -53,6 +53,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
       COMPILATION_CACHE_ENABLE_CACHING=NO
   ```
 - Swift Testing filters use the pattern `ModuleTests/SuiteName` (the type name without the `struct` keyword). For a single `@Test` function: `ModuleTests/SuiteName/function_name`.
+- `TuistKitTests/StaticXCFrameworkModuleMapGraphMapperPerformanceTests` guards shared cached-graph traversal scaling (PR #12807). It runs in Debug as part of the existing CLI Unit Tests CI check. Run this suite when changing recovery walkers or their mapper call sites; do not replace its relative growth check with a machine-specific wall-clock limit. See `cli/performance-tests.md` for the fixture, timing methodology, limitations, and red/green reproduction steps.
 
 ## Linting
 - Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.
