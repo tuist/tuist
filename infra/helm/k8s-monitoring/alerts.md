@@ -1481,6 +1481,74 @@ segment at all in the window (`NaN`, which the `< 86400` threshold does not
 match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
 the one to watch as its usage grows.
 
+### Kura instance not reconciled
+
+```promql
+time() - max by (cluster, namespace, kurainstance, tenant_id, region) (
+  kube_customresource_kurainstance_status_last_reconciled{cluster="tuist-production"}
+)
+```
+
+- Threshold: `> 600` seconds, as a separate threshold expression on `A`, so the
+  alert value is how long the instance has gone unconverged
+- Pending period: 5 minutes
+- Severity: warning
+- Production only (see **Recording rules for Kura regions** for where the
+  scope lives). Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- **Not created yet, and it cannot be until the monitoring chart is
+  deployed.** The series comes from the `customResourceState` block this
+  change adds to `telemetryServices.kube-state-metrics` in `values.yaml`, and
+  the chart is installed by hand (see the header of
+  `values-production.yaml`), so the rule would sit in No Data until someone
+  runs that upgrade. Deploy the chart, confirm the series returns one sample
+  per instance in Explore, then create the rule and record its UID here.
+- Summary: `Kura instance {{ $labels.kurainstance }} ({{ $labels.tenant_id }})
+  has not been reconciled for {{ $values.A.Value | humanizeDuration }}`
+- Description: `The kura-controller has not completed a full reconcile pass
+  for this instance. Nothing about it converges while that holds: not a
+  storage resize, not a rollout, not primary selection, not replacing a
+  replica it has lost. The instance keeps serving whatever it was already
+  serving, so this is not customer-visible on its own; it is the state in
+  which the next disturbance has nothing to recover it. Read the controller
+  log for the instance name. A pass that returns early every few seconds
+  looks identical to a healthy one in the controller's own reconcile
+  counters, which is why this reads the timestamp the CR only carries when a
+  pass reached the end.`
+
+**The controller's own metrics cannot answer this.** A wedged reconcile is
+busy, not idle. On 2026-09-07 an instance in us-west short-circuited every
+10 seconds for 69 minutes: `controller_runtime_reconcile_total` would have
+climbed the whole time, the workqueue never grew, and the controller pod
+stayed Ready. What separates the two cases is whether a pass reached its end,
+and `status.lastReconciledAt` is written only there. Reading it through
+kube-state-metrics rather than exporting it from the controller also keeps the
+observation outside the thing being observed.
+
+**Why 10 minutes.** A healthy instance is reconciled about every 30 seconds,
+and the fleet's timestamps sit within about 20 seconds of each other, so the
+threshold is roughly twenty times the steady-state cadence. That leaves room
+for a controller restart, a leader-election handover, and a slow pass without
+firing, while still catching a wedge inside a quarter of an hour rather than
+the 69 minutes it took to notice one through a downstream customer alert.
+
+**Why warning rather than critical.** A stalled reconcile is an operator
+problem that becomes a customer problem later, and its customer-visible
+consequences already have critical rules of their own: **Kura instance
+retention horizon under a day** for a resize that never lands, and the
+StatefulSet replica rule for an instance running short. Paging on this would
+wake someone for a condition whose damage is measured in hours.
+
+**What it would have caught.** The same 2026-09-07 wedge. A grown storage
+claim tripped the controller's stale-storage path, which deleted the
+StatefulSet and both PVCs and left a pod it no longer owned holding one of
+them open, so the reason it was waiting on could never clear (fixed in
+`reconcileStaleDataStorage`). `status.lastReconciledAt` froze at the first
+short-circuit and never moved again. Note that the StatefulSet replica rule
+cannot see that shape: the StatefulSet itself was deleted, so both
+`kube_statefulset_replicas` and `kube_statefulset_status_replicas_ready` were
+absent for the instance and their subtraction returned no series at all.
+
 ### Kura egress budget almost entirely consumed
 
 ```promql
