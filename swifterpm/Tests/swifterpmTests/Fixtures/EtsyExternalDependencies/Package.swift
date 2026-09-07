@@ -76,7 +76,7 @@ let package = Package(
         .package(url: "https://github.com/airbnb/lottie-ios.git", exact: "4.4.3"),
         .package(url: "https://github.com/etsy/PanModal", revision: "2322ef9cec54127b7ae69bbed01f8b598e35aca4"),
         .package(url: "https://github.com/jonreid/OCMockito", exact: "7.0.1"),
-        .package(url: "https://github.com/ashleymills/Reachability.swift", exact: "5.2.1"),
+        .package(url: "https://github.com/ashleymills/Reachability.swift", exact: "5.2.4"),
         .package(url: "https://github.com/braze-inc/braze-swift-sdk", exact: "11.3.0"),
         .package(url: "https://github.com/firebase/firebase-ios-sdk.git", exact: "11.6.0"),
         .package(url: "https://github.com/google/GoogleUtilities", exact: "8.0.2"),
