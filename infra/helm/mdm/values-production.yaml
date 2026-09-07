@@ -2,18 +2,28 @@
 # that Mac ends up serving: the MDM manages a host before it joins
 # anything, and the cluster is chosen later by the kubeconfig the
 # operator SSH bootstrap installs. There is deliberately no per-cluster
-# MDM.
+# MDM, and no separate bench — while the fleet is being validated the
+# only enrolled machine is a disposable prototype, so a second instance
+# would buy nothing and cost a second push certificate, a second ABM
+# server row and a migration.
 #
 # The hostname is effectively permanent. The MDM protocol has no way to
 # move an enrollment's ServerURL, so changing it means DFU-reprovisioning
 # every enrolled machine.
 host: mdm.tuist.dev
-depHost: mdm-dep.tuist.dev
 
 ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
     nginx.ingress.kubernetes.io/proxy-body-size: 16m
+
+# Operator APIs on the tailnet, not the internet. The tag follows the
+# cluster this is deployed into, not the release: it has to be one the
+# local Tailscale operator is allowed to mint. Currently the staging
+# cluster; this moves with the release.
+tailnet:
+  enabled: true
+  tags: "tag:tuist-k8s-staging"
 
 runtimeSecrets:
   externalSecret:

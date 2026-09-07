@@ -13,9 +13,19 @@ fullnameOverride: ""
 # way to change an enrollment's ServerURL, so a hostname change means
 # re-enrolling (DFU-reprovisioning) every device.
 host: ""
-# nanodep's depserver API (token ceremonies, DEP proxy). Operator-facing
-# only; split from `host` so its /v1 does not collide with nanomdm's.
-depHost: ""
+
+# The operator-facing APIs — all of nanodep, and nanomdm's /v1 (push cert
+# upload, enqueue, push) — are never called by a device and hold the ABM
+# OAuth tokens and APNs push credentials. They are published on the
+# tailnet rather than through the public ingress, the same way tuist-ops
+# keeps its policy endpoint off the internet.
+tailnet:
+  enabled: false
+  # Tag the Tailscale operator is permitted to mint in THIS cluster; it
+  # follows the cluster, not the release (see the operator's defaultTags).
+  tags: ""
+  nanomdmHostname: mdm-api
+  nanodepHostname: mdm-dep
 
 ingress:
   enabled: true

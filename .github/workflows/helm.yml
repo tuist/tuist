@@ -156,7 +156,6 @@ jobs:
             "kura|kura/ops/helm/kura|kura|"
             "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
-            "mdm (staging)|infra/helm/mdm|mdm|values-staging.yaml values-ci.yaml"
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"

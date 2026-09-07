@@ -22,12 +22,19 @@ Deployed by `.github/workflows/mdm-deployment.yml` from
 
 Public endpoints (staging):
 
-- `https://mdm-staging.tuist.dev/mdm` — device check-in/command endpoint (ServerURL)
-- `https://mdm-staging.tuist.dev/scep` — SCEP
-- `https://mdm-staging.tuist.dev/enroll` — enrollment profile (what the DEP profile's `url` points at)
-- `https://mdm-staging.tuist.dev/static/bootstrap.pkg` — signed bootstrap package
-- `https://mdm-staging.tuist.dev/v1/...` — nanomdm operator API (HTTP Basic, user `nanomdm`, password = `nanomdm-api-key`)
-- `https://mdm-dep-staging.tuist.dev/v1/...` — nanodep operator API (HTTP Basic, user `depserver`, password = `nanodep-api-key`)
+Public, because a Mac fetches them from home, office or colo:
+
+- `https://mdm.tuist.dev/mdm` — device check-in/command endpoint (ServerURL)
+- `https://mdm.tuist.dev/scep` — SCEP
+- `https://mdm.tuist.dev/enroll` — enrollment profile (what the DEP profile's `url` points at)
+- `https://mdm.tuist.dev/static/bootstrap.pkg` — signed bootstrap package
+
+Tailnet only. Neither is ever called by a device, and between them they
+hold the ABM OAuth tokens and the ability to enqueue commands to every
+enrolled machine, so they are not published on the internet at all:
+
+- `http://mdm-api.taild6d7bb.ts.net:9000/v1/...` — nanomdm operator API (HTTP Basic, user `nanomdm`, password = `nanomdm-api-key`)
+- `http://mdm-dep.taild6d7bb.ts.net:9001/v1/...` — nanodep operator API (HTTP Basic, user `depserver`, password = `nanodep-api-key`)
 
 The enroller's `/webhook` is cluster-internal on purpose (not routed by
 the ingress).
@@ -38,20 +45,21 @@ node of is decided later, by the kubeconfig the operator SSH bootstrap
 installs. So there is deliberately no per-cluster MDM — a mini serving
 the staging fleet and a mini serving production enroll into the same
 server and receive the same payload. `values-production.yaml` is that
-instance (`mdm.tuist.dev`, production cluster). Machines rented from a
-provider are not in our ABM and cannot be enrolled at all; they stay
-SSH-bootstrap-only.
+instance, and the only one. Machines rented from a provider are not in
+our ABM and cannot be enrolled at all; they stay SSH-bootstrap-only, so
+this server starts empty and fills only with hardware we own.
 
-`values-staging.yaml` is a bench, not an environment tier: it exists so
-MDM changes and the prototype gauntlet have somewhere destroyable. Point
-only lab hardware at it, by assigning those serials to it in ABM by
-hand; the ABM default Mac assignment (a single setting) points at the
-fleet instance so purchases land there automatically.
+There is deliberately no second instance to test against either. While
+the fleet is being validated the only enrolled machine is a disposable
+prototype, so a bench would buy nothing and cost a second push
+certificate, a second ABM server row and a migration later. If a change
+ever needs somewhere destroyable, stand one up from this chart on
+demand and tear it down after.
 
 **The device-facing hostname is forever.** The MDM protocol cannot
-change an enrollment's ServerURL; a hostname change means re-enrolling
-(re-provisioning) every device. That is survivable on the bench, where
-DFU restore is the routine operation anyway, and expensive on the fleet.
+change an enrollment's ServerURL; a hostname change means
+DFU-reprovisioning every enrolled machine. It is free to choose only
+while nothing is enrolled.
 
 **The APNs push certificate is not tied to the hostname.** Apple issues
 a topic (`com.apple.mgmt.External.<uuid>`) independent of DNS, and the
@@ -141,7 +149,7 @@ best-effort availability).
 
    ```bash
    cat push.pem push.key | curl --data-binary @- -X PUT \
-     -u "nanomdm:$NANOMDM_API_KEY" https://mdm-staging.tuist.dev/v1/pushcert
+     -u "nanomdm:$NANOMDM_API_KEY" http://mdm-api.taild6d7bb.ts.net:9000/v1/pushcert
    ```
 
 6. Put the returned topic (`com.apple.mgmt.External.<uuid>`) into the
@@ -165,7 +173,7 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
 
    ```bash
    curl -u "depserver:$NANODEP_API_KEY" \
-     "https://mdm-dep-staging.tuist.dev/v1/tokenpki/tuist" -o tuist-mdm.pem
+     "http://mdm-dep.taild6d7bb.ts.net:9001/v1/tokenpki/tuist" -o tuist-mdm.pem
    ```
 
 2. In [business.apple.com](https://business.apple.com): your name in
@@ -178,10 +186,10 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
 
    ```bash
    curl -u "depserver:$NANODEP_API_KEY" -X PUT --data-binary @token.p7m \
-     "https://mdm-dep-staging.tuist.dev/v1/tokenpki/tuist"
+     "http://mdm-dep.taild6d7bb.ts.net:9001/v1/tokenpki/tuist"
    ```
 
-5. Verify: `curl -u "depserver:$NANODEP_API_KEY" https://mdm-dep-staging.tuist.dev/proxy/tuist/account`
+5. Verify: `curl -u "depserver:$NANODEP_API_KEY" http://mdm-dep.taild6d7bb.ts.net:9001/proxy/tuist/account`
 
 ### 3. DEP profile + default device assignment
 
@@ -191,7 +199,7 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
    ```json
    {
      "profile_name": "Tuist runner fleet",
-     "url": "https://mdm-staging.tuist.dev/enroll?token=<enroll-token>",
+     "url": "https://mdm.tuist.dev/enroll?token=<enroll-token>",
      "org_magic": "dev.tuist.fleet",
      "is_supervised": true,
      "is_mandatory": true,
@@ -210,7 +218,7 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
 
    ```bash
    curl -u "depserver:$NANODEP_API_KEY" -X POST --data-binary @dep-profile.json \
-     "https://mdm-dep-staging.tuist.dev/proxy/tuist/profile"
+     "http://mdm-dep.taild6d7bb.ts.net:9001/proxy/tuist/profile"
    ```
 
    Record the returned `profile_uuid`, then make it the auto-assign
@@ -219,7 +227,7 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
    ```bash
    curl -u "depserver:$NANODEP_API_KEY" -X PUT \
      -d "{\"profile_uuid\": \"$PROFILE_UUID\"}" \
-     "https://mdm-dep-staging.tuist.dev/v1/assigner/tuist"
+     "http://mdm-dep.taild6d7bb.ts.net:9001/v1/assigner/tuist"
    ```
 
    (`auto_advance_setup` requires Ethernet, which the fleet always has;

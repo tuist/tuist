@@ -82,6 +82,12 @@ metadata:
   labels:
     {{- include "mdm.labels" . | nindent 4 }}
     app.kubernetes.io/component: nanomdm
+  {{- if .Values.tailnet.enabled }}
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ .Values.tailnet.nanomdmHostname | quote }}
+    tailscale.com/tags: {{ required "tailnet.tags is required when tailnet.enabled" .Values.tailnet.tags | quote }}
+  {{- end }}
 spec:
   type: ClusterIP
   ports:
