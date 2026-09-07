@@ -3,6 +3,7 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import XCTest
+@testable import TuistGraphLoader
 @testable import TuistKit
 @testable import TuistTesting
 

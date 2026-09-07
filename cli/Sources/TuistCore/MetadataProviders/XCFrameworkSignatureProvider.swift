@@ -1,5 +1,9 @@
 import Command
-import CryptoKit
+#if canImport(CryptoKit)
+    import CryptoKit
+#else
+    import Crypto
+#endif
 import FileSystem
 import Foundation
 import Path
@@ -103,9 +107,7 @@ public struct XCFrameworkSignatureProvider {
             }
 
             let hash = SHA256.hash(data: certificateFileData)
-            let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
-
-            return fingerprint
+            return hash.compactMap { String(format: "%02X", $0) }.joined()
         }
     }
 }

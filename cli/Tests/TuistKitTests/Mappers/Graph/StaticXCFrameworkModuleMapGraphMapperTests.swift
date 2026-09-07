@@ -10,6 +10,7 @@ import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XCTest
+@testable import TuistGraphLoader
 @testable import TuistKit
 
 final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {

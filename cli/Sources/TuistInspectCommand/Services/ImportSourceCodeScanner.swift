@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) || os(Linux)
     import Foundation
 
     enum ProgrammingLanguage {
@@ -84,11 +84,15 @@
                 }
 
                 if line == "#endif" {
-                    if !stack.isEmpty { stack.removeLast() }
+                    if !stack.isEmpty {
+                        stack.removeLast()
+                    }
                     continue
                 }
 
-                if stack.last?.skipping == true { continue }
+                if stack.last?.skipping == true {
+                    continue
+                }
 
                 for match in line.matches(of: Self.swiftImportRegex) {
                     let module = match.output.1.split(separator: ".").first.map(String.init) ?? String(match.output.1)

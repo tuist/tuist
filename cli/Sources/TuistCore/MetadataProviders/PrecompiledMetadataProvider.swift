@@ -1,5 +1,9 @@
 import Foundation
-import MachO
+#if canImport(MachO)
+    import MachO
+#else
+    import MachOKitC
+#endif
 import Path
 import TuistLogging
 import TuistSupport
@@ -205,12 +209,27 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     private func readBinaryArchitecture(cputype: cpu_type_t, cpusubtype: cpu_subtype_t) -> BinaryArchitecture? {
-        guard let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
-              let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
-        else {
-            return nil
-        }
-        return arch
+        #if canImport(MachO)
+            guard let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
+                  let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
+            else {
+                return nil
+            }
+            return arch
+        #else
+            let subtype = cpusubtype & ~cpu_subtype_t(CPU_SUBTYPE_MASK)
+            switch (cputype, subtype) {
+            case (cpu_type_t(CPU_TYPE_X86_64), _): return .x8664
+            case (cpu_type_t(CPU_TYPE_I386), _): return .i386
+            case (cpu_type_t(CPU_TYPE_ARM64), cpu_subtype_t(CPU_SUBTYPE_ARM64E)): return .arm64e
+            case (cpu_type_t(CPU_TYPE_ARM64), _): return .arm64
+            case (cpu_type_t(CPU_TYPE_ARM64_32), _): return .arm6432
+            case (cpu_type_t(CPU_TYPE_ARM), cpu_subtype_t(CPU_SUBTYPE_ARM_V7)): return .armv7
+            case (cpu_type_t(CPU_TYPE_ARM), cpu_subtype_t(CPU_SUBTYPE_ARM_V7S)): return .armv7s
+            case (cpu_type_t(CPU_TYPE_ARM), cpu_subtype_t(CPU_SUBTYPE_ARM_V7K)): return .armv7k
+            default: return nil
+            }
+        #endif
     }
 
     private func readArchiveFormatIfAvailable(binary: FileHandle) {
@@ -255,7 +274,9 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
 }
 
 extension FileHandle {
-    fileprivate var currentOffset: UInt64 { offsetInFile }
+    fileprivate var currentOffset: UInt64 {
+        offsetInFile
+    }
 
     fileprivate func seek(to offset: UInt64) {
         seek(toFileOffset: offset)

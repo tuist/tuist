@@ -62,4 +62,13 @@
             return Data(resultBuffer)
         }
     }
+#else
+    import Crypto
+    import Foundation
+
+    enum SHA256Digest {
+        static func file(at url: URL) throws -> Data {
+            Data(SHA256.hash(data: try Data(contentsOf: url)))
+        }
+    }
 #endif

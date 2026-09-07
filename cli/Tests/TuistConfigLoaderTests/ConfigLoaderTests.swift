@@ -7,7 +7,6 @@ import Testing
 import TuistConfig
 import TuistConstants
 import TuistHTTP
-
 @testable import TuistConfigLoader
 
 @Suite(.serialized)
@@ -23,7 +22,7 @@ struct ConfigLoaderTests {
             .loadConfig(at: .any)
             .willReturn(TuistTomlConfig(
                 project: "tuist/tuist",
-                url: URL(string: "https://custom.tuist.dev")!,
+                url: try #require(URL(string: "https://custom.tuist.dev")),
                 network: .init(proxy: false)
             ))
 
@@ -99,12 +98,8 @@ struct ConfigLoaderTests {
     }
 
     private func makeConfigLoader(tomlConfigLoader: TuistTomlConfigLoading) -> ConfigLoader {
-        #if os(macOS)
-            let swiftConfigLoader = MockSwiftConfigLoading()
-            given(swiftConfigLoader).locateConfig(at: .any).willReturn(nil)
-            return ConfigLoader(swiftConfigLoader: swiftConfigLoader, tomlConfigLoader: tomlConfigLoader)
-        #else
-            return ConfigLoader(tomlConfigLoader: tomlConfigLoader)
-        #endif
+        let swiftConfigLoader = MockSwiftConfigLoading()
+        given(swiftConfigLoader).locateConfig(at: .any).willReturn(nil)
+        return ConfigLoader(swiftConfigLoader: swiftConfigLoader, tomlConfigLoader: tomlConfigLoader)
     }
 }

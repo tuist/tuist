@@ -4,7 +4,7 @@ import Testing
 import TuistCore
 import TuistLoader
 import XcodeGraph
-
+@testable import TuistGraphLoader
 @testable import TuistKit
 
 struct LocalPackageCoverageTargetsValidatorTests {

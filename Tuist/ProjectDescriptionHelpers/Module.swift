@@ -20,6 +20,7 @@ public enum Module: String, CaseIterable {
     case kit = "TuistKit"
     case core = "TuistCore"
     case generator = "TuistGenerator"
+    case graphLoader = "TuistGraphLoader"
     case scaffold = "TuistScaffold"
     case loader = "TuistLoader"
     case plugin = "TuistPlugin"
@@ -364,7 +365,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
+             .runCommand, .shareCommand, .android, .reapi, .graphLoader:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -500,7 +501,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:foundation")
         case .generator, .hasher, .cache:
             moduleTags.append("domain:generation")
-        case .loader, .scaffold:
+        case .loader, .scaffold, .graphLoader:
             moduleTags.append("domain:project-loading")
         case .dependencies:
             moduleTags.append("domain:dependencies")
@@ -771,6 +772,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
                     .target(name: Module.generator.targetName),
+                    .target(name: Module.graphLoader.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.projectDescription.targetName),
@@ -870,6 +872,24 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Stencil"),
+                ]
+            case .graphLoader:
+                [
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.dependencies.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.generator.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.plugin.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "Logging"),
                 ]
             case .scaffold:
                 [
@@ -1557,6 +1577,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.encodable.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.kit.targetName),
+                    .target(name: Module.graphLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.automation.targetName),
@@ -1594,7 +1615,7 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
+                 .runCommand, .runnerCommand, .shareCommand, .android, .reapi, .graphLoader:
                 []
             case .xcodeGraph:
                 []
@@ -1653,6 +1674,17 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .inspectCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.graphLoader.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "Mockable"),
                 ]
             case .cacheCommand:
                 [
@@ -1770,6 +1802,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.dependencies.targetName),
                     .target(name: Module.generator.targetName),
+                    .target(name: Module.graphLoader.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.nooraTesting.targetName),

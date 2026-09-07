@@ -7,7 +7,7 @@ import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
 
-#if canImport(TuistLoader)
+#if canImport(TuistLoader) && os(macOS)
     import TuistLoader
     import TuistSupport
     import TuistTesting
@@ -20,7 +20,7 @@ struct RegistrySetupCommandServiceTests {
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
 
-    #if canImport(TuistLoader)
+    #if canImport(TuistLoader) && os(macOS)
         private let manifestFilesLocator = MockManifestFilesLocating()
         private let defaultsController = MockDefaultsControlling()
     #endif
@@ -28,7 +28,7 @@ struct RegistrySetupCommandServiceTests {
     private let subject: RegistrySetupCommandService
 
     init() {
-        #if canImport(TuistLoader)
+        #if canImport(TuistLoader) && os(macOS)
             subject = RegistrySetupCommandService(
                 serverEnvironmentService: serverEnvironmentService,
                 configLoader: configLoader,
@@ -60,7 +60,7 @@ struct RegistrySetupCommandServiceTests {
             given(serverEnvironmentService)
                 .url(configServerURL: .any)
                 .willReturn(serverURL)
-            #if canImport(TuistLoader)
+            #if canImport(TuistLoader) && os(macOS)
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willProduce { $0.appending(component: "Package.swift") }
@@ -108,7 +108,7 @@ struct RegistrySetupCommandServiceTests {
 
                 """
             )
-            #if canImport(TuistLoader)
+            #if canImport(TuistLoader) && os(macOS)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(0)
@@ -128,7 +128,7 @@ struct RegistrySetupCommandServiceTests {
                 .willReturn(URL(string: "https://test.tuist.io")!)
             let tuistDirectory = temporaryPath.appending(component: "Tuist")
             try await fileSystem.makeDirectory(at: tuistDirectory)
-            #if canImport(TuistLoader)
+            #if canImport(TuistLoader) && os(macOS)
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(tuistDirectory.appending(component: "Package.swift"))
@@ -148,7 +148,7 @@ struct RegistrySetupCommandServiceTests {
             )
             let exists = try await fileSystem.exists(configurationPath)
             #expect(exists)
-            #if canImport(TuistLoader)
+            #if canImport(TuistLoader) && os(macOS)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(.any)
                     .called(0)
@@ -156,7 +156,7 @@ struct RegistrySetupCommandServiceTests {
         }
     }
 
-    #if canImport(TuistLoader)
+    #if canImport(TuistLoader) && os(macOS)
         @Test(.withMockedEnvironment(), .withMockedNoora)
         func setup_when_an_xcode_project_is_found() async throws {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in

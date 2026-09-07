@@ -271,7 +271,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
     }
 
     @discardableResult
-    func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
+    public func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try await configLoader.loadConfig(path: path)
         if let configGeneratedProjectOptions = config.project.generatedProject {
             let plugins = try await pluginsService.loadPlugins(using: configGeneratedProjectOptions)

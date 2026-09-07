@@ -21,7 +21,9 @@ import TuistLogging
 public enum GlobError: FatalError, Equatable {
     case nonExistentDirectory(InvalidGlob)
 
-    public var type: ErrorType { .abort }
+    public var type: ErrorType {
+        .abort
+    }
 
     public var description: String {
         switch self {
@@ -42,14 +44,21 @@ extension AbsolutePath {
         URL(fileURLWithPath: pathString)
     }
 
-    #if os(macOS)
-        /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
-        public var isPackage: Bool {
+    /// Returns true if the path is a package.
+    public var isPackage: Bool {
+        #if os(macOS)
             let ext = URL(fileURLWithPath: pathString).pathExtension
             guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
             return utType.conforms(to: UTType.package)
-        }
-    #endif
+        #else
+            guard let `extension` else { return false }
+            return [
+                "app", "appiconset", "bundle", "docc", "framework", "key", "mlmodelc", "mlpackage",
+                "nib", "numbers", "pages", "playground", "rtfd", "scnassets", "xcassets", "xcframework",
+                "xcdatamodel", "xcdatamodeld", "xcmappingmodel",
+            ].contains(`extension`)
+        #endif
+    }
 
     /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
@@ -64,7 +73,9 @@ extension AbsolutePath {
     public func opaqueParentDirectory() -> AbsolutePath? {
         var currentDirectory = parentDirectory
         while currentDirectory != .root {
-            if currentDirectory.isOpaqueDirectory { return currentDirectory }
+            if currentDirectory.isOpaqueDirectory {
+                return currentDirectory
+            }
             currentDirectory = currentDirectory.parentDirectory
         }
         return nil
@@ -145,12 +156,10 @@ extension AbsolutePath {
         return upToLastNonGlob
     }
 
-    #if os(macOS)
-        /// Returns the hash of the file the path points to.
-        public func sha256() -> Data? {
-            try? SHA256Digest.file(at: url)
-        }
-    #endif
+    /// Returns the hash of the file the path points to.
+    public func sha256() -> Data? {
+        try? SHA256Digest.file(at: url)
+    }
 }
 
 extension AbsolutePath: Swift.ExpressibleByStringLiteral {
