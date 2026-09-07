@@ -24,6 +24,13 @@ Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
+A fifth kind for Vultr is designed but not built, in
+`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
+given a partitioning plan, so its box is converted after install by
+`baremetal:prep-vultr` rather than installed into the right layout, and that
+pushes a conversion stage into the release-then-reinstall lifecycle the other
+Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
+
 ## CRDs
 
 | Kind | Purpose |
