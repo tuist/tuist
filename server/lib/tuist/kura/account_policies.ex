@@ -7,26 +7,37 @@ defmodule Tuist.Kura.AccountPolicies do
   stored. A Kura instance holds exactly those, so an account that named a
   region is served from it and never from another, whatever the plan.
 
-  Air runs in United States East for an account that named no region, and in
-  whichever region the deployment serves Air from in Europe for an account that
-  named Europe. Paid accounts with a country group resolve deterministically to
-  that group's pool. A paid account
-  that allows every region has stated no constraint, so it resolves in this
-  order:
+  Every plan resolves over the same set: the regions the account's residency
+  admits and this deployment serves. Air is not held to a narrower one — what
+  bounds a region is the capacity `Tuist.Kura.Admission` finds there, not the
+  tier of the account asking. Resolution runs in this order:
 
-    1. its explicit versioned assignment, if an operator made one,
-    2. the region its live public instance is already in, so resolution never
-       relocates a running account, and
-    3. United States East, the deterministic default a dormant account
-       receives before its next provisioning demand.
+    1. its explicit versioned assignment, if an operator made one and the
+       account's residency still admits it,
+    2. the region placement decided for it (`PlacerRegions.primary_region/1`),
+    3. the region its live public instance is already in, so resolution never
+       relocates a running account,
+    4. the region nearest where its cache traffic comes from, counted by
+       `Tuist.Kura.Origins` and mapped by `Tuist.Kura.OriginMap`, and
+    5. the residency default, which a dormant account with no attributable
+       traffic receives before its next provisioning demand.
 
-  An assignment is the only route *here* to a region no preference derives to.
-  `accounts.region` is `all | europe | usa`, so nothing resolves to United
-  States West or Asia Pacific Southeast on its own; an account is opted into
-  either per account, for latency. Asia Pacific has no derivation rule for the
-  same reason United States West has none: there is no `accounts.region` value
-  that names it. So an APAC account is pinned there by an operator, or resolves
-  to United States East like any other account that stated no constraint.
+  Steps 2 and 4 are what reach a region no storage-region preference names.
+  `accounts.region` is `all | europe | usa`, so nothing *derives* to United
+  States West or Asia Pacific Southeast from the preference alone — but an
+  account whose traffic comes from Taiwan and whose residency constrains
+  nothing resolves to Asia Pacific Southeast at step 4 with no operator
+  involved.
+
+  An assignment is therefore no longer the only route to those regions. What
+  it is instead is placement's per-account rollback: the sweep skips an
+  account holding one entirely, so pinning an account stops it being placed
+  automatically rather than merely deciding where it sits today.
+
+  Step 4 decides only for an account with nothing already running, because
+  steps 2 and 3 outrank it. Moving an account that is being served is a
+  relocation, which `Tuist.Kura.Placement` decides on a far longer window of
+  evidence and which is applied through the endpoint drain.
 
   Resolution is not the only way an account gets a server in a region, and this
   module is not a gate on that. A customer can also add one directly from
@@ -35,11 +46,11 @@ defmodule Tuist.Kura.AccountPolicies do
   *places* an account — demand, lifecycle, provisioning — not what the customer
   is permitted to pick.
 
-  Step 2 counts only live instances in public regions, and picks one when there
+  Step 3 counts only live instances in public regions, and picks one when there
   are several; `live_service_regions/1` carries the reasoning for both, and for
   why an archive does not hold an account to its region.
 
-  Step 2 is what keeps the default from being a migration. Without it an
+  Step 3 is what keeps the default from being a migration. Without it an
   account already serving from elsewhere would start recording demand against
   the default region, cold-provision a second instance there, and leave the
   original holding its allocation with no reclamation path on the plans that
@@ -246,27 +257,22 @@ defmodule Tuist.Kura.AccountPolicies do
     )
   end
 
-  # Air is funded per region rather than served everywhere, so its candidates
-  # are the funded ones its residency admits. An Air account whose residency
-  # admits no funded region is refused, exactly as an account restricted to
-  # Europe is today, and the refusal is counted: sustained refused demand is
-  # what an Air budget in a new region gets decided from.
   defp effective_service_region(%Account{} = account, :air, lookups) do
-    # Funding is the gate, and the deployment has to serve what it funds.
-    # Funding a region it does not serve is a configuration error, and
-    # resolving into one anyway is silent: demand lands in a region
-    # `Lifecycle.lifecycle_regions/0` never iterates, so the account reports as
-    # provisioning forever while nothing ever provisions it. Refusing surfaces
-    # it on the refusal counter instead, which is what quantifies the case for
-    # funding a region the deployment actually serves.
-    case account |> permitted_regions() |> restrict_to_plan(:air) |> Enum.filter(&Regions.available?/1) do
+    # Air is placed like any other plan: wherever its residency admits and the
+    # deployment serves. It used to be admitted only to regions carrying an
+    # explicit Air budget, which collapsed every Air account onto the one
+    # funded region whatever its traffic said, and refused outright the
+    # accounts whose residency admitted no funded region at all. What bounds a
+    # region is capacity rather than plan: `Tuist.Kura.Admission` refuses an
+    # instance a region cannot hold, which is a decision taken against the
+    # disk that is actually there instead of against a list maintained by
+    # hand.
+    case account |> permitted_regions() |> Enum.filter(&Regions.available?/1) do
       [] ->
         {:error, :service_region_unavailable}
 
       placeable ->
-        # No residency default here: Air is funded region by region, so the
-        # only regions it may land in are the ones on that list.
-        {:ok, place(account, placeable, placeable, lookups) || List.first(placeable)}
+        {:ok, place(account, placeable, placeable, lookups) || default_within(account, placeable)}
     end
   end
 
@@ -305,6 +311,21 @@ defmodule Tuist.Kura.AccountPolicies do
   defp effective_service_region(%Account{}, :open_source, _lookups), do: {:error, :plan_not_supported}
 
   defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
+
+  # Where an Air account lands when nothing has decided for it: the residency
+  # default where the deployment serves it, which is where these accounts have
+  # always resolved, and the first region it does serve otherwise.
+  #
+  # The paid plans refuse at this point instead, and Air cannot. A deployment
+  # is free not to serve the default region — staging serves neither American
+  # one — and refusing there would leave the free tier unresolvable in the
+  # environment its lifecycle is exercised in. Ordering decides only among
+  # regions the residency already admits, so falling back breaks no promise.
+  defp default_within(account, placeable) do
+    default = residency_default(account)
+
+    if default in placeable, do: default, else: List.first(placeable)
+  end
 
   # In order: what placement decided, then where the account is already served
   # from, then where its traffic comes from, then the residency default.
@@ -374,23 +395,22 @@ defmodule Tuist.Kura.AccountPolicies do
 
   @doc """
   The regions an account may actually be placed in: the ones its residency
-  admits, that this deployment serves, and that carry a budget for its plan.
+  admits and this deployment serves.
 
   The constraint resolver the placer consumes. `resolve/1` decides where an
   account goes; this says where it is allowed to go, and the difference
   between the two is what a placement decision is.
+
+  Plan-blind, because the two things that narrow this are the account's
+  residency promise and what the deployment runs, and neither is bought. What
+  a plan decides is how large an instance is and how many regions it may hold
+  at once (`Tuist.Kura.Placement`), not which regions are eligible.
   """
-  def placeable_regions(%Account{} = account, plan) do
+  def placeable_regions(%Account{} = account) do
     account
     |> permitted_regions()
     |> Enum.filter(&Regions.available?/1)
-    |> restrict_to_plan(plan)
   end
-
-  # Air is funded per region; the paid plans are served wherever the
-  # deployment serves.
-  defp restrict_to_plan(regions, :air), do: Enum.filter(regions, &(&1 in Environment.kura_air_region_ids()))
-  defp restrict_to_plan(regions, _plan), do: regions
 
   defp permitted_regions(%Account{region: residency}) do
     Regions.admitted_by_residency(residency)
