@@ -43,21 +43,46 @@ struct BuildStepLog {
 
     static func render(signature: String, command: String, output: String, messages: [String], limit: Int) -> (text: String, truncated: Bool) {
         var result = ""
-        for recorded in [signature, command, output] + messages where !recorded.isEmpty {
-            let part = recorded.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
-            if result.contains(part) { continue }
-            if !result.isEmpty, part.hasPrefix(result) { result = "" }
+        for recorded in [[signature, command, output], messages].joined() where !recorded.isEmpty {
+            // Bound normalization too: the recorded output can be much larger
+            // than the log we retain, even after the build's budget is exhausted.
+            let part = normalizedPrefix(recorded, limit: max(0, limit))
+            if !part.truncated, result.contains(part.text) { continue }
+            if !result.isEmpty, part.text.hasPrefix(result) { result = "" }
             let separator = result.isEmpty ? "" : "\n"
             let available = max(0, limit - result.utf8.count)
-            let bytes = (separator + part).utf8
+            let bytes = (separator + part.text).utf8
             if bytes.count > available {
-                var prefix = Array(bytes.prefix(available))
-                while !prefix.isEmpty, String(bytes: prefix, encoding: .utf8) == nil { prefix.removeLast() }
-                result += String(bytes: prefix, encoding: .utf8) ?? ""
+                result += utf8Prefix(Array(bytes.prefix(available)))
                 return (result, true)
             }
-            result += separator + part
+            result += separator + part.text
+            if part.truncated { return (result, true) }
         }
         return (result, false)
+    }
+
+    private static func normalizedPrefix(_ text: String, limit: Int) -> (text: String, truncated: Bool) {
+        var bytes: [UInt8] = []
+        var previousWasCR = false
+        for byte in text.utf8 {
+            if previousWasCR, byte == 10 {
+                previousWasCR = false
+                continue
+            }
+            guard bytes.count < limit else { return (utf8Prefix(bytes), true) }
+            previousWasCR = byte == 13
+            bytes.append(previousWasCR ? 10 : byte)
+        }
+        return (String(decoding: bytes, as: UTF8.self), false)
+    }
+
+    private static func utf8Prefix(_ bytes: [UInt8]) -> String {
+        var prefix = bytes
+        while !prefix.isEmpty {
+            if let text = String(bytes: prefix, encoding: .utf8) { return text }
+            prefix.removeLast()
+        }
+        return ""
     }
 }

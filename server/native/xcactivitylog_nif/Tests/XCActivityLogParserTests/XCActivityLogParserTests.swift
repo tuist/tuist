@@ -117,6 +117,29 @@ struct XCActivityLogParserTests {
         #expect(interval?.1 == 1500)
     }
 
+    @Test func buildSteps_logNormalizesAndDeduplicatesBeforeTruncation() {
+        let log = BuildStepLog.render(signature: "Compile App", command: "Compile App\r\ncd /workspace", output: "hello\rworld\r\n", messages: ["hello\nworld\n"], limit: 1000)
+        #expect(log.text == "Compile App\ncd /workspace\nhello\nworld\n")
+        #expect(!log.truncated)
+        let exact = BuildStepLog.render(signature: "a\r\n", command: "", output: "", messages: [], limit: 2)
+        #expect(exact.text == "a\n")
+        #expect(!exact.truncated)
+        let oversized = BuildStepLog.render(signature: "a", command: "a🙂", output: "", messages: [], limit: 4)
+        #expect(oversized.text == "a")
+        #expect(oversized.truncated)
+    }
+
+    @Test func buildSteps_logBoundsLargeOutput() {
+        let output = String(repeating: "🙂\r\n", count: 4 * 1024 * 1024)
+        let log = BuildStepLog.render(signature: "Compile", command: "", output: output, messages: ["end"], limit: 64 * 1024)
+        #expect(log.text == "Compile\n" + String(repeating: "🙂\n", count: 13_105))
+        #expect(log.text.utf8.count <= 64 * 1024)
+        #expect(log.truncated)
+        let exhausted = BuildStepLog.render(signature: "", command: "", output: output, messages: [], limit: 0)
+        #expect(exhausted.text.isEmpty)
+        #expect(exhausted.truncated)
+    }
+
     @Test func incrementalBuild_detectsIncrementalCategory() async throws {
         let result = try await parseFixture("incremental-build")
 
