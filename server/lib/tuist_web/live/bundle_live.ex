@@ -55,6 +55,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(:can_delete_bundle, Authorization.authorize(:bundle_delete, current_user, selected_project) == :ok)
       |> assign(:duplicates, duplicates)
       |> assign(:duplicates_total_size, Enum.reduce(duplicates, 0, &(&1.size + &2)))
+      |> assign(:duplicates_open, false)
       |> assign(
         :head_title,
         "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
@@ -155,6 +156,9 @@ defmodule TuistWeb.BundleLive do
     |> assign(:duplicates_page_count, page_count)
     |> assign(:duplicates_current_page, current_page_duplicates)
   end
+
+  defp collapsible_state(true), do: "open"
+  defp collapsible_state(_), do: "closed"
 
   defp truncate_duplicate_artifacts(%{artifacts: artifacts} = duplicate) do
     count = length(artifacts)
@@ -308,6 +312,10 @@ defmodule TuistWeb.BundleLive do
        to:
          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.put(uri.query, "filter", filter)}"
      )}
+  end
+
+  def handle_event("duplicates_open_changed", %{"open" => open}, socket) do
+    {:noreply, assign(socket, :duplicates_open, open)}
   end
 
   def handle_event("search-file-breakdown", %{"search" => search}, socket) do

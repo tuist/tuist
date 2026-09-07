@@ -147,6 +147,25 @@ defmodule TuistWeb.BundleLiveTest do
       assert has_element?(lv, "[data-part='savings-value']", ByteFormatter.format_bytes(total_size))
     end
 
+    test "keeps the section expanded while paging through the groups", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      bundle = bundle_with_duplicates(project, groups: 25, artifacts_per_group: 2)
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}")
+      render_hook(lv, "duplicates_open_changed", %{"open" => true})
+
+      # When
+      lv
+      |> element(".noora-pagination-group a[data-part='page-button'][href='?duplicates-page=2']")
+      |> render_click()
+
+      # Then
+      assert has_element?(lv, "#insights-duplicates [data-part='content'][data-state='open']")
+    end
+
     test "caps the artifacts listed inside a single duplicate group", %{
       conn: conn,
       organization: organization,

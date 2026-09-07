@@ -363,10 +363,11 @@
         data-part="insights-category"
         id="insights-duplicates"
         phx-hook="NooraCollapsible"
+        data-on-open-change="duplicates_open_changed"
         class="collapsible"
       >
         <div data-part="root">
-          <div data-part="trigger" data-state="closed">
+          <div data-part="trigger" data-state={collapsible_state(@duplicates_open)}>
             <div data-part="header">
               <h2 data-part="title">{dgettext("dashboard_cache", "Remove duplicate files")}</h2>
               <span data-part="savings-label">
@@ -405,7 +406,7 @@
               <.chevron_up />
             </.button>
           </div>
-          <div data-part="content" data-state="closed">
+          <div data-part="content" data-state={collapsible_state(@duplicates_open)}>
             <%= for duplicate <- @duplicates_current_page do %>
               <div
                 id={"#{duplicate.shasum}-insights-duplicate-collapsible"}
