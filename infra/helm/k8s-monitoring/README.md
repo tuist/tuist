@@ -204,6 +204,29 @@ In Grafana Cloud: **Observability → Kubernetes → Cluster navigation** and pi
 
 Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset names) are attached automatically by the upstream chart's k8s attribute processor from pod metadata.
 
+### Kura metric identity across rollouts
+
+For `job="kura"` with nonempty `namespace` and `pod` labels, the metrics
+destination rewrites `instance` to `<namespace>/<pod>`. The existing `cluster`
+label separates environments, and the StatefulSet pod name separates replicas
+while surviving pod replacement. Scraping still uses the pod IP; only the
+stored metric label changes.
+
+This applies to both Ready annotation-autodiscovery and the custom unready
+scrape, including `up` and `scrape_*`. Keep `ready="false"` on the unready path:
+it prevents those samples from colliding with Ready samples during discovery
+handoff. Targets without a complete pod identity and other jobs are unchanged.
+
+Using the IP as `instance` previously created a new set of series on every
+replacement. During the September 7, 2026 production rollout, repeated Kura
+replacements drove active series from roughly 142,000 to 216,000 while old
+series remained active for Grafana Cloud's 20-minute window. The first deploy
+of this rule also creates a one-time identity transition; later replacements
+reuse the stable identity. Counter resets remain visible to `rate`/`increase`.
+The Kura dashboard discovers instance values from metrics, so it picks up the
+new identities automatically. Queries pinned to an IP must use the pod identity
+instead.
+
 ## RBAC — what access does this chart get?
 
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
