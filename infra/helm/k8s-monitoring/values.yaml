@@ -327,6 +327,11 @@ k8s-monitoring:
         useDefaultAllowList: true
         includeMetrics:
           - kube_pod_status_unschedulable
+          # KuraInstance status, from the customResourceState block below.
+          # Custom-resource series are not in the default allow list and are
+          # not named kube_<builtin>, so without this they are collected and
+          # then dropped before they reach the destination.
+          - kube_customresource_kurainstance_.*
         excludeMetrics:
           # We page on container waiting/termination reasons, not pod-level
           # status reasons. This metric fans out by pod × reason and was one
@@ -659,6 +664,56 @@ k8s-monitoring:
       # counts towards its region's capacity before a cache pod lands on it.
       metricLabelsAllowlist:
         - nodes=[node.cluster.x-k8s.io/pool]
+      rbac:
+        extraRules:
+          - apiGroups: ["kura.tuist.dev"]
+            resources: ["kurainstances"]
+            verbs: ["list", "watch"]
+      # Publishes when the kura-controller last completed a full reconcile of
+      # each instance, which is the only signal that separates a controller
+      # doing its job from one looping without finishing.
+      #
+      # It has to come from the custom resource rather than from the
+      # controller. A wedged reconcile is busy, not idle: on 2026-09-07 a
+      # us-west instance short-circuited every 10 seconds for 69 minutes, so
+      # controller-runtime's own reconcile counters read as healthy activity
+      # throughout, and the workqueue never backed up. status.lastReconciledAt
+      # is written only at the end of a pass that reached the end, so it is the
+      # field that froze. Reading it here also keeps the observation outside
+      # the component being observed, so a controller that stops publishing
+      # cannot quietly take its own liveness signal with it.
+      #
+      # Nothing else in the CR is exported. The replica and readiness questions
+      # are already answered by kube_statefulset_*, and the fleet is ~50
+      # instances, so this is one series per instance.
+      customResourceState:
+        enabled: true
+        config:
+          kind: CustomResourceStateMetrics
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: kura.tuist.dev
+                  version: v1alpha1
+                  kind: KuraInstance
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  kurainstance: [metadata, name]
+                  tenant_id: [spec, tenantID]
+                  region: [spec, region]
+                metrics:
+                  - name: kurainstance_status_last_reconciled
+                    help: Unix time the controller last completed a full reconcile of this instance.
+                    each:
+                      type: Gauge
+                      gauge:
+                        # RFC3339 in the CR; kube-state-metrics parses a
+                        # timestamp string into Unix seconds. Deliberately no
+                        # nilIsZero: an instance whose status has never been
+                        # written should be absent here rather than reported as
+                        # last reconciled at the epoch, which would fire this
+                        # alert for the first minutes of every new instance.
+                        path: [status, lastReconciledAt]
     node-exporter:
       deploy: true
       # Setting tolerations overrides the subchart's broad default
