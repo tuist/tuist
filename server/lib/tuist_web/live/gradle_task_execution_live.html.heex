@@ -1,0 +1,150 @@
+<div id="gradle-task-execution">
+  <.button
+    label={@build.root_project_name}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}"
+    }
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title">
+      <h1>{@task.task_path}</h1>
+      <.badge
+        label={outcome_label(@task.outcome)}
+        color={outcome_color(@task.outcome)}
+        style="light-fill"
+        size="large"
+      />
+    </div>
+    <.link_button
+      navigate={overview_path(assigns)}
+      label={dgettext("dashboard_gradle", "Task overview")}
+      size="large"
+      underline
+      data-part="task-overview-link"
+    >
+      <:icon_left><.exchange /></:icon_left>
+    </.link_button>
+  </div>
+
+  <.card title={dgettext("dashboard_gradle", "Execution details")} icon="subtask">
+    <.card_section>
+      <dl data-part="metadata-grid">
+        <.detail label={dgettext("dashboard_gradle", "Duration")}>
+          {duration(@task.duration_ms)}
+        </.detail>
+        <.detail label={dgettext("dashboard_gradle", "Ran by")}>
+          <.gradle_build_ran_by_badge_cell build={@build} />
+        </.detail>
+        <.detail label={dgettext("dashboard_gradle", "Ran at")}>
+          {if @task.started_at,
+            do: DateFormatter.format_with_timezone(@task.started_at, @user_timezone),
+            else: "—"}
+        </.detail>
+        <.detail label={dgettext("dashboard_gradle", "Project")}>
+          {@build.root_project_name}
+        </.detail>
+        <.detail label={dgettext("dashboard_gradle", "Branch")}>
+          {value(@build.git_branch)}
+        </.detail>
+        <.detail label={dgettext("dashboard_gradle", "Commit")}>
+          {value(@build.git_commit_sha)}
+        </.detail>
+        <.detail
+          :if={@task.build_path not in [nil, ""]}
+          label={dgettext("dashboard_gradle", "Build path")}
+        >
+          {@task.build_path}
+        </.detail>
+        <.detail
+          :if={@task.task_type not in [nil, ""]}
+          label={dgettext("dashboard_gradle", "Task type")}
+        >
+          {@task.task_type}
+        </.detail>
+      </dl>
+      <.link_button
+        :if={@build.telemetry_version > 0}
+        label={dgettext("dashboard_gradle", "View dependencies")}
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}?#{dependencies_query(@task)}"
+        }
+        size="large"
+        data-part="dependencies-link"
+      ><:icon_left><.subtask /></:icon_left></.link_button>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard_gradle", "Cache")} icon="database">
+    <.card_section>
+      <dl data-part="metadata-grid">
+        <.detail label={dgettext("dashboard_gradle", "Cacheability")}>
+          <.badge label={cacheability(@task)} color="neutral" style="light-fill" size="large" />
+        </.detail>
+        <.detail
+          :if={@task.remote_cache_lookup_outcome not in [nil, "", "unknown"]}
+          label={dgettext("dashboard_gradle", "Remote lookup")}
+        >
+          {lookup(@task.remote_cache_lookup_outcome)}
+        </.detail>
+        <.detail
+          :if={not is_nil(@task.remote_cache_lookup_duration_ms)}
+          label={dgettext("dashboard_gradle", "Lookup duration")}
+        >
+          {duration(@task.remote_cache_lookup_duration_ms)}
+        </.detail>
+        <.detail
+          :if={not is_nil(@task.remote_cache_download_duration_ms)}
+          label={dgettext("dashboard_gradle", "Download duration")}
+        >
+          {duration(@task.remote_cache_download_duration_ms)}
+        </.detail>
+        <.detail
+          :if={not is_nil(@task.remote_cache_upload_duration_ms)}
+          label={dgettext("dashboard_gradle", "Upload duration")}
+        >
+          {duration(@task.remote_cache_upload_duration_ms)}
+        </.detail>
+        <.detail
+          :if={not is_nil(@task.cache_artifact_size)}
+          label={dgettext("dashboard_gradle", "Artifact size")}
+        >
+          {ByteFormatter.format_bytes(@task.cache_artifact_size)}
+        </.detail>
+        <.detail
+          :if={@task.cache_key not in [nil, ""]}
+          label={dgettext("dashboard_gradle", "Cache key")}
+        >
+          {@task.cache_key}
+        </.detail>
+      </dl>
+      <p :if={@task.caching_disabled_reason not in [nil, ""]} data-part="cache-disabled-reason">
+        {@task.caching_disabled_reason}
+      </p>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@task.execution_reasons != [] or not is_nil(@task.incremental)}
+    title={dgettext("dashboard_gradle", "Execution reasons")}
+    icon="info_circle"
+  >
+    <.card_section>
+      <dl :if={not is_nil(@task.incremental)} data-part="metadata-grid">
+        <.detail label={dgettext("dashboard_gradle", "Incremental")}>
+          {if @task.incremental,
+            do: dgettext("dashboard_gradle", "Yes"),
+            else: dgettext("dashboard_gradle", "No")}
+        </.detail>
+      </dl>
+      <ul :if={@task.execution_reasons != []} data-part="execution-reasons">
+        <li :for={reason <- @task.execution_reasons}>{reason}</li>
+      </ul>
+    </.card_section>
+  </.card>
+</div>

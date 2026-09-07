@@ -298,7 +298,15 @@
         >
           <.active_filter :for={filter <- @tasks_active_filters} filter={filter} />
         </div>
-        <.table id="gradle-tasks-table" rows={@tasks}>
+        <.table
+          id="gradle-tasks-table"
+          rows={@tasks}
+          row_navigate={
+            fn task ->
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+            end
+          }
+        >
           <:col
             :let={task}
             label={dgettext("dashboard_gradle", "Task")}
@@ -1135,7 +1143,15 @@
           >
             <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
-          <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
+          <.table
+            id="gradle-cacheable-tasks-table"
+            rows={@cacheable_tasks}
+            row_navigate={
+              fn task ->
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+              end
+            }
+          >
             <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
               <.text_cell label={task.task_path} />
             </:col>

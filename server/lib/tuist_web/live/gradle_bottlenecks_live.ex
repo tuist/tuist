@@ -5,6 +5,7 @@ defmodule TuistWeb.GradleBottlenecksLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.GradleTask
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -347,8 +348,9 @@ defmodule TuistWeb.GradleBottlenecksLive do
     "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/tasks?#{URI.encode_query(cohort_params(assigns.params))}"
   end
 
-  defp build_path(assigns, id),
-    do: "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/build-runs/#{id}"
+  defp execution_path(assigns, execution),
+    do:
+      "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/build-runs/#{execution.build_id}/tasks/#{execution.id}"
 
   defp duration(nil), do: "—"
   defp duration(value), do: DateFormatter.format_duration_from_milliseconds(round(value))
@@ -547,21 +549,4 @@ defmodule TuistWeb.GradleBottlenecksLive do
 
   defp cache_badge_label(:not_cacheable), do: dgettext("dashboard_gradle", "Not cacheable")
   defp cache_badge_label(:unknown), do: dgettext("dashboard_gradle", "Unknown cacheability")
-  defp outcome_color("local_hit"), do: "information"
-  defp outcome_color("cache_hit"), do: "information"
-  defp outcome_color("remote_hit"), do: "information"
-  defp outcome_color("up_to_date"), do: "primary"
-  defp outcome_color("executed"), do: "success"
-  defp outcome_color("failed"), do: "destructive"
-  defp outcome_color(_), do: "neutral"
-
-  defp outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
-  defp outcome_label("cache_hit"), do: dgettext("dashboard_gradle", "Cache hit (origin unknown)")
-  defp outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
-  defp outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
-  defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Succeeded")
-  defp outcome_label("failed"), do: dgettext("dashboard_gradle", "Failed")
-  defp outcome_label("skipped"), do: dgettext("dashboard_gradle", "Skipped")
-  defp outcome_label("no_source"), do: dgettext("dashboard_gradle", "No source")
-  defp outcome_label(other), do: other
 end

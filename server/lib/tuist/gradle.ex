@@ -349,6 +349,25 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
+  Fetches an individual task execution scoped to its project and build.
+  """
+  def get_task(project_id, build_id, task_id) do
+    with {:ok, build_id} <- Ecto.UUID.cast(build_id),
+         {:ok, task_id} <- Ecto.UUID.cast(task_id),
+         %Task{} = task <-
+           ClickHouseRepo.one(
+             from(t in Task,
+               where: t.project_id == ^project_id and t.gradle_build_id == ^build_id and t.id == ^task_id,
+               limit: 1
+             )
+           ) do
+      {:ok, task}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists tasks for a specific Gradle build.
   """
   def list_tasks(build_id) do

@@ -13,3 +13,5 @@ This context owns Gradle report ingestion, task rankings and execution graph ana
 - Schema changes require updating `server/data-export.md`. Existing Gradle tables retain data for 90 days.
 
 Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_bottlenecks_live.ex`, `server/lib/tuist_web/live/gradle_execution_component.ex`.
+
+- `Gradle.get_task/3` retrieves one execution with UUID validation and both project/build scoping; never expose task details by task ID alone.

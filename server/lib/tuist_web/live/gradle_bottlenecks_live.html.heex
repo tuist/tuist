@@ -417,7 +417,7 @@
         <.table
           id="gradle-bottleneck-history"
           rows={result.history.rows}
-          row_navigate={fn execution -> build_path(assigns, execution.build_id) end}
+          row_navigate={fn execution -> execution_path(assigns, execution) end}
         >
           <:col :let={execution} label={dgettext("dashboard_gradle", "Project")}>
             <div data-part="cell" data-type="text">

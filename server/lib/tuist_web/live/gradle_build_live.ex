@@ -4,6 +4,7 @@ defmodule TuistWeb.GradleBuildLive do
   use Noora
 
   import TuistWeb.Components.MachineMetricsCharts
+  import TuistWeb.Helpers.GradleTask
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -779,24 +780,6 @@ defmodule TuistWeb.GradleBuildLive do
       "asc"
     end
   end
-
-  defp outcome_color("local_hit"), do: "information"
-  defp outcome_color("cache_hit"), do: "information"
-  defp outcome_color("remote_hit"), do: "information"
-  defp outcome_color("up_to_date"), do: "primary"
-  defp outcome_color("executed"), do: "success"
-  defp outcome_color("failed"), do: "destructive"
-  defp outcome_color(_), do: "neutral"
-
-  defp outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
-  defp outcome_label("cache_hit"), do: dgettext("dashboard_gradle", "Cache hit (origin unknown)")
-  defp outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
-  defp outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
-  defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Succeeded")
-  defp outcome_label("failed"), do: dgettext("dashboard_gradle", "Failed")
-  defp outcome_label("skipped"), do: dgettext("dashboard_gradle", "Skipped")
-  defp outcome_label("no_source"), do: dgettext("dashboard_gradle", "No source")
-  defp outcome_label(other), do: other
 
   defp cache_miss_reason(%{remote_cache_miss: true, remote_cache_stored: true}) do
     dgettext("dashboard_gradle", "No remote entry, then stored")
