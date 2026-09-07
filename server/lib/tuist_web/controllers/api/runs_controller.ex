@@ -33,6 +33,10 @@ defmodule TuistWeb.API.RunsController do
 
   tags ["Runs"]
 
+  # ran_at alone is not unique: the CLI sends it without fractional seconds, so
+  # concurrent runs share a timestamp and a keyset seek on it would skip them.
+  @cursor_order_fields [:ran_at, :id]
+
   operation(:index,
     summary: "List runs associated with a given project.",
     operation_id: "listRuns",
@@ -151,46 +155,46 @@ defmodule TuistWeb.API.RunsController do
   )
 
   def index(%{assigns: %{selected_project: selected_project}, params: %{page_size: page_size} = params} = conn, _params) do
-    case ran_at_filters(params) do
-      {:ok, time_filters} ->
-        filters =
-          [%{field: :project_id, op: :==, value: selected_project.id}] ++
-            filters_from_params(params) ++ time_filters
+    with {:ok, time_filters} <- ran_at_filters(params),
+         :ok <- validate_cursors(params) do
+      filters =
+        [%{field: :project_id, op: :==, value: selected_project.id}] ++
+          filters_from_params(params) ++ time_filters
 
-        # Cursor (keyset) pagination only: a seek reads one page regardless of how
-        # far it has walked. Omitting both cursors returns the first page.
-        pagination =
-          if is_nil(Map.get(params, :before)) do
-            %{first: page_size, after: Map.get(params, :after)}
-          else
-            %{last: page_size, before: params.before}
-          end
+      # Cursor (keyset) pagination only: a seek reads one page regardless of how
+      # far it has walked. Omitting both cursors returns the first page.
+      pagination =
+        if is_nil(Map.get(params, :before)) do
+          %{first: page_size, after: Map.get(params, :after)}
+        else
+          %{last: page_size, before: params.before}
+        end
 
-        {command_events, meta} =
-          Tuist.CommandEvents.list_command_events(
-            Map.merge(pagination, %{
-              filters: filters,
-              order_by: [:ran_at],
-              order_directions: [:desc]
-            })
-          )
+      {command_events, meta} =
+        Tuist.CommandEvents.list_command_events(
+          Map.merge(pagination, %{
+            filters: filters,
+            order_by: @cursor_order_fields,
+            order_directions: [:desc, :desc]
+          })
+        )
 
-        {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, [:ran_at])
+      {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, @cursor_order_fields)
 
-        json(conn, %{
-          runs: Enum.map(command_events, &run_json(&1, selected_project)),
-          pagination_metadata: %{
-            has_next_page: meta.has_next_page?,
-            has_previous_page: meta.has_previous_page?,
-            current_page: meta.current_page,
-            page_size: meta.page_size,
-            total_count: meta.total_count,
-            total_pages: meta.total_pages,
-            start_cursor: start_cursor,
-            end_cursor: end_cursor
-          }
-        })
-
+      json(conn, %{
+        runs: Enum.map(command_events, &run_json(&1, selected_project)),
+        pagination_metadata: %{
+          has_next_page: meta.has_next_page?,
+          has_previous_page: meta.has_previous_page?,
+          current_page: meta.current_page,
+          page_size: meta.page_size,
+          total_count: meta.total_count,
+          total_pages: meta.total_pages,
+          start_cursor: start_cursor,
+          end_cursor: end_cursor
+        }
+      })
+    else
       {:error, message} ->
         conn
         |> put_status(:bad_request)
@@ -999,6 +1003,23 @@ defmodule TuistWeb.API.RunsController do
   defp status_filters(nil), do: []
   defp status_filters("success"), do: [%{field: :status, op: :==, value: 0}]
   defp status_filters("failure"), do: [%{field: :status, op: :==, value: 1}]
+
+  defp validate_cursors(params) do
+    if Enum.all?([:after, :before], &valid_cursor?(Map.get(params, &1))) do
+      :ok
+    else
+      {:error, "`after` and `before` must be cursors returned by a previous response."}
+    end
+  end
+
+  defp valid_cursor?(nil), do: true
+
+  defp valid_cursor?(cursor) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Enum.sort(Map.keys(decoded)) == Enum.sort(@cursor_order_fields)
+      :error -> false
+    end
+  end
 
   defp ran_at_filters(params) do
     from = Map.get(params, :from)

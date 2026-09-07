@@ -180,6 +180,87 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert Enum.map(previous_page["runs"], & &1["id"]) == [run_two.id]
     end
 
+    test "pages across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      # The CLI sends ran_at as ISO8601 without fractional seconds, so concurrent
+      # runs routinely land on the same timestamp.
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      # When
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert length(first_page["runs"]) == 1
+      assert length(second_page["runs"]) == 1
+
+      assert MapSet.new(first_page["runs"] ++ second_page["runs"], & &1["id"]) ==
+               MapSet.new([run_one.id, run_two.id])
+    end
+
+    test "pages backwards across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # When
+      previous_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&before=#{second_page["pagination_metadata"]["start_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(previous_page["runs"], & &1["id"]) == Enum.map(first_page["runs"], & &1["id"])
+
+      assert MapSet.new([run_one.id, run_two.id]) ==
+               MapSet.new(previous_page["runs"] ++ second_page["runs"], & &1["id"])
+    end
+
+    test "returns a bad request when a cursor is malformed", %{conn: conn, user: user, project: project} do
+      # When
+      after_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?after=invalid")
+        |> json_response(:bad_request)
+
+      before_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?before=invalid")
+        |> json_response(:bad_request)
+
+      # Then
+      assert after_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+      assert before_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+    end
+
     test "ignores the deprecated page parameter", %{conn: conn, user: user, project: project} do
       # Given
       date = ~U[2026-09-01 10:00:00.000000Z]
