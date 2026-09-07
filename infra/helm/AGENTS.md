@@ -15,6 +15,7 @@ This node covers Helm assets under `infra/helm/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- Provision replacement external-secret items and fields in each environment before changing managed values. Helm waits for `ExternalSecret` readiness, including Kura resources in the separate `kura` namespace; an unreadable telemetry secret can roll back the whole server release.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.

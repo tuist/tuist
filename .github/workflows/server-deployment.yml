@@ -1404,6 +1404,8 @@ jobs:
           echo "::group::external secrets"
           kubectl -n "$NAMESPACE" get externalsecret,secretstore 2>&1 || true
           kubectl -n "$NAMESPACE" describe externalsecret 2>&1 || true
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" get externalsecret,secretstore 2>&1 || true
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" describe externalsecret 2>&1 || true
           echo "::endgroup::"
       - name: Post-deploy smoke test
         run: |
