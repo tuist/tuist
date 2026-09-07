@@ -2956,10 +2956,13 @@ still answers, which is why nothing that watches request rates or error rates
 sees anything: it is not an outage, it is the absence of the thing that keeps
 the next deploy from being one.
 
-**Not created in Grafana yet.** Merging this section provisions nothing (see
-the note under [Routing to Grafana IRM](#routing-to-grafana-irm) — the rules in
-this document are hand-created), so until someone builds it in the console the
-gap below is still open.
+**Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`, alongside the other Kura rules.
+Created directly rather than left as a follow-up, because merging this section
+provisions nothing (see the note under
+[Routing to Grafana IRM](#routing-to-grafana-irm) — the rules in this document
+are hand-created) and a documented-but-unbuilt rule reads exactly like a
+covered gap.
 
 ```promql
 kube_statefulset_replicas{namespace="kura"}
@@ -2971,8 +2974,6 @@ kube_statefulset_status_replicas_ready{namespace="kura"}
 - Pending period: 30 minutes
 - Severity: warning
 - No-data state: OK, and the same for the execution-error state
-- Folder `Alerts`, group `Cache`, receiver `Slack #notifications 2`, alongside
-  the other Kura rules
 - No `affected_service` label: an instance on one replica is degraded, not
   customer-visible. It becomes customer-visible at the next deploy, which is
   the reason to clear it within the day rather than to page on it.
@@ -2996,18 +2997,21 @@ zero series and the rule is silently dead under `no_data_state: OK`. Without the
 matcher, an aggregated `cluster` costs an empty interpolation in the summary
 instead of the whole rule.
 
-**Confirm the series before saving, and count them.** The metrics are scraped:
-the production Alloy config's kube-state-metrics allow-list keeps
-`kube_statefulset.*` (verified 2026-09-07 against
-`k8s-monitoring-alloy-metrics` in `observability`; `values.yaml` reaches it
-through `useDefaultAllowList: true`). What cannot be checked from the cluster is
-what Adaptive Metrics does to them on the Grafana Cloud side, and that is what
-decides whether this rule works. Run the expression in Explore and expect one
-series per Kura StatefulSet, all at `0`: 52 in production, 15 in staging and 4
-in canary on 2026-09-07, none of them short. Materially fewer series, or a
-`statefulset` label reading `<aggregated>`, means the per-object identity is
-gone and the rule can only ever report a fleet-wide count of missing replicas —
-usable, but rewrite the summary rather than leaving it interpolating nothing.
+**The series and its labels were confirmed before the rule was saved.** Two
+things had to hold and both were checked on 2026-09-07. The metrics are
+scraped: the production Alloy config's kube-state-metrics allow-list keeps
+`kube_statefulset.*` (read off `k8s-monitoring-alloy-metrics` in
+`observability`; `values.yaml` reaches it through `useDefaultAllowList: true`).
+And Adaptive Metrics has not aggregated them: the expression returns exactly 71
+series, one per Kura StatefulSet and all at `0` (52 production, 15 staging, 4
+canary, matching `kubectl` exactly), each carrying real `cluster`, `namespace`
+and `statefulset` labels rather than `<aggregated>`. That second check is the
+one that decides whether the rule can work at all, and it is the check the CAPI
+control-plane rule below failed the first time it was written. Re-run it if the
+rule ever goes quiet for a suspiciously long stretch; a metric that loses its
+per-object labels reports only a fleet-wide count of missing replicas, which is
+still usable but needs the summary rewritten rather than left interpolating
+nothing.
 
 **Single-replica instances are handled by the expression, not by an exception.**
 The private runner-cache regions run `replicas: 1` (`kura-*-scw-fr-par`), and
@@ -3036,16 +3040,28 @@ does not clear: no capacity anywhere in the region, a sibling that is also down
 (the rebuild is gated on it, deliberately, so an instance can never lose both
 copies), a crash loop, or a wedge the trigger does not recognise.
 
-**A rule that should have caught it already exists in this document.** *Pod
-cannot be scheduled* matches any unschedulable production pod outside
-`tuist-runners` for 30 minutes, which is exactly what that replica was. Its
-entry carries no *Already created* / *Live* / *Provisioned* line, unlike every
-other rule here that has been built, so it appears never to have been created in
-Grafana — the same half-deployment as
-[#12836](https://github.com/tuist/tuist/pull/12836). Check it while creating
-this one; the two are worth having together, since that rule catches an
-unplaceable pod in any namespace and this one catches a tenant below its replica
-count for reasons that never involve the scheduler.
+**Why *Pod cannot be scheduled* did not save us, which is not that it is
+missing.** That rule matches any unschedulable production pod outside
+`tuist-runners` for 30 minutes, which is exactly what the wedged replica was,
+and its entry here carries no *Already created* / *Live* / *Provisioned* line.
+That is a gap in this document, not in Grafana: the rule is deployed as
+`ffvn55h51mz28d` (folder `Alerts`, group `Infrastructure`, `severity: warning`,
+no `notification_settings`, so it routes through the policy tree), and on
+2026-09-07 it was carrying an alert instance for the wedged pod. So the
+two-day silence is not explained by an absent rule, and **whether it notified
+and was missed, or was suppressed, is still open** — answer it from the rule's
+alert history in Grafana rather than from this document.
+
+One likely contributor, worth its own look: over the seven days to 2026-09-07
+production carried 13 to 14 concurrently unschedulable pods, every one of them
+in `kura`, including both ordinals of several instances. All had cleared by the
+time this was written and production now has none (fleet-wide there is a single
+`kube_pod_status_unschedulable` series, in staging). A per-pod rule standing at
+a dozen-plus instances is one a human stops reading, which is the failure mode
+that rule's own entry warns about for staging. Two rules are worth keeping
+either way, because they fail differently: that one catches an unplaceable pod
+in any namespace, and this one catches a tenant below its replica count for
+reasons that never involve the scheduler.
 
 ### Kura region has room for one more instance
 

@@ -2886,6 +2886,14 @@ func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *
 // same thing in a second implementation of scheduling that is free to drift
 // out of agreement with the first one.
 //
+// The rebuilt pod usually lands on a different box from its sibling, and
+// instancePodAffinity is preferred rather than required, so nothing blocks that
+// and nothing pulls the pair back together afterwards. The instance stays split
+// until something reschedules both. Co-location buys in-box failover and keeps
+// peer-mesh refill traffic off the network; it is not what makes a deploy
+// gapless, which is the Service selector moving between two Ready pods. Split
+// with two replicas beats co-located with one.
+//
 // The Bound claim is also what makes the rebuild self-limiting. The fleet's
 // storage classes bind WaitForFirstConsumer, so the claim the StatefulSet
 // recreates is unbound until a pod is scheduled onto it -- and once one is,
