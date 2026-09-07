@@ -343,7 +343,7 @@ defmodule TuistWeb.ModulesLiveTest do
     organization: organization,
     project: project
   } do
-    stub(Analytics, :module_invalidations, fn _opts ->
+    stub(Analytics, :module_invalidation_breakdown, fn _opts ->
       raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
     end)
 
@@ -356,9 +356,10 @@ defmodule TuistWeb.ModulesLiveTest do
     refute has_element?(lv, ~s([data-part="modules-table-section"] [data-part="skeleton"]))
     refute has_element?(lv, "#all-modules-table")
 
-    # The analytics card loads independently of the table.
-    assert has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
-    refute has_element?(lv, "[data-part=\"analytics-error\"]")
+    # The miss reasons chart is derived from the same breakdown, so the
+    # analytics card fails with the table.
+    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+    assert has_element?(lv, "[data-part=\"analytics-error\"]")
   end
 
   describe "page_of/3" do
