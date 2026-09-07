@@ -147,11 +147,14 @@ defmodule TuistWeb.ModulesLive do
     else
       socket
       |> assign(:modules_opts, opts)
-      |> assign_async([:modules], fn ->
-        {:ok, %{modules: opts |> Keyword.put(:limit, @max_modules) |> Analytics.module_invalidations()}}
-      end)
-      |> assign_async([:miss_reasons_series], fn ->
-        {:ok, %{miss_reasons_series: Analytics.module_miss_reasons_timeseries(opts)}}
+      |> assign_async([:modules, :miss_reasons_series], fn ->
+        breakdown = Analytics.module_invalidation_breakdown(opts)
+
+        {:ok,
+         %{
+           modules: Analytics.module_invalidations_from_breakdown(breakdown, Keyword.put(opts, :limit, @max_modules)),
+           miss_reasons_series: Analytics.miss_reasons_timeseries_from_breakdown(breakdown, opts)
+         }}
       end)
       |> assign_async([:timeseries, :modules_series, :module_count], fn ->
         {:ok,
