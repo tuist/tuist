@@ -96,8 +96,25 @@ certificate can serve the bench and the fleet instance both.
 ## Manual ceremonies
 
 All secret material lives in a single 1Password item **`MDM`** in the
-env's vault (`tuist-k8s-staging`), synced into the cluster by ESO.
-Create it first.
+env's vault, synced into the cluster by ESO. Create it first.
+
+**Editing a field in 1Password does not reach the running pods on its
+own, and nothing reports that.** ESO refreshes hourly, and a changed
+Secret does not roll a Deployment — the processes read their
+configuration once at startup. A redeploy does not fix it either, since
+Helm sees an unchanged pod template. After changing any field below,
+force the sync and restart what consumes it:
+
+```sh
+kubectl -n mdm annotate externalsecret mdm-runtime force-sync="$(date +%s)" --overwrite
+kubectl -n mdm rollout restart deploy/mdm-enroller
+```
+
+`push-topic`, `enroll-token` and `svc-account-password-hash-b64` are
+read by the enroller; `scep-challenge` by both the enroller and
+scepserver; the API keys by nanomdm and nanodep. The failure mode is
+silent: the enrollment profile is served happily with an empty `Topic`
+and a Mac simply refuses to enroll.
 
 ### 0. Seed the 1Password item
 
