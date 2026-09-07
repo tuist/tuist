@@ -2704,7 +2704,7 @@ func podKuraImage(pod *corev1.Pod) string {
 // rebuild is in flight.
 //
 // Two states need one: a claim the CR has grown, and a replica wedged on a
-// volume pinned to a box that has since filled (see wedgedPinnedNode). They
+// volume pinned to a box that has since filled (see nodeWedgingReplica). They
 // arrive from opposite directions -- the first from an instance that is serving
 // fine, the second from a replica that has been Pending for hours -- and take
 // the same route, because the route is not about the reason. It is about a
@@ -2783,7 +2783,7 @@ func (r *KuraInstanceReconciler) reconcileDataVolumeRebuilds(ctx context.Context
 		bound, ok := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		grown := ok && bound.Cmp(desired) < 0
 
-		wedgedOn, err := r.wedgedPinnedNode(ctx, instance, ordinal, pvc, now)
+		wedgedOn, err := r.nodeWedgingReplica(ctx, instance, ordinal, pvc, now)
 		if err != nil {
 			return false, err
 		}
@@ -2864,8 +2864,11 @@ func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *
 	return ready >= replicas(instance)-1, nil
 }
 
-// wedgedPinnedNode reports the node a replica's data volume pins it to when
-// that pin is what is keeping the replica from running, and "" otherwise.
+// nodeWedgingReplica reports the node a replica's data volume pins it to when
+// that pin is what is keeping the replica from running, and "" otherwise. The
+// node itself is healthy by the time this returns one -- present, Ready,
+// uncordoned and carrying no taint the replica refuses -- so it is wedging the
+// replica only in the sense that the replica cannot go anywhere else.
 //
 // A node-local volume outlives every scheduling decision taken around it. The
 // claim binds once, on whichever box had room that day, and its PV carries a
@@ -2923,7 +2926,7 @@ func (r *KuraInstanceReconciler) siblingsServing(ctx context.Context, instance *
 // covers a wedge this does not. That is the right way round: the cost here is
 // a wedge left for a human, and the cost of the other choice is destroying a
 // healthy volume every time a full region finally finds room.
-func (r *KuraInstanceReconciler) wedgedPinnedNode(
+func (r *KuraInstanceReconciler) nodeWedgingReplica(
 	ctx context.Context,
 	instance *kurav1alpha1.KuraInstance,
 	ordinal int32,
