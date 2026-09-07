@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
         "outcome" => %{
           "type" => "string",
           "description" =>
-            "Filter by task outcome: local_hit, remote_hit, cache_hit (origin unknown), up_to_date, executed, failed, skipped, or no_source."
+            "Filter by task outcome: local_hit, remote_hit, cache_hit, up_to_date, executed, failed, skipped, or no_source."
         },
         "cacheable" => %{
           "type" => "boolean",

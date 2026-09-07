@@ -146,7 +146,7 @@ defmodule TuistWeb.GradleTasksLiveTest do
       {"failed", "Failed", "destructive"},
       {"local_hit", "Local hit", "information"},
       {"remote_hit", "Remote hit", "information"},
-      {"cache_hit", "Cache hit (origin unknown)", "information"},
+      {"cache_hit", "Cache hit", "information"},
       {"up_to_date", "Up-to-date", "primary"},
       {"skipped", "Skipped", "neutral"},
       {"no_source", "No source", "neutral"}

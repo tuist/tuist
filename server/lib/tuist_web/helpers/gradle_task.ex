@@ -11,7 +11,7 @@ defmodule TuistWeb.Helpers.GradleTask do
   def outcome_color(_), do: "neutral"
 
   def outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
-  def outcome_label("cache_hit"), do: dgettext("dashboard_gradle", "Cache hit (origin unknown)")
+  def outcome_label("cache_hit"), do: dgettext("dashboard_gradle", "Cache hit")
   def outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
   def outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
   def outcome_label("executed"), do: dgettext("dashboard_gradle", "Succeeded")

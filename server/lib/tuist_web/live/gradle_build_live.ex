@@ -703,7 +703,7 @@ defmodule TuistWeb.GradleBuildLive do
         options: [:cache_hit, :local_hit, :remote_hit, :up_to_date, :executed, :failed, :skipped, :no_source],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local hit"),
-          cache_hit: dgettext("dashboard_gradle", "Cache hit (origin unknown)"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit"),
           remote_hit: dgettext("dashboard_gradle", "Remote hit"),
           up_to_date: dgettext("dashboard_gradle", "Up-to-date"),
           executed: dgettext("dashboard_gradle", "Executed"),
@@ -748,7 +748,7 @@ defmodule TuistWeb.GradleBuildLive do
         options: [:cache_hit, :local_hit, :remote_hit, :executed],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local"),
-          cache_hit: dgettext("dashboard_gradle", "Cache hit (origin unknown)"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit"),
           remote_hit: dgettext("dashboard_gradle", "Remote"),
           executed: dgettext("dashboard_gradle", "Missed")
         },
