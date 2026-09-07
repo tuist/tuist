@@ -17,6 +17,8 @@ tuist inspect dependencies --only implicit
 
 If the command detects any implicit imports, it exits with an exit code other than zero.
 
+The command works with generated projects, Swift packages, and raw Xcode projects and workspaces. Tuist decides how to load the project graph based on what it finds at the given path: a `Project.swift` or `Workspace.swift` manifest, a `Package.swift` manifest, or an `.xcodeproj`/`.xcworkspace`.
+
 > [!TIP]
 > **Validate In Ci**
 >

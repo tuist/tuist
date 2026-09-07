@@ -1,7 +1,7 @@
 {
   "signedContributors": [
     {
-      "name": "Yusuf Özgül",
+      "name": "Yusuf \u00d6zg\u00fcl",
       "id": 26109252,
       "comment_id": "",
       "created_at": "2025-09-04T00:00:00Z",
@@ -53,6 +53,14 @@
       "id": 961874,
       "comment_id": "",
       "created_at": "2026-06-01T18:07:56Z",
+      "repoId": 250427618,
+      "pullRequestNo": null
+    },
+    {
+      "name": "Gorbenko Roman",
+      "id": 45801227,
+      "comment_id": "",
+      "created_at": "2026-08-29T18:16:28Z",
       "repoId": 250427618,
       "pullRequestNo": null
     }

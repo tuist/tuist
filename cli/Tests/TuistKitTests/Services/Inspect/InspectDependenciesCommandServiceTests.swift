@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TSCUtility
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
@@ -20,16 +21,23 @@ struct InspectDependenciesCommandServiceTests {
     private let targetScanner: MockTargetImportsScanning
     private let subject: InspectDependenciesCommandService
     private let generator: MockGenerating
+    private let manifestLoader: MockManifestLoading
+    private let xcodeGraphMapper: MockXcodeGraphMapping
 
     init() throws {
         configLoader = MockConfigLoading()
         generatorFactory = MockGeneratorFactorying()
         targetScanner = MockTargetImportsScanning()
         generator = MockGenerating()
+        manifestLoader = MockManifestLoading()
+        xcodeGraphMapper = MockXcodeGraphMapping()
         subject = InspectDependenciesCommandService(
             generatorFactory: generatorFactory,
             configLoader: configLoader,
-            graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner)
+            graphImportsLinter: GraphImportsLinter(targetScanner: targetScanner),
+            manifestLoader: manifestLoader,
+            xcodeGraphMapper: xcodeGraphMapper,
+            localPackageProductsMapper: LocalPackageProductsMapper(manifestLoader: manifestLoader)
         )
     }
 
@@ -58,6 +66,7 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -99,6 +108,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["FeatureA", "SharedCore"]))
@@ -138,6 +148,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -170,6 +181,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -199,6 +211,7 @@ struct InspectDependenciesCommandServiceTests {
         let loadCounter = LoadCounter()
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willProduce { _, _ in
             loadCounter.count += 1
@@ -227,6 +240,7 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -284,6 +298,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["TestTargetDependency"]))
@@ -329,6 +344,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
@@ -365,6 +381,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
@@ -393,6 +410,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -425,6 +443,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -461,6 +480,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
@@ -485,6 +505,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
@@ -526,6 +547,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
@@ -558,6 +580,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(bundleFramework), reachableModules: .any).willReturn(Set([]))
@@ -595,6 +618,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
@@ -640,6 +664,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(appExtension), reachableModules: .any).willReturn(Set([]))
@@ -681,6 +706,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watch2Extension), reachableModules: .any).willReturn(Set([]))
@@ -712,6 +738,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
@@ -742,6 +769,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
@@ -772,6 +800,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
@@ -801,6 +830,7 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
@@ -840,6 +870,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(projectPath)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set([]))
@@ -883,6 +914,7 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(projectPath)).willReturn(true)
         given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["UIComponent"]))
@@ -890,5 +922,111 @@ struct InspectDependenciesCommandServiceTests {
 
         // When / Then
         try await subject.run(path: projectPath.pathString, inspectionTypes: [.redundant])
+    }
+
+    // MARK: - Xcode Project Tests
+
+    @Test
+    func runOnAnXcodeProjectFailsOnImplicitIssues() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: path, targets: [app, framework])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(false)
+        given(xcodeGraphMapper).map(at: .value(path)).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(
+                target: app.productName,
+                dependencies: [framework.productName]
+            )])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+        }
+    }
+
+    @Test
+    func runOnAnXcodeProjectDoesntReportImportsOfALocalPackageProductAsImplicit() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let packagePath = try AbsolutePath(validating: "/project/Packages/Feature")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let featureCore = Target.test(name: "FeatureCore", product: .staticFramework)
+        let graph = Graph.test(
+            path: path,
+            projects: [
+                path: Project.test(path: path, targets: [app], packages: [.local(path: packagePath)]),
+                packagePath: Project.test(path: packagePath, targets: [featureCore]),
+            ],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .packageProduct(path: path, product: "Feature", type: .runtime),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(false)
+        given(xcodeGraphMapper).map(at: .value(path)).willReturn(graph)
+        given(manifestLoader).loadPackage(at: .value(packagePath), disableSandbox: .any)
+            .willReturn(
+                PackageInfo(
+                    name: "Feature",
+                    products: [.init(name: "Feature", type: .library(.automatic), targets: ["FeatureCore"])],
+                    targets: [],
+                    traits: nil,
+                    dependencies: [],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil,
+                    toolsVersion: Version(5, 9, 0)
+                )
+            )
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["FeatureCore"]))
+        given(targetScanner).imports(for: .value(featureCore), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+    }
+
+    @Test
+    func runOnAnXcodeProjectDoesntReportLocalPackageProductsAsRedundant() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let packagePath = try AbsolutePath(validating: "/project/Packages/Feature")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let featureUI = Target.test(name: "FeatureUI", product: .staticFramework)
+        let graph = Graph.test(
+            path: path,
+            projects: [
+                path: Project.test(path: path, targets: [app], packages: [.local(path: packagePath)]),
+                packagePath: Project.test(path: packagePath, targets: [featureUI]),
+            ],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .packageProduct(path: path, product: "Feature", type: .runtime),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(manifestLoader).hasRootManifest(at: .value(path)).willReturn(false)
+        given(xcodeGraphMapper).map(at: .value(path)).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(featureUI), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
     }
 }

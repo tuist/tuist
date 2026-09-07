@@ -9,20 +9,30 @@
     import TuistLogging
     import TuistSupport
     import XcodeGraph
+    import XcodeGraphMapper
 
     struct InspectDependenciesCommandService {
         private let configLoader: ConfigLoading
         private let generatorFactory: GeneratorFactorying
         private let graphImportsLinter: GraphImportsLinting
+        private let manifestLoader: ManifestLoading
+        private let xcodeGraphMapper: XcodeGraphMapping
+        private let localPackageProductsMapper: LocalPackageProductsMapping
 
         init(
             generatorFactory: GeneratorFactorying = GeneratorFactory(),
             configLoader: ConfigLoading = ConfigLoader(),
-            graphImportsLinter: GraphImportsLinting = GraphImportsLinter()
+            graphImportsLinter: GraphImportsLinting = GraphImportsLinter(),
+            manifestLoader: ManifestLoading = ManifestLoader.current,
+            xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
+            localPackageProductsMapper: LocalPackageProductsMapping = LocalPackageProductsMapper()
         ) {
             self.configLoader = configLoader
             self.generatorFactory = generatorFactory
             self.graphImportsLinter = graphImportsLinter
+            self.manifestLoader = manifestLoader
+            self.xcodeGraphMapper = xcodeGraphMapper
+            self.localPackageProductsMapper = localPackageProductsMapper
         }
 
         func run(
@@ -31,11 +41,17 @@
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
-            let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
-            let graph = try await generator.load(
-                path: path,
-                options: config.project.generatedProject?.generationOptions
-            )
+            let isGeneratedProject = try await manifestLoader.hasRootManifest(at: path)
+            let graph: XcodeGraph.Graph
+            if isGeneratedProject {
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+                graph = try await generator.load(
+                    path: path,
+                    options: config.project.generatedProject?.generationOptions
+                )
+            } else {
+                graph = try await xcodeGraphMapper.map(at: path)
+            }
             let graphTraverser = GraphTraverser(graph: graph)
 
             var implicitIssues: [InspectImportsIssue] = []
@@ -43,7 +59,13 @@
             var checksRun: [String] = []
 
             if inspectionTypes.contains(.implicit) {
-                implicitIssues = try await collectImplicitIssues(graphTraverser: graphTraverser)
+                let implicitGraph = isGeneratedProject ? graph : try await localPackageProductsMapper.map(
+                    graph: graph,
+                    disableSandbox: config.project.disableSandbox
+                )
+                implicitIssues = try await collectImplicitIssues(
+                    graphTraverser: isGeneratedProject ? graphTraverser : GraphTraverser(graph: implicitGraph)
+                )
                 checksRun.append("implicit")
             }
 
