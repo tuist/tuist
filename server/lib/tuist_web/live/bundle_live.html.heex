@@ -373,20 +373,13 @@
                 {dgettext("dashboard_cache", "Potential savings")}
               </span>
               <span data-part="savings-value">
-                {format_bytes(
-                  Enum.flat_map(@duplicates, & &1.artifacts)
-                  |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)
-                )}
+                {format_bytes(@duplicates_total_size)}
               </span>
               <.badge
                 label={
                   dgettext("dashboard_cache", "%{savings} %",
                     savings:
-                      Decimal.from_float(
-                        (@duplicates
-                         |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)) /
-                          @bundle.install_size * 100
-                      )
+                      Decimal.from_float(@duplicates_total_size / @bundle.install_size * 100)
                       |> Decimal.round(2)
                   )
                 }
@@ -413,7 +406,7 @@
             </.button>
           </div>
           <div data-part="content" data-state="closed">
-            <%= for duplicate <- @duplicates do %>
+            <%= for duplicate <- @duplicates_current_page do %>
               <div
                 id={"#{duplicate.shasum}-insights-duplicate-collapsible"}
                 phx-hook="NooraCollapsible"
@@ -435,7 +428,7 @@
                       <.badge
                         label={
                           dgettext("dashboard_cache", "%{duplicates_count} duplicates",
-                            duplicates_count: Enum.count(duplicate.artifacts)
+                            duplicates_count: duplicate.artifacts_count
                           )
                         }
                         color="destructive"
@@ -470,10 +463,27 @@
                         />
                       </div>
                     <% end %>
+                    <div :if={duplicate.hidden_artifacts_count > 0} data-part="duplicate">
+                      <span data-part="title">
+                        {dgettext("dashboard_cache", "and %{count} more",
+                          count: duplicate.hidden_artifacts_count
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             <% end %>
+            <.pagination_group
+              :if={@duplicates_page_count > 1}
+              current_page={@duplicates_page}
+              number_of_pages={@duplicates_page_count}
+              page_patch={
+                fn page ->
+                  "?#{Query.put(@uri.query, "duplicates-page", page)}"
+                end
+              }
+            />
           </div>
         </div>
       </div>
