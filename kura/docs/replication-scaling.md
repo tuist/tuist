@@ -1,6 +1,7 @@
 # Replication At Scale: Problem, Design Space, And Candidate Designs
 
-Status: research / design options. Nothing here is decided or implemented.
+Status: research and analysis. The design it produced is
+[`replication-design.md`](replication-design.md); nothing is implemented.
 
 This document analyses why Kura's current replication mechanism does not scale
 with mesh size or write burst size, surveys the distributed-systems techniques
@@ -41,16 +42,17 @@ The recommendation, in order of value per unit of risk:
   [`replication-design.md`](replication-design.md)**, which is the only
   normative document. Everything here is either the background that produced it
   or an option deliberately left out of it.
-- **Invert the direction: replace per-target push queues with a per-node
-  live index of what each node holds, ordered by arrival, that peers scan
-  forward at their own pace** (§7). This
-  removes the write-path amplification, removes the shed-writes failure mode,
-  removes head-of-line blocking between peers, gives free per-peer pacing, and
-  collapses "steady-state replication" and "cold catch-up" into one mechanism.
+- **Invert the direction: replace per-target push queues with pull on both
+  links** (§7) — inside a region a sibling reads a bounded, trimmed arrival
+  feed; between regions a gateway reads the existing `version_ms` index from
+  a watermark. This removes the write-path amplification, removes the
+  shed-writes failure mode, removes head-of-line blocking between peers, gives
+  free per-peer pacing, and collapses "steady-state replication" and "cold
+  catch-up" into one mechanism.
 - **Then make the topology cost-aware**: bytes cross a region boundary
-  once, not once per remote node, through one controller-designated gateway per
-  region — normally an idle replica, necessarily the serving one where a region
-  has a single instance.
+  once, not once per remote node, through one server-designated gateway per
+  region — the non-serving replica where a region has two, necessarily the
+  serving one where it has a single instance.
 - **Then make eagerness a policy rather than a constant**: metadata everywhere,
   bytes by class and demand (§8). This is the biggest possible bandwidth
   win and also the riskiest, because its value depends entirely on a number
@@ -344,11 +346,10 @@ by Delta-Mutation".
 CRDT-shaped: the action-cache namespace is an LWW map, the CAS namespace is a
 grow-only set modulo eviction. Delta-CRDT anti-entropy = ship delta-intervals,
 ack them, and fall back to full-state join when the buffer is GC'd. Map that
-onto §7 with one adjustment: the forward index plays the delta-interval role,
-the cursor is the ack, and the recency-windowed walk is the full-state entry
-point. The adjustment matters — a live index is a *state* view rather than a
-buffered interval, so what a follower receives is the current value, not the
-sequence of values that produced it. The useful invariant it
+onto §7 directly: the arrival feed is the buffered delta-interval, the
+cursor is the ack, trimming below the cursor is the buffer GC, and the
+recency-windowed walk is the full-state join a follower falls back to when it
+has fallen off the buffer. The useful invariant it
 names is that deltas must ship as *intervals* — an unbroken prefix — which is
 exactly what makes a single scalar cursor sound.
 
@@ -469,8 +470,8 @@ lengths and sending the difference, advertise what they hold as a **compressed
 bitfield** of log ranges, and support **sparse replication** — pulling
 individual blocks with a Merkle proof against a signed root. §7 is the same
 shape, with one deliberate divergence: Hypercore's log is append-only and grows
-with writes, while §7's forward structure is a live index that grows with live
-data. Two details worth stealing: the bitfield is a more compact
+with writes, while §7's arrival feed is trimmed below its consumer's cursor and
+capped from above, so it never holds history. Two details worth stealing: the bitfield is a more compact
 have-summary than a per-record presence index for anything range-shaped
 (segment-aligned bodies especially), and proof-carrying partial replication is
 what lets a peer accept a block from an untrusted source. The signing is
@@ -563,17 +564,19 @@ real protocol thought in the push model, and it is subsumed by Mechanism D if
 [`replication-design.md`](replication-design.md).** It is the normative one;
 this document is the analysis that produced it.
 
-In one sentence: every node maintains a live index of what it currently holds,
-ordered by the sequence in which it arrived; peers scan it forward at their own
-pace with a durable cursor; a controller-designated gateway per region is the
-only node that crosses a region boundary; and the outbox and its per-target
-queues disappear.
+In one sentence: both links pull and long-poll; inside a region a sibling
+reads a bounded, trimmed arrival feed and loses nothing; between regions one
+server-designated gateway per region reads the existing `version_ms` index
+ascending from a region-keyed watermark, best-effort by requirement; and the
+outbox and its per-target queues disappear.
 
-The design document covers the forward index and its cursor, why the two sync
-directions need two differently-ordered indexes, what a live index cannot
-express and why that is fine here, the gateway topology and its selection rule,
-the invariants the whole thing rests on, and the measured memory and CPU cost.
-Sections below that reference "§7" mean that document.
+The design document covers the two links and their different guarantees, the
+gateway topology and how the server derives it from the primary designation,
+the arrival feed and its endpoint contract, the region watermark and why it is
+region state, migration across the three deployment models, observability,
+the invariants the whole thing rests on, the measured cost, and every
+parameter with its default. Sections below that reference "§7" mean that
+document.
 
 
 ## 8. Deferred option — two-plane replication: metadata everywhere, bytes by policy
@@ -768,43 +771,31 @@ is a separate, much larger track and should stay out of scope initially.
 Order chosen by value per unit of risk:
 
 1. **Design 0 items 1, 2 and 5** — days to weeks; removes the acute failure.
-2. **The forward index and cursors** — the substrate. Removes the write-path
-   amplification and head-of-line blocking, and unifies catch-up with steady
-   state.
-3. **The gateway topology** — controller-designated, riding the existing
-   mesh view; halves WAN bytes wherever a region has two replicas.
+2. **Pull on both links, the arrival feed inside a region** — the substrate.
+   Removes the write-path amplification and the depth cap from the write path,
+   and makes the sibling link lossless.
+3. **The gateway topology** — server-published, derived from the primary
+   designation, riding the existing mesh view; halves WAN bytes wherever a
+   region has two replicas.
 4. **Mechanism D.2 (chunked resumable fetch)** — fixes the large-artifact
    failure class.
 5. **Mechanism C (reconciliation floor)** — replaces "hope no message is lost".
 6. **The two-plane class/demand policy (§8)** — last, behind measurement, per tenant.
 
 Migration must be capability-negotiated and reversible at every step, because
-mixed-version pods run side by side and rollback must work. A workable sequence:
+mixed-version pods run side by side and rollback must work — and in two of the
+three deployment models some of the pods are not ours to upgrade. The phased
+sequence, the three models it has to hold for, and the constraint that the
+outbox lives until the self-hosted version floor moves past it are in the
+design document (§5). The one storage rule worth repeating here because it is
+easy to get wrong: the feed goes in a new key prefix inside an existing column
+family — *not* a new CF, because the store opens with an explicit descriptor
+list (`DB::open_cf_descriptors`) and a rollback to a binary that does not know
+the CF fails to open the database.
 
-- **Phase 0.** Add the forward index as a new key prefix in an existing column
-  family —
-  *not* a new CF: the store opens with an explicit descriptor list
-  (`DB::open_cf_descriptors`), so rolling back to a binary that does not know
-  the new CF fails to open the database. Dual-write log and outbox; add
-  `GET /_internal/log`; advertise support in `/_internal/status`. Old peers
-  answer 404 and the puller does nothing — the same fallback pattern already
-  used for `PUT /_internal/replicate/artifacts`.
-- **Phase 1.** Nodes scan peers that advertise the forward index. Stop enqueuing outbox
-  messages for a target once that target confirms it is tailing. Both
-  mechanisms coexist; either can be disabled by config.
-- **Phase 2.** Once every node advertises tailing, stop enqueuing entirely; keep
-  the outbox code for one release.
-- **Phase 3.** Reconciliation floor and the policy knobs. Note there is no
-  compaction phase: the live index has nothing to compact.
-
-Observability that must ship with Phase 1, or the change is not safe to run:
-per-peer cursor lag in both records and seconds; bytes replicated per unique
-object (the amplification factor, which is the number this whole effort exists
-to move); body fetches deduplicated by source preference; log growth, GC and
-reconciliation difference sizes; forward-index row count against live artifact
-count, which is the check that re-keying is deleting stale rows rather than
-leaking them.
-Per `kura/AGENTS.md`, every new metric also needs a panel in
+The observability that has to ship with the first phase — what is retained,
+retired and reframed, what is added, and the alerts — is in the design
+document (§6). Per `kura/AGENTS.md`, every new metric also needs a panel in
 `infra/grafana-dashboards/tuist-kura-details.json`.
 
 ---
@@ -837,10 +828,11 @@ exercise to stay honest.
 
 **Pull has a genuine downside the push model does not.** Push delivers at the
 moment of the write with no polling and no idle cost. A tail with long-polling
-approximates that, but it introduces `N x (N-1)` long-lived streams, interacts
-with connection recycling and drain, and turns a stateless sender into one that
-must hold and correctly resume per-peer read positions. If mesh sizes ever grow
-past a couple of dozen nodes per tenant, this model has to be replaced by an
+approximates that, but it holds long-lived streams open — `R(R-1)` between
+gateways plus two per two-replica region — interacts with connection recycling
+and drain, and moves the read position from the sender to the receiver, which
+is why the design has to say what a departing node waits for. If region counts
+ever grow past a couple of dozen, the gateway clique has to be replaced by an
 explicit tree or randomised gossip.
 
 **Things that would change the recommendation:**
@@ -870,10 +862,11 @@ explicit tree or randomised gossip.
    1's priority.
 4. **Amplification factor**: replicated bytes divided by unique bytes written,
    per node. The headline metric for D.1.
-5. **Object size distribution and rewrite rate per action-cache key**: sizes the
-   forward index and the page piggyback threshold. The design document measures this for one
-   Rust/Bazel build; the fleet's real distribution is what sets the row count,
-   and the row count is what sets the memory cost.
+5. **Object size distribution and rewrite rate per action-cache key**: sets the
+   row count of the `version_ms` index, which region sync reads. The design
+   document measures this for one Rust/Bazel build; the fleet's real
+   distribution is what sets the row count. The arrival feed is bounded by its
+   cap rather than by the dataset, so it is not sized by this.
 6. **Per-CF `rocksdb.estimate-num-keys` and `estimate-live-data-size`, plus
    block-cache hit/miss**: none of these are exported today, which is why the
    design document's cost section had to be measured by hand against a local
