@@ -4077,7 +4077,7 @@ impl Store {
                     if manifest.producer == ArtifactProducer::Reapi {
                         self.stage_chunk_recipe_cascade_for_chunk(
                             &mut batch,
-                            &artifact_id,
+                            &manifest,
                             cascade_active,
                             &mut cascade,
                             &mut removed_artifact_ids,
@@ -4333,12 +4333,13 @@ impl Store {
     async fn stage_chunk_recipe_cascade_for_chunk(
         &self,
         batch: &mut WriteBatch,
-        chunk_artifact_id: &str,
+        chunk_manifest: &ArtifactManifest,
         cascade_action_cache: bool,
         cascade: &mut CascadeProgress,
         removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
     ) -> Result<(), String> {
+        let chunk_artifact_id = &chunk_manifest.artifact_id;
         let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
@@ -4389,14 +4390,23 @@ impl Store {
                     &recipe_manifest.namespace_id,
                     &blob_key,
                 );
-                self.stage_action_cache_cascade_for_blob(
-                    batch,
-                    &blob_id,
-                    cascade,
-                    removed_artifact_ids,
-                    scanned_rows,
-                )
-                .await?;
+                let canonical_blob_survives =
+                    self.manifest_from_db(&blob_id)?.is_some_and(|manifest| {
+                        manifest.segment_id.as_deref() != chunk_manifest.segment_id.as_deref()
+                    });
+                // Action results reference the logical digest, not the recipe
+                // representation. Removing the recipe cannot strand them when
+                // the complete blob remains on another segment.
+                if !canonical_blob_survives {
+                    self.stage_action_cache_cascade_for_blob(
+                        batch,
+                        &blob_id,
+                        cascade,
+                        removed_artifact_ids,
+                        scanned_rows,
+                    )
+                    .await?;
+                }
             }
             self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
             cascade.seen_recipes.insert(recipe_id.clone());
@@ -15558,6 +15568,49 @@ mod tests {
 
         assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
         assert!(store.manifest(&action.artifact_id).unwrap().is_none());
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_chunk_keeps_action_entries_when_the_canonical_blob_survives() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        let chunk_segment = seal_active_segment(&store).await;
+        let canonical_blob = persist_reapi_blob(&store, "acme", &blob_digest, b"hello").await;
+        assert_ne!(
+            canonical_blob.segment_id.as_deref(),
+            Some(chunk_segment.as_str()),
+            "the canonical representation must live outside the evicted segment"
+        );
+
+        store
+            .evict_segment(&chunk_segment)
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .manifest(&canonical_blob.artifact_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            store.manifest(&action.artifact_id).unwrap().is_some(),
+            "the action result remains valid through the canonical blob"
+        );
         assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
     }
 

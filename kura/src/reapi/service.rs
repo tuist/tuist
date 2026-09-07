@@ -60,7 +60,7 @@ use crate::{
     state::SharedState,
     store::{
         ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
-        is_outbox_full_error, manifest_version_ms, try_allocate_exact_vec,
+        is_outbox_full_error, try_allocate_exact_vec,
     },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
@@ -2044,39 +2044,33 @@ impl ContentAddressableStorage for ReapiService {
                 "server is limiting concurrent blob splice verification; retry shortly",
             )
         })?;
-        let oldest_chunk_version_ms =
-            match verify_spliced_blob(&self.state, namespace_id, &recipe).await {
-                Ok(version_ms) => version_ms,
-                Err(status) => {
-                    let outcome = match status.code() {
-                        tonic::Code::NotFound => "chunk_missing",
-                        tonic::Code::InvalidArgument => "digest_mismatch",
-                        _ => "error",
-                    };
-                    self.state
-                        .metrics
-                        .record_reapi_chunking_event("splice", outcome);
-                    return Err(status);
-                }
+        if let Err(status) = verify_spliced_blob(&self.state, namespace_id, &recipe).await {
+            let outcome = match status.code() {
+                tonic::Code::NotFound => "chunk_missing",
+                tonic::Code::InvalidArgument => "digest_mismatch",
+                _ => "error",
             };
-        // Backfill walks newest to oldest. Stamp the recipe just before its
-        // oldest dependency so every chunk is listed and applied first. If a
-        // capacity-bounded pass stops accepting segment data, recipes share
-        // that classification and are skipped too, preserving the logical
-        // blob's referential integrity instead of leaving metadata behind.
-        let recipe_version_ms = oldest_chunk_version_ms.saturating_sub(1).max(1);
+            self.state
+                .metrics
+                .record_reapi_chunking_event("splice", outcome);
+            return Err(status);
+        }
+        // Keep the recipe at its creation time so a newly spliced logical
+        // blob always stays ahead of an absent peer's completed-pass
+        // watermark, even when it reuses old chunks. Backfill can encounter
+        // the recipe before those chunks; the composite presence and read
+        // gates keep it unavailable until every dependency arrives.
         let key = recipe_key(&digest_key(&blob_digest)?);
         let targets = replication_targets(&self.state);
         let manifest = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_at_version_and_enqueue(
+            .persist_inline_artifact_from_bytes_and_enqueue(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf; message=tuist.kura.ChunkedBlobRecipe",
                 &recipe_bytes,
-                recipe_version_ms,
                 &targets,
                 None,
                 None,
@@ -2109,16 +2103,14 @@ async fn verify_spliced_blob(
     state: &SharedState,
     namespace_id: &str,
     recipe: &ChunkedBlobRecipe,
-) -> Result<u64, Status> {
+) -> Result<(), Status> {
     let manifests = fetch_chunk_manifests(state, namespace_id, recipe)
         .await
         .map_err(|error| Status::internal(format!("failed to inspect blob chunks: {error}")))?
         .ok_or_else(|| Status::not_found("one or more blob chunks are missing"))?;
     let mut hasher = Sha256::new();
     let mut total = 0_u64;
-    let mut oldest_version_ms = u64::MAX;
     for manifest in manifests {
-        oldest_version_ms = oldest_version_ms.min(manifest_version_ms(&manifest));
         let Some(mut reader) = state
             .store
             .open_artifact_reader_range_tolerating_promotion_reader_only(&manifest, 0, None)
@@ -2147,7 +2139,7 @@ async fn verify_spliced_blob(
             "chunk contents do not match the declared blob digest",
         ));
     }
-    Ok(oldest_version_ms)
+    Ok(())
 }
 
 #[tonic::async_trait]
@@ -5842,7 +5834,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn splice_split_and_read_a_composite_blob_without_materializing_it_in_the_store() {
+    async fn splice_keeps_a_composite_blob_recoverable_without_materializing_it_in_the_store() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
@@ -5859,12 +5851,30 @@ mod tests {
         let mut blob = first.clone();
         blob.extend_from_slice(&second);
         let blob_digest = digest(&blob);
-        persist_cas_blob(&context.state, "ios", &first_digest, &first)
-            .await
-            .expect("first chunk should persist");
-        persist_cas_blob(&context.state, "ios", &second_digest, &second)
-            .await
-            .expect("second chunk should persist");
+        let recovery_watermark_ms = 1_000;
+        let uploads = context.state.config.tmp_dir.join("splice-recovery");
+        std::fs::create_dir_all(&uploads).expect("uploads directory should be created");
+        for (name, chunk_digest, bytes) in [
+            ("first", &first_digest, first.as_slice()),
+            ("second", &second_digest, second.as_slice()),
+        ] {
+            let path = uploads.join(name);
+            std::fs::write(&path, bytes).expect("chunk should be staged");
+            context
+                .state
+                .store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &blob_key(&digest_key(chunk_digest).unwrap()),
+                    "application/octet-stream",
+                    &path,
+                    recovery_watermark_ms,
+                )
+                .await
+                .expect("old chunk should persist");
+        }
+        let recipe_created_not_before_ms = crate::utils::now_ms();
 
         let mut splice_request = Request::new(reapi::SpliceBlobRequest {
             instance_name: "ios".into(),
@@ -5897,6 +5907,14 @@ mod tests {
             )
             .unwrap()
             .expect("recipe manifest should exist");
+        assert!(
+            recipe_manifest.version_ms >= recipe_created_not_before_ms,
+            "the recipe must retain its creation time"
+        );
+        assert!(
+            recipe_manifest.version_ms > recovery_watermark_ms,
+            "a returning peer must discover the recipe above its completed-pass watermark"
+        );
         for chunk_digest in [&first_digest, &second_digest] {
             let chunk_manifest = context
                 .state
@@ -5908,10 +5926,7 @@ mod tests {
                 )
                 .unwrap()
                 .expect("chunk manifest should exist");
-            assert!(
-                manifest_version_ms(&recipe_manifest) < manifest_version_ms(&chunk_manifest),
-                "age-bounded backfill must encounter every chunk before its recipe"
-            );
+            assert_eq!(chunk_manifest.version_ms, recovery_watermark_ms);
         }
         assert_eq!(
             crate::store::backfill_record_kind(&recipe_manifest),
