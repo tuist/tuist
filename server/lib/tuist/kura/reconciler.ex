@@ -638,7 +638,7 @@ defmodule Tuist.Kura.Reconciler do
   # The two derived things `converged?` does not track: the URL the region
   # renders, and whether that URL is published to the CLI.
   defp endpoint_in_sync?(%Server{} = server, published) do
-    url_in_sync?(server) and cache_endpoint_in_sync?(server, published)
+    url_matches_rendered_host?(server) and cache_endpoint_mirrored?(server, published)
   end
 
   # The URL the region template renders can change without the image changing
@@ -657,7 +657,7 @@ defmodule Tuist.Kura.Reconciler do
   # tick and route a converged node through `do_converge/2` (DB write +
   # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
   # tracking the moving endpoint, so report node-port regions as in sync here.
-  defp url_in_sync?(%Server{} = server) do
+  defp url_matches_rendered_host?(%Server{} = server) do
     if node_port_region?(server) do
       true
     else
@@ -673,11 +673,10 @@ defmodule Tuist.Kura.Reconciler do
   # converged only once its URL is mirrored there. Reading the mirror rather
   # than trusting the activation that wrote it means any path that drops the
   # row (a drain unpublishing, a torn-down peer that shared the URL) heals on
-  # the next tick, and a healthy server costs one indexed existence check.
-  # Private regions never mirror their URL (the CLI cannot reach an in-cluster
-  # endpoint), so they are in sync by definition, the rule `activate_server/2`
-  # applies too.
-  defp cache_endpoint_in_sync?(%Server{} = server, published) do
+  # the next tick. Private regions have nothing to mirror: the CLI cannot reach
+  # an in-cluster endpoint, so they satisfy this trivially, the rule
+  # `activate_server/2` applies too.
+  defp cache_endpoint_mirrored?(%Server{} = server, published) do
     private_region?(server) or MapSet.member?(published, server.id)
   end
 
