@@ -434,7 +434,7 @@ defmodule Tuist.Kura.CapacityTest do
   # us-east sizes per plan, bin-packs the memory ceiling, reserves the
   # Enterprise egress floor and runs two replicas, so an Enterprise instance
   # asks the pool for two replicas of: 16Gi of disk, 1024 MiB of memory and a
-  # 4096 MiB ceiling, 500m of CPU and 25 Mbps.
+  # 4096 MiB ceiling, 100m of CPU and 25 Mbps.
   describe "room_for?/2" do
     test "has room when one node covers every replica of the instance" do
       stub_pool([pool_box("box-1")])
@@ -513,11 +513,11 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "reads cpu in cores, fractions and millicores" do
-      # Two replicas at 500m need a whole core; 900m is left here.
+      # Two replicas at the 100m cold start need 200m; 150m is left here.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "4"},
-          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "0.5"}), pool_pod(%{"cpu" => "600m"})]
+          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "1.5"}), pool_pod(%{"cpu" => "350m"})]
         )
       ])
 
@@ -526,7 +526,7 @@ defmodule Tuist.Kura.CapacityTest do
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "4"},
-          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "0.5"}), pool_pod(%{"cpu" => "500m"})]
+          pods: [pool_pod(%{"cpu" => "2"}), pool_pod(%{"cpu" => "1.5"}), pool_pod(%{"cpu" => "300m"})]
         )
       ])
 
@@ -590,12 +590,12 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "reserves a pod's initialization peak, as the scheduler does" do
       # The neighbour's app container asks for 500m, its init container for
-      # 3500m. The scheduler reserves the larger of the two moments, so the
-      # four-core box has 500m left, not 3500m, and two 500m replicas do not fit.
+      # 3900m. The scheduler reserves the larger of the two moments, so the
+      # four-core box has 100m left, not 3500m, and two 100m replicas do not fit.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "4"},
-          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "3500m"}])]
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "3900m"}])]
         )
       ])
 
@@ -604,7 +604,7 @@ defmodule Tuist.Kura.CapacityTest do
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "4"},
-          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "400m"}])]
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "3400m"}])]
         )
       ])
 
@@ -613,12 +613,12 @@ defmodule Tuist.Kura.CapacityTest do
 
     test "adds a sidecar to what the pod holds for its whole life" do
       # A sidecar is an init container that keeps running, so it counts with
-      # the app rather than only during initialization: 500m + 1000m on a
-      # two-core box leaves 500m.
+      # the app rather than only during initialization: 500m + 1400m on a
+      # two-core box leaves 100m, short of the 200m two replicas need.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "2"},
-          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "1000m", "restartPolicy" => "Always"}])]
+          pods: [pool_pod(%{"cpu" => "500m"}, init: [%{"cpu" => "1400m", "restartPolicy" => "Always"}])]
         )
       ])
 
@@ -626,12 +626,12 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "adds pod overhead" do
-      # 500m of app plus 600m of runtime overhead on a two-core box leaves
-      # 900m, short of the core two replicas need.
+      # 500m of app plus 1400m of runtime overhead on a two-core box leaves
+      # 100m, short of the 200m two replicas need.
       stub_pool([
         pool_box("box-1",
           allocatable: %{"cpu" => "2"},
-          pods: [pool_pod(%{"cpu" => "500m"}, overhead: %{"cpu" => "600m"})]
+          pods: [pool_pod(%{"cpu" => "500m"}, overhead: %{"cpu" => "1400m"})]
         )
       ])
 

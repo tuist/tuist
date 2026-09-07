@@ -70,10 +70,13 @@ defmodule Tuist.Kura.Capacity do
   @read_timeout to_timeout(second: 5)
   @managed_by_selector "app.kubernetes.io/managed-by=kura-controller"
 
-  # What the controller requests for every cache pod besides its claim
-  # (`defaultResources` in the kura-controller): a flat CPU request, and the
-  # default memory profile where the region does not size per plan.
-  @pod_cpu_millicores 500
+  # What the controller requests for a cache pod it has never observed: the
+  # CPU cold start (`cpuColdStartMilli` in the kura-controller's
+  # cpu_autosize.go), and the default memory profile where the region does not
+  # size per plan (`defaultResources`). The CPU request is sized from observed
+  # usage after that, so what a new instance asks the scheduler for is the
+  # cold start, not what it will settle at.
+  @pod_cpu_millicores 100
   @default_memory_floor_mib 2048
   @default_memory_ceiling_mib 4096
   @mib 1024 * 1024
