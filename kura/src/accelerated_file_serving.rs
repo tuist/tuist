@@ -947,12 +947,9 @@ async fn serve_accelerated(
                 total_duration.as_secs_f64() * 1_000.0,
             );
             body_span.record("kura.response.result", "ok");
-            state.runtime.record_public_request_latency(
-                &state.metrics,
-                "http",
-                route,
-                time_to_first_byte,
-            );
+            state
+                .runtime
+                .record_public_request_latency(&state.metrics, "http", time_to_first_byte);
             state.metrics.record_http(
                 route,
                 StatusCode::from_u16(range.status().0).unwrap_or(StatusCode::OK),

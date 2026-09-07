@@ -1130,7 +1130,7 @@ async fn track_http_metrics(
     if traffic_class == HttpTrafficClass::Public {
         state
             .runtime
-            .record_public_request_latency(&state.metrics, "http", &route, elapsed);
+            .record_public_request_latency(&state.metrics, "http", elapsed);
     }
     state.metrics.record_http(route, response.status(), elapsed);
 
