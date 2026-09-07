@@ -55,6 +55,18 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToXcodeTargets do
   @buffer_margin_seconds 300
   @settle_ms 15_000
 
+  # Partitioning bounds the rows scanned, but not the parallel read pipelines
+  # or the insert buffers used to sort these wide rows into the new key order.
+  # The defaults exhausted production's 18 GiB ClickHouse memory budget.
+  @backfill_settings [
+    max_threads: 1,
+    max_insert_threads: 1,
+    max_block_size: 65_536,
+    min_insert_block_size_rows: 65_536,
+    min_insert_block_size_bytes: 64 * 1024 * 1024,
+    max_memory_usage: 2 * 1024 * 1024 * 1024
+  ]
+
   @columns ~w(
     project_id inserted_at command_event_id name product binary_cache_hash binary_cache_hit
     sources_hash resources_hash copy_files_hash core_data_models_hash target_scripts_hash
@@ -202,7 +214,8 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToXcodeTargets do
           WHERE toYYYYMMDD(inserted_at) = {partition:UInt32} AND #{@project_id_expr} != 0
           """,
           %{partition: partition},
-          timeout: 1_200_000
+          timeout: 1_200_000,
+          settings: @backfill_settings
         )
       end)
     end
@@ -235,7 +248,8 @@ defmodule Tuist.IngestRepo.Migrations.AddProjectIdToXcodeTargets do
           )
         """,
         %{gap_start: gap_start, gap_end: gap_end},
-        timeout: 1_200_000
+        timeout: 1_200_000,
+        settings: @backfill_settings
       )
     end)
   end
