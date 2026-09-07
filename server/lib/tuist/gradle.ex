@@ -162,9 +162,6 @@ defmodule Tuist.Gradle do
           cacheability: value_or(execution, :cacheability, "unknown"),
           incremental: Map.get(execution, :incremental),
           remote_cache_lookup_outcome: Map.get(execution, :remote_cache_lookup_outcome) || "unknown",
-          remote_cache_lookup_duration_ms: Map.get(execution, :remote_cache_lookup_duration_ms),
-          remote_cache_download_duration_ms: Map.get(execution, :remote_cache_download_duration_ms),
-          remote_cache_upload_duration_ms: Map.get(execution, :remote_cache_upload_duration_ms),
           id: UUIDv7.generate(),
           gradle_build_id: build_id,
           task_path: task.task_path,
@@ -193,10 +190,7 @@ defmodule Tuist.Gradle do
       :task_type,
       :cacheability,
       :incremental,
-      :remote_cache_lookup_outcome,
-      :remote_cache_lookup_duration_ms,
-      :remote_cache_download_duration_ms,
-      :remote_cache_upload_duration_ms
+      :remote_cache_lookup_outcome
     ])
   end
 
@@ -423,7 +417,7 @@ defmodule Tuist.Gradle do
   @doc """
   Returns aggregate cache metrics for a build's tasks.
 
-  Used for cache summary widgets (download/upload bytes, throughput).
+  Used for cache summary widgets (download/upload bytes).
   """
   def task_cache_aggregates(build_id) do
     ClickHouseRepo.one(
@@ -431,35 +425,7 @@ defmodule Tuist.Gradle do
         where: t.gradle_build_id == ^build_id,
         select: %{
           cache_download_bytes: fragment("sumIf(ifNull(?, 0), ? = 'remote_hit')", t.cache_artifact_size, t.outcome),
-          cache_upload_bytes: fragment("sumIf(ifNull(?, 0), ? = true)", t.cache_artifact_size, t.remote_cache_stored),
-          timed_download_bytes:
-            fragment(
-              "sumIf(ifNull(?, 0), ? = 'remote_hit' AND ? > 0)",
-              t.cache_artifact_size,
-              t.outcome,
-              t.remote_cache_download_duration_ms
-            ),
-          timed_upload_bytes:
-            fragment(
-              "sumIf(ifNull(?, 0), ? = true AND ? > 0)",
-              t.cache_artifact_size,
-              t.remote_cache_stored,
-              t.remote_cache_upload_duration_ms
-            ),
-          download_duration_ms:
-            fragment(
-              "sumIf(ifNull(?, 0), ? = 'remote_hit' AND isNotNull(?))",
-              t.remote_cache_download_duration_ms,
-              t.outcome,
-              t.cache_artifact_size
-            ),
-          upload_duration_ms:
-            fragment(
-              "sumIf(ifNull(?, 0), ? = true AND isNotNull(?))",
-              t.remote_cache_upload_duration_ms,
-              t.remote_cache_stored,
-              t.cache_artifact_size
-            )
+          cache_upload_bytes: fragment("sumIf(ifNull(?, 0), ? = true)", t.cache_artifact_size, t.remote_cache_stored)
         }
       )
     )

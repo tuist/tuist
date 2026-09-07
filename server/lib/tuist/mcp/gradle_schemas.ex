@@ -7,10 +7,7 @@ defmodule Tuist.MCP.GradleSchemas do
       "task_type" => string(),
       "cacheability" => string(),
       "incremental" => %{"type" => ["boolean", "null"]},
-      "remote_cache_lookup_outcome" => string(),
-      "remote_cache_lookup_duration_ms" => duration(),
-      "remote_cache_download_duration_ms" => duration(),
-      "remote_cache_upload_duration_ms" => duration()
+      "remote_cache_lookup_outcome" => string()
     })
   end
 
@@ -23,5 +20,4 @@ defmodule Tuist.MCP.GradleSchemas do
     }
 
   defp string, do: %{"type" => "string"}
-  defp duration, do: %{"type" => ["integer", "null"]}
 end

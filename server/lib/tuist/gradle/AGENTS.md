@@ -7,11 +7,11 @@ This context owns Gradle report ingestion, task rankings and execution details.
 - `task_executions` returns paginated individual task attempts with outcomes, observed durations, timestamps, and build project/tag metadata; build accounts are batch-preloaded for Ran by badges; search and sorting apply before pagination and retain the full task identity and build cohort.
 - Cacheability summaries honor explicit execution telemetry, falling back to the reported boolean only for legacy builds. Hit-rate analytics divide total remote hits by total hits plus confirmed misses, using the same rule for each time bucket; never average bucket percentages. Empty intervals have a null rate. Cacheable tasks without remote lookups have a zero hit rate; non-cacheable and unknown tasks without lookups retain a null rate.
 - Duration chart averages and percentiles aggregate individual executed tasks across the full comparison periods and within each time bucket, excluding cache hits and skipped work. Empty buckets have null averages and percentiles, not zero durations. Never derive period averages or percentiles by averaging bucket statistics.
-- Remote misses require a confirmed lookup; use operation durations for transfer throughput. Cumulative task time is not elapsed build time saved.
+- Remote misses require a confirmed lookup; do not estimate transfer throughput from task duration. Cumulative task time is not elapsed build time saved.
 - Schema changes require updating `server/data-export.md`. Existing Gradle tables retain data for 90 days.
 
 Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 
 - `Gradle.get_task/3` retrieves one execution with UUID validation and both project/build scoping; never expose task details by task ID alone.
 
-- Keep task telemetry limited to identity, cacheability, incremental status, and cache outcomes/timings used by the Tasks UI. Do not collect unused explanations, build options, or duplicate project paths.
+- Keep task telemetry limited to identity, cacheability, incremental status, and cache outcomes used by the Tasks UI. Do not collect unused explanations, build options, or duplicate project paths.

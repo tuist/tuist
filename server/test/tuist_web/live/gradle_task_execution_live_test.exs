@@ -56,7 +56,6 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
     assert has_element?(detail, "[data-part=metadata]", "1.2s")
     assert has_element?(detail, "[data-part=metadata]", ":included")
     refute html =~ "Input changed"
-    assert has_element?(detail, "[data-part=metadata]", "Lookup duration")
     assert has_element?(detail, "[data-part=metadata]", "Incremental")
     assert has_element?(detail, "[data-part=back-button][href='#{build_path}']")
     refute has_element?(detail, "[data-part=dependencies-link]")
@@ -87,7 +86,7 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
     assert has_element?(cache, "#gradle-cacheable-tasks-table a[data-part=row-link][href='#{execution_path}']")
   end
 
-  test "non-cacheable and legacy executions do not invent remote timings", context do
+  test "non-cacheable and legacy executions show cacheability", context do
     %{project: project, organization: organization, conn: conn} = context
 
     build_id =
@@ -206,9 +205,7 @@ defmodule TuistWeb.GradleTaskExecutionLiveTest do
         task_type: "org.gradle.api.tasks.compile.JavaCompile",
         cacheability: "cacheable",
         incremental: true,
-        remote_cache_lookup_outcome: "miss",
-        remote_cache_lookup_duration_ms: 0,
-        remote_cache_upload_duration_ms: 12
+        remote_cache_lookup_outcome: "miss"
       }
     }
   end

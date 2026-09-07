@@ -57,14 +57,6 @@ defmodule TuistWeb.GradleBuildLive do
 
     has_build_setup_data = has_build_setup_data?(build)
 
-    download_throughput =
-      if aggregates.download_duration_ms > 0,
-        do: aggregates.timed_download_bytes / (aggregates.download_duration_ms / 1000)
-
-    upload_throughput =
-      if aggregates.upload_duration_ms > 0,
-        do: aggregates.timed_upload_bytes / (aggregates.upload_duration_ms / 1000)
-
     slug = "#{account.name}/#{socket.assigns.selected_project.name}"
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
@@ -85,8 +77,9 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:cache_hit_rate, Gradle.cache_hit_rate(build))
     |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
     |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
-    |> assign(:download_throughput, download_throughput)
-    |> assign(:upload_throughput, upload_throughput)
+    # Task duration does not measure cache transfer time.
+    |> assign(:download_throughput, nil)
+    |> assign(:upload_throughput, nil)
     |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")

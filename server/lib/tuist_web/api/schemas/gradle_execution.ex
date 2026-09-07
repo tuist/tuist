@@ -11,14 +11,9 @@ defmodule TuistWeb.API.Schemas.GradleExecution do
         task_type: %Schema{type: :string, maxLength: 1024},
         cacheability: %Schema{type: :string, enum: ["cacheable", "disabled", "unknown"]},
         incremental: %Schema{type: :boolean, nullable: true},
-        remote_cache_lookup_outcome: %Schema{type: :string, enum: ["hit", "miss", "error", "not_requested", "unknown"]},
-        remote_cache_lookup_duration_ms: duration(),
-        remote_cache_download_duration_ms: duration(),
-        remote_cache_upload_duration_ms: duration()
+        remote_cache_lookup_outcome: %Schema{type: :string, enum: ["hit", "miss", "error", "not_requested", "unknown"]}
       },
       required: [:build_path, :task_type, :cacheability]
     }
   end
-
-  defp duration, do: %Schema{type: :integer, nullable: true, minimum: 0, maximum: 604_800_000}
 end

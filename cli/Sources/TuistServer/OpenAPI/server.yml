@@ -22531,20 +22531,6 @@ paths:
                               type: boolean
                               x-struct:
                               x-validate:
-                            remote_cache_download_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            remote_cache_lookup_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
-                              x-struct:
-                              x-validate:
                             remote_cache_lookup_outcome:
                               enum:
                                 - hit
@@ -22553,13 +22539,6 @@ paths:
                                 - not_requested
                                 - unknown
                               type: string
-                              x-struct:
-                              x-validate:
-                            remote_cache_upload_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
                               x-struct:
                               x-validate:
                             task_type:
@@ -24504,20 +24483,6 @@ paths:
                               type: boolean
                               x-struct:
                               x-validate:
-                            remote_cache_download_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
-                              x-struct:
-                              x-validate:
-                            remote_cache_lookup_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
-                              x-struct:
-                              x-validate:
                             remote_cache_lookup_outcome:
                               enum:
                                 - hit
@@ -24526,13 +24491,6 @@ paths:
                                 - not_requested
                                 - unknown
                               type: string
-                              x-struct:
-                              x-validate:
-                            remote_cache_upload_duration_ms:
-                              maximum: 604800000
-                              minimum: 0
-                              nullable: true
-                              type: integer
                               x-struct:
                               x-validate:
                             task_type:
@@ -26612,20 +26570,6 @@ paths:
                             type: boolean
                             x-struct:
                             x-validate:
-                          remote_cache_download_duration_ms:
-                            maximum: 604800000
-                            minimum: 0
-                            nullable: true
-                            type: integer
-                            x-struct:
-                            x-validate:
-                          remote_cache_lookup_duration_ms:
-                            maximum: 604800000
-                            minimum: 0
-                            nullable: true
-                            type: integer
-                            x-struct:
-                            x-validate:
                           remote_cache_lookup_outcome:
                             enum:
                               - hit
@@ -26634,13 +26578,6 @@ paths:
                               - not_requested
                               - unknown
                             type: string
-                            x-struct:
-                            x-validate:
-                          remote_cache_upload_duration_ms:
-                            maximum: 604800000
-                            minimum: 0
-                            nullable: true
-                            type: integer
                             x-struct:
                             x-validate:
                           task_type:

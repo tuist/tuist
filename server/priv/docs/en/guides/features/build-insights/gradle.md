@@ -78,7 +78,7 @@ Open **Builds → Tasks** to rank work across builds. Start with cumulative exec
 
 Trends compare against the previous period. Cache hit rate changes use percentage points; a higher rate is positive. Longer task durations are negative. For count and duration metrics, a zero previous value produces an absolute change instead of a percentage. The task count is distinct across the full period; each chart point counts distinct tasks within its own interval.
 
-A task's detail page shows analytics and a **Task executions** table with Project, Outcome, Branch, Ran by, Duration, and Ran at columns. **Ran by** shows CI for CI builds, the account name for local builds, or Unknown when the account is unavailable. Select a row to inspect that task execution, with a compact summary of duration, runner, cacheability, branch, and commit. Build identity, incremental status, and available remote-operation timings appear in the same details card. Execution details link back to the build and to the task overview. The Tasks table on an individual build opens these same execution details. Composite builds remain separate using their build paths and root project names. Historical reports retain task durations; detailed execution metadata requires the updated Gradle plugin.
+A task's detail page shows analytics and a **Task executions** table with Project, Outcome, Branch, Ran by, Duration, and Ran at columns. **Ran by** shows CI for CI builds, the account name for local builds, or Unknown when the account is unavailable. Select a row to inspect that task execution, with a compact summary of duration, runner, cacheability, branch, and commit. Build identity and incremental status appear in the same details card. Execution details link back to the build and to the task overview. The Tasks table on an individual build opens these same execution details. Composite builds remain separate using their build paths and root project names. Historical reports retain task durations; detailed execution metadata requires the updated Gradle plugin.
 
 | Metric | Meaning |
 | --- | --- |
@@ -91,4 +91,4 @@ A task's detail page shows analytics and a **Task executions** table with Projec
 
 Execution collection uses Gradle's internal operation APIs and is compatible with configuration-cache reuse. Reports identify the telemetry version. Cache hits with an unobserved origin are reported as `cache_hit` rather than attributed to the local or remote cache.
 
-Remote transfer throughput uses observed remote load/store durations and matching bytes. Task duration is not used as transfer time. Historical reports without operation timings do not produce throughput estimates.
+Cache transfer timings are not collected. Throughput widgets show No data; task duration is not used as transfer time.

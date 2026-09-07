@@ -93,24 +93,6 @@
             else: dgettext("dashboard_gradle", "No")}
         </.detail>
         <.detail
-          :if={not is_nil(@task.remote_cache_lookup_duration_ms)}
-          label={dgettext("dashboard_gradle", "Lookup duration")}
-        >
-          {duration(@task.remote_cache_lookup_duration_ms)}
-        </.detail>
-        <.detail
-          :if={not is_nil(@task.remote_cache_download_duration_ms)}
-          label={dgettext("dashboard_gradle", "Download duration")}
-        >
-          {duration(@task.remote_cache_download_duration_ms)}
-        </.detail>
-        <.detail
-          :if={not is_nil(@task.remote_cache_upload_duration_ms)}
-          label={dgettext("dashboard_gradle", "Upload duration")}
-        >
-          {duration(@task.remote_cache_upload_duration_ms)}
-        </.detail>
-        <.detail
           :if={not is_nil(@task.cache_artifact_size)}
           label={dgettext("dashboard_gradle", "Artifact size")}
         >
