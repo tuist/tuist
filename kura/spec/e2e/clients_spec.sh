@@ -3,6 +3,8 @@
 Describe 'actively supported protocol interoperability'
   Include spec/e2e/support.sh
 
+  greater_than() { [ "${greater_than:?}" -gt "$1" ]; }
+
   setup_suite() {
     COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
@@ -76,7 +78,7 @@ Describe 'actively supported protocol interoperability'
   It 'advertises and exercises content-defined chunking with Bazel'
     marker="chunking-$(new_marker)"
     instance_name="bazel/${marker}"
-    work1="$(mktemp -d "${SUITE_TMP_DIR}/chunking-1.XXXXXX")"
+    work1="$(mktemp -d "${SUITE_TMP_DIR}/bazel-chunking-1.XXXXXX")"
     splice_route='route="/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"'
     split_route='route="/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob"'
     splice_before="$(metric_sum "$KURA_US_URL" kura_public_request_latency_seconds_count "$splice_route")"
@@ -90,7 +92,7 @@ Describe 'actively supported protocol interoperability'
     second_build=""
     second_size=""
     for attempt in $(seq 1 10); do
-      work2="$(mktemp -d "${SUITE_TMP_DIR}/chunking-2.${attempt}.XXXXXX")"
+      work2="$(mktemp -d "${SUITE_TMP_DIR}/bazel-chunking-2.${attempt}.XXXXXX")"
       create_chunked_bazel_workspace "$work2" "$marker"
       capture_into second_build bazel_build_chunked "$work2" "$KURA_EU_CACHE_PORT" "$instance_name" false || return 1
       second_size="$(wc -c <"$work2/bazel-bin/large-output.bin" | tr -d ' ')"
@@ -105,8 +107,8 @@ Describe 'actively supported protocol interoperability'
     The value "$first_size" should equal $((8 * 1024 * 1024 + ${#marker}))
     The variable second_build should include 'remote cache hit'
     The value "$second_size" should equal "$first_size"
-    The value "$splice_after" should be greater than "$splice_before"
-    The value "$split_after" should be greater than "$split_before"
+    The value "$splice_after" should satisfy greater_than "$splice_before"
+    The value "$split_after" should satisfy greater_than "$split_before"
   End
 
   It 'builds Buck2 targets against the REAPI surface in multiple regions'
