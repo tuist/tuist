@@ -56,12 +56,6 @@ if mountpoint -q /data; then
   exit 0
 fi
 
-if grep -qE 'recovery|resync' /proc/mdstat; then
-  log "an array is still rebuilding; wait for it to finish before splitting the mirror"
-  grep -E 'recovery|resync' /proc/mdstat >&2
-  exit 1
-fi
-
 root_dev="$(findmnt -no SOURCE /)"
 case "$root_dev" in
   /dev/md*) ;;
@@ -71,19 +65,46 @@ esac
 # Keep the leg on the disk that holds the ESP, so the boot-critical disk carries
 # root, and hand the other disk to /data.
 esp_disk="/dev/$(lsblk -no PKNAME "$(findmnt -no SOURCE /boot/efi)")"
-legs="$(mdadm --detail "$root_dev" | awk '/active sync/ {print $NF}')"
-[ "$(echo "$legs" | wc -l)" -eq 2 ] || { log "expected 2 active legs in $root_dev, got: $(echo $legs)"; exit 1; }
 
-data_leg=""
-for leg in $legs; do
-  [ "/dev/$(lsblk -no PKNAME "$leg")" = "$esp_disk" ] || data_leg="$leg"
-done
-[ -n "$data_leg" ] || { log "could not pick a leg off the ESP disk ($esp_disk)"; exit 1; }
+# Every member, with the state mdadm reports for it. A fresh RAID 1 install
+# mirrors the entire device before the array is clean, throttled to
+# /proc/sys/dev/raid/speed_limit_max (200 MB/s by default), which on a ~900G
+# pair runs for over an hour no matter how little is stored. Waiting for it here
+# would be waiting for a copy onto the very disk this is about to wipe and
+# reformat as XFS: the rebuilding leg is the non-ESP one, which is the leg /data
+# takes. Removing it aborts the rebuild and leaves the root on the complete copy.
+legs="$(mdadm --detail "$root_dev" | awk '$NF ~ /^\/dev\// && $NF !~ /:$/ {
+  dev = $NF; s = ""; for (i = 5; i < NF; i++) s = s (s ? " " : "") $i; print dev "|" s }')"
 
-log "root=$root_dev esp_disk=$esp_disk -> handing $data_leg to /data"
+data_leg=""; data_state=""
+while IFS='|' read -r leg state; do
+  [ -z "$leg" ] && continue
+  [ "/dev/$(lsblk -no PKNAME "$leg")" = "$esp_disk" ] && continue
+  data_leg="$leg"; data_state="$state"
+done <<< "$legs"
+[ -n "$data_leg" ] || { log "no leg off the ESP disk ($esp_disk) to hand to /data"; exit 1; }
+
+# The only unsafe case: this leg is the array's sole in-sync copy while another
+# is rebuilding, so taking it would leave the root on an incomplete member.
+if [ "${data_state#*active sync}" != "$data_state" ] && grep -qE 'recovery|resync' /proc/mdstat; then
+  log "$data_leg is the only in-sync leg while $root_dev rebuilds; taking it would leave the root incomplete"
+  grep -E 'recovery|resync' /proc/mdstat >&2
+  exit 1
+fi
+
+log "root=$root_dev esp_disk=$esp_disk -> handing $data_leg to /data (mdadm state: ${data_state:-unknown})"
 
 mdadm "$root_dev" --fail "$data_leg"
-mdadm "$root_dev" --remove "$data_leg"
+# md does not release a device the moment it is failed: an in-flight rebuild has
+# to wind down first, and --remove returns EBUSY until it has.
+for _ in $(seq 1 60); do
+  mdadm "$root_dev" --remove "$data_leg" 2>/dev/null && break
+  sleep 2
+done
+if mdadm --detail "$root_dev" | grep -q "$data_leg"; then
+  log "$data_leg is still a member of $root_dev after 120s; refusing to format it"
+  exit 1
+fi
 # Drop to a clean single-device array so the root does not sit permanently
 # "degraded" and trip array monitoring.
 mdadm --grow "$root_dev" --raid-devices=1 --force

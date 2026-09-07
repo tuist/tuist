@@ -148,14 +148,29 @@ SSH key, the label, the tags, and the RAID 1 disk configuration chosen at order
 time. It **wipes** `/data` and its fstab entry, which is the conversion stage
 argued for above, now demonstrated rather than predicted.
 
-It also triggers a **fresh array resync of roughly 75 minutes**, during which the
-conversion must not run: splitting a rebuilding mirror leaves the root on a leg
-that was never fully populated, and `prep-vultr` refuses (verified against a
-real resyncing array). So the release-to-adoptable cycle is about 6.5 minutes of
-install plus over an hour of resync before the box can be converted and marked
-back into the pool. A `VultrMachine` reconciler has to treat that as a normal
-duration rather than a stall, and it is worth knowing before anyone sizes a
-`MachineHealthCheck` timeout against it.
+It also starts a **fresh array resync of roughly 75 minutes**, which is not
+worth waiting for. The rebuild copies all ~900G of the device, throttled to
+`/proc/sys/dev/raid/speed_limit_max` (200 MB/s by default, and the observed rate
+sits exactly on it, so the NVMe is not the limit), regardless of how little is
+stored. And it copies onto the very disk the conversion is about to wipe: the
+leg mdadm reports as `spare rebuilding` is the non-ESP one, which is the leg
+`/data` takes.
+
+So the conversion removes it instead, which aborts the rebuild and leaves the
+root on the `active sync` copy. The guard is not "no rebuild in progress" but
+the narrower and correct condition: refuse only when the leg being taken is the
+array's **sole in-sync member** while another rebuilds, since that is the case
+where taking it leaves the root incomplete.
+
+That collapses the release-to-adoptable cycle from over an hour to about 7
+minutes, essentially the reinstall itself. A `MachineHealthCheck` can be sized
+against that rather than against a resync nobody needs.
+
+Two details the implementation has to keep: `mdadm --remove` returns `EBUSY`
+until an in-flight rebuild winds down, so the failed leg needs a retry loop
+rather than a single call; and Vultr's notification for a reinstall reads
+"Has been successfully created!", identical to a new order, so a
+release-then-reinstall cycle emits one of those per release.
 
 ## Credential
 
