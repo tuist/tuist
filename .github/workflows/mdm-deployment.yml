@@ -1,18 +1,22 @@
 name: MDM Deployment
 
-# Deploys the self-hosted Apple MDM stack (infra/helm/mdm) to the staging
-# cluster.
+# Deploys the self-hosted Apple MDM stack (infra/helm/mdm).
 #
-# The `ref` input exists so a branch can be deployed to staging WITHOUT
+# There is one MDM instance and it owns every Mac we own, whatever
+# cluster that Mac ends up serving — the MDM manages a host before it
+# joins anything. The cluster named below is where the server is hosted,
+# not an environment tier, and there is no per-cluster MDM.
+#
+# The `ref` input exists so a branch can be deployed WITHOUT
 # merging it: the workflow definition is taken from the ref this workflow
 # is dispatched on (normally main), but the code, chart and images all
 # come from `ref`. That is the path used while validating the fleet MDM
 # against physical hardware, where the stack changes far more often than
 # it is ready to land on main.
 #
-# Staging only. The production instance enrolls devices against a
-# different, permanent hostname and gets its own release when the
-# prototype gauntlet passes.
+# The hostname is permanent: the MDM protocol cannot move an enrollment's
+# ServerURL, so changing it means DFU-reprovisioning every enrolled
+# machine.
 
 on:
   workflow_dispatch:
@@ -91,7 +95,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/tuist/scepserver:${{ steps.tag.outputs.image_tag }}
 
   deploy:
-    name: Deploy staging
+    name: Deploy
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -128,7 +132,7 @@ jobs:
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
-            -f "$HELM_CHART_PATH/values-staging.yaml" \
+            -f "$HELM_CHART_PATH/values-production.yaml" \
             --set images.enroller.tag="$IMAGE_TAG" \
             --set images.scep.tag="$IMAGE_TAG" \
             --atomic --timeout 15m --wait
