@@ -41,7 +41,7 @@ defmodule Tuist.Kura.Reconciler do
 
   Publication is convergence state. A public server is in sync when it
   is active on its desired image, carries the URL its region renders,
-  and that URL is mirrored into `account_cache_endpoints` — the table
+  and that URL is mirrored into `account_cache_endpoints`, the table
   the CLI resolves. A server missing from the mirror routes its account
   to the legacy cache lane while its own instance sits idle, and does so
   silently: the account still builds, so nothing errors and nothing
@@ -664,7 +664,7 @@ defmodule Tuist.Kura.Reconciler do
   # `account_cache_endpoints` is what the CLI resolves, so a public server is
   # converged only once its URL is mirrored there. Reading the mirror rather
   # than trusting the activation that wrote it means any path that drops the
-  # row — a drain unpublishing, a torn-down peer that shared the URL — heals on
+  # row (a drain unpublishing, a torn-down peer that shared the URL) heals on
   # the next tick, and a healthy server costs one indexed existence check.
   # Private regions never mirror their URL (the CLI cannot reach an in-cluster
   # endpoint), so they are in sync by definition, the rule `activate_server/2`

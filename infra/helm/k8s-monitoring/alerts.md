@@ -3273,7 +3273,7 @@ when it fires, and keep the sum in the rule.
 **Why zero is the right threshold.** Publication is not eventual.
 `Kura.activate_server/2` writes `kura_servers.url` and the
 `account_cache_endpoints` row in one transaction, so an instance is published
-from the instant it is active — there is no legitimate window in which an
+from the instant it is active. There is no legitimate window in which an
 active instance is unroutable, not even a short one. The 15-minute pending
 period is not a grace period for provisioning; it is there so a reconciler
 tick that is mid-republish, or a single failed activation the next tick
@@ -3295,8 +3295,8 @@ published in one five-minute burst, with publication lags of 51.5 h, 52.3 h,
 65.9 h and a maximum of about 52 days against an instance provisioned in
 mid-July. Every one of those accounts had a running, `Ready` instance the
 whole time and resolved `https://cache-*.tuist.dev` instead. Nothing errored,
-no queue grew, and no existing rule moved — which is why it was found by
-reading the table rather than by an alert.
+no queue grew, and no existing rule moved, so it was found by reading the
+table rather than by an alert.
 
 ### Kura region has room for one more instance
 

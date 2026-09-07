@@ -16,7 +16,7 @@ defmodule Tuist.Kura.PromExPlugin do
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
       inactivity windows are trading against.
-    * unpublished endpoints — active instances the CLI cannot resolve, because
+    * unpublished endpoints: active instances the CLI cannot resolve, because
       their URL is not mirrored into `account_cache_endpoints`. Every other
       Kura signal reads healthy while this is non-zero: the instance is up and
       answering, it is simply not being routed to, and the account keeps
