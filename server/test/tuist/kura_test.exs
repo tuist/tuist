@@ -1623,14 +1623,29 @@ defmodule Tuist.KuraTest do
       account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
       server = activate_public_server!(account, "local-controller")
 
-      assert Kura.cache_endpoint_published?(server)
+      assert Kura.published_cache_endpoint_server_ids([server.id]) == MapSet.new([server.id])
       assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{}
 
       [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
       Accounts.delete_account_cache_endpoint(endpoint)
 
-      refute Kura.cache_endpoint_published?(server)
+      assert Kura.published_cache_endpoint_server_ids([server.id]) == MapSet.new()
       assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{"local-controller" => 1}
+    end
+
+    test "separates published from unpublished servers in one batch" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      published = activate_public_server!(account, "local-controller")
+
+      other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      unpublished = activate_public_server!(other, "local-controller")
+      [endpoint] = Accounts.list_account_cache_endpoints(other, :kura)
+      Accounts.delete_account_cache_endpoint(endpoint)
+
+      assert Kura.published_cache_endpoint_server_ids([published.id, unpublished.id]) ==
+               MapSet.new([published.id])
+
+      assert Kura.published_cache_endpoint_server_ids([]) == MapSet.new()
     end
 
     test "does not read a mirror row for another URL on the same account as published" do
@@ -1648,7 +1663,7 @@ defmodule Tuist.KuraTest do
           technology: :kura
         })
 
-      refute Kura.cache_endpoint_published?(server)
+      assert Kura.published_cache_endpoint_server_ids([server.id]) == MapSet.new()
       assert Kura.unpublished_cache_endpoint_counts(["local-controller"]) == %{"local-controller" => 1}
     end
 

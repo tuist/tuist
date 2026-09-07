@@ -499,9 +499,17 @@ defmodule Tuist.Kura.Reconciler do
       |> Repo.all()
       |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 
-    latest = latest_deployments(Enum.map(servers, & &1.id))
+    server_ids = Enum.map(servers, & &1.id)
+    latest = latest_deployments(server_ids)
+    # One snapshot for the tick, alongside the deployments, rather than an
+    # existence check per server. Publication only moves here through
+    # `activate_server/2`, on the server being converged and on its own URL, so
+    # nothing in this loop can invalidate another row's entry; a row that moves
+    # under the snapshot costs at most one idempotent re-activation or one tick
+    # of delay.
+    published = Kura.published_cache_endpoint_server_ids(server_ids)
 
-    Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
+    Enum.each(servers, &project_server(&1, Map.get(latest, &1.id), published))
 
     :ok
   end
@@ -519,18 +527,18 @@ defmodule Tuist.Kura.Reconciler do
     |> Map.new(&{&1.kura_server_id, &1})
   end
 
-  defp project_server(%Server{}, nil), do: :ok
+  defp project_server(%Server{}, nil, _published), do: :ok
 
-  defp project_server(%Server{}, %Deployment{status: status}) when status in @open_deployment_statuses do
+  defp project_server(%Server{}, %Deployment{status: status}, _published) when status in @open_deployment_statuses do
     # Open deployment not in this tick's batch (ceiling/uniq). The
     # rollout fast path owns it; don't race.
     :ok
   end
 
-  defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
+  defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}, published) do
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
-        reconcile_manifest_revision(server, desired)
+        reconcile_manifest_revision(server, desired, published)
 
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
@@ -546,7 +554,7 @@ defmodule Tuist.Kura.Reconciler do
         # out-of-band was never recreated and the instance stranded. Re-applying
         # is idempotent; a genuinely broken rollout surfaces its own error each
         # tick instead of the instance disappearing.
-        apply_current_manifest(server, desired)
+        apply_current_manifest(server, desired, published)
 
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
@@ -554,34 +562,34 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  defp reconcile_manifest_revision(%Server{} = server, desired) do
+  defp reconcile_manifest_revision(%Server{} = server, desired, published) do
     case {Provisioner.manifest_revision(server), Provisioner.current_manifest_revision(server)} do
       {{:ok, nil}, _} ->
-        converge(server, desired)
+        converge(server, desired, published)
 
       {{:ok, desired_revision}, {:ok, desired_revision}} ->
-        converge(server, desired)
+        converge(server, desired, published)
 
       {{:ok, _desired_revision}, {:ok, _observed_revision}} ->
-        apply_current_manifest(server, desired)
+        apply_current_manifest(server, desired, published)
 
       {{:error, reason}, _} ->
         Logger.warning(
           "[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}"
         )
 
-        converge(server, desired)
+        converge(server, desired, published)
 
       {_, {:error, reason}} ->
         Logger.warning(
           "[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}"
         )
 
-        converge(server, desired)
+        converge(server, desired, published)
     end
   end
 
-  defp apply_current_manifest(%Server{} = server, image_tag) do
+  defp apply_current_manifest(%Server{} = server, image_tag, published) do
     inputs = %{
       image_tag: image_tag,
       account: server.account,
@@ -590,16 +598,16 @@ defmodule Tuist.Kura.Reconciler do
 
     case Provisioner.rollout(server, inputs) do
       :ok ->
-        converge(server, image_tag)
+        converge(server, image_tag, published)
 
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not re-apply manifest for server #{server.id}: #{inspect(reason)}")
-        converge(server, image_tag)
+        converge(server, image_tag, published)
     end
   end
 
-  defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) and endpoint_in_sync?(server) do
+  defp converge(%Server{} = server, desired, published) do
+    if converged?(server, desired) and endpoint_in_sync?(server, published) do
       refresh_node_port_url(server)
     else
       do_converge(server, desired)
@@ -629,8 +637,8 @@ defmodule Tuist.Kura.Reconciler do
 
   # The two derived things `converged?` does not track: the URL the region
   # renders, and whether that URL is published to the CLI.
-  defp endpoint_in_sync?(%Server{} = server) do
-    url_in_sync?(server) and cache_endpoint_in_sync?(server)
+  defp endpoint_in_sync?(%Server{} = server, published) do
+    url_in_sync?(server) and cache_endpoint_in_sync?(server, published)
   end
 
   # The URL the region template renders can change without the image changing
@@ -669,8 +677,8 @@ defmodule Tuist.Kura.Reconciler do
   # Private regions never mirror their URL (the CLI cannot reach an in-cluster
   # endpoint), so they are in sync by definition, the rule `activate_server/2`
   # applies too.
-  defp cache_endpoint_in_sync?(%Server{} = server) do
-    private_region?(server) or Kura.cache_endpoint_published?(server)
+  defp cache_endpoint_in_sync?(%Server{} = server, published) do
+    private_region?(server) or MapSet.member?(published, server.id)
   end
 
   defp private_region?(%Server{region: region_id}) do

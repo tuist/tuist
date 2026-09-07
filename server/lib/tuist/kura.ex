@@ -2091,20 +2091,28 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Whether the server's URL is mirrored into `account_cache_endpoints`, the
-  table the CLI resolves.
+  The subset of `server_ids` whose URL is mirrored into
+  `account_cache_endpoints`, the table the CLI resolves.
 
   The mirror, not `kura_servers`, is what routes an account: an instance
   missing from it is one the CLI cannot see, so the account keeps building
   against the legacy cache lane with nothing to error on. The reconciler
   converges on this, so it is read rather than assumed.
-  """
-  def cache_endpoint_published?(%Server{url: nil}), do: false
 
-  def cache_endpoint_published?(%Server{account_id: account_id, url: url}) do
-    AccountCacheEndpoint
-    |> where([e], e.account_id == ^account_id and e.technology == :kura and e.url == ^url)
-    |> Repo.exists?()
+  Answered for a whole batch in one query. The reconciler asks per server, and
+  a `Repo.exists?/1` each would be up to `@reconcile_batch_size` round trips a
+  tick, nearly all of them for servers that are already published.
+  """
+  def published_cache_endpoint_server_ids([]), do: MapSet.new()
+
+  def published_cache_endpoint_server_ids(server_ids) do
+    Server
+    |> from(as: :server)
+    |> where([s], s.id in ^server_ids)
+    |> where([s], exists(subquery(published_cache_endpoint_query())))
+    |> select([s], s.id)
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @doc """
@@ -2117,21 +2125,26 @@ defmodule Tuist.Kura do
   count is an account paying for an instance it is not being routed to.
   """
   def unpublished_cache_endpoint_counts(region_ids) do
-    published =
-      from(e in AccountCacheEndpoint,
-        where:
-          e.technology == :kura and e.account_id == parent_as(:server).account_id and
-            e.url == parent_as(:server).url
-      )
-
     Server
     |> from(as: :server)
     |> where([s], s.status == :active and s.region in ^region_ids)
-    |> where([s], not exists(subquery(published)))
+    |> where([s], not exists(subquery(published_cache_endpoint_query())))
     |> group_by([s], s.region)
     |> select([s], {s.region, count(s.id)})
     |> Repo.all()
     |> Map.new()
+  end
+
+  # Correlated against the `:server` binding the callers name, so both readers
+  # share one definition of what published means. A server with a nil `url`
+  # matches nothing and is therefore unpublished, which is what it is: an
+  # address the CLI cannot be handed.
+  defp published_cache_endpoint_query do
+    from(e in AccountCacheEndpoint,
+      where:
+        e.technology == :kura and e.account_id == parent_as(:server).account_id and
+          e.url == parent_as(:server).url
+    )
   end
 
   defp ensure_cache_endpoint(_account, nil), do: :ok

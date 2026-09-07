@@ -265,6 +265,26 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
   end
 
+  test "looks up endpoint publication once per tick, not once per server" do
+    for _ <- 1..3 do
+      {_account, server, deployment} = create_server()
+      {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+      mark_deployment_succeeded(deployment)
+    end
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+
+    # The projection already spends two Kubernetes round trips per server; an
+    # existence check each would add one DB round trip per server on top.
+    expect(Kura, :published_cache_endpoint_server_ids, 1, fn server_ids ->
+      assert length(server_ids) == 3
+      MapSet.new(server_ids)
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
   # A rollout abort or supersede cancels the open deployments it owns, which
   # can leave a replicating server with none. The rollout fast path drives open
   # deployments alone, so the projection is the only thing that reaches it.
