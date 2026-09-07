@@ -114,11 +114,6 @@ defmodule Noora.Table do
   slot(:empty_state, required: false)
 
   slot :col, required: true do
-    attr(:custom_row_link, :boolean,
-      doc:
-        "For the first column of a navigable row, render your own link with data-part=\"row-link\" instead of wrapping the slot. Use this to place independent controls beside the link."
-    )
-
     attr(:label, :string, required: false, doc: "The label of the column")
     attr(:icon, :string, doc: "An icon to render next to the label")
     attr(:patch, :string, doc: "A patch to apply to the column")
@@ -245,13 +240,9 @@ defmodule Noora.Table do
                       cell by a `::after` overlay (see table.css); every other cell gets a decorative
                       empty overlay anchor below. The row reads as one link — one tab stop, announced
                       once. --%>
-                      <%= if col[:custom_row_link] do %>
+                      <.link navigate={@row_navigate.(row)} data-part="row-link">
                         {render_slot(col, row)}
-                      <% else %>
-                        <.link navigate={@row_navigate.(row)} data-part="row-link">
-                          {render_slot(col, row)}
-                        </.link>
-                      <% end %>
+                      </.link>
                     <% @row_navigate && !is_expandable -> %>
                       <%!-- Decorative per-cell overlay: an empty real anchor stretched over the
                       cell (`<td>` IS a valid containing block in every engine — only `<tr>` is not,

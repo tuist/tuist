@@ -37,7 +37,7 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
 
-- Navigable table rows use one focusable first-cell link and decorative per-cell overlays. First-column slots with independent controls can set `custom_row_link` and supply their own `data-part="row-link"` anchor beside the controls; never nest buttons inside that anchor.
+- Navigable table rows use one focusable first-cell link and decorative per-cell overlays. Do not nest independent buttons or links inside the first-cell navigation link.
 - The LiveView chart hook supports opt-in `data-lazy="true"` initialization near
   the viewport. Keep offscreen updates and destruction safe, and register resize
   listeners once per hook lifetime rather than once per render.
