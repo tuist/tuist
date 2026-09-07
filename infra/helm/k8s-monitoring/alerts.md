@@ -4826,6 +4826,80 @@ is an interruption policy that should be reassessed with more history. It
 delays detection of low-volume regressions; the lower-percentile rules remain
 independent.
 
+**First firing above the floor, 2026-09-07: p99 14.56s, 1043 samples, D=13 — and
+not a regression.** p75 was 1.67s and flat over the preceding three days
+(1.17 -> 1.67), so the site was healthy for typical visitors the whole time.
+**Check p75 before investigating a p99 page.** The 13 sessions were spread over
+12 pages, 11 of them with a single session, and broke down as:
+
+- **Seven were one automated client.** Chrome on Linux X11, viewport exactly
+  1919x992, `browser_os="Linux unknown"`, one LCP sample per session, 47 such
+  sessions in 24h. Their origin timings were fast — `requestTime` 258-675ms,
+  `responseTime` 6-213ms, `pageLoadTime` 642ms — while `ttfb` read 12-31s,
+  because the wait sits before `fetchStart` with `dnsLookupTime`,
+  `tcpHandshakeTime`, `tlsNegotiationTime`, `redirectTime` and
+  `serviceWorkerTime` all zero. That gap is the crawler's own request queue, not
+  this service. It reached nothing private: 43 of its 47 samples were
+  `/users/log_in`, which carries `view_name=dashboard` and so looks like
+  dashboard traffic in a `view_name` breakdown. It was crawling public localized
+  docs and following the docs header's log-in link, ignoring `Disallow: /users/`.
+- **Two were restored documents.** Navigation entries with `ttfb`,
+  `requestTime`, `responseTime` and `tcpHandshakeTime` all zero but `duration`
+  53.0s and 7.4s. The 53s session's other navigation was normal (TTFB 567ms,
+  page load 1.38s). No one waited 53 seconds; these are not user-perceived
+  latency.
+- **Four were genuine**, one of them network distance (zh-CN client, 3.7s TCP
+  plus 3.4s TLS).
+
+Two rules of thumb fall out. `ttfb` far exceeding `requestTime + responseTime`
+with every connection phase at zero means client-side queueing. Every network
+phase at zero under a large `duration` means a restored document.
+
+Automated browsers are no longer instrumented: `shared/js/analytics.js` skips
+Faro entirely when `navigator.webdriver` is set, so these samples stop at the
+source rather than being filtered per rule. That flag only catches automation
+that does not hide itself. To check whether it worked, watch the fingerprint
+directly — it should fall to roughly zero:
+
+```logql
+count(sum by (session_id) (
+  count_over_time(
+    {service_name="tuist-web"}
+      | logfmt
+      | kind="measurement"
+      | type="web-vitals"
+      | app_environment="prod"
+      | lcp!=""
+      | browser_os="Linux unknown"
+      | browser_viewportWidth="1919"
+      | browser_viewportHeight="992"
+      | session_id!=""
+      | __error__="" [24h]
+  )
+))
+```
+
+**D scales with traffic**, which is worth remembering before reading a rise as a
+regression. It is an absolute count over 24h and it tracked the weekly cycle
+across these three days: 2-3 sessions at about 410 samples over the weekend, 13
+at about 1026 on the Monday. The poor-session *rate* did roughly double
+(0.5% -> 1.3%), so volume was not the whole story, but a rate would be a truer
+signal than a raw count.
+
+**The finding worth acting on was document weight, not the tail.** Dashboard
+navigations carry a p99 of 1.88 MB decoded HTML and a 24h peak of 8.26 MB
+(230 KB gzipped), against 610 KB for docs and 454 KB for marketing; the
+bundle-size-analysis pages serve 1.88 MB every time. The origin renders them
+quickly (TTFB 0.8-5.0s, `responseTime` 23-338ms), so this is invisible in server
+latency, but the size is a multiplier at both ends: the worst sample in the
+window (58.4s) spent 49.1s in the response phase moving that body, and a large
+DOM inflates `element_render_delay` directly — one real-user sample paired a
+249ms TTFB with 15.1s of element render delay. Image weight was not involved
+(`mise run marketing:image-budget` passed; `resource_load_duration` was
+122-153ms wherever present), and HTTP/1.1 is a client property rather than a
+route misconfiguration, appearing on 9-13% of navigations across every
+`view_name`.
+
 For per-page investigation, group the inner sum by
 `(app_environment, page_url, session_id)` and the outer count by
 `(app_environment, page_url)`. Three affected sessions on the same page is a
