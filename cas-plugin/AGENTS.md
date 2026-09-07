@@ -91,6 +91,8 @@ Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_
 
 Large publications negotiate the existing chunk capabilities before using missing-chunk uploads and splice. Independent Zstandard frames retain the original decoded node format. The publication memo pins the encoding choice with the digest so capability changes cannot change an already-described blob. See `tests/chunking_negotiation.rs`, `tests/content_defined_chunking.rs`, and `../kura/docs/client-chunking.md` for compatibility checks and benchmarks.
 
+Large downloads negotiate split support, reuse `src/chunk_cache.rs`'s bounded persistent transfer cache beside the proxy registry, and verify chunks plus assembled nodes before materialization. Keep the small-node inline fast path and the additive large-node inline limit; never move chunk reads or negotiation onto the action lookup/task-setup thread. Transfer chunks do not establish a valid action hit or replace the root-last closure guards. `batch_download_bytes` and `reused_chunk_bytes` in proxy stats describe transport work, not compilation avoided.
+
 A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:
 
 ```sh

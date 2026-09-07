@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import HTTPTypes
 import Mockable
+import OpenAPIRuntime
 import Testing
 import TuistServer
 
@@ -101,6 +102,7 @@ struct ContentDefinedChunkingTests {
         let url = URL(fileURLWithPath: directory.appending(component: "artifact").pathString)
         let project = "swift-chunks-\(UUID().uuidString)"
         let wire = LocalWire(base: base, project: project)
+        let chunkDirectory = URL(fileURLWithPath: directory.appending(component: "download-chunks").pathString)
         let original = corpus()
         let changed = original.prefix(1_000_000) + Data("an insertion".utf8) + original.dropFirst(1_000_000)
         let fixturePaths = ProcessInfo.processInfo.environment["TUIST_CHUNKING_MODULES"]?.split(separator: ":") ?? []
@@ -133,19 +135,40 @@ struct ContentDefinedChunkingTests {
             let (restored, response) = try await URLSession.shared.data(from: legacyURL)
             #expect((response as? HTTPURLResponse)?.statusCode == 200)
             #expect(restored == bytes)
+            let receivedBefore = await wire.downloadedBytes
+            let downloadStarted = Date()
+            let download = try await ChunkedModuleCacheDownloadService(directory: chunkDirectory).downloadIfSupported(
+                endpointKey: project, target: ["hash": "artifact-\(index)", "name": "Framework", "cache_category": "builds"]
+            ) { operation, method, data, extra in
+                try await wire.send(operation, method: method, data: data, extra: extra)
+            }
+            #expect(download == bytes)
+            let received = await wire.downloadedBytes - receivedBefore
+            print(
+                "BENCH module_download phase=\(index) whole_bytes=\(bytes.count) downloaded_bytes=\(received) elapsed_ms=\(Date().timeIntervalSince(downloadStarted) * 1000)"
+            )
+            if index == 1 { #expect(received < bytes.count / 2) }
         }
         let authentication = MockServerAuthenticationControlling()
         given(authentication).authenticationToken(serverURL: .any).willReturn(.project("local-test-token"))
         let tokens = MockCacheTokenStoring()
         given(tokens).cacheToken(authenticationURL: .any, fullHandle: .any).willReturn(nil)
         try original.write(to: url)
-        let uploaded = try await ChunkedModuleCacheUploadService(cacheTokenStore: tokens).uploadIfSupported(
-            artifactPath: directory.appending(component: "artifact"), accountHandle: "chunking-test", projectHandle: project,
-            hash: "production-transport", name: "Framework", cacheCategory: "builds",
-            serverURL: try #require(URL(string: base)), authenticationURL: try #require(URL(string: base)),
-            serverAuthenticationController: authentication
-        )
+        let uploaded = try await ChunkedModuleCacheUploadService(cacheTokenStore: tokens, chunkCacheDirectory: chunkDirectory)
+            .uploadIfSupported(
+                artifactPath: directory.appending(component: "artifact"),
+                accountHandle: "chunking-test",
+                projectHandle: project,
+                hash: "production-transport",
+                name: "Framework",
+                cacheCategory: "builds",
+                serverURL: try #require(URL(string: base)),
+                authenticationURL: try #require(URL(string: base)),
+                serverAuthenticationController: authentication
+            )
         #expect(uploaded)
+        let seeded = LocalChunkCache(directory: chunkDirectory, scope: "\(base)/chunking-test/\(project)")
+        #expect(seeded.get(try ContentDefinedChunking.scan(url).chunks[0].digest) != nil)
         let legacyURL =
             try #require(
                 URL(
@@ -155,6 +178,35 @@ struct ContentDefinedChunkingTests {
         let (restored, response) = try await URLSession.shared.data(from: legacyURL)
         #expect((response as? HTTPURLResponse)?.statusCode == 200)
         #expect(restored == original)
+        let legacyClient = TuistCache.Client.authenticated(
+            cacheURL: try #require(URL(string: base)), authenticationURL: try #require(URL(string: base)),
+            serverAuthenticationController: authentication
+        )
+        let legacyResponse = try await legacyClient.downloadModuleCacheArtifact(
+            path: .init(id: "production-transport"),
+            query: .init(
+                account_handle: "chunking-test",
+                project_handle: project,
+                hash: "production-transport",
+                name: "Framework",
+                cache_category: "builds"
+            )
+        )
+        if case let .ok(response) = legacyResponse, case let .binary(body) = response.body {
+            #expect(try await Data(collecting: body, upTo: original.count) == original)
+        } else { Issue.record("The unchanged generated reader must accept the binary content-type parameter") }
+        let downloaded = try await ChunkedModuleCacheDownloadService(directory: chunkDirectory, cacheTokenStore: tokens)
+            .downloadIfSupported(
+                accountHandle: "chunking-test",
+                projectHandle: project,
+                hash: "production-transport",
+                name: "Framework",
+                cacheCategory: "builds",
+                serverURL: try #require(URL(string: base)),
+                authenticationURL: try #require(URL(string: base)),
+                serverAuthenticationController: authentication
+            )
+        #expect(downloaded == original)
     }
 
     private actor StubWire {
@@ -183,6 +235,7 @@ struct ContentDefinedChunkingTests {
         let base: String
         let project: String
         var uploadedBytes = 0
+        var downloadedBytes = 0
 
         init(base: String, project: String) { self.base = base; self.project = project }
 
@@ -206,6 +259,7 @@ struct ContentDefinedChunkingTests {
             )
             if operation == "upload" { uploadedBytes += data?.count ?? 0 }
             let (bytes, response) = try await URLSession.shared.data(for: request)
+            if operation == "download" { downloadedBytes += bytes.count }
             return (try #require(response as? HTTPURLResponse).statusCode, bytes)
         }
     }

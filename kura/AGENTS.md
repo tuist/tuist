@@ -7,6 +7,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Entry points: `src/main.rs`, `src/app.rs`
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Negotiated module/Gradle upload deduplication: `src/http_chunking.rs`, `docs/client-chunking.md`. Completion must publish ordinary artifacts for old readers and peers; auxiliary chunks must remain project-scoped and use existing resource admission and cleanup.
+- Download manifests and chunk reads are separately negotiated, read-authorized, and bounded. Bind the auxiliary recipe by content digest through existing artifact metadata, never by a timestamp or mutable target key alone. Preserve full artifacts for legacy and mixed-version fallback.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`

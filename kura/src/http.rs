@@ -96,6 +96,8 @@ const ROUTE_CHUNK_CAPABILITIES: &str = "/api/cache/chunks/capabilities";
 const ROUTE_CHUNK_MISSING: &str = "/api/cache/chunks/missing";
 const ROUTE_CHUNK_UPLOAD: &str = "/api/cache/chunks/upload";
 const ROUTE_CHUNK_COMPLETE: &str = "/api/cache/chunks/complete";
+const ROUTE_CHUNK_MANIFEST: &str = "/api/cache/chunks/manifest";
+const ROUTE_CHUNK_DOWNLOAD: &str = "/api/cache/chunks/download";
 const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
 const ROUTE_INTERNAL_BACKFILL_ENTRIES: &str = "/_internal/backfill/entries";
 const ROUTE_INTERNAL_BACKFILL_BODIES: &str = "/_internal/backfill/bodies";
@@ -106,11 +108,13 @@ const ROUTE_INTERNAL_REPLICATE_ARTIFACTS: &str = "/_internal/replicate/artifacts
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 20] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 22] = [
     ROUTE_CHUNK_CAPABILITIES,
     ROUTE_CHUNK_MISSING,
     ROUTE_CHUNK_UPLOAD,
     ROUTE_CHUNK_COMPLETE,
+    ROUTE_CHUNK_MANIFEST,
+    ROUTE_CHUNK_DOWNLOAD,
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -294,6 +298,8 @@ fn public_routes() -> Router<SharedState> {
         .route(ROUTE_CHUNK_MISSING, post(chunking::missing))
         .route(ROUTE_CHUNK_UPLOAD, put(chunking::upload))
         .route(ROUTE_CHUNK_COMPLETE, post(chunking::complete))
+        .route(ROUTE_CHUNK_MANIFEST, get(chunking::manifest))
+        .route(ROUTE_CHUNK_DOWNLOAD, get(chunking::download))
 }
 
 fn internal_routes() -> Router<SharedState> {
@@ -1503,6 +1509,11 @@ async fn http_request_metadata(
         },
         ROUTE_CHUNK_MISSING | ROUTE_CHUNK_UPLOAD | ROUTE_CHUNK_COMPLETE => HttpRequestMetadata {
             operation: "artifact.write".into(),
+            tenant_id,
+            namespace_id,
+        },
+        ROUTE_CHUNK_MANIFEST | ROUTE_CHUNK_DOWNLOAD => HttpRequestMetadata {
+            operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
         },

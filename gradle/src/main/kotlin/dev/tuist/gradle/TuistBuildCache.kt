@@ -54,7 +54,12 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
         return TuistBuildCacheService(
             httpClient = httpClient,
-            isPushEnabled = configuration.isPush
+            isPushEnabled = configuration.isPush,
+            chunkCacheDirectory = java.io.File(
+                System.getenv("XDG_CACHE_HOME")?.takeIf { java.io.File(it).isAbsolute }
+                    ?: java.io.File(System.getProperty("user.home"), ".cache").path,
+                "tuist/gradle-download-chunks-v1"
+            )
         )
     }
 }
@@ -148,14 +153,29 @@ class DefaultConfigurationProvider(
  * When a 401 Unauthorized response is received, this service automatically
  * refreshes the configuration and retries the request.
  */
-class TuistBuildCacheService(
+class TuistBuildCacheService @JvmOverloads constructor(
     private val httpClient: TuistHttpClient,
-    private val isPushEnabled: Boolean
+    private val isPushEnabled: Boolean,
+    chunkCacheDirectory: java.io.File? = null
 ) : BuildCacheService {
-    private val chunkedUpload = ChunkedCacheUpload(httpClient)
+    private val chunkedUpload = ChunkedCacheUpload(httpClient, chunkCacheDirectory)
+    private val chunkedDownload = chunkCacheDirectory?.let { ChunkedCacheDownload(chunkedUpload, it) }
 
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
         return httpClient.execute { config ->
+            val assembled = chunkedDownload?.download(config, key.hashCode)
+            if (assembled != null) {
+                try {
+                    assembled.inputStream().use { reader.readFrom(it) }
+                    return@execute true
+                } catch (error: Throwable) {
+                    if (looksLikeInvalidCompressedCacheEntry(error)) {
+                        logger.warn("Tuist ignored an invalid compressed chunked cache entry for key {}", key.hashCode)
+                        return@execute false
+                    }
+                    throw cacheFailure("load", key.hashCode, buildCacheUrl(config, key.hashCode), "Failed to read assembled cache entry", cause = error)
+                } finally { assembled.delete() }
+            }
             val url = buildCacheUrl(config, key.hashCode)
             val cacheKey = key.hashCode
 
@@ -267,7 +287,7 @@ class TuistBuildCacheService(
     }
 
     override fun close() {
-        // No resources to clean up
+        chunkedDownload?.close()
     }
 
     internal fun buildCacheUrl(config: CacheConfiguration, cacheKey: String): URI {

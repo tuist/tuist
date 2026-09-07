@@ -1532,6 +1532,9 @@ impl Proxy {
             },
             self.tokens.clone(),
         );
+        if let Some(parent) = self.registry_path.as_deref().and_then(Path::parent) {
+            remote.enable_chunk_cache(parent.join("download-chunks-v1"), instance);
+        }
 
         self.remotes
             .lock()
@@ -3979,6 +3982,11 @@ impl Proxy {
                 state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
                 state.stats_publish_shed.load(Ordering::Relaxed),
             ));
+        }
+        drop(paths);
+        for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
+            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
+                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
         }
         parts.join(" | ")
     }

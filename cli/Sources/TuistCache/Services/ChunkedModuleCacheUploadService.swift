@@ -21,12 +21,14 @@ enum ChunkedModuleCacheUploadError: Error, HTTPStatusCodeError {
 struct ChunkedModuleCacheUploadService: Sendable {
     typealias Send = @Sendable (String, HTTPRequest.Method, Data?, [String: String]) async throws -> (Int, Data)
     private let cacheTokenStore: CacheTokenStoring
+    private let chunkCacheDirectory: URL?
 
-    init(cacheTokenStore: CacheTokenStoring = CacheTokenStore.shared) {
+    init(cacheTokenStore: CacheTokenStoring = CacheTokenStore.shared, chunkCacheDirectory: URL? = nil) {
         self.cacheTokenStore = cacheTokenStore
+        self.chunkCacheDirectory = chunkCacheDirectory
     }
 
-    private struct Capabilities: Decodable {
+    struct Capabilities: Decodable {
         let version: Int
         let algorithm: String
         let averageChunkBytes: Int
@@ -35,6 +37,7 @@ struct ChunkedModuleCacheUploadService: Sendable {
         let minimumBlobBytes: Int
         let maximumChunkBytes: Int
         let maximumChunks: Int
+        let downloadVersion: Int?
 
         var supported: Bool {
             version == 1 && algorithm == "fastcdc2020" && averageChunkBytes == 524_288 && seed == 0 && normalization == 2
@@ -90,7 +93,8 @@ struct ChunkedModuleCacheUploadService: Sendable {
         }
         try Task.checkCancellation()
         guard supported else { return false }
-        let artifact = try ContentDefinedChunking.scan(fileURL)
+        let cache = chunkCacheDirectory.map { LocalChunkCache(directory: $0, scope: endpointKey) }
+        let artifact = try ContentDefinedChunking.scan(fileURL) { digest, bytes in cache?.put(digest, bytes: bytes) }
         guard artifact.chunks.count > 1 else { return false }
         let digests = artifact.chunks.map(\.digest)
         let requested = Set(digests)
@@ -136,7 +140,7 @@ struct ChunkedModuleCacheUploadService: Sendable {
         return true
     }
 
-    private struct Context: Sendable {
+    struct Context: Sendable {
         private static let probeSession: URLSession = {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 5
@@ -174,7 +178,7 @@ struct ChunkedModuleCacheUploadService: Sendable {
     }
 }
 
-private actor ChunkUploadCapabilities {
+actor ChunkUploadCapabilities {
     static let shared = ChunkUploadCapabilities()
     private var values: [String: (supported: Bool, expires: Date)] = [:]
     private var pending: [String: Task<Bool, Never>] = [:]

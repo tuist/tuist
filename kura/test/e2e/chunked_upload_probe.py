@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise negotiated uploads and legacy reads, optionally across two nodes."""
+"""Exercise negotiated transfers and legacy reads, optionally across two nodes."""
 import argparse
 import hashlib
 import json
@@ -59,7 +59,27 @@ def main():
         assert body == whole
         status, body = request(args.reader, path, kind, extra=target, headers={"Range": "bytes=3-42"})
         assert status == 206 and body == whole[3:43]
-        print(f"{kind}: negotiated upload, missing-chunk rejection, legacy read and range passed")
+        while True:
+            status, body = request(args.reader, prefix + "manifest", kind, extra=target)
+            if status == 200:
+                break
+            assert time.monotonic() < deadline, (kind, status, body)
+            time.sleep(0.1)
+        assert json.loads(body) == completion
+        restored = bytearray()
+        local_chunks = {chunks[0]["hash"]: pieces[0]}
+        downloaded = 0
+        for chunk in json.loads(body)["chunks"]:
+            if chunk["hash"] in local_chunks:
+                piece = local_chunks[chunk["hash"]]
+            else:
+                status, piece = request(args.reader, prefix + "download", kind, extra=chunk)
+                assert status == 200
+                downloaded += len(piece)
+            assert digest(piece) == chunk
+            restored.extend(piece)
+        assert bytes(restored) == whole and downloaded == len(pieces[1])
+        print(f"{kind}: negotiated upload, missing-chunk rejection, legacy read/range, manifest and local chunk reuse passed")
 
 
 if __name__ == "__main__":

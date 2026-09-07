@@ -140,3 +140,99 @@ fn uploads_and_legacy_reads_against_kura() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires TUIST_CHUNKING_TEST_URL pointing at a local Kura"]
+fn downloads_reuse_chunks_across_actions_and_client_restarts() {
+    let url = std::env::var("TUIST_CHUNKING_TEST_URL").unwrap();
+    assert!(url.starts_with("http://127.0.0.1:"));
+    let instance = format!(
+        "download-rust-{}",
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    let directory = std::env::temp_dir().join(&instance);
+    let new_remote = || {
+        Remote::new(
+            RemoteConfig {
+                grpc_url: url.clone(),
+                instance: instance.clone(),
+            },
+            TokenProvider::from_env(),
+        )
+    };
+    let writer = new_remote();
+    let original = corpus();
+    let mut changed = original.clone();
+    changed.splice(1_000_000..1_000_000, b"an insertion".iter().copied());
+    let mut fixtures = vec![
+        ("controlled-cold".to_string(), original),
+        ("controlled-edited".to_string(), changed),
+    ];
+    if let Ok(paths) = std::env::var("TUIST_CHUNKING_ARTIFACTS") {
+        fixtures.extend(
+            paths
+                .split(':')
+                .map(|path| (path.to_string(), fs::read(path).unwrap())),
+        );
+    }
+    for (index, (name, data)) in fixtures.into_iter().enumerate() {
+        let blob = compress_frame_in_chunks(&encode_frame(&[], &data));
+        let digest = blob_digest(&blob);
+        writer
+            .batch_update(vec![(digest.clone(), blob.clone())])
+            .unwrap();
+        writer
+            .update_action(
+                format!("action-{index}").as_bytes(),
+                &[tuist_cas_plugin::reapi::ManifestEntry {
+                    llcas_digest: vec![index as u8; 32],
+                    blob: digest.clone(),
+                    contents: None,
+                }],
+                None,
+                None,
+            )
+            .unwrap();
+        // A genuinely new reader owns no in-memory state or compiler objects.
+        let reader = new_remote();
+        reader.enable_chunk_cache(directory.clone(), &format!("chunking-test/{instance}"));
+        let manifest = reader
+            .get_action(format!("action-{index}").as_bytes())
+            .unwrap()
+            .unwrap();
+        assert!(
+            manifest[0].contents.is_none(),
+            "large outputs must not bypass local chunks via inlining"
+        );
+        let started = Instant::now();
+        let restored = reader
+            .batch_read_after_action_result(&[digest.clone()])
+            .unwrap();
+        assert_eq!(restored[&digest.hash], blob);
+        let received = reader.downloaded_blob_bytes();
+        println!("BENCH xcode_download name={name} whole_bytes={} downloaded_bytes={received} reused_bytes={} elapsed_ms={:.3}", blob.len(), reader.reused_chunk_bytes(), started.elapsed().as_secs_f64() * 1000.0);
+        if index == 1 {
+            assert!(received < blob.len() as u64 / 2);
+        }
+        if index == 1 {
+            for entry in fs::read_dir(&directory).unwrap() {
+                let path = entry.unwrap().path();
+                if path.file_name().unwrap().to_string_lossy().starts_with('.') {
+                    continue;
+                }
+                fs::write(&path, vec![0; fs::metadata(&path).unwrap().len() as usize]).unwrap();
+            }
+            let repair = new_remote();
+            repair.enable_chunk_cache(directory.clone(), &format!("chunking-test/{instance}"));
+            assert_eq!(
+                repair.batch_read(&[digest.clone()]).unwrap()[&digest.hash],
+                blob
+            );
+            assert!(repair.downloaded_blob_bytes() > 0);
+        }
+    }
+    fs::remove_dir_all(directory).unwrap();
+}

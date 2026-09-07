@@ -73,6 +73,11 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling
     ) async throws -> Data {
+        if let bytes = try await ChunkedModuleCacheDownloadService().downloadIfSupported(
+            accountHandle: accountHandle, projectHandle: projectHandle, hash: hash, name: name, cacheCategory: cacheCategory,
+            serverURL: serverURL, authenticationURL: authenticationURL,
+            serverAuthenticationController: serverAuthenticationController
+        ) { return bytes }
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,

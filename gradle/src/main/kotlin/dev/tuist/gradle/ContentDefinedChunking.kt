@@ -47,15 +47,17 @@ internal object ContentDefinedChunking {
         return end
     }
 
-    fun scan(file: File): Artifact = file.inputStream().use(::scan)
+    fun scan(file: File, onChunk: ((Digest, ByteArray) -> Unit)? = null): Artifact = file.inputStream().use { scan(it, onChunk) }
 
-    fun scan(input: InputStream): Artifact {
+    fun scan(input: InputStream, onChunk: ((Digest, ByteArray) -> Unit)? = null): Artifact {
         val hasher = MessageDigest.getInstance("SHA-256")
         val chunks = mutableListOf<Chunk>()
         var offset = 0L
         forEachChunk(input) { buffer, count ->
             hasher.update(buffer, 0, count)
-            chunks.add(Chunk(digest(buffer, count), offset))
+            val digest = digest(buffer, count)
+            chunks.add(Chunk(digest, offset))
+            onChunk?.invoke(digest, buffer.copyOf(count))
             require(chunks.size <= 16_384) { "Too many artifact chunks" }
             offset += count
         }

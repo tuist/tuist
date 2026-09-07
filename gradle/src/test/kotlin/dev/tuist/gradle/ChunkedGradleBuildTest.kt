@@ -16,6 +16,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -29,6 +30,7 @@ class ChunkedGradleBuildTest {
         val base = System.getenv("TUIST_CHUNKING_TEST_URL")
         val project = "gradle-build-${System.nanoTime()}"
         val completed = AtomicInteger()
+        val downloaded = AtomicLong()
         val forwarding = HttpClient.newHttpClient()
         MockWebServer().use { proxy ->
             proxy.dispatcher = object : Dispatcher() {
@@ -43,6 +45,7 @@ class ChunkedGradleBuildTest {
                     request.getHeader("Content-Type")?.let { builder.header("Content-Type", it) }
                     val response = forwarding.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray())
                     if (path.startsWith("/api/cache/chunks/complete") && response.statusCode() == 204) completed.incrementAndGet()
+                    if (path.startsWith("/api/cache/chunks/download")) downloaded.addAndGet(response.body().size.toLong())
                     return MockResponse().setResponseCode(response.statusCode()).setBody(okio.Buffer().write(response.body()))
                 }
             }
@@ -61,7 +64,7 @@ class ChunkedGradleBuildTest {
                     BuildCacheService createBuildCacheService(FixtureCache config, BuildCacheServiceFactory.Describer describer) {
                         describer.type('Tuist chunking test')
                         def provider = { boolean refresh -> new CacheConfiguration('${proxy.url("/")}', 'test', 'chunking-test', '$project') } as ConfigurationProvider
-                        return new TuistBuildCacheService(new TuistHttpClient(provider, new TuistHttpClients(), 30000, 60000), true)
+                        return new TuistBuildCacheService(new TuistHttpClient(provider, new TuistHttpClients(), 30000, 60000), true, new File('${File(directory, "chunks").path}'))
                     }
                 }
                 rootProject.name = 'chunking-build'
@@ -94,6 +97,7 @@ class ChunkedGradleBuildTest {
                 .withArguments("fixture", "--build-cache", "--configuration-cache", "--no-watch-fs", "--stacktrace").build()
             assertEquals(TaskOutcome.SUCCESS, run().task(":fixture")?.outcome)
             assertEquals(1, completed.get(), "the real Gradle writer must use negotiated completion")
+            assertTrue(File(directory, "chunks").deleteRecursively(), "discard uploader chunks to force a cold remote download")
             val output = File(directory, "build/output.bin")
             assertContentEquals(bytes, output.readBytes())
             assertTrue(output.delete())
@@ -101,6 +105,12 @@ class ChunkedGradleBuildTest {
             assertEquals(TaskOutcome.FROM_CACHE, warm.task(":fixture")?.outcome)
             assertTrue(warm.output.contains("Reusing configuration cache"))
             assertContentEquals(bytes, output.readBytes())
+            assertTrue(downloaded.get() > 0, "first restore must exercise the chunk download route")
+            val coldBytes = downloaded.get()
+            assertTrue(output.delete())
+            assertEquals(TaskOutcome.FROM_CACHE, run().task(":fixture")?.outcome)
+            assertContentEquals(bytes, output.readBytes())
+            assertTrue(downloaded.get() - coldBytes < coldBytes / 2, "next build must reuse persisted chunks")
             File(directory, "settings.gradle").writeText("""
                 buildscript { dependencies { classpath files($classpath) } }
                 rootProject.name = 'chunking-build'

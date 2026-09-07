@@ -344,6 +344,9 @@ pub struct Remote {
     chunking: std::sync::Mutex<Option<(Instant, bool)>>,
     chunking_disabled_until_ms: AtomicU64,
     uploaded_blob_bytes: AtomicU64,
+    downloaded_blob_bytes: AtomicU64,
+    reused_chunk_bytes: AtomicU64,
+    chunk_cache: OnceLock<crate::chunk_cache::ChunkCache>,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
     // Epoch-ms until which `batch_read` skips its per-blob retries because the
@@ -549,6 +552,9 @@ impl Remote {
             chunking: std::sync::Mutex::new(None),
             chunking_disabled_until_ms: AtomicU64::new(0),
             uploaded_blob_bytes: AtomicU64::new(0),
+            downloaded_blob_bytes: AtomicU64::new(0),
+            reused_chunk_bytes: AtomicU64::new(0),
+            chunk_cache: OnceLock::new(),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
             pressure_backoff_until_ms: AtomicU64::new(0),
@@ -582,6 +588,15 @@ impl Remote {
     pub fn uploaded_blob_bytes(&self) -> u64 {
         self.uploaded_blob_bytes.load(Ordering::Relaxed)
     }
+
+    pub fn enable_chunk_cache(&self, directory: std::path::PathBuf, full_handle: &str) {
+        let _ = self.chunk_cache.set(crate::chunk_cache::ChunkCache::new(
+            directory, format!("{}\0{full_handle}", self.config.grpc_url),
+        ));
+    }
+
+    pub fn downloaded_blob_bytes(&self) -> u64 { self.downloaded_blob_bytes.load(Ordering::Relaxed) }
+    pub fn reused_chunk_bytes(&self) -> u64 { self.reused_chunk_bytes.load(Ordering::Relaxed) }
 
     pub fn uses_chunked_compression(&self, size: usize) -> bool {
         size >= 2 * 1024 * 1024 && self.supports_chunking()
@@ -734,7 +749,9 @@ impl Remote {
                 // matches no literal `"*"` path and inlines nothing, in which
                 // case the caller batch-reads as before.
                 inline_output_files: if inline_outputs {
-                    vec!["*".into()]
+                    if self.chunk_cache.get().is_some() {
+                        vec!["*".into(), "tuist-inline-max-bytes:2097151".into()]
+                    } else { vec!["*".into()] }
                 } else {
                     Vec::new()
                 },
@@ -831,7 +848,7 @@ impl Remote {
         let started = Instant::now();
         let result =
             batch_read_retrying(&self.pressure_backoff_until_ms, blobs, false, |pending| {
-                self.batch_read_once(pending)
+                self.batch_read_with_chunks(pending)
             });
         self.get_stats.record(started.elapsed());
         result
@@ -847,10 +864,85 @@ impl Remote {
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
         let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, true, |pending| {
-            self.batch_read_once(pending)
+            self.batch_read_with_chunks(pending)
         });
         self.get_stats.record(started.elapsed());
         result
+    }
+
+    fn batch_read_with_chunks(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
+        let Some(cache) = self.chunk_cache.get() else { return self.batch_read_once(blobs); };
+        if !blobs.iter().any(|blob| blob.size_bytes >= 2 * 1024 * 1024) || !self.supports_chunking() {
+            return self.batch_read_once(blobs);
+        }
+        let mut whole = Vec::new();
+        let mut outcomes = Vec::new();
+        for blob in blobs {
+            if blob.size_bytes < 2 * 1024 * 1024 || blob.size_bytes > 2 * 1024 * 1024 * 1024
+                || now_ms() < self.chunking_disabled_until_ms.load(Ordering::Relaxed) {
+                whole.push(blob.clone());
+                continue;
+            }
+            let mut client = self.cas_client()?.max_decoding_message_size(2 * 1024 * 1024);
+            let request = reapi::SplitBlobRequest {
+                instance_name: self.config.instance.clone(), blob_digest: Some(blob.clone()),
+                ..Default::default()
+            };
+            let recipe = match retry_call(|| runtime().block_on(client.split_blob(self.authed(request.clone())))) {
+                Ok(response) => response.into_inner(),
+                Err(status) if status.code() == tonic::Code::Unimplemented => {
+                    self.chunking_disabled_until_ms.store(now_ms() + 300_000, Ordering::Relaxed);
+                    whole.push(blob.clone()); continue;
+                }
+                Err(status) if matches!(status.code(), tonic::Code::NotFound | tonic::Code::FailedPrecondition) => {
+                    whole.push(blob.clone()); continue;
+                }
+                Err(status) => return Err(format!("split_blob: {status}")),
+            };
+            let chunks = recipe.chunk_digests;
+            if recipe.chunking_function != reapi::chunking_function::Value::FastCdc2020 as i32
+                || chunks.is_empty() || chunks.len() > 16_384
+                || chunks.iter().any(|c| c.size_bytes <= 0 || c.size_bytes > 2 * 1024 * 1024
+                    || c.hash.len() != 64 || !c.hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+                || chunks.iter().map(|c| c.size_bytes).sum::<i64>() != blob.size_bytes
+            {
+                whole.push(blob.clone()); continue;
+            }
+            let mut local = std::collections::HashMap::new();
+            let mut missing = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            for chunk in &chunks {
+                if !seen.insert(chunk.hash.clone()) { continue; }
+                if let Some(bytes) = cache.get(chunk) {
+                    self.reused_chunk_bytes.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+                    local.insert(chunk.hash.clone(), bytes);
+                } else { missing.push(chunk.clone()); }
+            }
+            let downloaded = batch_read_retrying(&self.pressure_backoff_until_ms, &missing, false, |pending| self.batch_read_once(pending))?;
+            for chunk in &missing {
+                if let Some(bytes) = downloaded.get(&chunk.hash).filter(|bytes| blob_digest(bytes) == *chunk) {
+                    cache.put(chunk, bytes);
+                }
+            }
+            local.extend(downloaded);
+            let mut assembled = Vec::new();
+            for chunk in &chunks {
+                let Some(bytes) = local.get(&chunk.hash).filter(|bytes| blob_digest(bytes) == *chunk) else { break; };
+                assembled.extend_from_slice(bytes);
+            }
+            if blob_digest(&assembled) == *blob {
+                outcomes.push((Some(blob.clone()), 0, assembled));
+            } else {
+                whole.push(blob.clone());
+            }
+        }
+        for outcome in self.batch_read_once(&whole)? {
+            if outcome.1 == 0 && outcome.0.as_ref().is_none_or(|digest| blob_digest(&outcome.2) != *digest) {
+                return Err("whole-blob fallback failed its integrity check".into());
+            }
+            outcomes.push(outcome);
+        }
+        Ok(outcomes)
     }
 
     /// One `BatchReadBlobs` pass: fetches `blobs` in size-bounded chunks
@@ -860,6 +952,7 @@ impl Remote {
     /// bytes)`: the RPC itself is retried inside, but a per-blob status rides
     /// out for `batch_read_retrying` to interpret and selectively re-request.
     fn batch_read_once(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
+        if blobs.is_empty() { return Ok(Vec::new()); }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
         let auth = self.authorization();
@@ -903,6 +996,7 @@ impl Remote {
         Ok(responses
             .into_iter()
             .map(|response| {
+                self.downloaded_blob_bytes.fetch_add(response.data.len() as u64, Ordering::Relaxed);
                 // The loop owns each response; move the bytes out rather than
                 // deep-copying every fetched blob (batches run to 32MB while
                 // the requesting compiler blocks on the resolve).
@@ -1003,6 +1097,9 @@ impl Remote {
             (blob_digest(bytes), bytes)
         })
         .collect();
+        if let Some(cache) = self.chunk_cache.get() {
+            for (digest, bytes) in &chunks { cache.put(digest, bytes); }
+        }
         if chunks.len() < 2 || chunks.len() > 16_384 {
             return Ok(false);
         }

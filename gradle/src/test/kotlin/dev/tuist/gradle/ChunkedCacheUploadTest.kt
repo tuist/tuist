@@ -8,6 +8,7 @@ import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheKey
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.io.OutputStream
 import java.net.URI
@@ -22,10 +23,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ChunkedCacheUploadTest {
-    private fun service(base: String, project: String = "project", push: Boolean = true) = TuistBuildCacheService(
+    @TempDir lateinit var directory: File
+    private fun service(base: String, project: String = "project", push: Boolean = true, chunks: File? = null) = TuistBuildCacheService(
         TuistHttpClient(object : ConfigurationProvider {
             override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(base, "test", "chunking-test", project)
-        }), push
+        }), push, chunks
     )
 
     private fun key(value: String) = object : BuildCacheKey {
@@ -87,6 +89,7 @@ class ChunkedCacheUploadTest {
     fun `production client round trips through local Kura with fewer uploaded bytes`() {
         val base = System.getenv("TUIST_CHUNKING_TEST_URL")
         val uploaded = AtomicLong()
+        val downloaded = AtomicLong()
         val metadata = AtomicLong()
         val requests = AtomicLong()
         val forwarding = HttpClient.newHttpClient()
@@ -100,10 +103,12 @@ class ChunkedCacheUploadTest {
                     val builder = HttpRequest.newBuilder(URI.create(base + request.path)).method(request.method!!, HttpRequest.BodyPublishers.ofByteArray(bytes))
                     request.getHeader("Content-Type")?.let { builder.header("Content-Type", it) }
                     val response = forwarding.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray())
+                    if (request.path!!.startsWith("/api/cache/chunks/download")) downloaded.addAndGet(response.body().size.toLong())
                     return MockResponse().setResponseCode(response.statusCode()).setBody(okio.Buffer().write(response.body()))
                 }
             }
-            val service = service(proxy.url("/").toString(), "gradle-chunks-${System.nanoTime()}")
+            val project = "gradle-chunks-${System.nanoTime()}"
+            val service = service(proxy.url("/").toString(), project)
             val original = chunkingCorpus()
             val insertion = original.copyOfRange(0, 1_000_000) + "an insertion".toByteArray() + original.copyOfRange(1_000_000, original.size)
             val fixtures = System.getenv("TUIST_CHUNKING_ARTIFACTS")?.split(':')?.map { File(it).readBytes() } ?: emptyList()
@@ -121,6 +126,16 @@ class ChunkedCacheUploadTest {
                 var restored = byteArrayOf()
                 assertTrue(service.load(key("abcd$index")) { input -> restored = GZIPInputStream(input).readBytes() })
                 assertContentEquals(bytes, restored)
+                val receivedBefore = downloaded.get()
+                val downloadStarted = System.nanoTime()
+                val newReader = service(proxy.url("/").toString(), project, push = false, chunks = directory)
+                try {
+                    assertTrue(newReader.load(key("abcd$index")) { input -> restored = GZIPInputStream(input).readBytes() })
+                } finally { newReader.close() }
+                assertContentEquals(bytes, restored)
+                val received = downloaded.get() - receivedBefore
+                println("BENCH gradle_download phase=$index legacy_bytes=${compressed.size} downloaded_bytes=$received elapsed_ms=${(System.nanoTime() - downloadStarted) / 1e6}")
+                if (index == 1) assertTrue(received < compressed.size / 2)
             }
         }
     }

@@ -89,7 +89,7 @@ enum ContentDefinedChunking {
         return end
     }
 
-    static func scan(_ url: URL) throws -> Artifact {
+    static func scan(_ url: URL, onChunk: ((Digest, Data) -> Void)? = nil) throws -> Artifact {
         let input = try FileHandle(forReadingFrom: url)
         defer { try? input.close() }
         var buffer = Data()
@@ -107,7 +107,9 @@ enum ContentDefinedChunking {
             let length = buffer.withUnsafeBytes { cut($0.bindMemory(to: UInt8.self)) }
             let bytes = Data(buffer.prefix(length))
             hasher.update(data: bytes)
-            chunks.append(Chunk(digest: digest(bytes), offset: offset))
+            let digest = digest(bytes)
+            chunks.append(Chunk(digest: digest, offset: offset))
+            onChunk?(digest, bytes)
             guard chunks.count <= 16384 else { throw ChunkedModuleCacheUploadError.tooManyChunks }
             offset += UInt64(length)
             buffer = Data(buffer.dropFirst(length))

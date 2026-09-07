@@ -10,17 +10,19 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
-internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
+internal class ChunkedCacheUpload(private val client: TuistHttpClient, private val chunkDirectory: File? = null) {
     private val gson = Gson()
-    private data class Capability(val supported: Boolean, val expires: Long)
+    private data class Capability(val supported: Boolean, val downloads: Boolean, val expires: Long)
     private val capabilities = ConcurrentHashMap<String, Capability>()
 
     fun supported(config: CacheConfiguration): Boolean {
         val key = endpointKey(config)
         capabilities[key]?.takeIf { it.expires > System.currentTimeMillis() }?.let { return it.supported }
+        var downloads = false
         val supported = try {
             val response = request(config, "capabilities", "GET")
             val body = if (response.first == 200) gson.fromJson(response.second, JsonObject::class.java) else null
+            downloads = body?.get("download_version")?.asInt == 1
             body != null && body["version"]?.asInt == 1 && body["algorithm"]?.asString == "fastcdc2020" &&
                 body["average_chunk_bytes"]?.asInt == 524288 && body["seed"]?.asInt == 0 &&
                 body["normalization"]?.asInt == 2 && body["minimum_blob_bytes"]?.asInt == ContentDefinedChunking.MAX_BYTES &&
@@ -31,8 +33,14 @@ internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
             false
         }
         if (capabilities.size >= 32) capabilities.clear()
-        capabilities[key] = Capability(supported, System.currentTimeMillis() + 300_000)
+        capabilities[key] = Capability(supported, supported && downloads, System.currentTimeMillis() + 300_000)
         return supported
+    }
+
+    fun downloadsSupported(config: CacheConfiguration): Boolean = supported(config) && capabilities[endpointKey(config)]?.downloads == true
+
+    fun disableDownloads(config: CacheConfiguration) {
+        capabilities[endpointKey(config)]?.let { capabilities[endpointKey(config)] = it.copy(downloads = false) }
     }
 
     /** False requests a whole upload, including a mixed-version node or an eviction race. */
@@ -46,7 +54,8 @@ internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
     }
 
     private fun uploadPrepared(config: CacheConfiguration, cacheKey: String, file: File): Boolean {
-        val artifact = ContentDefinedChunking.scan(file)
+        val cache = chunkDirectory?.let { LocalChunkCache(it, endpointKey(config)) }
+        val artifact = ContentDefinedChunking.scan(file, cache?.let { { digest, bytes -> it.put(digest, bytes) } })
         if (artifact.chunks.size < 2) return false
         val digests = artifact.chunks.map { it.digest }
         val byDigest = artifact.chunks.associateBy { it.digest }
@@ -82,11 +91,11 @@ internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
 
     private fun unsupported(config: CacheConfiguration, status: Int): Boolean {
         if (status !in listOf(404, 405, 501)) return false
-        capabilities[endpointKey(config)] = Capability(false, System.currentTimeMillis() + 300_000)
+        capabilities[endpointKey(config)] = Capability(false, false, System.currentTimeMillis() + 300_000)
         return true
     }
 
-    private fun endpointKey(config: CacheConfiguration) = "${config.url}/${config.accountHandle}/${config.projectHandle}"
+    fun endpointKey(config: CacheConfiguration) = "${config.url}/${config.accountHandle}/${config.projectHandle}"
 
     private fun checkStatus(actual: Int, expected: Int) {
         if (actual != expected) throw IOException("Tuist chunk upload failed with response $actual")
@@ -94,6 +103,12 @@ internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
 
     private fun request(config: CacheConfiguration, operation: String, method: String, bytes: ByteArray? = null,
                         extra: Map<String, String> = emptyMap()): Pair<Int, String> {
+        val response = requestBytes(config, operation, method, bytes, extra)
+        return response.first to String(response.second, StandardCharsets.UTF_8)
+    }
+
+    fun requestBytes(config: CacheConfiguration, operation: String, method: String, bytes: ByteArray? = null,
+                     extra: Map<String, String> = emptyMap()): Pair<Int, ByteArray> {
         val params = mapOf("account_handle" to config.accountHandle, "project_handle" to config.projectHandle, "kind" to "gradle") + extra
         val query = params.entries.joinToString("&") { (key, value) -> "$key=${URLEncoder.encode(value, StandardCharsets.UTF_8)}" }
         val url = URI.create("${config.url.trimEnd('/')}/api/cache/chunks/$operation?$query")
@@ -116,7 +131,7 @@ internal class ChunkedCacheUpload(private val client: TuistHttpClient) {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.use { it.readNBytes(2 * 1024 * 1024 + 1) } ?: byteArrayOf()
             if (body.size > 2 * 1024 * 1024) throw IOException("Tuist chunk response too large")
-            return status to String(body, StandardCharsets.UTF_8)
+            return status to body
         } finally {
             connection.disconnect()
         }

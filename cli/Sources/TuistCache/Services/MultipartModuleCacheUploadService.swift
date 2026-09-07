@@ -61,7 +61,7 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling
     ) async throws {
-        if try await ChunkedModuleCacheUploadService().uploadIfSupported(
+        if try await ChunkedModuleCacheUploadService(chunkCacheDirectory: LocalChunkCache.moduleDirectory).uploadIfSupported(
             artifactPath: artifactPath, accountHandle: accountHandle, projectHandle: projectHandle,
             hash: hash, name: name, cacheCategory: cacheCategory, serverURL: serverURL,
             authenticationURL: authenticationURL, serverAuthenticationController: serverAuthenticationController

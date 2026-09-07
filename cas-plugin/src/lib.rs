@@ -19,6 +19,7 @@ pub mod proxy;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
+pub mod chunk_cache;
 pub mod token;
 pub mod types;
 pub mod upstream;

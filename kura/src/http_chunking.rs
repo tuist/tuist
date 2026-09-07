@@ -45,7 +45,7 @@ struct MissingRequest {
     chunks: Vec<ChunkDigest>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct CompleteRequest {
     blob: ChunkDigest,
     chunks: Vec<ChunkDigest>,
@@ -127,6 +127,7 @@ pub(super) async fn capabilities(Query(params): Query<HashMap<String, String>>) 
     }
     Json(serde_json::json!({
         "version": 1,
+        "download_version": 1,
         "algorithm": "fastcdc2020",
         "average_chunk_bytes": 524288,
         "seed": 0,
@@ -381,13 +382,34 @@ async fn complete_inner(
         .await
         .map_err(|error| storage_error(error.to_string()))?;
     drop(output);
+    // Keep the recipe binding in metadata that old peers already preserve.
+    // The media type stays application/octet-stream, including for old clients.
+    // A content digest, unlike a timestamp, cannot alias a concurrent write.
+    let content_type = format!(
+        "application/octet-stream; tuist-chunks-sha256={}",
+        body.blob.hash
+    );
+    let recipe_bytes =
+        serde_json::to_vec(&body).map_err(|error| storage_error(error.to_string()))?;
+    state
+        .store
+        .persist_artifact_from_bytes_and_enqueue(
+            producer,
+            &namespace.namespace_id,
+            &recipe_key(&body.blob),
+            "application/json",
+            &recipe_bytes,
+            &replication_targets(state),
+        )
+        .await
+        .map_err(|error| persistence_error(state, error))?;
     let persisted = state
         .store
         .persist_artifact_from_path_and_enqueue(
             producer,
             &namespace.namespace_id,
             &key,
-            "application/octet-stream",
+            &content_type,
             StagedArtifactPath::new(&path, file_cache_policy),
             &replication_targets(state),
         )
@@ -416,6 +438,127 @@ async fn complete_inner(
         persisted.manifest.size,
     );
     Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+fn recipe_key(blob: &ChunkDigest) -> String {
+    format!("transfer_recipes/v1/{}/{}", blob.hash, blob.size)
+}
+
+pub(super) async fn manifest(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    match manifest_inner(&params, &state).await {
+        Ok(response) => response,
+        Err(response) => *response,
+    }
+}
+
+async fn manifest_inner(
+    params: &HashMap<String, String>,
+    state: &SharedState,
+) -> Result<Response, ErrorResponse> {
+    let namespace = namespace(params)?;
+    let producer = producer(params)?;
+    let key = if producer == ArtifactProducer::Module {
+        ModuleQuery::from_params(params)
+            .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?
+            .artifact_key()
+    } else {
+        required_param(params, "cache_key")
+            .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?
+    };
+    let artifact = state
+        .store
+        .fetch_artifact_for_serving(producer, &namespace.namespace_id, &key)
+        .await
+        .map_err(storage_error)?
+        .ok_or_else(|| error_response(StatusCode::NOT_FOUND, "artifact missing"))?;
+    let hash = artifact
+        .content_type
+        .strip_prefix("application/octet-stream; tuist-chunks-sha256=")
+        .ok_or_else(|| error_response(StatusCode::NOT_FOUND, "artifact has no chunk manifest"))?;
+    let blob = ChunkDigest {
+        hash: hash.into(),
+        size: artifact.size,
+    };
+    if !blob.valid(MAX_MODULE_TOTAL_BYTES) {
+        return Err(error_response(
+            StatusCode::NOT_FOUND,
+            "invalid manifest binding",
+        ));
+    }
+    let recipe = state
+        .store
+        .fetch_artifact_for_serving(producer, &namespace.namespace_id, &recipe_key(&blob))
+        .await
+        .map_err(storage_error)?
+        .ok_or_else(|| error_response(StatusCode::NOT_FOUND, "chunk manifest missing"))?;
+    if recipe.size > JSON_BYTES as u64 {
+        return Err(error_response(
+            StatusCode::NOT_FOUND,
+            "chunk manifest too large",
+        ));
+    }
+    let permit = state
+        .memory
+        .try_acquire_reapi_materialization(JSON_BYTES * 4)
+        .map_err(|()| overloaded_response("server is limiting chunk metadata memory"))?;
+    let bytes = state
+        .store
+        .read_artifact_bytes_tolerating_promotion(&recipe)
+        .await
+        .map_err(storage_error)?
+        .ok_or_else(|| error_response(StatusCode::NOT_FOUND, "chunk manifest evicted"))?;
+    let decoded: CompleteRequest = serde_json::from_slice(&bytes)
+        .map_err(|_| error_response(StatusCode::NOT_FOUND, "invalid chunk manifest"))?;
+    validate_chunks(&decoded.chunks)?;
+    if decoded.blob.hash != blob.hash
+        || decoded.blob.size != blob.size
+        || decoded.chunks.iter().map(|chunk| chunk.size).sum::<u64>() != blob.size
+    {
+        return Err(error_response(
+            StatusCode::NOT_FOUND,
+            "chunk manifest mismatch",
+        ));
+    }
+    let mut response = Json(decoded).into_response();
+    if let Some(permit) = permit {
+        attach_materialized_response_permit(&mut response, permit);
+    }
+    Ok(response)
+}
+
+pub(super) async fn download(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let (namespace, producer) =
+        match namespace(&params).and_then(|namespace| Ok((namespace, producer(&params)?))) {
+            Ok(value) => value,
+            Err(response) => return *response,
+        };
+    let digest = ChunkDigest {
+        hash: params.get("hash").cloned().unwrap_or_default(),
+        size: params
+            .get("size")
+            .and_then(|size| size.parse().ok())
+            .unwrap_or_default(),
+    };
+    if !digest.valid(MAX_CHUNK_BYTES as u64) {
+        return *error_response(StatusCode::BAD_REQUEST, "invalid chunk digest");
+    }
+    get_artifact(
+        state,
+        producer,
+        &namespace.namespace_id,
+        &digest.key(),
+        None,
+        None,
+        Some(namespace.usage_context()),
+        RangeRequest::default(),
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -458,6 +601,8 @@ mod tests {
         }), &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes())).unwrap();
         for (operation, method) in [
             ("capabilities", "GET"),
+            ("manifest", "GET"),
+            ("download", "GET"),
             ("missing", "POST"),
             ("upload", "PUT"),
             ("complete", "POST"),
@@ -483,6 +628,8 @@ mod tests {
             let status = app.clone().oneshot(read_only).await.unwrap().status();
             if operation == "capabilities" {
                 assert_eq!(status, StatusCode::OK);
+            } else if operation == "manifest" || operation == "download" {
+                assert_eq!(status, StatusCode::BAD_REQUEST);
             } else {
                 assert!(
                     matches!(
@@ -574,6 +721,35 @@ mod tests {
                 "{}",
                 response.text().await.unwrap()
             );
+            let manifest: Value = client
+                .get(format!("{}&{target}", url("manifest")))
+                .send()
+                .await
+                .unwrap()
+                .json()
+                .await
+                .unwrap();
+            assert_eq!(manifest, complete);
+            for (chunk, digest) in chunks.iter().zip(&digests) {
+                let endpoint = format!(
+                    "{}&hash={}&size={}",
+                    url("download"),
+                    digest["hash"].as_str().unwrap(),
+                    chunk.len()
+                );
+                let response = client.get(&endpoint).send().await.unwrap();
+                assert_eq!(response.status(), StatusCode::OK);
+                assert_eq!(response.bytes().await.unwrap().as_ref(), *chunk);
+                assert_eq!(
+                    client
+                        .get(endpoint.replace("namespace_id=project", "namespace_id=other"))
+                        .send()
+                        .await
+                        .unwrap()
+                        .status(),
+                    StatusCode::NOT_FOUND
+                );
+            }
             let path = if kind == "gradle" {
                 "gradle/abcdef"
             } else {
@@ -594,6 +770,48 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
             assert_eq!(response.bytes().await.unwrap().as_ref(), &bytes[3..10]);
+            // A later whole upload has no binding, so the older recipe cannot
+            // make the read return the previous artifact even if sizes match.
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            let key = if kind == "gradle" {
+                "abcdef".to_string()
+            } else {
+                ModuleQuery::from_params(&HashMap::from([
+                    ("tenant_id".into(), "test-tenant".into()),
+                    ("namespace_id".into(), "project".into()),
+                    ("hash".into(), "module-hash".into()),
+                    ("name".into(), "Framework".into()),
+                    ("cache_category".into(), "builds".into()),
+                ]))
+                .unwrap()
+                .artifact_key()
+            };
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes_and_enqueue(
+                    if kind == "gradle" {
+                        ArtifactProducer::Gradle
+                    } else {
+                        ArtifactProducer::Module
+                    },
+                    "project",
+                    &key,
+                    "application/octet-stream",
+                    &vec![b'x'; bytes.len()],
+                    &[],
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                client
+                    .get(format!("{}&{target}", url("manifest")))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                StatusCode::NOT_FOUND
+            );
         }
         server.abort();
     }
@@ -721,6 +939,8 @@ mod tests {
             ROUTE_CHUNK_MISSING,
             ROUTE_CHUNK_UPLOAD,
             ROUTE_CHUNK_COMPLETE,
+            ROUTE_CHUNK_MANIFEST,
+            ROUTE_CHUNK_DOWNLOAD,
         ] {
             assert!(!skips_authorization(route));
         }

@@ -27,6 +27,9 @@ enum Mode {
     Evicted,
     Unrequested,
     Incomplete,
+    InvalidRecipe,
+    CorruptDownload,
+    MissingDownload,
 }
 
 #[derive(Default)]
@@ -34,6 +37,8 @@ struct Calls {
     capabilities: usize,
     missing: usize,
     splice: usize,
+    split: usize,
+    reads: usize,
     blobs: HashMap<String, Vec<u8>>,
 }
 
@@ -125,15 +130,73 @@ impl ContentAddressableStorage for Server {
     }
     async fn split_blob(
         &self,
-        _: Request<api::SplitBlobRequest>,
+        request: Request<api::SplitBlobRequest>,
     ) -> Result<Response<api::SplitBlobResponse>, Status> {
-        Err(Status::unimplemented("unused"))
+        let mut calls = self.calls.lock().unwrap();
+        calls.split += 1;
+        if !matches!(
+            self.mode,
+            Mode::InvalidRecipe | Mode::CorruptDownload | Mode::MissingDownload
+        ) {
+            return Err(Status::unimplemented("mixed-version server"));
+        }
+        let digest = request.into_inner().blob_digest.unwrap();
+        let bytes = calls.blobs[&digest.hash].clone();
+        let chunks = bytes
+            .chunks(1024 * 1024)
+            .map(|bytes| {
+                let digest = blob_digest(bytes);
+                calls.blobs.insert(digest.hash.clone(), bytes.to_vec());
+                digest
+            })
+            .collect::<Vec<_>>();
+        Ok(Response::new(api::SplitBlobResponse {
+            chunk_digests: if matches!(self.mode, Mode::InvalidRecipe) {
+                vec![api::Digest {
+                    hash: "a".repeat(64),
+                    size_bytes: -1,
+                }]
+            } else {
+                chunks
+            },
+            chunking_function: api::chunking_function::Value::FastCdc2020 as i32,
+        }))
     }
     async fn batch_read_blobs(
         &self,
-        _: Request<api::BatchReadBlobsRequest>,
+        request: Request<api::BatchReadBlobsRequest>,
     ) -> Result<Response<api::BatchReadBlobsResponse>, Status> {
-        Err(Status::unimplemented("unused"))
+        let mut calls = self.calls.lock().unwrap();
+        calls.reads += 1;
+        Ok(Response::new(api::BatchReadBlobsResponse {
+            responses: request
+                .into_inner()
+                .digests
+                .into_iter()
+                .map(|digest| {
+                    let mut bytes = calls.blobs[&digest.hash].clone();
+                    let mut code = 0;
+                    if digest.size_bytes <= 1024 * 1024 {
+                        if matches!(self.mode, Mode::CorruptDownload) {
+                            bytes.fill(0);
+                        }
+                        if matches!(self.mode, Mode::MissingDownload) {
+                            bytes.clear();
+                            code = 5;
+                        }
+                    }
+                    api::batch_read_blobs_response::Response {
+                        digest: Some(digest),
+                        data: bytes,
+                        status: Some(BlobStatus {
+                            code,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }
+                })
+                .collect(),
+        }))
     }
     type GetTreeStream = Pin<
         Box<
@@ -146,6 +209,54 @@ impl ContentAddressableStorage for Server {
         _: Request<api::GetTreeRequest>,
     ) -> Result<Response<Self::GetTreeStream>, Status> {
         Err(Status::unimplemented("unused"))
+    }
+}
+
+#[test]
+fn download_negotiation_and_bad_chunk_responses_fall_back_to_whole_blobs() {
+    for (index, mode) in [
+        Mode::Old,
+        Mode::Disabled,
+        Mode::UnknownParameters,
+        Mode::Mixed,
+        Mode::InvalidRecipe,
+        Mode::CorruptDownload,
+        Mode::MissingDownload,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (remote, calls, _stop) = server(mode);
+        let directory = std::env::temp_dir().join(format!(
+            "chunk-download-wire-{}-{index}",
+            std::process::id()
+        ));
+        remote.enable_chunk_cache(directory.clone(), "tenant/project");
+        let bytes = vec![7; 3 * 1024 * 1024];
+        let digest = blob_digest(&bytes);
+        calls
+            .lock()
+            .unwrap()
+            .blobs
+            .insert(digest.hash.clone(), bytes.clone());
+        for _ in 0..2 {
+            assert_eq!(
+                remote.batch_read(&[digest.clone()]).unwrap()[&digest.hash],
+                bytes
+            );
+        }
+        let observed = calls.lock().unwrap();
+        assert_eq!(observed.capabilities, 1);
+        if matches!(mode, Mode::Old | Mode::Disabled | Mode::UnknownParameters) {
+            assert_eq!(observed.split, 0);
+        }
+        if matches!(mode, Mode::Mixed) {
+            assert_eq!(observed.split, 1);
+        }
+        assert!(observed.reads >= 2);
+        if directory.exists() {
+            std::fs::remove_dir_all(directory).unwrap();
+        }
     }
 }
 
