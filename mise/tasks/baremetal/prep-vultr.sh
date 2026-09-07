@@ -96,7 +96,13 @@ mkfs.xfs -f -m crc=1 "$data_leg"
 mkdir -p /data
 uuid="$(blkid -s UUID -o value "$data_leg")"
 sed -i '\| /data |d' /etc/fstab
-echo "UUID=$uuid /data xfs defaults,prjquota 0 2" >> /etc/fstab
+# nofail so a failed data disk cannot block boot -- placing /data off the ESP
+# disk is only worth something if the box still comes up without it. The quota
+# program then reports the volume as unbounded and kura_volume_quota_enforced
+# goes to 0, which is the intended loud no-op rather than an unschedulable node.
+# Pass 0 for the same reason: fsck must not hold boot on this filesystem.
+echo "UUID=$uuid /data xfs defaults,prjquota,nofail,x-systemd.device-timeout=30s 0 0" >> /etc/fstab
+systemctl daemon-reload
 mount /data
 
 # The array changed shape, so persist it or the next boot assembles the old one.
