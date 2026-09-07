@@ -4750,7 +4750,7 @@ Kura cannot make its scrape fail: coincident timestamps mean the failure is
 collection-side and no Kura investigation is warranted.
 
 ```promql
-up{cluster="tuist-production", job="kura", instance="<podIP>:4000"} == 0
+up{cluster="tuist-production", job="kura", instance="<namespace>/<pod>"} == 0
 ```
 
 ```promql

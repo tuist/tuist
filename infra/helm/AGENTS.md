@@ -18,6 +18,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+- Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
+  pod IP changes do not multiply series. Preserve the cluster label and the
+  unready scrape's `ready="false"` label when changing either scrape path.
 
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`
