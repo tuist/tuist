@@ -3063,6 +3063,87 @@ either way, because they fail differently: that one catches an unplaceable pod
 in any namespace, and this one catches a tenant below its replica count for
 reasons that never involve the scheduler.
 
+### Kura box cannot take back its largest replica
+
+The leading indicator for **Kura instance below its replica count** above, and
+the only one of the two that is readable *before* anything breaks. A Kura data
+volume is node-local and pins its replica to one box. When that box has
+committed so much of its `tuist.dev/memory-ceiling-mib` budget that the
+replica could not be placed back on it, the replica has nowhere else to go the
+moment it is deleted, so it sits `Pending` until somebody deletes the claim.
+This rule reads that state while the replica is still running.
+
+**Live**: rule `efxjihza4os1sc`, created 2026-09-07 in folder `Alerts`, group
+`Cache`, receiver `Slack #notifications 2`.
+
+The invariant, per box:
+
+```
+committed  <=  allocatable  -  largest single replica request
+```
+
+```promql
+(
+  sum by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+  +
+  max by (cluster, node) (kube_pod_container_resource_requests{namespace="kura", resource="tuist_dev_memory_ceiling_mib"})
+)
+-
+max by (cluster, node) (kube_node_status_allocatable{resource="tuist_dev_memory_ceiling_mib"})
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`. The value is how
+  far past the line the box is, in MiB
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK; execution-error state Alerting
+- Summary: `Kura box {{ $labels.node }} in {{ $labels.cluster }} is committed
+  {{ $values.A.Value | printf "%.0f" }} MiB past the point where its largest
+  replica could come back`
+
+**Why the seat is not simply held, which is what makes this worth watching.**
+Kubernetes accounts extended resources against *scheduled pods*, not against
+volumes. The moment a replica is deleted for any reason (a rollout, an eviction,
+a drain, the controller's own volume rebuild) its request stops being counted
+and another instance can take the headroom. Two things that look like they would
+fix that do not. Kura pods run at priority 0 with no PriorityClass, so a
+returning replica cannot preempt whatever took its seat; and on these boxes
+every competitor for the budget is another Kura pod (on the box that wedged:
+52992 MiB across 26 Kura pods, and exactly 0 from every other namespace), so a
+*uniform* PriorityClass would have nothing to preempt. A two-tier scheme that
+ranks an established replica above one being placed does not survive either,
+because a newcomer binds its volume in `PreBind` seconds after being scheduled
+and would be promoted almost immediately. There is no Kubernetes primitive that
+reserves capacity for a pod that is not currently scheduled, which is why this
+is a warning to act on rather than a mechanism.
+
+**Rollouts make it quieter, not noisier.** While a replica is down its request
+leaves the sum, so the value falls. The rule only rises when commitment
+genuinely grows, which is what it is for.
+
+**It fires on creation for one production box, and that is a true positive.**
+On 2026-09-07 the box that produced the two-day single-replica wedge sits about
+950 MiB over the line (52992 committed, 56138 allocatable, 4096 largest
+replica), while its sibling in the region is 6218 under and every other Kura box
+is further under still. Unlike the staging noise described under *Pod cannot be
+scheduled*, this is one alert naming one genuinely over-committed box, and it
+clears by adding capacity to the region. Do **not** clear it by shrinking an
+account's memory profile: that is the account's floor, not the box's slack.
+
+**Enforcement belongs elsewhere, deliberately.** This rule observes the
+invariant; nothing yet refuses an admission that would violate it. That belongs
+in `Tuist.Kura.Capacity` and the admission path, which already implements this
+exact shape for the other bin-packed dimension (`egress_headroom`, per box,
+`replicas x floor <= allocatable - other tenants`, with `max_floor_mbps`
+derived from it). The ceiling dimension has no equivalent, and it is now the
+binder in us-east. Two things to settle before enforcing it, which is why it did
+not ride along with the rule: the region reads differently the moment it is
+enforced (one of the two us-east boxes is already over the line, so us-east
+would immediately stop accepting placements there), and per-box headroom is a
+stronger statement than the region-level pressure fraction
+(`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
+on which is authoritative.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another
