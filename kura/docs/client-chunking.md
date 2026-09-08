@@ -26,6 +26,8 @@ Verified upload and download chunks share a disposable cache beside the proxy re
 
 Cold readers fetch all bytes and pay for recipe requests. Smaller chunks can reduce bytes while increasing compression cost, metadata, requests, and eviction. Measure wall time and memory as well as payload. Proxy `batch_download_bytes` and `reused_chunk_bytes` describe transport work, not compilation avoided.
 
+Background materialization and compiler-demand workers share active large-node reads against the same remote/project. Otherwise both can observe missing chunks before either finishes downloading them. The table is keyed by hash and size, capped at 128 active reads, and retains no completed-output cache. Waiters receive the same verified result; failures and worker panics wake them and release the entry for retry. Small-node batching and each caller's absence-retry policy remain unchanged. This is worker-side coordination, never a wait on Xcode's task-setup thread.
+
 ## Output-by-output investigation
 
 Inspect the actual cached graph, not just the generated file's extension. Swift's [output backend](https://github.com/swiftlang/swift/blob/main/lib/Frontend/CASOutputBackends.cpp) has both ordinary byte outputs and a separate structured-object path. Which path an installed Xcode uses must be measured. Keep existing graph reuse before chunking large leaves.
@@ -45,6 +47,8 @@ The first inventory on Xcode 26.5 / Swift 6.3.3, using the generated 16,000-stru
 Earlier isolated research on three historical ProjectDescription public edits found that reversible bitstream-field separation followed by a dictionary patch reduced payload by 63.7–85.2% compared with whole compression. A monolithic precompiled Foundation-header probe reduced it by 85.6%. **These are experimental codec measurements, not this implementation's chunking results.** Those prototypes are not enabled or shipped here. The real ProjectDescription modules compressed below the production threshold. Native inverse-transform timings excluded base preparation, disk access, networking, and final verification.
 
 An experimental codec needs a separate capability, tenant-scoped digest-pinned base selection, bounded memory/work, no unbounded patch chains, missing-base fallback, corrupt-input tests, and exact reconstruction of the compressed transport identity. Restoring just a module is insufficient: the blob digest covers its compressed frame and graph references. Do not redefine the existing chunk capability to mean a field transform or patch.
+
+The [eight-run automated search](../../cas-plugin/autoresearch.md) compared raw compression sizes, compression strength, and object-section resets across ten output pairs, holding transfer parameters fixed and checking exact reconstruction. Smaller raw frames were not consistently better. Section resets reduced warm payload by 24.1% for the C object and 0.98% for the Swift object, or 1.17% across the corpus. That candidate remains research-only; the production encoder is unchanged. The offline overlap model includes estimated recipe-entry overhead but not local eviction, network scheduling, or a representative customer distribution.
 
 ## Validation and benchmarks
 
@@ -108,10 +112,12 @@ The edited output inventories give the next optimization priorities. Matching by
 
 | Empty-store restore | Batch payload downloaded | Locally reused chunk bytes |
 | --- | ---: | ---: |
-| Base, cold reader | 36,700,750 | 0 |
-| Base, restarted reader retaining chunks | 1,238 | 36,700,088 |
-| Edited revision, reader retaining base chunks | 33,791,724 | 2,716,616 |
+| Base, cold reader | 18,351,285 | 0 |
+| Base, restarted reader retaining chunks | 452 | 18,350,047 |
+| Edited revision, reader retaining base chunks | 16,896,156 | 1,358,308 |
 
-These are aggregate proxy counters, not unique logical-output sizes: overlapping materialization/demand work can count the same node more than once. They exclude inline outputs, action metadata, and recipe metadata. The unchanged restore is not a cross-revision benchmark. The edited run's modest reuse reinforces why each output needs measuring; the large standalone-module benchmark is not representative of every Swift action.
+These final counters include shared active downloads. Before that change, a previous run of the same generated fixture downloaded 36,700,750 bytes cold and 33,791,724 after the edit: background and demand workers fetched the large nodes twice. The new runs roughly halve those batch payloads. The isolated wire test pins the mechanism exactly: two readers of one 3,145,728-byte node went from 6,291,456 transferred bytes and two split requests to 3,145,728 bytes and one split request.
+
+These are aggregate proxy counters, not unique logical-output sizes, and sequential reads can still repeat work. They exclude inline outputs, action metadata, and recipe metadata. Fresh fixture paths can change compressed output sizes slightly. The unchanged restore is not a cross-revision benchmark. The edited run's modest chunk similarity reinforces why each output needs measuring; the large standalone-module benchmark is not representative of every Swift action. The final cold, restarted, and edited restores took 2.730, 2.415, and 2.518 seconds respectively, single loopback observations with no demonstrated build-speed improvement.
 
 A fresh 16,000-struct debug integration build exceeded the harness's five-minute limit during its initial compilation. The 4,000-struct integration fixture retains chunk-eligible objects/modules and completes reliably; the larger corpus remains useful for standalone transfer measurements. Kura's 906 unit tests and strict Clippy check passed. The plugin's normal tests passed; an additional unsuppressed Clippy invocation stopped at two pre-existing raw-pointer safety diagnostics in `llcas_get_plugin_version`. With only that existing lint allowed on the command line, the inventory example check passed. No lint suppression was added to source.

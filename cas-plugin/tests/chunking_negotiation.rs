@@ -10,7 +10,7 @@ use std::{
     collections::HashMap,
     net::TcpListener,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Barrier, Mutex},
 };
 use tonic::{Request, Response, Status};
 use tuist_cas_plugin::{
@@ -30,6 +30,7 @@ enum Mode {
     InvalidRecipe,
     CorruptDownload,
     MissingDownload,
+    SlowDownload,
 }
 
 #[derive(Default)]
@@ -39,6 +40,7 @@ struct Calls {
     splice: usize,
     split: usize,
     reads: usize,
+    read_bytes: usize,
     blobs: HashMap<String, Vec<u8>>,
 }
 
@@ -136,7 +138,10 @@ impl ContentAddressableStorage for Server {
         calls.split += 1;
         if !matches!(
             self.mode,
-            Mode::InvalidRecipe | Mode::CorruptDownload | Mode::MissingDownload
+            Mode::InvalidRecipe
+                | Mode::CorruptDownload
+                | Mode::MissingDownload
+                | Mode::SlowDownload
         ) {
             return Err(Status::unimplemented("mixed-version server"));
         }
@@ -166,6 +171,9 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::BatchReadBlobsRequest>,
     ) -> Result<Response<api::BatchReadBlobsResponse>, Status> {
+        if matches!(self.mode, Mode::SlowDownload) {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        }
         let mut calls = self.calls.lock().unwrap();
         calls.reads += 1;
         Ok(Response::new(api::BatchReadBlobsResponse {
@@ -185,6 +193,7 @@ impl ContentAddressableStorage for Server {
                             code = 5;
                         }
                     }
+                    calls.read_bytes += bytes.len();
                     api::batch_read_blobs_response::Response {
                         digest: Some(digest),
                         data: bytes,
@@ -210,6 +219,46 @@ impl ContentAddressableStorage for Server {
     ) -> Result<Response<Self::GetTreeStream>, Status> {
         Err(Status::unimplemented("unused"))
     }
+}
+
+#[test]
+fn background_and_demand_reads_share_large_downloads() {
+    let (remote, calls, _stop) = server(Mode::SlowDownload);
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory =
+        std::env::temp_dir().join(format!("chunk-concurrent-{}-{nonce}", std::process::id()));
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    let bytes: Vec<u8> = (0..3).flat_map(|n| vec![n; 1024 * 1024]).collect();
+    let digest = blob_digest(&bytes);
+    calls
+        .lock()
+        .unwrap()
+        .blobs
+        .insert(digest.hash.clone(), bytes.clone());
+    let start = Barrier::new(2);
+    std::thread::scope(|scope| {
+        let demand = scope.spawn(|| {
+            start.wait();
+            remote.batch_read(std::slice::from_ref(&digest)).unwrap()
+        });
+        start.wait();
+        let background = remote
+            .batch_read_after_action_result(std::slice::from_ref(&digest))
+            .unwrap();
+        assert_eq!(background[&digest.hash], bytes);
+        assert_eq!(demand.join().unwrap()[&digest.hash], bytes);
+    });
+    let observed = calls.lock().unwrap();
+    println!(
+        "concurrent download bytes={} reads={} split={}",
+        observed.read_bytes, observed.reads, observed.split
+    );
+    assert_eq!(observed.read_bytes, bytes.len());
+    assert_eq!(observed.split, 1);
+    std::fs::remove_dir_all(directory).unwrap();
 }
 
 #[test]

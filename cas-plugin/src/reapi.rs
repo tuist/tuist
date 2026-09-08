@@ -16,7 +16,7 @@
 //!   LAST, so a reader can never observe an entry whose graph is incomplete.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
@@ -347,6 +347,7 @@ pub struct Remote {
     downloaded_blob_bytes: AtomicU64,
     reused_chunk_bytes: AtomicU64,
     chunk_cache: OnceLock<crate::chunk_cache::ChunkCache>,
+    shared_blob_reads: SharedBlobReads,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
     // Epoch-ms until which `batch_read` skips its per-blob retries because the
@@ -415,6 +416,84 @@ fn retryable_blob_status(code: i32) -> bool {
 /// echoed (`None` if it omitted it), the per-blob gRPC status code, and the
 /// bytes (empty unless the code is 0).
 type BlobOutcome = (Option<reapi::Digest>, i32, Vec<u8>);
+
+type SharedBlobResult = Result<Arc<Vec<BlobOutcome>>, String>;
+type BlobReadKey = (String, i64);
+const MAX_SHARED_BLOB_READS: usize = 128;
+
+#[derive(Default)]
+struct BlobRead {
+    result: Mutex<Option<SharedBlobResult>>,
+    ready: Condvar,
+}
+
+/// Share active large-node transfers across demand and background workers.
+/// Completed bytes live only as long as their current readers, not in a second
+/// unbounded output cache. Small blobs keep the existing batched fast path.
+#[derive(Default)]
+struct SharedBlobReads {
+    active: Mutex<std::collections::HashMap<BlobReadKey, Arc<BlobRead>>>,
+}
+
+struct BlobReadOwner<'a> {
+    reads: &'a SharedBlobReads,
+    key: BlobReadKey,
+    flight: Arc<BlobRead>,
+}
+
+impl Drop for BlobReadOwner<'_> {
+    fn drop(&mut self) {
+        // Worker panics must release waiters too. Never hold either lock while
+        // fetching, and remove the entry so a later caller can retry a failure.
+        self.flight
+            .result
+            .lock()
+            .unwrap()
+            .get_or_insert_with(|| Err("shared blob read interrupted".into()));
+        self.reads.active.lock().unwrap().remove(&self.key);
+        self.flight.ready.notify_all();
+    }
+}
+
+impl SharedBlobReads {
+    fn fetch(
+        &self,
+        digest: &reapi::Digest,
+        fetch: impl FnOnce() -> Result<Vec<BlobOutcome>, String>,
+    ) -> SharedBlobResult {
+        let key = (digest.hash.clone(), digest.size_bytes);
+        let (flight, leader) = {
+            let mut active = self.active.lock().unwrap();
+            if let Some(flight) = active.get(&key) {
+                (flight.clone(), false)
+            } else if active.len() < MAX_SHARED_BLOB_READS {
+                let flight = Arc::new(BlobRead::default());
+                active.insert(key.clone(), flight.clone());
+                (flight, true)
+            } else {
+                drop(active);
+                return fetch().map(Arc::new);
+            }
+        };
+        if leader {
+            let owner = BlobReadOwner {
+                reads: self,
+                key,
+                flight: flight.clone(),
+            };
+            let result = fetch().map(Arc::new);
+            *flight.result.lock().unwrap() = Some(result.clone());
+            drop(owner);
+            result
+        } else {
+            let mut result = flight.result.lock().unwrap();
+            while result.is_none() {
+                result = flight.ready.wait(result).unwrap();
+            }
+            result.as_ref().unwrap().clone()
+        }
+    }
+}
 
 /// The retry-and-backoff policy over one or more `BatchReadBlobs` passes,
 /// factored out of `batch_read` so it is exercised without a live server:
@@ -555,6 +634,7 @@ impl Remote {
             downloaded_blob_bytes: AtomicU64::new(0),
             reused_chunk_bytes: AtomicU64::new(0),
             chunk_cache: OnceLock::new(),
+            shared_blob_reads: SharedBlobReads::default(),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
             pressure_backoff_until_ms: AtomicU64::new(0),
@@ -871,6 +951,31 @@ impl Remote {
     }
 
     fn batch_read_with_chunks(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
+        if self.chunk_cache.get().is_none()
+            || !blobs.iter().any(|blob| {
+                (2 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&blob.size_bytes)
+            })
+            || !self.supports_chunking()
+        {
+            return self.batch_read_once(blobs);
+        }
+        let mut small = Vec::new();
+        let mut outcomes = Vec::new();
+        for blob in blobs {
+            if (2 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&blob.size_bytes) {
+                let result = self.shared_blob_reads.fetch(blob, || {
+                    self.batch_read_with_chunks_once(std::slice::from_ref(blob))
+                })?;
+                outcomes.extend(Arc::unwrap_or_clone(result));
+            } else {
+                small.push(blob.clone());
+            }
+        }
+        outcomes.extend(self.batch_read_with_chunks_once(&small)?);
+        Ok(outcomes)
+    }
+
+    fn batch_read_with_chunks_once(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
         let Some(cache) = self.chunk_cache.get() else { return self.batch_read_once(blobs); };
         if !blobs.iter().any(|blob| blob.size_bytes >= 2 * 1024 * 1024) || !self.supports_chunking() {
             return self.batch_read_once(blobs);
@@ -1416,6 +1521,104 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+
+    fn wait_for_blob_read_follower(reads: &super::SharedBlobReads, digest: &super::Digest) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            // The map, leader, and its unwind guard own three references.
+            let joined = reads
+                .active
+                .lock()
+                .unwrap()
+                .get(&(digest.hash.clone(), digest.size_bytes))
+                .is_some_and(|flight| std::sync::Arc::strong_count(flight) > 3);
+            if joined {
+                return;
+            }
+            assert!(std::time::Instant::now() < deadline, "reader did not join");
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn shared_blob_read_errors_and_panics_release_waiters_and_allow_retry() {
+        for panic in [false, true] {
+            let reads = super::SharedBlobReads::default();
+            let digest = super::blob_digest(b"shared");
+            let (started_tx, started_rx) = std::sync::mpsc::channel();
+            let (release_tx, release_rx) = std::sync::mpsc::channel();
+            std::thread::scope(|scope| {
+                let reads = &reads;
+                let digest = &digest;
+                let leader = scope.spawn(move || {
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        reads.fetch(digest, || {
+                            started_tx.send(()).unwrap();
+                            release_rx
+                                .recv_timeout(std::time::Duration::from_secs(5))
+                                .unwrap();
+                            assert!(!panic, "simulated worker panic");
+                            Err("simulated read error".into())
+                        })
+                    }))
+                });
+                started_rx
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+                let follower =
+                    scope.spawn(move || reads.fetch(digest, || panic!("duplicate transfer")));
+                wait_for_blob_read_follower(reads, digest);
+                release_tx.send(()).unwrap();
+                assert!(follower.join().unwrap().is_err());
+                let result = leader.join().unwrap();
+                if panic {
+                    assert!(result.is_err());
+                } else {
+                    assert!(result.unwrap().is_err());
+                }
+            });
+            assert!(reads.active.lock().unwrap().is_empty());
+            assert!(reads.fetch(&digest, || Ok(Vec::new())).is_ok());
+        }
+    }
+
+    #[test]
+    fn shared_blob_reads_do_not_serialize_other_digests_or_retain_results() {
+        let reads = super::SharedBlobReads::default();
+        let digest = super::blob_digest(b"first");
+        let result = reads
+            .fetch(&digest, || {
+                // Even the same hash with a different size must not join this read.
+                let other = super::Digest {
+                    size_bytes: digest.size_bytes + 1,
+                    ..digest.clone()
+                };
+                assert!(reads.fetch(&other, || Ok(Vec::new())).is_ok());
+                Ok(vec![(Some(digest.clone()), 0, b"first".to_vec())])
+            })
+            .unwrap();
+        assert!(reads.active.lock().unwrap().is_empty());
+        assert_eq!(std::sync::Arc::strong_count(&result), 1);
+        let retained = std::sync::Arc::downgrade(&result);
+        drop(result);
+        assert!(retained.upgrade().is_none());
+    }
+
+    #[test]
+    fn shared_blob_reads_bypass_coalescing_at_the_bookkeeping_limit() {
+        let reads = super::SharedBlobReads::default();
+        for index in 0..super::MAX_SHARED_BLOB_READS {
+            reads
+                .active
+                .lock()
+                .unwrap()
+                .insert((index.to_string(), 1), std::sync::Arc::default());
+        }
+        assert!(reads
+            .fetch(&super::blob_digest(b"overflow"), || Ok(Vec::new()))
+            .is_ok());
+        assert_eq!(reads.active.lock().unwrap().len(), super::MAX_SHARED_BLOB_READS);
+    }
 
     #[test]
     fn recognises_a_refusal_the_caller_can_act_on() {
