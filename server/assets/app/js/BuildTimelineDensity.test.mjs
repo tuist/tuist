@@ -13,42 +13,36 @@ const step = (id, start, duration, category = "swiftCompilation") => ({
   project: "Workspace",
 });
 
-test("dense overlap uses bounded readable groups without losing late activity", () => {
+test("dense overlaps preserve every step in individual execution lanes", () => {
   const events = normalizeEvents([
-    ...Array.from({ length: 2000 }, (_, id) => step(id, 10, 20)),
-    step(2001, 900, 50, "linker"),
+    ...Array.from({ length: 255 }, (_, id) => step(id, 10, 20, id % 2 ? "linker" : "swiftCompilation")),
+    step(256, 900, 50, "linker"),
   ]);
   const layout = densityLayout(events, { start: 0, span: 1000 }, 480);
-  assert.equal(layout.grouped, true);
-  assert.ok(layout.events.length <= 768);
-  assert.ok(layout.height <= 480);
-  assert.ok(layout.events.some((e) => e.kind === "compile" && e.count === 2000));
-  assert.ok(layout.events.some((e) => e.kind === "link" && e.start_ms >= 890));
-  assert.ok(!layout.events.some((e) => e.start_ms > 100 && e.start_ms < 800));
+  assert.equal(layout.grouped, false);
+  assert.equal(layout.events.length, 256);
+  assert.equal(layout.lanes, 255);
+  assert.equal(layout.events[0].rowHeight, 26);
+  assert.equal(layout.events[1].lane, 1);
+  assert.equal(layout.events.at(-1).lane, 0);
+  assert.ok(layout.events.every((e) => e.y + e.rowHeight <= 480));
+  assert.ok(layout.events.every((e) => !e.aggregate && e.title));
 });
-test("zooming into a sparse interval returns individual inspectable steps", () => {
+
+test("zooming into a sparse interval restores readable full-height lanes", () => {
   const events = normalizeEvents([step(1, 0, 500), step(2, 800, 50)]);
   const layout = densityLayout(events, { start: 800, span: 50 }, 480);
-  assert.equal(layout.grouped, false);
   assert.deepEqual(
     layout.events.map((e) => e.event_id),
     [2],
   );
-});
-test("server aggregates retain counts and failure classification", () => {
-  const events = normalizeEvents([
-    { ...step("failure:0", 0, 10, "failure"), aggregate: true, count: 42, status: "failure" },
-  ]);
-  const layout = densityLayout(events, { start: 0, span: 1280 }, 480);
-  assert.equal(layout.events.length, 1);
-  assert.equal(layout.events[0].count, 42);
-  assert.equal(layout.events[0].kind, "failure");
+  assert.equal(layout.events[0].rowHeight, 26);
 });
 
-test("panning does not reinterpret existing server bucket counts", () => {
-  const events = normalizeEvents([{ ...step("compile:0", 100, 10), aggregate: true, count: 42 }]);
-  const layout = densityLayout(events, { start: 105, span: 11 }, 480);
-  assert.equal(layout.events.length, 1);
-  assert.equal(layout.events[0].count, 42);
-  assert.equal(layout.events[0].start_ms, 100);
+test("repeated zooms do not corrupt lane positions", () => {
+  const events = normalizeEvents(Array.from({ length: 1000 }, (_, id) => step(id, id * 10, 1000)));
+  const before = densityLayout(events, { start: 0, span: 10000 }, 480).events.map((e) => e.y);
+  densityLayout(events, { start: 5000, span: 10 }, 320);
+  const after = densityLayout(events, { start: 0, span: 10000 }, 480).events.map((e) => e.y);
+  assert.deepEqual(after, before);
 });

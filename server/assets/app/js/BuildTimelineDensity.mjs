@@ -1,54 +1,21 @@
-import { categoryFor, layoutEvents, ROW_HEIGHT } from "./BuildTimelineModel.mjs";
+import { layoutEvents, ROW_HEIGHT } from "./BuildTimelineModel.mjs";
 
-const kinds = ["compile", "link", "script", "resource", "other", "failure"];
-
-// Buckets describe steps overlapping an interval, not CPU lanes or utilization.
+// Preserve individual operations and overlap lanes. Keep the first lanes readable,
+// then compress excess concurrency into the remaining height instead of grouping by type.
 export function densityLayout(events, range, height) {
   const layout = layoutEvents(events, range);
-  if (!events.some((event) => event.aggregate) && layout.lanes * ROW_HEIGHT <= height - 16) {
-    return { ...layout, grouped: false };
-  }
-  const buckets = new Map();
-  const bins = 128;
-  const width = range.span / bins;
+  const available = Math.max(1, height - 16);
+  const full =
+    layout.lanes * ROW_HEIGHT <= available ? layout.lanes : Math.min(8, Math.floor(available / ROW_HEIGHT / 2));
+  const compact = (available - full * ROW_HEIGHT) / Math.max(1, layout.lanes - full);
+  const rows = Array.from({ length: layout.lanes }, (_, lane) => ({
+    y: 8 + (lane < full ? lane * ROW_HEIGHT : full * ROW_HEIGHT + (lane - full) * compact),
+    height: lane < full ? ROW_HEIGHT : compact,
+  }));
   for (const event of layout.events) {
-    if (event.aggregate) {
-      buckets.set(event.event_id, event);
-      continue;
-    }
-    const kind = event.status === "failure" ? "failure" : categoryFor(event.category);
-    const first = Math.max(0, Math.floor((event.start_ms - range.start) / width));
-    const last = Math.min(bins - 1, Math.ceil((event.end - range.start) / width - 1e-8) - 1);
-    for (let bin = first; bin <= last; bin++) {
-      const key = `${kind}:${bin}`;
-      const bucket = buckets.get(key) || {
-        event_id: key,
-        aggregate: true,
-        kind,
-        category: kind,
-        count: 0,
-        title: "",
-        target: "",
-        project: "",
-        status: kind === "failure" ? "failure" : "success",
-        start_ms: range.start + bin * width,
-        duration_ms: width,
-        end: range.start + (bin + 1) * width,
-      };
-      bucket.count += 1;
-      buckets.set(key, bucket);
-    }
+    event.lane = Math.round((event.y - 8) / ROW_HEIGHT);
+    event.y = rows[event.lane].y;
+    event.rowHeight = rows[event.lane].height;
   }
-  const activeKinds = kinds.filter((kind) => [...buckets.values()].some((event) => event.kind === kind));
-  const grouped = [...buckets.values()].sort(
-    (a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind) || a.start_ms - b.start_ms,
-  );
-  for (const event of grouped) event.y = 8 + activeKinds.indexOf(event.kind) * 48;
-  return {
-    events: grouped,
-    lanes: activeKinds.length,
-    height: activeKinds.length * 48 + 16,
-    grouped: true,
-    kinds: activeKinds,
-  };
+  return { ...layout, rows, height, grouped: false };
 }

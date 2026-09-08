@@ -11,7 +11,6 @@ import {
   cursorTimeLabel,
   scrollGeometry,
   scrollStart,
-  ROW_HEIGHT,
 } from "./BuildTimelineModel.mjs";
 import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
 import { bindDragFocus } from "./BuildTimelineFocus.mjs";
@@ -48,7 +47,10 @@ export default {
       (end, event) => Math.max(end, event.end),
       Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
     );
-    this.range = { start: 0, span: this.duration };
+    this.maxSpan = timeline.max_span || Math.min(this.duration, 30_000);
+    this.range = timeline.range || { start: 0, span: Math.min(this.duration, 10_000) };
+    this.initialRange = { ...this.range };
+    this.loadedRange = timeline.loaded_range || { ...this.range };
     this.logRequest = ++nextLogRequest;
     this.palette = null;
     this.part("payload-loading").hidden = true;
@@ -208,7 +210,9 @@ export default {
   filter() {
     this.search = this.control("search").value;
     this.select(null);
-    this.range = { start: 0, span: this.duration };
+    this.range = { ...this.initialRange };
+    this.loadedRange = null;
+    this.resetRange = true;
     this.events = [];
     this.filtered = [];
     this.relayout();
@@ -216,30 +220,29 @@ export default {
 
   relayout(fetch = true) {
     this.cancelFocus();
-    this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
-    for (const event of this.layout.events) {
-      if (event.aggregate) event.title = `${event.count.toLocaleString()} ${this.el.dataset.stepsLabel}`;
-    }
-    this.part("grouped-label").hidden = !this.layout.grouped;
-    this.syncScroll();
-    this.part("no-matches").hidden =
-      fetch || this.chart.getAttribute("aria-busy") === "true" || this.layout.events.length > 0;
+    this.layoutDirty = true;
     this.hideTooltip();
     if (fetch) {
       this.rangeRequest = ++nextRangeRequest;
-      this.chart.setAttribute("aria-busy", "true");
-      this.requestRange();
+      const cached =
+        this.loadedRange &&
+        this.range.start >= this.loadedRange.start &&
+        this.range.start + this.range.span <= this.loadedRange.start + this.loadedRange.span;
+      this.chart.setAttribute("aria-busy", String(!cached));
+      if (!cached) this.requestRange();
     }
     this.scheduleDraw();
   },
 
   loadRange() {
+    if (this.chart.getAttribute("aria-busy") !== "true") return;
     const request = this.rangeRequest;
     this.part("range-error").hidden = true;
     this.pushEvent("load-timeline-range", {
       version: Number(this.payload),
       request_id: request,
       ...this.range,
+      reset: !!this.resetRange,
       search: this.search,
       target: this.target,
       project: this.project,
@@ -255,13 +258,18 @@ export default {
     this.chart.setAttribute("aria-busy", "false");
     this.part("range-error").hidden = !error;
     if (error) return;
+    this.loadedRange = timeline.loaded_range || timeline.range;
+    if (this.resetRange) {
+      this.range = timeline.range;
+      this.initialRange = { ...this.range };
+      this.resetRange = false;
+    }
     this.events = normalizeEvents(timeline.events);
     this.filtered = this.events;
     this.relayout(false);
   },
 
   syncScroll() {
-    if (!this.layout) return;
     const availableHeight = Math.max(
       320,
       Math.min(480, window.innerHeight - this.scrollport.getBoundingClientRect().top - 32),
@@ -281,7 +289,7 @@ export default {
   },
 
   setRange(start, span) {
-    this.range = clampRange(start, span, this.duration);
+    this.range = clampRange(start, Math.min(span, this.maxSpan), this.duration);
     this.relayout();
   },
 
@@ -329,7 +337,7 @@ export default {
   },
 
   zoom(factor, anchor = 0.5) {
-    const range = zoomRange(this.range, factor, anchor, this.duration);
+    const range = zoomRange(this.range, Math.min(factor, this.maxSpan / this.range.span), anchor, this.duration);
     this.setRange(range.start, range.span);
   },
 
@@ -337,6 +345,13 @@ export default {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = null;
+      if (this.layoutDirty) {
+        this.layoutDirty = false;
+        this.syncScroll();
+        this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
+        this.part("no-matches").hidden =
+          this.chart.getAttribute("aria-busy") === "true" || this.layout.events.length > 0;
+      }
       this.draw();
     });
   },
@@ -344,12 +359,13 @@ export default {
   context(canvas, height) {
     const width = this.scrollport.clientWidth;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
+    if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
+    if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.textAlign = "left";
     ctx.font = this.fonts.body;
     return { ctx, width };
   },
@@ -399,9 +415,6 @@ export default {
     const inset = 12;
     const plotWidth = width - inset * 2;
     const x = (ms) => inset + ((ms - this.range.start) / this.range.span) * plotWidth;
-    const rowHeight = this.layout.grouped ? 48 : ROW_HEIGHT;
-    const gap = Math.min(2, rowHeight * 0.1);
-    const barHeight = this.layout.grouped ? 24 : rowHeight - gap * 2;
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, height);
     this.drawRuler(inset, plotWidth, colors);
@@ -417,9 +430,10 @@ export default {
     }
     ctx.globalAlpha = 1;
     this.rectsByLane = [];
-    this.rowHeight = rowHeight;
     for (const event of this.layout.events) {
-      const top = event.y + gap + (this.layout.grouped ? 18 : 0);
+      const gap = Math.min(2, event.rowHeight * 0.1);
+      const barHeight = event.rowHeight - gap * 2;
+      const top = event.y + gap;
       const left = Math.max(inset, x(event.start_ms));
       const right = Math.min(width - inset, x(event.end));
       const barWidth = Math.min(width - inset - left, Math.max(2, right - left));
@@ -441,15 +455,8 @@ export default {
           barWidth - 14,
         );
       }
-      const lane = Math.round((event.y - 8) / rowHeight);
+      const lane = event.lane;
       (this.rectsByLane[lane] ||= []).push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
-    }
-    if (this.layout.grouped) {
-      ctx.fillStyle = colors.text;
-      for (const [lane, kind] of this.layout.kinds.entries()) {
-        const label = this.part("legend").querySelector(`[data-kind="${kind}"]`).textContent;
-        ctx.fillText(label, inset, lane * 48 + 20);
-      }
     }
     const cursorLabel = this.part("cursor-time");
     cursorLabel.style.backgroundColor = colors.accent;
@@ -506,7 +513,7 @@ export default {
     const rect = this.chart.getBoundingClientRect();
     const x = event.clientX - rect.left,
       y = event.clientY - rect.top;
-    const lane = Math.floor((y - 8) / this.rowHeight);
+    const lane = this.layout?.rows.findIndex((row) => y >= row.y && y < row.y + row.height);
     return hitInLane(this.rectsByLane?.[lane], x, y);
   },
 
@@ -584,7 +591,7 @@ export default {
   keydown(event) {
     if (["Home", "+", "=", "-"].includes(event.key)) {
       event.preventDefault();
-      if (event.key === "Home") this.setRange(0, this.duration);
+      if (event.key === "Home") this.setRange(this.initialRange.start, this.initialRange.span);
       else this.zoom(event.key === "-" ? 2 : 0.5);
       return;
     }

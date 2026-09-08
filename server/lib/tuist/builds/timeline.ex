@@ -1,15 +1,14 @@
 defmodule Tuist.Builds.Timeline do
   @moduledoc """
-  Bounded timeline views of all recorded build steps. Dense ranges use occupied
-  time buckets; their counts describe overlapping operations, not CPU usage.
+  Time-windowed views of recorded build steps, with a surrounding buffer for local zooming.
   """
   import Ecto.Query
 
   alias Tuist.Builds.Step
   alias Tuist.ClickHouseRepo
 
-  @detail_limit 1_500
-  @bins 128
+  @max_span 30_000
+  @buffer 30_000
 
   def load(build_id, opts \\ []) do
     search = opts |> Keyword.get(:search, "") |> String.slice(0, 512)
@@ -30,30 +29,42 @@ defmodule Tuist.Builds.Timeline do
 
     total = ClickHouseRepo.one(from(e in base, select: count()))
     duration = max(duration || 0, 1)
-    start = min(max(Keyword.get(opts, :start, 0), 0), duration)
-    span = min(max(Keyword.get(opts, :span, duration), 1), max(duration - start, 1))
-    finish = start + span
-    scoped = from(e in base, where: e.start_ms < ^finish and fragment("? + ?", e.start_ms, e.duration_ms) > ^start)
+
+    initial_start =
+      if Keyword.has_key?(opts, :start) do
+        Keyword.fetch!(opts, :start)
+      else
+        meaningful = from(e in base, where: e.duration_ms >= ^250.0, select: {count(), min(e.start_ms)})
+
+        case ClickHouseRepo.one(meaningful) do
+          {0, _} -> ClickHouseRepo.one(from(e in base, select: min(e.start_ms))) || 0
+          {_, first} -> first
+        end
+      end
+
+    span = min(max(Keyword.get(opts, :span, 10_000), 1), min(duration, @max_span))
+    start = min(max(initial_start, 0), max(duration - span, 0))
+    loaded_start = max(0, start - @buffer)
+    finish = min(duration, start + span + @buffer)
+    scoped = from(e in base, where: e.start_ms < ^finish and fragment("? + ?", e.start_ms, e.duration_ms) > ^loaded_start)
 
     events =
       ClickHouseRepo.all(
         from(e in scoped,
           order_by: [asc: e.start_ms, asc: e.event_id],
-          limit: ^(@detail_limit + 1),
           select: map(e, [:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
         )
       )
 
-    grouped = length(events) > @detail_limit
-    events = if grouped, do: buckets(build_id, start, span, search, target, project), else: events
-
     %{
       events: events,
-      grouped: grouped,
+      grouped: false,
       truncated: false,
       total_count: total,
       duration: duration,
-      range: %{start: start, span: span}
+      range: %{start: start, span: span},
+      loaded_range: %{start: loaded_start, span: finish - loaded_start},
+      max_span: min(duration, @max_span)
     }
   end
 
@@ -114,57 +125,5 @@ defmodule Tuist.Builds.Timeline do
         select: map(e, [:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
       )
     )
-  end
-
-  defp buckets(build_id, start, span, search, target, project) do
-    sql = """
-    SELECT bucket, kind, count() AS steps
-    FROM (
-      SELECT arrayJoin(range(
-        toUInt32(greatest(0, floor((greatest(start_ms, {start:Float64}) - {start:Float64}) / {width:Float64}))),
-        toUInt32(least(#{@bins}, ceil((least(start_ms + duration_ms, {finish:Float64}) - {start:Float64}) / {width:Float64})))
-      )) AS bucket,
-      multiIf(status = 'failure', 'failure',
-        match(category, '(?i)compilation|swiftmodule|bridgingheader'), 'compile',
-        match(category, '(?i)linker|staticlibrary'), 'link',
-        match(category, '(?i)script'), 'script',
-        match(category, '(?i)cop|resource|asset|storyboard|xib'), 'resource', 'other') AS kind
-      FROM build_steps FINAL
-      WHERE build_run_id = {build_id:UUID}
-        AND start_ms < {finish:Float64} AND start_ms + duration_ms > {start:Float64}
-        AND positionCaseInsensitiveUTF8(concat(title, ' ', target, ' ', project), {search:String}) > 0
-        AND ({target:String} = '' OR (target = {target:String} AND project = {project:String}))
-    )
-    GROUP BY bucket, kind
-    ORDER BY kind, bucket
-    """
-
-    width = span / @bins
-
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(sql, %{
-        build_id: build_id,
-        start: start,
-        finish: start + span,
-        width: width,
-        search: search,
-        target: target,
-        project: project
-      })
-
-    Enum.map(rows, fn [bucket, kind, count] ->
-      %{
-        event_id: "#{kind}:#{bucket}",
-        aggregate: true,
-        count: count,
-        title: "",
-        target: "",
-        project: "",
-        category: kind,
-        status: if(kind == "failure", do: "failure", else: "success"),
-        start_ms: start + bucket * width,
-        duration_ms: width
-      }
-    end)
   end
 end

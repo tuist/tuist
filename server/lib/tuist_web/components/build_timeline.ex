@@ -44,7 +44,6 @@ defmodule TuistWeb.Components.BuildTimeline do
         dgettext("dashboard_builds", "Unable to load the log. Select the step again to retry.")
       }
       data-steps-label={dgettext("dashboard_builds", "steps")}
-      data-grouped-label={dgettext("dashboard_builds", "Grouped activity")}
       data-success-label={dgettext("dashboard_builds", "Succeeded")}
       data-build-label={dgettext("dashboard_builds", "Build operations")}
     >
@@ -92,7 +91,6 @@ defmodule TuistWeb.Components.BuildTimeline do
             <span data-kind="resource">{dgettext("dashboard_builds", "Resources")}</span>
             <span data-kind="other">{dgettext("dashboard_builds", "Other")}</span>
             <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
-            <span data-part="grouped-label" hidden>{dgettext("dashboard_builds", "Grouped activity")}</span>
             <output data-part="range"></output>
           </div>
           <p data-part="range-error" role="alert" hidden>

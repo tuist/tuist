@@ -40,16 +40,16 @@ defmodule Tuist.BuildsTest do
       assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
     end
 
-    test "dense full-build summaries retain every step beyond the old display limit" do
+    test "dense windows retain individual steps beyond the old display limit" do
       steps =
         for id <- 1..50_001 do
           %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
         end
 
       {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
-      assert %{events: events, grouped: true, total_count: 50_001} = Builds.build_timeline(build.id)
-      assert length(events) <= 128
-      assert Enum.all?(events, &(&1.aggregate and &1.count == 50_001))
+      assert %{events: events, grouped: false, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert length(events) == 50_001
+      refute Enum.any?(events, &Map.has_key?(&1, :aggregate))
       assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
     end
 
@@ -75,10 +75,14 @@ defmodule Tuist.BuildsTest do
           build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
         )
 
-      assert %{grouped: true, total_count: 1600, events: buckets} = Builds.build_timeline(build.id)
-      assert length(buckets) <= 128
-      assert Enum.any?(buckets, &(&1.start_ms > 15_000))
-      assert %{events: [%{event_id: 1600}], grouped: false} = Builds.build_timeline(build.id, start: 16_000, span: 5)
+      assert %{grouped: false, total_count: 1600, events: events} = Builds.build_timeline(build.id)
+      assert length(events) == 1600
+      assert Enum.any?(events, &(&1.start_ms > 15_000))
+
+      assert %{events: buffered, range: %{start: 16_000, span: 5}} =
+               Builds.build_timeline(build.id, start: 16_000, span: 5)
+
+      assert Enum.any?(buffered, &(&1.event_id == 1600))
       assert %{events: [%{event_id: 1600}], total_count: 1} = Builds.build_timeline(build.id, search: "COMPILE 1600")
       assert %{events: []} = Builds.build_timeline(build.id, target: "App", project: "Wrong")
       assert [%{project: "Workspace", target: "App"}] = Builds.build_timeline_targets(build.id)
@@ -86,6 +90,26 @@ defmodule Tuist.BuildsTest do
       assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
       assert nil == Timeline.neighbor(build.id, 1600, "next", [])
       assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
+    end
+
+    test "opens at meaningful work with readable zoom and buffers neighboring steps" do
+      steps =
+        for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
+          %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      assert %{
+               range: %{start: 100_000.0, span: 10_000},
+               max_span: 30_000,
+               loaded_range: %{start: 70_000.0, span: 70_000.0},
+               events: events
+             } = Builds.build_timeline(build.id)
+
+      assert Enum.map(events, & &1.event_id) == [2, 3]
+      assert %{range: %{span: 30_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 900_000)
+      assert Enum.map(late, & &1.event_id) == [4]
     end
 
     test "fetches logs separately and scopes them to their build" do

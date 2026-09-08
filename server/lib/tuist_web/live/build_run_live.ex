@@ -434,7 +434,7 @@ defmodule TuistWeb.BuildRunLive do
           "search" => search,
           "target" => target,
           "project" => project
-        },
+        } = params,
         socket
       )
       when is_integer(request_id) and is_number(start) and start >= 0 and start <= 9_007_199_254_740_991 and
@@ -442,13 +442,15 @@ defmodule TuistWeb.BuildRunLive do
              is_binary(project) do
     if version == socket.assigns.timeline_version do
       run_id = socket.assigns.run.id
+      opts = [search: search, target: target, project: project]
+      opts = if params["reset"] == true, do: opts, else: Keyword.merge(opts, start: start, span: span)
 
       {:noreply,
        socket
        |> cancel_async(:timeline_range)
        |> assign(:timeline_range_request, request_id)
        |> start_async(:timeline_range, fn ->
-         Builds.build_timeline(run_id, start: start, span: span, search: search, target: target, project: project)
+         Builds.build_timeline(run_id, opts)
        end)}
     else
       {:reply, %{error: true}, socket}
