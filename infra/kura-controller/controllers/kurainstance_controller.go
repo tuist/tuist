@@ -2229,8 +2229,15 @@ func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Contex
 // is unset, or spec.publicHost is unset, so a public→private flip does
 // not leak the Certificate (and the cert-manager-rotated leaf Secret)
 // after the matching Ingress is torn down.
-// An instance whose Ingress has moved onto the shared wildcard needs none of
-// its own, so its Certificate and leaf Secret are deleted instead.
+//
+// An instance whose Ingress has moved onto the shared wildcard has its
+// Certificate deleted, which stops the renewal it would otherwise spend
+// against the ACME per-registered-domain limit every 60 days. Its issued
+// Secret is deliberately left in place: nothing references it, ingress-nginx
+// watches Ingresses and Secrets independently so deleting it races that
+// controller's own view of the cutover, and keeping it is what makes the
+// cutover reversible. Recreating the Certificate over a still-valid Secret
+// adopts it rather than ordering again.
 // cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
@@ -2239,17 +2246,21 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	cert.SetNamespace(instance.Namespace)
 
 	if r.publicIngressServesSharedTLS(ctx, instance) {
-		if err := r.deleteIfExists(ctx, cert); err != nil {
-			return err
-		}
-		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}}
-		return r.deleteIfExists(ctx, secret)
+		return r.deleteIfExists(ctx, cert)
 	}
 
 	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
+		return nil
+	}
+
+	// The Ingress write from this same pass may not have reached the cache the
+	// retire above reads, so issuance is gated on the wildcard itself. Reusing
+	// the read-back there would order a certificate for a host the wildcard
+	// already covers.
+	if r.sharedPublicTLSCovers(ctx, instance) {
 		return nil
 	}
 
