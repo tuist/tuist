@@ -7,9 +7,14 @@
 # would buy nothing and cost a second push certificate, a second ABM
 # server row and a migration.
 #
+# "production" here names the instance, not the cluster: this is the
+# real MDM rather than a bench. It is currently HOSTED in the staging
+# cluster while the prototype is validated, and moves to the production
+# cluster before real hardware enrolls.
+#
 # The hostname is effectively permanent. The MDM protocol has no way to
 # move an enrollment's ServerURL, so changing it means DFU-reprovisioning
-# every enrolled machine.
+# every enrolled machine. It is deliberately not in the block below.
 host: mdm.tuist.dev
 
 ingress:
@@ -17,20 +22,34 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
     nginx.ingress.kubernetes.io/proxy-body-size: 16m
 
-# Operator APIs on the tailnet, not the internet. The tag follows the
-# cluster this is deployed into, not the release: it has to be one the
-# local Tailscale operator is allowed to mint. Currently the staging
-# cluster; this moves with the release.
-tailnet:
-  enabled: true
-  tags: "tag:tuist-k8s-staging"
-
 runtimeSecrets:
   externalSecret:
     enabled: true
     item: MDM
 
+# ---------------------------------------------------------------------
+# Cluster-coupled settings. These follow the cluster the release is
+# hosted in, NOT the instance, and every one of them must change together
+# when it moves. Each fails differently and none fails loudly:
+#
+#   tailnet.tags        the Tailscale operator may only mint tags its own
+#                       OAuth client is scoped to. A foreign tag means the
+#                       device is never created and the operator APIs
+#                       quietly have no tailnet address.
+#   backup destination  the Tigris credentials are bucket-scoped. Pointing
+#                       at another cluster's bucket fails every WAL archive
+#                       with AccessDenied, which does not surface as an
+#                       alert but does grow pg_wal until the volume fills.
+#
+# Currently: staging cluster.
+# ---------------------------------------------------------------------
+tailnet:
+  enabled: true
+  tags: "tag:tuist-k8s-staging"
+
 postgresql:
   backup:
     enabled: true
-    destinationPath: s3://tuist-prod-pg-backups/mdm
+    # barman writes a directory per cluster name underneath this prefix,
+    # so the release lands in <bucket>/mdm-pg.
+    destinationPath: s3://tuist-stag-pg-backups/
