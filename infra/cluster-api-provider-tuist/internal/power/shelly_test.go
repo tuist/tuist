@@ -16,8 +16,8 @@ import (
 // The Shelly plug for the BER1 prototype has not been delivered, so nothing
 // here has been run against real firmware. These fakes are therefore written
 // from the published API shapes and from RFC 7616 rather than from captured
-// traffic, and the digest server below is a conformant SERVER — it recomputes
-// the expected response itself and rejects a wrong one — so the client is
+// traffic, and the digest server below is a conformant SERVER: it recomputes
+// the expected response itself and rejects a wrong one, so the client is
 // checked against the specification rather than against my own assumption of
 // what it should send. What that cannot catch is a firmware quirk; the first
 // live cycle is still the real test.
@@ -66,7 +66,7 @@ func (p *gen2Plug) state(channel string) bool {
 }
 
 // gen1Plug fakes Shelly Gen1 firmware: /relay/<id>, and a 404 on everything
-// under /rpc — which is exactly the signal the generation probe keys on.
+// under /rpc, which is exactly the signal the generation probe keys on.
 type gen1Plug struct {
 	mu   sync.Mutex
 	on   map[string]bool
@@ -405,7 +405,7 @@ func TestCycleFailsWhenTheOutletDoesNotGoOff(t *testing.T) {
 	}
 }
 
-// stuckOnDriver accepts a Set but never changes state — a relay welded shut, or
+// stuckOnDriver accepts a Set but never changes state: a relay welded shut, or
 // an outlet whose Set silently targets the wrong channel.
 type stuckOnDriver struct{ poweredOn bool }
 

@@ -28,7 +28,7 @@ import (
 
 const (
 	// PowerReachableCondition reports whether the host's outlet could be read.
-	// False is not a host fault — the mini may be running perfectly — but it
+	// False is not a host fault (the mini may be running perfectly) but it
 	// does mean the fleet has lost its only remote reboot for that box, which
 	// is worth surfacing before the reboot is needed rather than at the moment
 	// a wedged host cannot be recovered.
@@ -93,7 +93,7 @@ type RackHostReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	// Power resolves a host's driver. Nil disables every power path — the
+	// Power resolves a host's driver. Nil disables every power path: the
 	// controller still tracks claims and orphans, hosts report Unknown power,
 	// and PowerReachable goes False with a reason naming the missing wiring.
 	Power *power.Registry
@@ -103,8 +103,8 @@ type RackHostReconciler struct {
 	SecretsNamespace string
 
 	// PowerCycleSettle overrides how long a cycle holds the outlet down. Zero
-	// means defaultPowerCycleSettle. Not an operator-facing knob — no flag and
-	// no chart value reach it — it exists so the recovery ladder is testable
+	// means defaultPowerCycleSettle. Not an operator-facing knob (no flag and
+	// no chart value reach it): it exists so the recovery ladder is testable
 	// without ten seconds of real sleep per case, and so a future PDU whose
 	// hardware wants a different interval has somewhere to say so.
 	PowerCycleSettle time.Duration
@@ -145,9 +145,9 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	defer func() { recordRackHostMetrics(host) }()
 
 	// A host being deleted keeps no state worth converging. There is no
-	// finalizer: this CR owns no external resource — the physical machine
+	// finalizer: this CR owns no external resource; the physical machine
 	// outlives every Kubernetes object, which is the entire difference between
-	// hardware we own and capacity we rent — so deleting it is deleting an
+	// hardware we own and capacity we rent, so deleting it is deleting an
 	// inventory record and nothing else.
 	if !host.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
@@ -181,7 +181,7 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 //
 // It reads the machine through the cached client, which is enough: a claim is
 // only ever written after its Machine exists, so a stale-cache miss can only
-// happen for a machine that was created and deleted within one cache sync — in
+// happen for a machine that was created and deleted within one cache sync: in
 // which case releasing is the right answer anyway.
 func (r *RackHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav1.RackHost) (bool, error) {
 	if host.Status.ClaimedBy == "" {
@@ -214,7 +214,7 @@ func (r *RackHostReconciler) runRequestedPowerAction(ctx context.Context, host *
 	}
 
 	// Clear first, whatever happens below. An action that failed and stayed
-	// annotated would re-fire on every reconcile — for `cycle`, that is a host
+	// annotated would re-fire on every reconcile: for `cycle`, that is a host
 	// power-cycled every minute for as long as nobody notices.
 	defer func() {
 		delete(host.Annotations, PowerActionAnnotation)
@@ -393,7 +393,7 @@ func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.RackHost{}).
 		// Wake on the machines that hold claims, so a deleted machine's host is
-		// freed on the spot rather than at the next poll interval — that
+		// freed on the spot rather than at the next poll interval: that
 		// latency is a scale-up sitting on NoAvailableHost.
 		Watches(
 			&infrav1.StaticAppleSiliconMachine{},

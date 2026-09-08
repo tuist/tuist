@@ -3,7 +3,7 @@
 // On Apple silicon an outlet is a reboot button: the machines power on when
 // mains is applied, and every fleet host runs `pmset autorestart 1`, so cutting
 // and restoring an outlet is a full cold boot with nobody at a console. That is
-// the whole reason this package exists — a rack host has no provider API to
+// the whole reason this package exists: a rack host has no provider API to
 // reboot it and no BMC to talk to, so every other machine kind's recovery path
 // (call the provider, or release the box and claim a different one) has no
 // analog here. Without an outlet the only repair for a wedged host is a human
@@ -29,7 +29,7 @@ type State string
 const (
 	StateOn  State = "On"
 	StateOff State = "Off"
-	// StateUnknown is what a caller gets when the outlet could not be read —
+	// StateUnknown is what a caller gets when the outlet could not be read:
 	// the endpoint was unreachable, answered something unparseable, or the host
 	// has no outlet configured at all. It is deliberately a value rather than
 	// an error-only condition so status can carry "we do not know" instead of
@@ -67,7 +67,7 @@ type Driver interface {
 	// State reads the outlet's current state.
 	State(ctx context.Context, o Outlet) (State, error)
 	// Set switches the outlet on or off. Setting an outlet to the state it is
-	// already in must succeed rather than error — callers use it to converge,
+	// already in must succeed rather than error: callers use it to converge,
 	// not to toggle.
 	Set(ctx context.Context, o Outlet, on bool) error
 }
@@ -94,7 +94,7 @@ func NewRegistry() *Registry {
 
 // NewRegistryWith builds a registry over an explicit driver set. Production
 // goes through NewRegistry; this is the seam that lets a caller substitute a
-// driver — which is how the machine reconciler's power-cycle recovery ladder is
+// driver, which is how the machine reconciler's power-cycle recovery ladder is
 // exercised without a plug on the bench.
 func NewRegistryWith(drivers map[string]Driver) *Registry {
 	return &Registry{drivers: drivers}
@@ -127,7 +127,7 @@ func (r *Registry) Names() []string {
 // Cycle powers an outlet off, waits, and powers it back on.
 //
 // Driver-independent on purpose. Several devices expose a native "cycle" verb,
-// and none of them agree on how long it holds the outlet down — which is the
+// and none of them agree on how long it holds the outlet down, which is the
 // one parameter that matters, because an Apple silicon mini that loses power
 // for less than a few seconds can come back without the PSU having discharged,
 // leaving it in exactly the wedged state the cycle was meant to clear. Driving

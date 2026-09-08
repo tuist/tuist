@@ -32,14 +32,14 @@ import (
 // whichever of those it copied on a bad day.
 //
 // What is NOT here is anything about where a host comes from. Acquiring,
-// rebooting and giving up on a host differ per kind — a provider API call
+// rebooting and giving up on a host differ per kind: a provider API call
 // versus a PDU outlet, releasing to a pool versus quarantining hardware we
-// own — so each kind owns those.
+// own, so each kind owns those.
 
 // operatorName is the value stamped on `app.kubernetes.io/managed-by` for
 // every object this operator owns. It names the OPERATOR (whose Deployment and
 // leader-election lease carry the same name), not the machine kind, so it stays
-// the same for the rack fleet — the Services alloy discovers must look
+// the same for the rack fleet: the Services alloy discovers must look
 // identical whoever owns the hardware.
 const operatorName = "capi-scaleway-applesilicon"
 
@@ -53,7 +53,7 @@ type hostAgentMachine interface {
 // hostConfigDrift reports whether the host config the operator would push
 // (operatorHash) differs from what the Machine last recorded (machineHash). An
 // empty operatorHash (hash not computed) never drifts. An empty machineHash on
-// a non-empty operatorHash drifts once — the migration case for machines
+// a non-empty operatorHash drifts once: the migration case for machines
 // provisioned before the hash existed.
 func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
@@ -65,7 +65,7 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 // The drift gate SKIPS a terminal machine rather than returning early, so
 // every reconcile after the one that recorded the failure still falls through
 // to the tail. Writing "Ready" there overwrote the "Failed" that
-// recordUpdateFailure had just set — within a single reconcile interval —
+// recordUpdateFailure had just set (within a single reconcile interval)
 // leaving machines that carried FailureReason while reporting phase Ready.
 //
 // That combination is invisible to alerting: the "stuck Failed" rule keys on
@@ -82,7 +82,7 @@ func terminalPhasePinned(failureReason *string) bool {
 //
 // Two independent exits:
 //
-// Config drift — the operator's desired config differs from the one that
+// Config drift: the operator's desired config differs from the one that
 // exhausted its retry budget (failedHash), NOT from the last successfully
 // applied hash. A broken config can never be applied, so the applied hash never
 // advances to it and a desired-vs-applied comparison would report drift
@@ -91,12 +91,12 @@ func terminalPhasePinned(failureReason *string) bool {
 // config keeps its terminal state while a genuinely new (typically fixed)
 // config gets a fresh budget.
 //
-// Cooldown — retryAfter has elapsed since the failure. Config drift alone reads
+// Cooldown: retryAfter has elapsed since the failure. Config drift alone reads
 // every terminal failure as a verdict on the CONFIG, but most are a verdict on
 // REACHABILITY: the operator could not open :22. Such a host stayed terminal
 // until someone shipped an unrelated config change or hand-patched its status,
 // all the while Ready, schedulable, and running jobs against a frozen host
-// config — which is how a fleet ends up with hosts silently missing a
+// config, which is how a fleet ends up with hosts silently missing a
 // networking fix. The cooldown bounds a persistently-broken config to one fresh
 // attempt budget per interval rather than per reconcile, so the cap still does
 // its job.
@@ -217,7 +217,7 @@ type hostSizing struct {
 // bootstrap.Config is either identical fleet-wide or lives in PerHost.
 //
 // Both push paths go through it, so neither can push a config the operator did
-// not hash — hostConfigHashFor calls the same function with an empty PerHost.
+// not hash: hostConfigHashFor calls the same function with an empty PerHost.
 func applyHostSizing(fleet bootstrap.Config, sizing hostSizing, perHost bootstrap.PerHost) bootstrap.Config {
 	cfg := fleet
 	cfg.HostCPU = sizing.HostCPU
@@ -230,7 +230,7 @@ func applyHostSizing(fleet bootstrap.Config, sizing hostSizing, perHost bootstra
 	//
 	// A single-guest host resolves both to 1, which is what tart-kubelet
 	// already defaults to, and the plist renderer omits a flag whose value is
-	// the default — so an existing fleet's rendered config (and therefore its
+	// the default, so an existing fleet's rendered config (and therefore its
 	// host-config hash) is unchanged by this and does not drift.
 	cfg.VNCRelayPortCount = sizing.GuestCapacity
 	cfg.MinGoldensKept = sizing.GuestCapacity
@@ -406,7 +406,7 @@ const nodeBootstrapGrace = 2 * time.Minute
 // workload-cluster reconcile churn, a manual `kubectl delete node`, or a
 // cluster-level cleanup controller. The host itself is still allocated and its
 // launchd job still loaded, so re-running bootstrap reloads launchd and
-// tart-kubelet re-registers — no re-provisioning, and the existing per-machine
+// tart-kubelet re-registers: no re-provisioning, and the existing per-machine
 // token, ServiceAccount and ClusterRoleBinding stay in place. Callers flip the
 // condition False and let the bootstrap gate drive the repair.
 //

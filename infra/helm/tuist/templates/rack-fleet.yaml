@@ -2,16 +2,16 @@
 {{- $fleetName := include "tuist.rackFleetName" . }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-{{- $pool := required "rackFleet.pool is required — it is the claim marker AND the environment boundary between racks" .Values.rackFleet.pool }}
+{{- $pool := required "rackFleet.pool is required; it is the claim marker AND the environment boundary between racks" .Values.rackFleet.pool }}
 {{- /*
-Rack-owned Mac mini fleet (the BER1 colo programme) — declarative.
+Rack-owned Mac mini fleet (the BER1 colo programme): declarative.
 
 Two object kinds, and the split is the whole design. Every OTHER machine kind
 in this provider gets its pool from a vendor API: Scaleway's server list
 filtered by a name prefix, OVH's by a displayName prefix, Dedibox's by a tag.
 Hardware we own has no such API, so the pool has to be Kubernetes objects:
 
-  * RackHost, one per physical box — serial, address, rack position, PDU
+  * RackHost, one per physical box: serial, address, rack position, PDU
     outlet. Rendered from `rackFleet.hosts` below, so adding a mini to the
     rack is a values PR reviewed like any other, and the inventory is
     versioned rather than living in someone's kubectl history.
@@ -42,7 +42,7 @@ spec:
   {{- with $host.serial }}
   serial: {{ . | quote }}
   {{- end }}
-  address: {{ required (printf "rackFleet.hosts[%s].address is required — there is nothing to dial without it" $hostName) $host.address | quote }}
+  address: {{ required (printf "rackFleet.hosts[%s].address is required; there is nothing to dial without it" $hostName) $host.address | quote }}
   sshUser: {{ $host.sshUser | default $.Values.rackFleet.sshUser | default "tuist" }}
   {{- if $host.unclaimable }}
   unclaimable: true
@@ -51,7 +51,7 @@ spec:
     {{- /* site composes the providerID, so the controller refuses to claim a
     host without one. Required here rather than in the CRD: a required CRD
     field breaks a Helm rollback to a revision predating it. */}}
-    site: {{ required (printf "rackFleet.hosts[%s].site is required — it composes the providerID" $hostName) (coalesce $host.site $.Values.rackFleet.site) | quote }}
+    site: {{ required (printf "rackFleet.hosts[%s].site is required; it composes the providerID" $hostName) (coalesce $host.site $.Values.rackFleet.site) | quote }}
     {{- with $host.rack }}
     rack: {{ . | quote }}
     {{- end }}
@@ -75,7 +75,7 @@ spec:
 {{- /*
 Machine spec, assembled the same way the Scaleway fleets assemble theirs: each
 optional sizing field is omitted when unset so the operator's global applies and
-the rendered spec — and therefore the template's name hash — is unchanged.
+the rendered spec (and therefore the template's name hash) is unchanged.
 
 The template name carries a hash of its own spec so a spec change renders a NEW
 object rather than an edit. Helm's three-way merge only patches fields that
@@ -102,7 +102,7 @@ stale indefinitely.
 {{- /*
 Presence, not truthiness: 0 means "cache volumes off on this host" and `with`
 would swallow it, leaving the host on the operator's non-zero global. That
-matters more here than on the rented fleet — the BER1 prototype's 256 GB disk
+matters more here than on the rented fleet: the BER1 prototype's 256 GB disk
 cannot hold the fleet's normal quota at all. `hasKey` alone is not enough: the
 documented placeholder in values.yaml is an explicit null, i.e. a present key
 with no value.
@@ -150,9 +150,9 @@ spec:
   Default to the declared host count so the common case cannot get this wrong,
   and allow an explicit override for staging one box at a time.
 
-  `dig`, not `default`: an explicit 0 is a real and useful value here — declare
+  `dig`, not `default`: an explicit 0 is a real and useful value here; declare
   the inventory, let the RackHosts land and be power-polled, and hold the claim
-  back until the boxes are actually reachable — and `default` treats 0 as empty,
+  back until the boxes are actually reachable, and `default` treats 0 as empty,
   so it would silently scale the fleet to every host declared.
   */}}
   replicas: {{ dig "replicas" (len .Values.rackFleet.hosts) .Values.rackFleet }}

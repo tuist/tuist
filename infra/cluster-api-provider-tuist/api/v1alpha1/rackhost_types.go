@@ -7,19 +7,19 @@ import (
 )
 
 // RackHostSpec describes one physical Mac mini we own, sitting in a rack we
-// operate — the BER1 colo programme's hardware, as opposed to capacity ordered
+// operate: the BER1 colo programme's hardware, as opposed to capacity ordered
 // from a provider API.
 //
 // It exists because every other machine kind in this provider gets its pool
 // from somewhere else: Scaleway's server list filtered by a name prefix, OVH's
 // by a displayName prefix, Dedibox's by a tag. Hardware we own has no such API,
 // so the pool has to be a Kubernetes object. That is the whole of this CR's
-// job — it is inventory, not a workload, and nothing here is read by anything
+// job: it is inventory, not a workload, and nothing here is read by anything
 // running on the host.
 //
 // Keeping it separate from StaticAppleSiliconMachine is what makes a
-// MachineDeployment work at all. The alternative — address and outlet inline on
-// each Machine — forces one MachineDeployment per box (a Machine is cloned from
+// MachineDeployment work at all. The alternative, address and outlet inline on
+// each Machine, forces one MachineDeployment per box (a Machine is cloned from
 // a template, so every clone would carry the same address), and worse, a
 // MachineHealthCheck remediation would then recreate the Machine onto the SAME
 // broken host forever. A pool is what lets remediation land somewhere else.
@@ -27,7 +27,7 @@ type RackHostSpec struct {
 	// Pool is the claim marker: a StaticAppleSiliconMachine claims a free
 	// RackHost whose pool equals its own `spec.adoptPool`. It is the direct
 	// analog of the Scaleway kind's name prefix, OVH's displayName prefix and
-	// Dedibox's adopt tag, and like them it is the ENVIRONMENT BOUNDARY —
+	// Dedibox's adopt tag, and like them it is the ENVIRONMENT BOUNDARY:
 	// staging and production RackHosts can coexist in one inventory as long as
 	// their pools differ.
 	//
@@ -39,7 +39,7 @@ type RackHostSpec struct {
 	Pool string `json:"pool,omitempty"`
 
 	// Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the
-	// host's durable identity — it survives a hostname change, a DFU restore
+	// host's durable identity: it survives a hostname change, a DFU restore
 	// and a re-cabling, it is what Apple Business Manager and the MDM know the
 	// box by, and it is what the providerID is composed from. The address can
 	// change; this cannot.
@@ -68,8 +68,8 @@ type RackHostSpec struct {
 	SSHUser string `json:"sshUser,omitempty"`
 
 	// Location is where the box physically is. Nothing in the reconcile path
-	// reads rack/shelf/positionU — they exist so that a human handed an
-	// alerting node name can walk to it — but `site` IS load-bearing: it names
+	// reads rack/shelf/positionU: they exist so that a human handed an
+	// alerting node name can walk to it, but `site` IS load-bearing: it names
 	// the rack site and composes the providerID, so the controller refuses to
 	// claim a host without one.
 	// +optional
@@ -83,7 +83,7 @@ type RackHostSpec struct {
 	// It is not decoration. The Scaleway kind recovers a host that fails
 	// bootstrap by calling the provider's reboot API and, failing that, by
 	// releasing the host so a DIFFERENT mini gets claimed. Neither exists for
-	// hardware we own — releasing just re-claims the same box — so the outlet
+	// hardware we own (releasing just re-claims the same box) so the outlet
 	// is the only repair this kind has short of quarantining the host and
 	// paging a human.
 	// +optional
@@ -91,7 +91,7 @@ type RackHostSpec struct {
 
 	// Unclaimable takes a host out of the claim pool without deleting its
 	// inventory record: bench work, an RMA, a box being re-imaged. An already
-	// claimed host is NOT released by setting this — it stops the next claim,
+	// claimed host is NOT released by setting this: it stops the next claim,
 	// it does not evict the current one, the same shape as
 	// `Node.spec.unschedulable`.
 	// +optional
@@ -178,9 +178,9 @@ type RackHostStatus struct {
 	LastPowerActionTime *metav1.Time `json:"lastPowerActionTime,omitempty"`
 
 	// Quarantined excludes the host from the claim pool after the machine
-	// controller gave up bootstrapping it. Unlike the Scaleway kind — whose
+	// controller gave up bootstrapping it. Unlike the Scaleway kind, whose
 	// bootstrap-exhaustion path releases the host so a different mini gets
-	// claimed — releasing hardware we own would hand the same broken box
+	// claimed, releasing hardware we own would hand the same broken box
 	// straight back to the next reconcile, and the Machine would loop on it
 	// forever. Quarantine is what turns that loop into one bad host and a
 	// Machine free to land elsewhere.

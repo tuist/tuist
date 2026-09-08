@@ -121,7 +121,7 @@ func TestUnreachableOutletReportsUnknownRatherThanOff(t *testing.T) {
 }
 
 // A host with no outlet is a host nobody can reboot remotely. It is not an
-// error — the box may be fine — but it has to be visible before the reboot is
+// error (the box may be fine) but it has to be visible before the reboot is
 // needed rather than at the moment it cannot be done.
 func TestHostWithoutAnOutletIsFlaggedButStillReconciled(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Spec.Power = nil })
@@ -270,7 +270,7 @@ func TestInvalidPowerActionIsRejectedNotGuessed(t *testing.T) {
 
 // Cutting power to a host that is Ready and schedulable kills running work.
 // The normal reason to reach for this is a wedged host, and a wedged host is
-// not the one still taking jobs — so it needs an explicit override.
+// not the one still taking jobs, so it needs an explicit override.
 func TestPowerCutIsRefusedForAServingNode(t *testing.T) {
 	for _, action := range []string{"off", "cycle"} {
 		t.Run(action, func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestPowerCutIsRefusedForAServingNode(t *testing.T) {
 	}
 }
 
-// `on` never cuts power, so it needs no override — refusing it would just be
+// `on` never cuts power, so it needs no override: refusing it would just be
 // friction on the action that recovers a host someone switched off.
 func TestPowerOnIsAllowedForAServingNode(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) {

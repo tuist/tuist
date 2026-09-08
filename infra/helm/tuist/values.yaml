@@ -1512,7 +1512,7 @@ vultrFleet:
 vultrFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
-# Rack-owned Mac minis — hardware we bought, in a rack we operate (the BER1
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
 # colo programme), as opposed to capacity ordered from a provider API.
 #
 # Two things are declared here and they are different in kind. `hosts` is
@@ -1529,7 +1529,7 @@ rackFleet:
   # as long as their pools differ. Required when enabled.
   pool: ""
 
-  # Machine count. Defaults to the number of declared hosts — a Machine with
+  # Machine count. Defaults to the number of declared hosts: a Machine with
   # nowhere to land sits on NoAvailableHost forever, which leaves the
   # MachineDeployment permanently below spec. Set it lower to stage a rack one
   # box at a time.
@@ -1545,7 +1545,7 @@ rackFleet:
 
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
-  # history. Nothing here is workload config — see `machine` below for that.
+  # history. Nothing here is workload config: see `machine` below for that.
   #
   #   - name: ber1-proto-01     # RackHost object name; also the Node name's box
   #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
@@ -1579,7 +1579,7 @@ rackFleet:
     guestCapacity: null      # Tart guests the host is expected to run
     maxPods: null            # Node Pod ceiling; size as guests x 2 + 1
     # Cache-volume quota in GiB. An explicit 0 means "cache volumes off on this
-    # host" — the only setting that fits a 256 GB prototype box — and is
+    # host" (the only setting that fits a 256 GB prototype box) and is
     # deliberately distinguishable from unset, which inherits the global.
     runnerCacheVolumeGiB: null
 

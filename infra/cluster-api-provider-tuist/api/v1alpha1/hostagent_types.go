@@ -8,14 +8,14 @@ import (
 // operator-facing phase, the terminal-failure fields CAPI core surfaces on the
 // parent Machine, and the bookkeeping the host-config push loop keeps.
 //
-// It is embedded (and therefore inlined on the wire — `.status.phase`,
+// It is embedded (and therefore inlined on the wire: `.status.phase`,
 // `.status.hostConfigHash`, ... are unchanged) rather than duplicated per kind
 // because the machinery that reads and writes it is subtle and shared:
 // terminal-failure pinning, the FailedHostConfigHash vs last-applied
 // distinction, and the retry cooldown are each one bug away from a fleet that
 // silently stops taking config. This provider has already paid for that class
-// of mistake twice — a Config field wired into the bootstrap path but not the
-// drift path, and a phase overwritten by the reconcile tail — and both times
+// of mistake twice: a Config field wired into the bootstrap path but not the
+// drift path, and a phase overwritten by the reconcile tail, and both times
 // the cost was hosts that read as converged while running stale config. One
 // definition, one set of helpers operating on it (see controllers/macos), is
 // what keeps a second macOS kind from re-acquiring those bugs by copy.
@@ -36,13 +36,13 @@ type HostAgentStatus struct {
 
 	// TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary currently
 	// installed on the host, stamped after each successful push. It is a
-	// record, not the drift trigger — HostConfigHash is, and it covers this
+	// record, not the drift trigger: HostConfigHash is, and it covers this
 	// binary among everything else.
 	// +optional
 	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
 
 	// HostConfigHash is the fleet-wide canonical hash of every host config the
-	// operator pushes — the rendered install scripts plus the embedded
+	// operator pushes: the rendered install scripts plus the embedded
 	// binaries (bootstrap.HostConfigHash). Drift between this and the
 	// operator's own computed hash re-pushes on the next reconcile, so a
 	// change to ANY pushed config (a script tweak, a fleet CIDR, a re-baked
@@ -67,8 +67,8 @@ type HostAgentStatus struct {
 	// it. Recovery is automatic on a new config or an elapsed cooldown (see
 	// FailedHostConfigHash and LastUpdateFailureTime), and operator-driven
 	// before then: clear failureReason and zero this counter. Without the cap
-	// a persistently-broken host — binary corruption, a full disk, a network
-	// partition — gets SSH-hammered every 60s forever with no terminal signal
+	// a persistently-broken host (binary corruption, a full disk, a network
+	// partition) gets SSH-hammered every 60s forever with no terminal signal
 	// for ops to alert on.
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
@@ -77,7 +77,7 @@ type HostAgentStatus struct {
 	// this host. It exists so the terminal state can expire on a timer:
 	// FailedHostConfigHash alone only lifts it when a NEW config ships, which
 	// is right for a config the host rejected and wrong for the far more
-	// common verdict — the host was simply unreachable (`dial tcp ...:22: i/o
+	// common verdict: the host was simply unreachable (`dial tcp ...:22: i/o
 	// timeout`). Those hosts otherwise stay terminal indefinitely while
 	// remaining Ready, schedulable, and running jobs against a host config
 	// frozen at whatever the operator last managed to push, so a fleet-wide
@@ -94,7 +94,7 @@ type HostAgentStatus struct {
 	// a host rather than a Machine. It drives each kind's tiered recovery
 	// escalation: at the reboot threshold the controller clears volatile host
 	// state (PAM lockouts, sshd throttling, half-open connections), and at the
-	// give-up threshold it stops retrying the same box — the Scaleway kind by
+	// give-up threshold it stops retrying the same box: the Scaleway kind by
 	// releasing it so a different mini gets claimed, the static kind by
 	// quarantining it, since releasing hardware we own would hand back the
 	// same broken host.

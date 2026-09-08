@@ -273,7 +273,7 @@
 		// This is the FIRST-DIAL path for rack-owned Mac minis
 		// (StaticAppleSiliconMachine). A rented mini has a public IP the
 		// operator can reach before anything is installed on it; a mini in a
-		// rack we own does not, and it is not on the tailnet yet either —
+		// rack we own does not, and it is not on the tailnet yet either: 
 		// bootstrap is what puts it there. So the operator reaches it at its
 		// LAN address, through a subnet router in the rack that advertises
 		// that prefix.
@@ -414,8 +414,8 @@
 	},
 
 	// The BER1 rack's host LAN is NOT auto-approved. Unlike the Connector's
-	// Service CIDR above — advertised by a Pod that is recreated on every
-	// rollout, so manual approval would break the route each time — the rack's
+	// Service CIDR above, which a Pod re-advertises on every rollout so manual
+	// approval would break the route each time, the rack's
 	// subnet router is a long-lived box that advertises once. Auto-approval
 	// would buy nothing there and would mean any device holding the approver
 	// tag could put a private prefix into the tailnet's routing table by

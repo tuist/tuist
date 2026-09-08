@@ -8,7 +8,7 @@ import (
 // StaticAppleSiliconMachineSpec is the desired state of one Mac mini we own.
 //
 // It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
-// bootstrap, same host-config drift loop, same tailnet egress Service — but the
+// bootstrap, same host-config drift loop, same tailnet egress Service, but the
 // host comes from a RackHost in the cluster's own inventory rather than from a
 // provider's server list, and there is no order, no reinstall and no release
 // path, because nobody bills us per host and no API can wipe one.
@@ -20,7 +20,7 @@ import (
 // could not be cloned more than once.
 type StaticAppleSiliconMachineSpec struct {
 	// ProviderID, set by the controller once a RackHost is claimed, takes the
-	// shape `static-applesilicon://<site>/<serial>` — composed from the two
+	// shape `static-applesilicon://<site>/<serial>`; composed from the two
 	// durable physical facts, so re-cabling a host to a new address does not
 	// change its identity to CAPI. CAPI core expects this to populate; without
 	// it the parent Machine never goes Ready. The scheme is deliberately
@@ -29,14 +29,14 @@ type StaticAppleSiliconMachineSpec struct {
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// AdoptPool is the RackHost pool this Machine claims from — the analog of
+	// AdoptPool is the RackHost pool this Machine claims from: the analog of
 	// the Scaleway kind's adoptPoolPrefix. The controller claims the first free
 	// RackHost whose `spec.pool` matches.
 	//
 	// Optional on purpose, even though every chart-rendered MachineTemplate
 	// sets it. A required field here is a schema constraint on a resource CAPI
 	// CLONES, so a MachineTemplate that lacks it fails
-	// `InfrastructureTemplateCloningFailed` on every MachineSet scale-up — and
+	// `InfrastructureTemplateCloningFailed` on every MachineSet scale-up: and
 	// that drift stays invisible until the next scale-up, which is typically
 	// an operator recovering a host by deleting its Machine. The controller
 	// surfaces an empty value as a `NoAdoptPool` condition instead of scanning
@@ -68,7 +68,7 @@ type StaticAppleSiliconMachineSpec struct {
 	// +optional
 	HostCPU int `json:"hostCPU,omitempty"`
 
-	// HostMemoryMB is the memory advertised on the Node — the box's RAM minus
+	// HostMemoryMB is the memory advertised on the Node: the box's RAM minus
 	// the ~2 GB Apple's Virtualization.framework reserves for the host, below
 	// which `tart run` fails with `memorySize > maximumAllowedMemorySize`.
 	// Falls back to the operator's global default when unset.
@@ -100,7 +100,7 @@ type StaticAppleSiliconMachineSpec struct {
 	// here and nonsense for them. Staging a new host cold and enabling the
 	// cache once it is validated is how this feature gets rolled out, and with
 	// a scalar that intent would collapse into "unset" and silently inherit
-	// the fleet default — which matters more on a rack than on rented
+	// the fleet default, which matters more on a rack than on rented
 	// capacity, since the prototype box has a 256 GB disk that cannot hold the
 	// fleet's normal quota at all.
 	// +optional

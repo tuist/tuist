@@ -19,7 +19,7 @@ type StaticAppleSiliconMachineTemplateSpec struct {
 
 // StaticAppleSiliconMachineTemplate is the template MachineDeployment +
 // MachineSet objects clone Machines from. Scaling the fleet is a replica count
-// against this one template because nothing host-specific lives in it — the
+// against this one template because nothing host-specific lives in it: the
 // per-box facts are on the RackHost objects the clones then claim.
 type StaticAppleSiliconMachineTemplate struct {
 	metav1.TypeMeta   `json:",inline"`

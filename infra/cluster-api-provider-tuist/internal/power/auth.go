@@ -16,7 +16,7 @@ import (
 // Two schemes, because the fleet's plugs disagree: Shelly Gen2 challenges with
 // Digest/SHA-256 and Gen1 accepts Basic. Digest is implemented here rather than
 // pulled in because the whole of it is one hash chain, and a device that
-// refuses our credentials is a host we cannot reboot — the failure has to be a
+// refuses our credentials is a host we cannot reboot: the failure has to be a
 // legible error, not a dependency's opaque one.
 func authorize(req *http.Request, challenge, username, password string) error {
 	scheme, params := parseChallenge(challenge)
@@ -90,7 +90,7 @@ func digestAuthorization(method, uri, username, password string, params map[stri
 // digestHasher picks the hash the challenge asked for. Shelly Gen2 always says
 // SHA-256; MD5 is the RFC 2617 default that older devices still send, and an
 // unset algorithm means MD5 per that spec. Anything else is refused rather than
-// silently downgraded — answering a SHA-512-256 challenge with an MD5 response
+// silently downgraded: answering a SHA-512-256 challenge with an MD5 response
 // just fails authentication one round trip later with a far worse error.
 func digestHasher(algorithm string) (func(string) string, string, error) {
 	switch strings.ToUpper(strings.TrimSuffix(algorithm, "-sess")) {
@@ -112,7 +112,7 @@ func digestHasher(algorithm string) (func(string) string, string, error) {
 
 // parseChallenge splits a WWW-Authenticate header into its scheme and
 // parameters. Values may be quoted or bare, and separators inside a quoted
-// value (a realm containing a comma) must not split the list — so this walks
+// value (a realm containing a comma) must not split the list, so this walks
 // the string rather than splitting on commas.
 func parseChallenge(header string) (string, map[string]string) {
 	header = strings.TrimSpace(header)

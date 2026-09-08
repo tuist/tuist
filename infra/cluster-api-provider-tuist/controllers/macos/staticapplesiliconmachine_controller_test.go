@@ -186,8 +186,8 @@ func TestClaimIsIdempotentForTheHostAlreadyHeld(t *testing.T) {
 	}
 }
 
-// A claim we no longer hold — the inventory record was deleted, or someone
-// released it out of band — must be dropped rather than bootstrapped. Pushing
+// A claim we no longer hold, because the inventory record was deleted or
+// someone released it out of band, must be dropped rather than bootstrapped. Pushing
 // config to a host another Machine now holds would have two Machines fighting
 // over one Node.
 func TestClaimDropsAStolenOrVanishedHost(t *testing.T) {
@@ -240,7 +240,7 @@ func TestClaimDropsAStolenOrVanishedHost(t *testing.T) {
 // order: sequential calls never collide, because the second one's List already
 // shows the host claimed and the filter drops it before any write. What has to
 // be exercised is a claim whose candidate list was read BEFORE a competing
-// claim landed — the only window in which the concurrency check does any work.
+// claim landed: the only window in which the concurrency check does any work.
 func TestClaimRaceIsResolvedByOptimisticConcurrency(t *testing.T) {
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{
@@ -513,7 +513,7 @@ func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 	}
 }
 
-// A failed cycle must leave the flag clear so the next attempt retries it —
+// A failed cycle must leave the flag clear so the next attempt retries it:
 // otherwise a transient PDU error costs the host its only recovery.
 func TestFailedPowerCycleIsRetriedOnTheNextAttempt(t *testing.T) {
 	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
@@ -643,7 +643,7 @@ func TestDeleteReleasesTheHostWithoutQuarantiningOrWipingIt(t *testing.T) {
 	}
 }
 
-// A delete must never steal a claim that has already moved on — a retried
+// A delete must never steal a claim that has already moved on: a retried
 // delete, or one racing a re-claim, would otherwise release a host another
 // Machine is actively bootstrapping.
 func TestDeleteLeavesAClaimHeldBySomeoneElseAlone(t *testing.T) {
@@ -848,7 +848,7 @@ func TestEgressServiceIsShapedLikeTheScalewayKinds(t *testing.T) {
 		t.Fatal("missing the label alloy's Service discovery filters on; this mini would never be scraped")
 	}
 	if svc.Labels["app.kubernetes.io/managed-by"] != operatorName {
-		t.Fatalf("managed-by = %q, want %q — the same operator manages both kinds", svc.Labels["app.kubernetes.io/managed-by"], operatorName)
+		t.Fatalf("managed-by = %q, want %q: the same operator manages both kinds", svc.Labels["app.kubernetes.io/managed-by"], operatorName)
 	}
 	if svc.Annotations["tailscale.com/tailnet-fqdn"] != "ber1-0.tail1234.ts.net" {
 		t.Fatalf("tailnet-fqdn = %q", svc.Annotations["tailscale.com/tailnet-fqdn"])

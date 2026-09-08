@@ -34,8 +34,8 @@ import (
 )
 
 // StaticMachineFinalizer keeps the CR alive until its RackHost claim is
-// released. Unlike the Scaleway finalizer this guards no billing — we own the
-// hardware either way — but a claim that outlives its Machine takes a physical
+// released. Unlike the Scaleway finalizer this guards no billing: we own the
+// hardware either way, but a claim that outlives its Machine takes a physical
 // box out of the pool, and in a rack sized to demand that is capacity nobody
 // can get back without noticing the strand first.
 const StaticMachineFinalizer = "staticapplesilicon.cluster.x-k8s.io/finalizer"
@@ -46,7 +46,7 @@ const StaticMachineFinalizer = "staticapplesilicon.cluster.x-k8s.io/finalizer"
 // moved in-cluster. Everything from "we have a host and its credentials"
 // onwards is shared (see hostagent.go): the same bootstrap, the same
 // host-config drift loop, the same terminal-failure and cooldown rules, the
-// same tailnet egress Service. What differs is only ever about ownership —
+// same tailnet egress Service. What differs is only ever about ownership:
 // where a host comes from, how it is rebooted, and what happens when it cannot
 // be made to work:
 //
@@ -74,7 +74,7 @@ type StaticAppleSiliconMachineReconciler struct {
 	// the fleet: the operator-image binaries and the chart-driven fleet
 	// settings. The manager builds it once and hands the same value to every
 	// macOS reconciler, so a rack mini and a rented one converge on the same
-	// host config — which is the point. A second fleet config would be a second
+	// host config, which is the point. A second fleet config would be a second
 	// set of bugs, and the drift loop's whole contract is that what the
 	// operator hashes and what it pushes cannot be two different things.
 	FleetConfig bootstrap.Config
@@ -98,8 +98,8 @@ type StaticAppleSiliconMachineReconciler struct {
 
 	// BootstrapRebootAfter is the consecutive-failure count at which the
 	// bootstrap-failure path cycles the host's outlet. Most bootstrap failures
-	// seen on the rented fleet are host-volatile — PAM lockouts from sudo
-	// retries, sshd throttling, half-open SSH sessions — and clear on a boot.
+	// seen on the rented fleet are host-volatile: PAM lockouts from sudo
+	// retries, sshd throttling, half-open SSH sessions, and clear on a boot.
 	BootstrapRebootAfter int32
 
 	// BootstrapMaxAttempts is the consecutive-failure count at which the
@@ -148,7 +148,7 @@ func (r *StaticAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
 // patch error into the function's return value. Without named returns the
 // deferred assignment would target a variable Go has already evaluated for the
 // return, the defer would swallow the patch failure, and the function would
-// report success — leaving Status.RackHost unpersisted after a successful claim
+// report success: leaving Status.RackHost unpersisted after a successful claim
 // and letting the next reconcile claim a second host.
 func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
@@ -202,7 +202,7 @@ func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req
 	// Pause gate, evaluated before the readiness check: the pause signal is
 	// "operator wants me to stop", and honouring it takes priority over
 	// requeueing on an unready cluster. It is also the latch an operator sets
-	// before hand-editing status — without it, clearing status.rackHost to
+	// before hand-editing status: without it, clearing status.rackHost to
 	// detach a CR races the reconcile loop straight into claiming another host.
 	if cluster != nil && cluster.Spec.Paused {
 		logger.Info("parent Cluster paused; skipping reconcile")
@@ -268,7 +268,7 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileNormal(
 			"Node %s missing; reloading tart-kubelet on %s to re-register", machine.Name, host.Name)
 	}
 
-	// Stage 2: bootstrap (idempotent — re-running picks up where it left off).
+	// Stage 2: bootstrap (idempotent; re-running picks up where it left off).
 	if !conditions.IsTrue(machine, BootstrappedCondition) {
 		machine.Status.Phase = "Bootstrapping"
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Bootstrapping",
@@ -383,8 +383,8 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 	// mini starts booting Tart VMs, its Internet Sharing / vmnet setup filters
 	// inbound :22 on the interface the operator was dialling, so the push times
 	// out while the host stays reachable through its own tailnet identity. An
-	// empty fingerprint means the SSH handshake never completed — a pure
-	// connect failure, distinct from a mid-session error — so retry over the
+	// empty fingerprint means the SSH handshake never completed: a pure
+	// connect failure, distinct from a mid-session error, so retry over the
 	// egress Service, which routes through the ProxyGroup.
 	//
 	// SkipTailscaleInstall on that path because installTailscale stops
@@ -423,7 +423,7 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 }
 
 // claimRackHost binds this Machine to a free host, or confirms the binding it
-// already has. Returns (nil, result, nil) when there is nothing to claim yet —
+// already has. Returns (nil, result, nil) when there is nothing to claim yet:
 // a wait, not a failure.
 func (r *StaticAppleSiliconMachineReconciler) claimRackHost(
 	ctx context.Context,
@@ -484,7 +484,7 @@ func (r *StaticAppleSiliconMachineReconciler) claimRackHost(
 	host.Status.ClaimedAt = &metav1.Time{Time: time.Now()}
 	// Update, deliberately, not a merge patch: Update carries the
 	// resourceVersion this object was read at, so the apiserver rejects the
-	// write if anything changed underneath — which is what makes the claim
+	// write if anything changed underneath, which is what makes the claim
 	// atomic. A merge patch sends no resourceVersion and two machines racing
 	// for the last free host would both "succeed", both bootstrap it, and the
 	// second would take over the first's Node.
@@ -603,8 +603,8 @@ func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]i
 // Tier 2, at BootstrapMaxAttempts: quarantine the host and release it. This is
 // where the kind diverges most from its Scaleway sibling, which releases the
 // host to the pool so a different mini gets claimed. Releasing alone would hand
-// this Machine the same box back on the next reconcile — the pool is our own
-// inventory, not a provider's — so the host is marked out of the pool first.
+// this Machine the same box back on the next reconcile: the pool is our own
+// inventory, not a provider's, so the host is marked out of the pool first.
 // The Machine then claims a different host if the rack has one, and the bad box
 // stays visible as quarantined until a human clears it.
 func (r *StaticAppleSiliconMachineReconciler) handleBootstrapFailure(
@@ -846,7 +846,7 @@ type prepError struct {
 
 // perHostConfig assembles everything about one host that bootstrap needs.
 // Shared by the bootstrap and drift paths so a field can never reach one
-// without the other — the failure mode that has bitten this provider four
+// without the other: the failure mode that has bitten this provider four
 // times, most expensively when the Tailscale tags reached only the bootstrap
 // path and froze the production fleet.
 func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
@@ -867,7 +867,7 @@ func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
 	// Read on the drift path too, not just at bootstrap: the launchd plist is
 	// re-rendered on every push, and without the key the renderer drops
 	// `--node-ip-source=tailscale` and silently flips the kubelet back to
-	// advertising the host's LAN address — which nothing in the cluster can
+	// advertising the host's LAN address, which nothing in the cluster can
 	// route to.
 	tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
 	if err != nil {
@@ -963,7 +963,7 @@ func (r *StaticAppleSiliconMachineReconciler) hostSizing(machine *infrav1.Static
 	}
 	// Resolved on PRESENCE, not truthiness: an explicit 0 means "cache volumes
 	// off on this host", which on the prototype's 256 GB disk is the only
-	// setting that fits. A negative value is treated as unset — it cannot be an
+	// setting that fits. A negative value is treated as unset: it cannot be an
 	// intent, and degrading to the fleet default beats pushing a quota that
 	// would fail the diskutil call at bootstrap.
 	if gib := machine.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
@@ -990,8 +990,8 @@ func (r *StaticAppleSiliconMachineReconciler) desiredHostConfigHash(machine *inf
 func staticProviderID(host *infrav1.RackHost) string {
 	serial := host.Spec.Serial
 	if serial == "" {
-		// An inventory record with no serial is still usable — the CR name is
-		// unique in the namespace and stable — but it is worse, because the
+		// An inventory record with no serial is still usable: the CR name is
+		// unique in the namespace and stable, but it is worse, because the
 		// identity now moves if the record is ever recreated under a new name.
 		// selectClaimableHosts requires an address and a site, not a serial,
 		// because a missing serial degrades rather than breaks.
@@ -1008,7 +1008,7 @@ func providerIDOfStatic(m *infrav1.StaticAppleSiliconMachine) string {
 }
 
 // staticMachineNodeLabels are the labels tart-kubelet stamps on the Node it
-// registers — the fleet membership label workloads pin to via nodeSelector,
+// registers: the fleet membership label workloads pin to via nodeSelector,
 // matching what the Scaleway kind writes so one workload can target both.
 func staticMachineNodeLabels(m *infrav1.StaticAppleSiliconMachine) map[string]string {
 	if m.Spec.FleetName == "" {
@@ -1046,7 +1046,7 @@ func (r *StaticAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager)
 		).
 		// Wake on inventory changes so a host added to the pool, un-quarantined
 		// or made claimable is picked up at once rather than at the next
-		// requeue — the difference between a rack bring-up that converges as
+		// requeue: the difference between a rack bring-up that converges as
 		// hosts are declared and one that appears stuck for a minute per host.
 		Watches(
 			&infrav1.RackHost{},

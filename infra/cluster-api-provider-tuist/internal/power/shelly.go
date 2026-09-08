@@ -15,8 +15,8 @@ const DriverShelly = "shelly"
 
 // Shelly drives a Shelly switch over its local HTTP API.
 //
-// It is the BER1 prototype's PDU stand-in — a single-outlet plug validating the
-// power path before the rack's switched 3-phase PDUs exist — but it is also a
+// It is the BER1 prototype's PDU stand-in: a single-outlet plug validating the
+// power path before the rack's switched 3-phase PDUs exist, but it is also a
 // real answer for a small deployment, so it is implemented properly rather than
 // as a placeholder.
 //
@@ -25,8 +25,8 @@ const DriverShelly = "shelly"
 // surface at /rpc, while Gen1 exposes /relay/<id>. Which one a given plug
 // speaks is a property of the hardware someone bought, not a deployment
 // decision, so this probes rather than making it a config field: Gen2 first,
-// Gen1 on a 404. Getting that wrong is not subtle — the wrong endpoint 404s
-// immediately — so the probe costs one extra request on Gen1 hardware and
+// Gen1 on a 404. Getting that wrong is not subtle: the wrong endpoint 404s
+// immediately, so the probe costs one extra request on Gen1 hardware and
 // nothing on Gen2.
 type Shelly struct {
 	HTTP *http.Client
@@ -76,7 +76,7 @@ func (s *Shelly) Set(ctx context.Context, o Outlet, on bool) error {
 	channel := o.channel()
 
 	// Gen2 answers with {"was_on":bool}; we do not read it. The previous state
-	// is not the question — Set converges, and the caller that cares about the
+	// is not the question: Set converges, and the caller that cares about the
 	// result reads State back (Cycle does exactly that).
 	found, err := s.call(ctx, o, "/rpc/Switch.Set",
 		url.Values{"id": {channel}, "on": {boolParam(on)}}, nil)
@@ -145,8 +145,8 @@ func (s *Shelly) call(ctx context.Context, o Outlet, path string, query url.Valu
 
 // do sends the request, answering an HTTP 401 challenge when the outlet
 // carries credentials. Gen2 firmware challenges with Digest and Gen1 with
-// Basic; rather than deciding by generation — which would couple auth to the
-// endpoint probe and get it wrong on mixed firmware — this answers whichever
+// Basic; rather than deciding by generation, which would couple auth to the
+// endpoint probe and get it wrong on mixed firmware: this answers whichever
 // scheme the device actually asked for.
 func (s *Shelly) do(req *http.Request, o Outlet) (*http.Response, error) {
 	client := s.HTTP
