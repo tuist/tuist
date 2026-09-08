@@ -73,6 +73,11 @@ belongs in this repository. The Cloudflare operator release lives under
 live under `flux/cloudflare-config/`; their separate dependent
 Kustomization ensures the operator and its custom resource definitions
 are ready first.
+`flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
+Cloudflare-verified bots only when they POST to the production Faro collector;
+public page access remains governed by the separate crawler rules. Rollout
+checks and the distinction between verified bots and unrecognized automation
+are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
 
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.

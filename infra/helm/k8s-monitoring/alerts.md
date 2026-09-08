@@ -4906,11 +4906,43 @@ Two rules of thumb fall out. `ttfb` far exceeding `requestTime + responseTime`
 with every connection phase at zero means client-side queueing. Every network
 phase at zero under a large `duration` means a restored document.
 
-Automated browsers are no longer instrumented: `shared/js/analytics.js` skips
-Faro entirely when `navigator.webdriver` is set, so these samples stop at the
-source rather than being filtered per rule. That flag only catches automation
-that does not hide itself. To check whether it worked, watch the fingerprint
-directly — it should fall to roughly zero:
+`shared/js/analytics.js` skips Faro when `navigator.webdriver` is set. This
+does not catch every crawler: on September 8, the six-hour window ending at
+06:35 UTC still contained 40 LCP samples matching the Linux fingerprint and
+nine identifying themselves as `meta-externalagent`, out of 232 samples. The
+current production bundle contained the WebDriver guard, but telemetry does
+not identify each client's loaded bundle or WebDriver flag.
+
+The Cloudflare rule in
+`infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
+verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
+management-cluster operator reconciles it into the zone's WAF ruleset. It
+blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
+true, so crawlers can still read public pages. This uses the same verified-bot
+signal as the existing crawler rate-limit rules and does not require granular
+Enterprise Bot Management scores. There is no browser-version or viewport
+denylist and no challenge on the collector's background requests.
+
+**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+`cf.client.bot` does not mean human. We have not correlated the Linux cohort
+with Cloudflare's classification, so disappearance of that cohort is a
+post-deployment check, not an established result. If it persists, inspect
+Cloudflare's request classification and available Bot Management entitlement
+before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+After merge, use the management-cluster context to inspect
+`kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
+Require a current `status.observedGeneration`, `Ready=True`, and a populated
+`status.ruleId`. The Flux Kustomization uses `wait: false`, so Flux being ready
+alone does not establish that Cloudflare accepted the rule. Inspect that rule's
+matches in Cloudflare Security Events and check that ordinary-browser
+collector submissions still succeed and emit new LCP samples. WAF blocking
+returns an error response, rather than a successful discarded submission;
+this change does not introduce a Worker.
+
+Watch fresh samples from both crawler cohorts after rollout. Existing samples
+remain in the six- and 24-hour alert windows until they age out; do not treat
+an immediately firing alert as proof the new rule failed. The Linux query is:
 
 ```logql
 count(sum by (session_id) (
@@ -4929,6 +4961,12 @@ count(sum by (session_id) (
   )
 ))
 ```
+
+For the explicitly identified Meta cohort, use the same measurement selector
+with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
+OS and viewport filters. To roll back the edge filter, set `enabled: false`
+in its Kubernetes manifest and let Flux and the operator reconcile; editing
+the rule in the Cloudflare dashboard would be reverted by the operator.
 
 **D scales with traffic**, which is worth remembering before reading a rise as a
 regression. It is an absolute count over 24h and it tracked the weekly cycle
