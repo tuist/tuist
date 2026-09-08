@@ -119,19 +119,6 @@ defmodule TuistWeb.Components.BuildTimeline do
                       placeholder={dgettext("dashboard_builds", "Search steps or targets…")}
                       show_suffix={false}
                     />
-                    <.select
-                      id="timeline-target"
-                      name="timeline_target"
-                      label={dgettext("dashboard_builds", "All targets")}
-                      value="all"
-                    >
-                      <:item value="all" label={dgettext("dashboard_builds", "All targets")} />
-                      <:item
-                        :for={entry <- Map.get(@timeline, :targets, [])}
-                        value={JSON.encode!([entry.project, entry.target])}
-                        label={entry.target <> " · " <> entry.project}
-                      />
-                    </.select>
                   </div>
                   <div data-part="legend">
                     <span data-kind="compile">{dgettext("dashboard_builds", "Compilation")}</span>

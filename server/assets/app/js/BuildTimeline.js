@@ -137,11 +137,6 @@ export default {
       timeline.total_count ?? this.events.length
     ).toLocaleString();
     this.el.querySelector('[data-stat="targets"]').textContent = (timeline.targets || []).length;
-    on(this.el.querySelector('[name="timeline_target"]'), "change", (event) => {
-      [this.project, this.target] =
-        event.target.value && event.target.value !== "all" ? JSON.parse(event.target.value) : ["", ""];
-      this.filter();
-    });
     on(
       this.control("search"),
       "input",
