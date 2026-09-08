@@ -208,13 +208,13 @@ export default {
     }
     for (const surface of this.surfaces) {
       on(surface.element, "keydown", (e) => this.keydown(e));
-      on(surface.element, "pointermove", (e) => {
+      on(surface.canvas, "pointermove", (e) => {
         if (e.pointerType === "touch" || this.focusing) return;
         this.cursorX = e.clientX;
         this.cursorSource = surface.canvas;
         this.updateCursor();
       });
-      on(surface.element, "pointerleave", () => this.hideCursor());
+      on(surface.canvas, "pointerleave", () => this.hideCursor());
     }
     const resize = () => {
       this.resizeInspector();

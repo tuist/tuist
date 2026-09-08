@@ -125,7 +125,6 @@
     gap: var(--noora-spacing-4);
   }
   & [data-part="metric-track"] {
-    cursor: crosshair;
     background: var(--noora-surface-background-primary);
     padding-bottom: var(--noora-spacing-4);
     overflow: hidden;
@@ -159,8 +158,8 @@
       color: var(--noora-chart-secondary);
     }
   }
-  & [data-part="ruler"],
-  & [data-part="step-ruler"] {
+  & [data-part="chart"],
+  & [data-metric-canvas] {
     cursor: crosshair;
   }
   & [data-part="focus-region"] {
