@@ -458,7 +458,12 @@ defmodule Tuist.Kura.Reconciler do
   defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
   defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
-  @present_intent_statuses [:provisioning, :active, :failed]
+  # Every live status, `:replicating` included: its workload is up on the
+  # desired image and catching up from its mesh peers behind the backfill
+  # gate. This pass is the only thing that reaches such a server once its open
+  # deployment is closed, because the rollout fast path drives open deployments
+  # alone and a rollout mints one only for a server that is off the target tag.
+  @present_intent_statuses [:provisioning, :replicating, :active, :failed]
   @open_deployment_statuses [:pending, :running]
 
   # Projects observed cluster state onto present-intent servers the
@@ -586,7 +591,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) and endpoint_in_sync?(server) do
+    if converged?(server, desired) and url_matches_rendered_host?(server) do
       refresh_node_port_url(server)
     else
       do_converge(server, desired)
@@ -630,7 +635,7 @@ defmodule Tuist.Kura.Reconciler do
   # tick and route a converged node through `do_converge/2` (DB write +
   # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
   # tracking the moving endpoint, so report node-port regions as in sync here.
-  defp endpoint_in_sync?(%Server{} = server) do
+  defp url_matches_rendered_host?(%Server{} = server) do
     if node_port_region?(server) do
       true
     else

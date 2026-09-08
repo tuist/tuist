@@ -89,10 +89,82 @@ fn drain(arguments: &[String]) -> i32 {
 
 const DEFAULT_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
+/// `--prune <cas-path> [--limit-bytes <n>]`: bound that store on disk -- rotate
+/// its generation chain against the limit and delete the generations that fall
+/// off it. The caller is a runner VM's teardown, run after the build's handles
+/// are closed and before the cache image is measured and promoted, because
+/// nothing else ever collects those generations: `COMPILATION_CACHE_LIMIT_SIZE`
+/// alone bounds a generation, not the directory, so an uncollected store grows
+/// without bound (measured to 9.4x its limit, still climbing).
+///
+/// It asks the RUNNING proxy first and only prunes in-process if the proxy says
+/// it holds no handle on the path. That order is load-bearing rather than an
+/// optimisation: llcas rotates a store as its LAST handle closes, so on a
+/// machine where the proxy holds one, a prune driven from here would find the
+/// chain still live and collect nothing while reporting success.
+///
+/// Exit 0 pruned (or found nothing to collect), 1 could not. There is no third
+/// answer to keep apart the way `--drain` has one: a prune that did not run
+/// costs the volume space, and the caller's own fill gauge is what acts on that.
+fn prune(arguments: &[String]) -> i32 {
+    let value_of = |name: &str| {
+        arguments
+            .iter()
+            .position(|argument| argument == name)
+            .and_then(|at| arguments.get(at + 1))
+            .cloned()
+    };
+    let Some(cas_path) = value_of("--prune") else {
+        eprintln!("--prune requires a CAS path");
+        return 1;
+    };
+    // 0 = impose no budget: prune against whatever limit the store carries.
+    let limit_bytes = value_of("--limit-bytes")
+        .and_then(|bytes| bytes.parse::<u64>().ok())
+        .unwrap_or(0);
+    let socket_path = value_of("--socket").unwrap_or_else(|| {
+        std::env::var("TUIST_CAS_PROXY_SOCKET")
+            .ok()
+            .filter(|socket| !socket.is_empty())
+            .unwrap_or_else(tuist_cas_plugin::default_proxy_socket)
+    });
+
+    let why_local = match (ProxyClient { socket_path }).prune(&cas_path, limit_bytes) {
+        Ok(Some(reclaimed)) => {
+            eprintln!("proxy pruned {cas_path}, reclaiming {reclaimed} bytes");
+            return 0;
+        }
+        Ok(None) => "the proxy holds no handle on it",
+        // Not an answer about whether a handle is held. Try anyway -- the common
+        // case is no proxy at all -- but say why the result may be a no-op.
+        Err(reason) => {
+            eprintln!("cas prune could not ask the proxy ({reason})");
+            "the proxy could not be asked"
+        }
+    };
+    match tuist_cas_plugin::proxy::prune_store(
+        &tuist_cas_plugin::upstream_path(),
+        &cas_path,
+        limit_bytes,
+    ) {
+        Ok(reclaimed) => {
+            eprintln!("pruned {cas_path} directly ({why_local}), reclaiming {reclaimed} bytes");
+            0
+        }
+        Err(reason) => {
+            eprintln!("cas prune failed for {cas_path} ({why_local}): {reason}");
+            1
+        }
+    }
+}
+
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     if arguments.iter().any(|argument| argument == "--drain") {
         std::process::exit(drain(&arguments));
+    }
+    if arguments.iter().any(|argument| argument == "--prune") {
+        std::process::exit(prune(&arguments));
     }
 
     let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")

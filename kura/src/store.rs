@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use arc_swap::ArcSwapOption;
+use arc_swap::{ArcSwap, ArcSwapOption};
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
@@ -36,9 +36,9 @@ use crate::{
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
+        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -50,9 +50,10 @@ use crate::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
     },
     io::{IoController, PersistentFile},
-    memory::MemoryController,
+    memory::{MemoryController, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
+    reapi::chunking::{canonical_blob_key, is_recipe_key, recipe_referenced_blob_keys},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
@@ -66,10 +67,10 @@ use crate::{
         action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
         artifact_storage_id_in, backfill_index_key, backfill_index_prefix_upper_bound,
         backfill_index_value, backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
-        decode_backfill_index_row, decode_backfill_watermark_value, drop_staging_cache_range,
-        encode_backfill_watermark_value, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
-        try_path_size_bytes,
+        chunk_recipe_ref_key, chunk_recipe_ref_prefix, decode_backfill_index_row,
+        decode_backfill_watermark_value, drop_staging_cache_range, encode_backfill_watermark_value,
+        module_key, namespace_artifact_index_key, now_ms, segment_artifact_index_key,
+        segment_artifact_index_prefix, segment_path, temp_file_path, try_path_size_bytes,
     },
 };
 
@@ -107,8 +108,14 @@ const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // the one-time migration into an unbounded RocksDB and page-cache burst.
 const ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1;
 const ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH: usize = 1_024;
+const CHUNK_RECIPE_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1_024;
 
 pub struct ActionCacheBlobRefsBackfillStep {
+    pub rows: usize,
+    pub complete: bool,
+}
+
+pub struct ChunkRecipeRefsBackfillStep {
     pub rows: usize,
     pub complete: bool,
 }
@@ -174,7 +181,20 @@ pub struct Store {
     // attributed to the lane that is actually deep, which decides whether the
     // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`.
     outbox_bulk_depth: AtomicUsize,
-    outbox_max_depth: usize,
+    // Queued messages per replication target. `reserve_outbox_slots` refuses
+    // a write once any of its targets holds `outbox_max_depth_per_peer`, so
+    // one backed-off peer can fill its own share but not the others'. The
+    // map is rewritten only when a target is first seen or when membership
+    // retires one (`retain_outbox_targets`); the write path loads it and
+    // touches atomics, taking no lock.
+    outbox_target_depth: ArcSwap<HashMap<String, Arc<AtomicUsize>>>,
+    // The node-wide total `reserve_outbox_slots` also refuses at: the share
+    // times the replication target count under `OUTBOX_MAX_DEPTH_CEILING`,
+    // re-derived by `set_replication_peer_count` on every membership pass, or
+    // the fixed `outbox_max_depth_fixed`, which replaces the share entirely.
+    outbox_max_depth: AtomicUsize,
+    outbox_max_depth_fixed: Option<usize>,
+    outbox_max_depth_per_peer: usize,
     multipart_uploads: AtomicUsize,
     multipart_stored_bytes: AtomicU64,
     multipart_max_active_uploads: usize,
@@ -394,6 +414,9 @@ pub struct StoreSnapshot {
     /// How many of `outbox_messages` sit in the bulk lane. The rest are the
     /// metadata lane, which `drain_metadata_batches` amortizes separately.
     pub outbox_bulk_messages: usize,
+    /// `outbox_messages` split by target peer; the per-peer share is
+    /// enforced against these.
+    pub outbox_target_messages: Vec<(String, usize)>,
     pub multipart_uploads: usize,
     pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
@@ -731,9 +754,8 @@ struct PersistArtifactSpec<'a> {
 }
 
 struct OutboxReservation<'a> {
-    depth: &'a AtomicUsize,
-    bulk_depth: &'a AtomicUsize,
-    slots: usize,
+    store: &'a Store,
+    targets: &'a [String],
     committed: bool,
 }
 
@@ -785,15 +807,17 @@ impl OutboxReservation<'_> {
     fn commit(mut self, bulk_slots: usize) {
         self.committed = true;
         if bulk_slots > 0 {
-            self.bulk_depth.fetch_add(bulk_slots, Ordering::AcqRel);
+            self.store
+                .outbox_bulk_depth
+                .fetch_add(bulk_slots, Ordering::AcqRel);
         }
     }
 }
 
 impl Drop for OutboxReservation<'_> {
     fn drop(&mut self) {
-        if !self.committed && self.slots > 0 {
-            release_atomic_slots(self.depth, self.slots);
+        if !self.committed && !self.targets.is_empty() {
+            self.store.release_outbox_slots(self.targets);
         }
     }
 }
@@ -1000,9 +1024,11 @@ struct EvictionCommitLog {
 #[derive(Default)]
 struct CascadeProgress {
     seen: HashSet<String>,
+    seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
     total: usize,
+    recipe_total: usize,
 }
 
 impl CascadeProgress {
@@ -1184,7 +1210,18 @@ impl Store {
             rocksdb_write_buffer_manager,
             outbox_depth: AtomicUsize::new(0),
             outbox_bulk_depth: AtomicUsize::new(0),
-            outbox_max_depth: config.outbox_max_depth,
+            outbox_target_depth: ArcSwap::from_pointee(HashMap::new()),
+            outbox_max_depth: AtomicUsize::new(outbox_max_depth_for(
+                config.outbox_max_depth,
+                config.outbox_max_depth_per_peer,
+                config
+                    .peers
+                    .iter()
+                    .filter(|peer| **peer != config.node_url)
+                    .count(),
+            )),
+            outbox_max_depth_fixed: config.outbox_max_depth,
+            outbox_max_depth_per_peer: config.outbox_max_depth_per_peer,
             multipart_uploads: AtomicUsize::new(0),
             multipart_stored_bytes: AtomicU64::new(0),
             multipart_max_active_uploads: config.multipart_max_active_uploads,
@@ -1242,8 +1279,23 @@ impl Store {
         store.replace_segment_state_snapshot(segment_state);
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
-        let (outbox_depth, outbox_bulk_depth) = store.count_outbox_entries_exact()?;
+        let (outbox_depth, outbox_bulk_depth, outbox_target_depth) =
+            store.count_outbox_entries_exact()?;
         store.outbox_depth.store(outbox_depth, Ordering::Release);
+        store.outbox_target_depth.store(Arc::new(
+            outbox_target_depth
+                .into_iter()
+                .map(|(target, depth)| (target, Arc::new(AtomicUsize::new(depth))))
+                .collect(),
+        ));
+        store
+            .io
+            .metrics()
+            .update_outbox_capacity(store.outbox_max_depth());
+        store
+            .io
+            .metrics()
+            .update_outbox_peer_capacity(store.outbox_peer_capacity());
         store
             .outbox_bulk_depth
             .store(outbox_bulk_depth, Ordering::Release);
@@ -1285,23 +1337,138 @@ impl Store {
             .min(self.outbox_depth())
     }
 
-    fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
-        if slots == 0 {
+    /// The node-wide outbox total at which cache writes are shed; each target
+    /// is also bounded by `outbox_peer_capacity`.
+    pub fn outbox_max_depth(&self) -> usize {
+        self.outbox_max_depth.load(Ordering::Acquire)
+    }
+
+    /// Re-derives the outbox cap for a peer count. Every write enqueues one
+    /// message per target, so the cap tracks the mesh: a peer joining grows
+    /// the room by one per-peer share, a peer leaving shrinks it. The caller
+    /// (`AppState::refresh_outbox_capacity`) counts every peer whose messages
+    /// may still occupy the queue, so a shrink only follows a departure whose
+    /// messages are actually pruned; it sheds nothing itself, reservations
+    /// fail until the drain makes room. Zero peers keeps one share so a mesh
+    /// of one still enqueues.
+    pub fn set_replication_peer_count(&self, peers: usize) {
+        let max_depth = outbox_max_depth_for(
+            self.outbox_max_depth_fixed,
+            self.outbox_max_depth_per_peer,
+            peers,
+        );
+        let previous = self.outbox_max_depth.swap(max_depth, Ordering::AcqRel);
+        if previous != max_depth {
+            self.io.metrics().update_outbox_capacity(max_depth);
+            tracing::debug!(
+                "replication outbox capacity is now {max_depth} messages for {peers} peer(s) (was {previous})"
+            );
+        }
+    }
+
+    /// Messages queued per replication target.
+    pub fn outbox_target_depths(&self) -> Vec<(String, usize)> {
+        self.outbox_target_depth
+            .load()
+            .iter()
+            .map(|(target, depth)| (target.clone(), depth.load(Ordering::Relaxed)))
+            .collect()
+    }
+
+    /// The per-target share that sheds. A fixed `KURA_OUTBOX_MAX_DEPTH`
+    /// replaces the share with its node-wide total, so it is the bound a
+    /// target can reach under one.
+    pub fn outbox_peer_capacity(&self) -> usize {
+        self.outbox_max_depth_fixed
+            .unwrap_or(self.outbox_max_depth_per_peer)
+    }
+
+    /// Whether a write fanning out to `targets` would be refused for outbox
+    /// room: the node at its total, or one of *those* targets at its share.
+    /// Only the write's own targets count — a departed peer's queue is never
+    /// pruned within a process lifetime, and its full share must not gate
+    /// writes the live peers can take. The write gates read this ahead of the
+    /// body so a saturated pod spends nothing on bytes it will not keep;
+    /// `reserve_outbox_slots` is the admission decision.
+    pub fn outbox_saturated(&self, targets: &[String]) -> bool {
+        if self.outbox_depth() >= self.outbox_max_depth() {
+            return true;
+        }
+        if self.outbox_max_depth_fixed.is_some() {
+            return false;
+        }
+        let per_peer = self.outbox_max_depth_per_peer;
+        let depths = self.outbox_target_depth.load();
+        targets.iter().any(|target| {
+            depths
+                .get(target)
+                .is_some_and(|depth| depth.load(Ordering::Relaxed) >= per_peer)
+        })
+    }
+
+    /// Makes sure every target has a counter. Rewrites the map only for a
+    /// peer new to this process, so the write path almost never takes it.
+    fn ensure_outbox_targets(&self, targets: &[String]) {
+        self.outbox_target_depth.rcu(|depths| {
+            let mut depths = HashMap::clone(depths);
+            for target in targets {
+                depths
+                    .entry(target.clone())
+                    .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
+            }
+            depths
+        });
+    }
+
+    /// Drops the counters of targets that are neither replication targets
+    /// nor holding queued messages. Called from the membership pass, so a
+    /// departed peer's counter lives exactly as long as its backlog.
+    pub fn retain_outbox_targets(&self, live: &BTreeSet<String>) {
+        let stale = self
+            .outbox_target_depth
+            .load()
+            .iter()
+            .any(|(target, depth)| !live.contains(target) && depth.load(Ordering::Relaxed) == 0);
+        if !stale {
+            return;
+        }
+        self.outbox_target_depth.rcu(|depths| {
+            depths
+                .iter()
+                .filter(|(target, depth)| {
+                    live.contains(*target) || depth.load(Ordering::Relaxed) > 0
+                })
+                .map(|(target, depth)| (target.clone(), depth.clone()))
+                .collect::<HashMap<_, _>>()
+        });
+    }
+
+    /// Reserves one outbox slot per target, all or nothing: the node-wide
+    /// total first, then each target's share (unless a fixed total replaces
+    /// it). A write refused for a share names the saturated target, so one
+    /// peer's backlog is refused at its own share and the room meant for the
+    /// other peers stays theirs. Lock-free: the total is a CAS, each share a
+    /// bounded fetch-update, and a refusal rolls back what it took.
+    fn reserve_outbox_slots<'a>(
+        &'a self,
+        targets: &'a [String],
+    ) -> Result<OutboxReservation<'a>, String> {
+        if targets.is_empty() {
             return Ok(OutboxReservation {
-                depth: &self.outbox_depth,
-                bulk_depth: &self.outbox_bulk_depth,
-                slots,
+                store: self,
+                targets,
                 committed: false,
             });
         }
 
+        let slots = targets.len();
+        let max_depth = self.outbox_max_depth();
         let mut current = self.outbox_depth.load(Ordering::Acquire);
         loop {
             let requested = current.saturating_add(slots);
-            if requested > self.outbox_max_depth {
+            if requested > max_depth {
                 return Err(format!(
-                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {} allowed",
-                    self.outbox_max_depth
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
                 ));
             }
             match self.outbox_depth.compare_exchange_weak(
@@ -1310,17 +1477,58 @@ impl Store {
                 Ordering::AcqRel,
                 Ordering::Acquire,
             ) {
-                Ok(_) => {
-                    return Ok(OutboxReservation {
-                        depth: &self.outbox_depth,
-                        bulk_depth: &self.outbox_bulk_depth,
-                        slots,
-                        committed: false,
-                    });
-                }
+                Ok(_) => break,
                 Err(observed) => current = observed,
             }
         }
+
+        if self.outbox_max_depth_fixed.is_none() {
+            let per_peer = self.outbox_max_depth_per_peer;
+            let mut depths = self.outbox_target_depth.load();
+            if targets.iter().any(|target| !depths.contains_key(target)) {
+                self.ensure_outbox_targets(targets);
+                depths = self.outbox_target_depth.load();
+            }
+            for (taken, target) in targets.iter().enumerate() {
+                let claimed =
+                    depths[target].fetch_update(Ordering::AcqRel, Ordering::Acquire, |depth| {
+                        (depth < per_peer).then_some(depth + 1)
+                    });
+                if let Err(depth) = claimed {
+                    self.release_outbox_slots(&targets[..taken]);
+                    release_atomic_slots(&self.outbox_depth, slots - taken);
+                    return Err(format!(
+                        "{OUTBOX_FULL_ERROR}: {depth} messages queued for {target}, {per_peer} allowed per peer"
+                    ));
+                }
+            }
+        }
+        Ok(OutboxReservation {
+            store: self,
+            targets,
+            committed: false,
+        })
+    }
+
+    fn release_outbox_slots(&self, targets: &[String]) {
+        if self.outbox_max_depth_fixed.is_none() {
+            let depths = self.outbox_target_depth.load();
+            for target in targets {
+                if let Some(depth) = depths.get(target) {
+                    release_atomic_slots(depth, 1);
+                }
+            }
+        }
+        release_atomic_slots(&self.outbox_depth, targets.len());
+    }
+
+    fn release_outbox_slot(&self, target: &str) {
+        if self.outbox_max_depth_fixed.is_none()
+            && let Some(depth) = self.outbox_target_depth.load().get(target)
+        {
+            release_atomic_slots(depth, 1);
+        }
+        release_atomic_slots(&self.outbox_depth, 1);
     }
 
     fn reserve_multipart_upload(&self) -> Result<MultipartUploadReservation<'_>, String> {
@@ -1671,7 +1879,7 @@ impl Store {
                     already_present,
                 } => (existing, already_present),
             };
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
 
         let (location, evicted_segments, _durability_seq) = match source {
             SegmentArtifactSource::Path(staged) => {
@@ -1997,7 +2205,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(segment_id.as_str()),
+                offset,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.segment_handle(segment_id).await?;
@@ -2016,7 +2232,15 @@ impl Store {
             let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
                 return Ok(None);
             };
-            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            let region = MmapRegion {
+                source: Arc::from(blob_path.as_str()),
+                offset: 0,
+                len: manifest.size,
+            };
+            let Some(permit) = self
+                .memory
+                .try_acquire_mmap_serving(region, requested_bytes)
+            else {
                 return Ok(None);
             };
             let handle = self.blob_handle(blob_path).await?;
@@ -2604,7 +2828,7 @@ impl Store {
         // the tag decision and the write it feeds cannot be split by a racing
         // peer.
         let branch = sticky_branch(existing.as_ref(), spec.branch, spec.trunk);
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
 
         let mut batch = WriteBatch::default();
         let mut bulk_outbox = 0;
@@ -2771,6 +2995,26 @@ impl Store {
                 batch,
                 &manifest.namespace_id,
                 &artifact_id,
+                bytes,
+            );
+        }
+        if manifest.producer == ArtifactProducer::Reapi && is_recipe_key(&manifest.key) {
+            if existing.is_some()
+                && let Some(previous_bytes) = self.inline_bytes(&artifact_id)?
+            {
+                self.stage_chunk_recipe_refs_delete(
+                    batch,
+                    &manifest.namespace_id,
+                    &artifact_id,
+                    &manifest.key,
+                    &previous_bytes,
+                );
+            }
+            self.stage_chunk_recipe_refs_put(
+                batch,
+                &manifest.namespace_id,
+                &artifact_id,
+                &manifest.key,
                 bytes,
             );
         }
@@ -3830,15 +4074,26 @@ impl Store {
                     // ahead of the blob leave, at worst, a blob with no
                     // referrers — which this eviction removes moments later,
                     // and which a crash in between leaves for the re-run.
-                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
-                        self.stage_action_cache_cascade_for_blob(
+                    if manifest.producer == ArtifactProducer::Reapi {
+                        self.stage_chunk_recipe_cascade_for_chunk(
                             &mut batch,
-                            &artifact_id,
+                            &manifest,
+                            cascade_active,
                             &mut cascade,
                             &mut removed_artifact_ids,
                             &mut scanned_rows,
                         )
                         .await?;
+                        if cascade_active {
+                            self.stage_action_cache_cascade_for_blob(
+                                &mut batch,
+                                &artifact_id,
+                                &mut cascade,
+                                &mut removed_artifact_ids,
+                                &mut scanned_rows,
+                            )
+                            .await?;
+                        }
                     }
                     // The blob's own rows go last, so they can only land in a
                     // chunk committed after every entry referencing it is gone.
@@ -3871,6 +4126,11 @@ impl Store {
                     cascaded_entries = cascade.total,
                     "cascaded action-cache entries stranded by segment eviction"
                 );
+            }
+            if cascade.recipe_total > 0 {
+                self.io
+                    .metrics()
+                    .record_reapi_chunking_event("recipe_removal", "chunk_evicted");
             }
         }
         self.remove_segment_handle(segment_id).await;
@@ -3960,6 +4220,7 @@ impl Store {
         cascade.pending_namespaces.clear();
         // Dedup is per-chunk; see `CascadeProgress`.
         cascade.seen.clear();
+        cascade.seen_recipes.clear();
         Ok(())
     }
 
@@ -4067,6 +4328,124 @@ impl Store {
             }
         }
         Ok(())
+    }
+
+    async fn stage_chunk_recipe_cascade_for_chunk(
+        &self,
+        batch: &mut WriteBatch,
+        chunk_manifest: &ArtifactManifest,
+        cascade_action_cache: bool,
+        cascade: &mut CascadeProgress,
+        removed_artifact_ids: &mut Vec<String>,
+        scanned_rows: &mut usize,
+    ) -> Result<(), String> {
+        let chunk_artifact_id = &chunk_manifest.artifact_id;
+        let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        for item in iter {
+            let (ref_key, _) =
+                item.map_err(|error| format!("failed to iterate chunk recipe refs: {error}"))?;
+            if !ref_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            yield_scanned_row(scanned_rows).await;
+            let recipe_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                .map_err(|error| format!("invalid chunk recipe ref key: {error}"))?
+                .to_owned();
+            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+            if cascade.seen_recipes.contains(&recipe_id) {
+                continue;
+            }
+            let Some(recipe_manifest) = self.manifest_from_db(&recipe_id)? else {
+                continue;
+            };
+            if recipe_manifest.producer != ArtifactProducer::Reapi
+                || !is_recipe_key(&recipe_manifest.key)
+            {
+                continue;
+            }
+            let Some(recipe_bytes) = self.inline_bytes(&recipe_id)? else {
+                continue;
+            };
+            if !self
+                .chunk_recipe_blob_ids(
+                    &recipe_manifest.namespace_id,
+                    &recipe_manifest.key,
+                    &recipe_bytes,
+                )
+                .iter()
+                .any(|id| id == chunk_artifact_id)
+            {
+                continue;
+            }
+
+            if cascade_action_cache && let Some(blob_key) = canonical_blob_key(&recipe_manifest.key)
+            {
+                let blob_id = artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    &recipe_manifest.namespace_id,
+                    &blob_key,
+                );
+                let canonical_blob_survives =
+                    self.manifest_from_db(&blob_id)?.is_some_and(|manifest| {
+                        manifest.segment_id.as_deref() != chunk_manifest.segment_id.as_deref()
+                    });
+                // Action results reference the logical digest, not the recipe
+                // representation. Removing the recipe cannot strand them when
+                // the complete blob remains on another segment.
+                if !canonical_blob_survives {
+                    self.stage_action_cache_cascade_for_blob(
+                        batch,
+                        &blob_id,
+                        cascade,
+                        removed_artifact_ids,
+                        scanned_rows,
+                    )
+                    .await?;
+                }
+            }
+            self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
+            cascade.seen_recipes.insert(recipe_id.clone());
+            cascade.recipe_total += 1;
+            removed_artifact_ids.push(recipe_id);
+            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                self.commit_eviction_chunk(std::mem::take(batch), removed_artifact_ids, cascade)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn stage_chunk_recipe_delete(
+        &self,
+        batch: &mut WriteBatch,
+        manifest: &ArtifactManifest,
+        recipe_bytes: &[u8],
+    ) {
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_MANIFESTS),
+            manifest.artifact_id.as_bytes(),
+        );
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            manifest.artifact_id.as_bytes(),
+        );
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id).as_bytes(),
+        );
+        self.stage_chunk_recipe_refs_delete(
+            batch,
+            &manifest.namespace_id,
+            &manifest.artifact_id,
+            &manifest.key,
+            recipe_bytes,
+        );
+        self.stage_backfill_index_delete(batch, manifest);
     }
 
     /// Stage the full removal of a single action-cache entry into `batch`: its
@@ -4476,12 +4855,39 @@ impl Store {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
+        self.persist_inline_artifact_from_bytes_at_version_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            now_ms(),
+            replication_targets,
+            branch,
+            trunk,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn persist_inline_artifact_from_bytes_at_version_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        version_ms: u64,
+        replication_targets: &[String],
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms,
             replication_targets,
             branch,
             trunk,
@@ -4989,9 +5395,9 @@ impl Store {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
         }
         let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
-            0
+            &[]
         } else {
-            replication_targets.len()
+            replication_targets
         })?;
         if !delete_everything {
             batch.put_cf(
@@ -5070,6 +5476,18 @@ impl Store {
                             &action_result_bytes,
                         );
                     }
+                }
+                if manifest.producer == ArtifactProducer::Reapi
+                    && is_recipe_key(&manifest.key)
+                    && let Some(recipe_bytes) = self.inline_bytes(&artifact_id)?
+                {
+                    self.stage_chunk_recipe_refs_delete(
+                        &mut batch,
+                        namespace_id,
+                        &artifact_id,
+                        &manifest.key,
+                        &recipe_bytes,
+                    );
                 }
                 // Covers the `version_ms == 0` purge branch too: every removed
                 // manifest — whatever its version — loses its index row here.
@@ -5579,7 +5997,8 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
-        let outbox_reservation = self.reserve_outbox_slots(1)?;
+        let outbox_reservation =
+            self.reserve_outbox_slots(std::slice::from_ref(&message.target))?;
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
@@ -5689,6 +6108,7 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let outbox_bulk_messages = self.outbox_bulk_depth();
+        let outbox_target_messages = self.outbox_target_depths();
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
         let promotion_queue_depth = self
             .promotion_queue
@@ -5704,6 +6124,7 @@ impl Store {
         Ok(StoreSnapshot {
             outbox_messages,
             outbox_bulk_messages,
+            outbox_target_messages,
             multipart_uploads,
             promotion_queue_depth,
             segment_counts,
@@ -5778,6 +6199,18 @@ impl Store {
                     );
                 }
             }
+            if manifest.producer == ArtifactProducer::Reapi
+                && is_recipe_key(&manifest.key)
+                && let Some(recipe_bytes) = self.inline_bytes(&manifest.artifact_id)?
+            {
+                self.stage_chunk_recipe_refs_delete(
+                    &mut batch,
+                    &manifest.namespace_id,
+                    &manifest.artifact_id,
+                    &manifest.key,
+                    &recipe_bytes,
+                );
+            }
             if let Some(segment_id) = &manifest.segment_id {
                 batch.delete_cf(
                     self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
@@ -5792,8 +6225,11 @@ impl Store {
         Ok(())
     }
 
-    /// Walks the manifest keyspace and deletes REAPI action-cache entries
-    /// whose `version_ms` predates `cutoff_ms`, up to `max_deletes` per call
+    /// Walks the manifest keyspace and deletes action-cache records, plus
+    /// unreadable chunk recipes, whose `version_ms` predates `cutoff_ms`, up
+    /// to `max_deletes` per call. A readable recipe stays for as long as all
+    /// of its chunks do; chunk eviction is what bounds it and cascades the
+    /// reverse rows.
     /// (the remainder ages out on later sweeps, which smooths the first sweep
     /// after this ships over a store that never expired anything). Entries
     /// are append-only otherwise — every source change publishes new keys and
@@ -5811,8 +6247,22 @@ impl Store {
         loop {
             let page = self.manifests_page(after.as_deref(), SCAN_PAGE)?;
             for manifest in page.manifests {
+                let stale_lifecycle_record = if manifest.key.starts_with("action_cache/") {
+                    true
+                } else if is_recipe_key(&manifest.key) {
+                    match self.inline_bytes(&manifest.artifact_id)? {
+                        Some(bytes) => !self.chunk_recipe_has_all_chunks(
+                            &manifest.namespace_id,
+                            &manifest.key,
+                            &bytes,
+                        )?,
+                        None => true,
+                    }
+                } else {
+                    false
+                };
                 if manifest.producer == ArtifactProducer::Reapi
-                    && manifest.key.starts_with("action_cache/")
+                    && stale_lifecycle_record
                     && manifest.version_ms < cutoff_ms
                 {
                     expired.push(manifest);
@@ -5830,8 +6280,17 @@ impl Store {
             }
         }
         let count = expired.len();
+        let expired_recipes = expired
+            .iter()
+            .filter(|manifest| is_recipe_key(&manifest.key))
+            .count();
         for chunk in expired.chunks(1024) {
             self.delete_artifact_metadata(chunk)?;
+        }
+        if expired_recipes > 0 {
+            self.io
+                .metrics()
+                .record_reapi_chunking_event("recipe_removal", "stranded_expiry");
         }
         Ok(count)
     }
@@ -6178,6 +6637,82 @@ impl Store {
         }
     }
 
+    fn chunk_recipe_blob_ids(
+        &self,
+        namespace_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) -> Vec<String> {
+        recipe_referenced_blob_keys(recipe_key, recipe_bytes)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|blob_key| {
+                artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    namespace_id,
+                    &blob_key,
+                )
+            })
+            .collect()
+    }
+
+    fn chunk_recipe_has_all_chunks(
+        &self,
+        namespace_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) -> Result<bool, String> {
+        let Some(chunk_keys) = recipe_referenced_blob_keys(recipe_key, recipe_bytes) else {
+            return Ok(false);
+        };
+        for chunk_key in chunk_keys {
+            let chunk_id = artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &self.tenant_id,
+                namespace_id,
+                &chunk_key,
+            );
+            if self.manifest_from_db(&chunk_id)?.is_none() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn stage_chunk_recipe_refs_put(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        recipe_artifact_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) {
+        for chunk_id in self.chunk_recipe_blob_ids(namespace_id, recipe_key, recipe_bytes) {
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                chunk_recipe_ref_key(&chunk_id, recipe_artifact_id).as_bytes(),
+                [],
+            );
+        }
+    }
+
+    fn stage_chunk_recipe_refs_delete(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        recipe_artifact_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) {
+        for chunk_id in self.chunk_recipe_blob_ids(namespace_id, recipe_key, recipe_bytes) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                chunk_recipe_ref_key(&chunk_id, recipe_artifact_id).as_bytes(),
+            );
+        }
+    }
+
     fn action_cache_blob_refs_marker_key() -> &'static str {
         "action_cache_blob_refs/backfilled"
     }
@@ -6317,6 +6852,82 @@ impl Store {
                 .store(true, Ordering::Release);
         }
         Ok(ActionCacheBlobRefsBackfillStep { rows, complete })
+    }
+
+    pub fn backfill_chunk_recipe_refs_step(&self) -> Result<ChunkRecipeRefsBackfillStep, String> {
+        const MARKER: &str = "chunk_recipe_refs/backfilled_v1";
+        const CURSOR: &str = "chunk_recipe_refs/cursor_v1";
+        if self
+            .db
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), MARKER.as_bytes())
+            .map_err(|error| format!("failed to read chunk recipe refs marker: {error}"))?
+            .is_some()
+        {
+            return Ok(ChunkRecipeRefsBackfillStep {
+                rows: 0,
+                complete: true,
+            });
+        }
+        let after = self
+            .db
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), CURSOR.as_bytes())
+            .map_err(|error| format!("failed to read chunk recipe refs cursor: {error}"))?
+            .map(|cursor| {
+                String::from_utf8(cursor.to_vec())
+                    .map_err(|error| format!("invalid chunk recipe refs cursor: {error}"))
+            })
+            .transpose()?;
+        let page = self.manifests_page(
+            after.as_deref(),
+            CHUNK_RECIPE_REFS_BACKFILL_MANIFESTS_PER_STEP,
+        )?;
+        let mut rows = 0;
+        let mut pending = 0;
+        let mut batch = WriteBatch::default();
+        for manifest in &page.manifests {
+            if manifest.producer != ArtifactProducer::Reapi || !is_recipe_key(&manifest.key) {
+                continue;
+            }
+            let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
+                continue;
+            };
+            for chunk_id in
+                self.chunk_recipe_blob_ids(&manifest.namespace_id, &manifest.key, &bytes)
+            {
+                batch.put_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    chunk_recipe_ref_key(&chunk_id, &manifest.artifact_id).as_bytes(),
+                    [],
+                );
+                rows += 1;
+                pending += 1;
+                if pending == ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH {
+                    self.write_batch_sync(
+                        std::mem::take(&mut batch),
+                        "chunk recipe refs backfill batch",
+                    )?;
+                    pending = 0;
+                }
+            }
+        }
+        if pending > 0 {
+            self.write_batch_sync(batch, "chunk recipe refs backfill batch")?;
+        }
+
+        let complete = page.next_after.is_none();
+        let mut progress = WriteBatch::default();
+        if complete {
+            progress.put_cf(self.cf(ROCKSDB_CF_KEY_VALUE), MARKER.as_bytes(), []);
+            progress.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), CURSOR.as_bytes());
+        } else if let Some(cursor) = page.manifests.last() {
+            progress.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                CURSOR.as_bytes(),
+                cursor.artifact_id.as_bytes(),
+            );
+        }
+        self.write_batch_sync(progress, "chunk recipe refs backfill progress")?;
+        Ok(ChunkRecipeRefsBackfillStep { rows, complete })
     }
 
     #[cfg(test)]
@@ -7092,11 +7703,11 @@ impl Store {
         self.stamp_backfill_maintained_seq()
     }
 
-    pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
+    pub fn delete_outbox_message(&self, key: &[u8], target: &str) -> Result<(), String> {
         self.db
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
             .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
-        release_atomic_slots(&self.outbox_depth, 1);
+        self.release_outbox_slot(target);
         if is_bulk_outbox_key(key) {
             release_atomic_slots(&self.outbox_bulk_depth, 1);
         }
@@ -7562,21 +8173,38 @@ impl Store {
     /// Total and bulk-lane outbox depth in one pass, for seeding both counters
     /// at open. Runs once per process, so it iterates rather than keeping a
     /// second persisted tally that could disagree with the entries on disk.
-    fn count_outbox_entries_exact(&self) -> Result<(usize, usize), String> {
+    fn count_outbox_entries_exact(&self) -> Result<(usize, usize, HashMap<String, usize>), String> {
         let iter = self
             .db
             .iterator_cf(self.cf(ROCKSDB_CF_OUTBOX), IteratorMode::Start);
         let mut total = 0_usize;
         let mut bulk = 0_usize;
+        let mut per_target: HashMap<String, usize> = HashMap::new();
         for item in iter {
-            let (key, _) =
+            let (key, value) =
                 item.map_err(|error| format!("failed to iterate {ROCKSDB_CF_OUTBOX}: {error}"))?;
             total = total.saturating_add(1);
             if is_bulk_outbox_key(&key) {
                 bulk = bulk.saturating_add(1);
             }
+            // Only the target is read: the operation may carry a variant this
+            // binary does not know (a rollback across a wire addition), and
+            // that is a per-message drain failure, not a reason to keep the
+            // store from opening. The row still holds a slot in the total.
+            match serde_json::from_slice::<OutboxTarget<'_>>(&value) {
+                Ok(message) => match per_target.get_mut(message.target) {
+                    Some(depth) => *depth += 1,
+                    None => {
+                        per_target.insert(message.target.to_owned(), 1);
+                    }
+                },
+                Err(error) => tracing::warn!(
+                    key = %String::from_utf8_lossy(&key),
+                    "outbox row is not attributable to a target: {error}"
+                ),
+            }
         }
-        Ok((total, bulk))
+        Ok((total, bulk, per_target))
     }
 
     #[cfg(test)]
@@ -8534,7 +9162,15 @@ pub(crate) fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
 /// as `SegmentArtifact`: the kind distinguishes "body is inline bytes" from
 /// "body is file-backed", which is what the transfer path cares about.
 pub(crate) fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
-    if manifest.inline {
+    // A recipe is physically inline but is only useful when every referenced
+    // chunk made the same age-bounded catch-up pass. Classifying it with the
+    // capacity-sensitive records makes a capacity-completed pass skip the
+    // recipe instead of applying metadata whose chunks it deliberately
+    // declined. The apply path recognizes recipe keys and still stores their
+    // small body inline.
+    if manifest.producer == ArtifactProducer::Reapi && is_recipe_key(&manifest.key) {
+        BackfillRecordKind::SegmentArtifact
+    } else if manifest.inline {
         BackfillRecordKind::InlineArtifact
     } else {
         BackfillRecordKind::SegmentArtifact
@@ -8677,6 +9313,22 @@ fn persisted_version_ms(version_ms: u64) -> u64 {
 /// of cross-pod snapshot staleness during a cache populate.
 pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
 
+fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> usize {
+    fixed.unwrap_or_else(|| {
+        per_peer
+            .saturating_mul(peers.max(1))
+            .min(OUTBOX_MAX_DEPTH_CEILING)
+    })
+}
+
+/// The target half of a persisted `OutboxMessage`, for counting rows the
+/// current binary may not be able to decode in full.
+#[derive(Deserialize)]
+struct OutboxTarget<'a> {
+    #[serde(borrow)]
+    target: &'a str,
+}
+
 /// Whether an outbox key belongs to the bulk lane. The lane is the key's first
 /// byte, so this reads it without decoding the message.
 pub fn is_bulk_outbox_key(key: &[u8]) -> bool {
@@ -8770,7 +9422,8 @@ fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactMan
 mod tests {
     use super::*;
     use bazel_remote_apis::build::bazel::remote::execution::v2::{
-        ActionResult as ReapiActionResult, Digest as ReapiDigest, OutputFile as ReapiOutputFile,
+        self as reapi, ActionResult as ReapiActionResult, Digest as ReapiDigest,
+        OutputFile as ReapiOutputFile,
     };
     use tempfile::TempDir;
 
@@ -8782,6 +9435,7 @@ mod tests {
         io::IoController,
         memory::MemoryController,
         metrics::Metrics,
+        reapi::chunking::{ChunkedBlobRecipe, recipe_key},
         replication::operation::ReplicationOperation,
         segment::{reference::SegmentReference, state::SegmentState},
     };
@@ -9704,6 +10358,7 @@ mod tests {
                 chunk_bytes: 1024 * 1024,
             },
             action_cache_eviction_cascade_enabled: true,
+            reapi_blob_chunking_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -9722,7 +10377,8 @@ mod tests {
             rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
-            outbox_max_depth: 100_000,
+            outbox_max_depth: None,
+            outbox_max_depth_per_peer: 50_000,
             replication_bandwidth_limit_bytes_per_second: 0,
             replication_public_latency_target_ms: 100,
             replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
@@ -13991,7 +14647,16 @@ mod tests {
         store.eviction_batch_budget_bytes = 1;
         let store = Arc::new(store);
 
-        let digests = [reapi_digest(1, 5), reapi_digest(2, 5)];
+        // The eviction yields only after a fixed number of rows. Keep the
+        // target blob beyond that boundary so the hand-driven future has a
+        // deterministic point at which the entry deletion is committed but
+        // the target has not been scanned yet.
+        let digests: Vec<ReapiDigest> = (1..=(SEGMENT_EVICTION_YIELD_ROWS + 1))
+            .map(|index| ReapiDigest {
+                hash: format!("{index:064x}"),
+                size_bytes: 5,
+            })
+            .collect();
         let mut blobs = Vec::new();
         for (index, digest) in digests.iter().enumerate() {
             let manifest = persist_reapi_blob(
@@ -14059,9 +14724,13 @@ mod tests {
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         let mut eviction = Box::pin(store.evict_segment(&segment_id));
 
-        // Step until the chunk carrying the entry's deletion has landed.
+        // Step until the chunk carrying the entry's deletion has landed. Each
+        // chunk commits on the blocking pool, so the wait is wall time, not a
+        // poll count: a fixed number of yields runs out on a slow runner
+        // before the chunk lands and asserts nothing (a flake seen on CI).
         let mut entry_removed = false;
-        for _ in 0..10_000 {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+        while tokio::time::Instant::now() < deadline {
             if std::pin::Pin::new(&mut eviction)
                 .poll(&mut context)
                 .is_ready()
@@ -14076,7 +14745,7 @@ mod tests {
                 entry_removed = true;
                 break;
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
         assert!(
             entry_removed,
@@ -14107,15 +14776,10 @@ mod tests {
             "the republish did not land, so this asserts nothing"
         );
 
-        for _ in 0..10_000 {
-            if std::pin::Pin::new(&mut eviction)
-                .poll(&mut context)
-                .is_ready()
-            {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+        eviction
+            .as_mut()
+            .await
+            .expect("failed to evict the segment after republishing the entry");
         drop(eviction);
 
         assert!(
@@ -14652,6 +15316,420 @@ mod tests {
             entry_ids.push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 entry id"));
         }
         entry_ids
+    }
+
+    async fn persist_chunk_recipe(
+        store: &Store,
+        namespace_id: &str,
+        blob_digest: &ReapiDigest,
+        chunk_digests: Vec<ReapiDigest>,
+    ) -> ArtifactManifest {
+        let recipe = ChunkedBlobRecipe::new(
+            blob_digest,
+            chunk_digests,
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("valid chunk recipe");
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/x-protobuf",
+                &recipe.encode(),
+            )
+            .await
+            .expect("failed to persist chunk recipe")
+    }
+
+    fn chunk_ref_recipe_ids(store: &Store, chunk_artifact_id: &str) -> Vec<String> {
+        let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
+        let iter = store.db.iterator_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut recipe_ids = Vec::new();
+        for item in iter {
+            let (key, _) = item.expect("failed to iterate chunk refs");
+            if !key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            recipe_ids
+                .push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 recipe id"));
+        }
+        recipe_ids
+    }
+
+    #[tokio::test]
+    async fn chunk_recipe_refs_are_recorded_and_removed_with_the_recipe() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_a_digest = reapi_digest(0xa1, 5);
+        let chunk_b_digest = reapi_digest(0xb2, 7);
+        let chunk_a = persist_reapi_blob(&store, "acme", &chunk_a_digest, b"hello").await;
+        let chunk_b = persist_reapi_blob(&store, "acme", &chunk_b_digest, b"goodbye").await;
+        let blob_digest = reapi_digest(0xcc, 12);
+        let recipe = persist_chunk_recipe(
+            &store,
+            "acme",
+            &blob_digest,
+            vec![chunk_a_digest, chunk_b_digest],
+        )
+        .await;
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk_a.artifact_id),
+            vec![recipe.artifact_id.clone()]
+        );
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk_b.artifact_id),
+            vec![recipe.artifact_id.clone()]
+        );
+
+        store
+            .delete_artifact_metadata(&[recipe])
+            .expect("failed to delete recipe metadata");
+        assert!(chunk_ref_recipe_ids(&store, &chunk_a.artifact_id).is_empty());
+        assert!(chunk_ref_recipe_ids(&store, &chunk_b.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn replacing_a_replicated_recipe_moves_its_reverse_refs_atomically() {
+        let (_temp_dir, _config, store) = temp_store();
+        let old_chunk_digest = reapi_digest(0xa1, 5);
+        let new_chunk_digest = reapi_digest(0xb2, 5);
+        let old_chunk = persist_reapi_blob(&store, "acme", &old_chunk_digest, b"hello").await;
+        let new_chunk = persist_reapi_blob(&store, "acme", &new_chunk_digest, b"world").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        let old_recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![old_chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("old recipe should be valid");
+        let new_recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![new_chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("new recipe should be valid");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &old_recipe.encode(),
+                1,
+                None,
+                None,
+            )
+            .await
+            .expect("old recipe should apply");
+        let recipe_id = chunk_ref_recipe_ids(&store, &old_chunk.artifact_id)
+            .into_iter()
+            .next()
+            .expect("old reverse ref should exist");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &new_recipe.encode(),
+                2,
+                None,
+                None,
+            )
+            .await
+            .expect("new recipe should replace the old one");
+
+        assert!(chunk_ref_recipe_ids(&store, &old_chunk.artifact_id).is_empty());
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &new_chunk.artifact_id),
+            vec![recipe_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn chunk_recipe_backfill_reconstructs_refs_created_by_an_older_node() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let mut wipe = WriteBatch::default();
+        wipe.delete_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            chunk_recipe_ref_key(&chunk.artifact_id, &recipe.artifact_id).as_bytes(),
+        );
+        store.db.write(wipe).expect("failed to wipe chunk ref");
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+
+        loop {
+            let step = store
+                .backfill_chunk_recipe_refs_step()
+                .expect("chunk recipe backfill failed");
+            if step.complete {
+                break;
+            }
+        }
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk.artifact_id),
+            vec![recipe.artifact_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn expiry_keeps_readable_recipes_and_reaps_stranded_ones() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("recipe should be valid");
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &recipe.encode(),
+                1_000,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should persist");
+        assert_eq!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).len(), 1);
+
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("expiry sweep should succeed"),
+            0,
+            "age alone must not turn a stable composite hit into a miss"
+        );
+        assert!(
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "acme", &key)
+                .unwrap()
+                .is_some()
+        );
+        store
+            .db
+            .delete_cf(store.cf(ROCKSDB_CF_MANIFESTS), chunk.artifact_id.as_bytes())
+            .expect("failed to simulate a stranded recipe");
+
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("stranded recipe sweep should succeed"),
+            1
+        );
+        assert!(
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "acme", &key)
+                .unwrap()
+                .is_none()
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_chunk_removes_its_recipes_and_logical_action_entries() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(store.manifest(&action.artifact_id).unwrap().is_none());
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_chunk_keeps_action_entries_when_the_canonical_blob_survives() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        let chunk_segment = seal_active_segment(&store).await;
+        let canonical_blob = persist_reapi_blob(&store, "acme", &blob_digest, b"hello").await;
+        assert_ne!(
+            canonical_blob.segment_id.as_deref(),
+            Some(chunk_segment.as_str()),
+            "the canonical representation must live outside the evicted segment"
+        );
+
+        store
+            .evict_segment(&chunk_segment)
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .manifest(&canonical_blob.artifact_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            store.manifest(&action.artifact_id).unwrap().is_some(),
+            "the action result remains valid through the canonical blob"
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_shared_chunk_removes_every_dependent_recipe() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let first_recipe = persist_chunk_recipe(
+            &store,
+            "acme",
+            &reapi_digest(0xb1, 5),
+            vec![chunk_digest.clone()],
+        )
+        .await;
+        let second_recipe =
+            persist_chunk_recipe(&store, "acme", &reapi_digest(0xb2, 5), vec![chunk_digest]).await;
+        let chunk = persist_reapi_blob(&store, "acme", &reapi_digest(0xa1, 5), b"hello").await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict shared chunk segment");
+
+        assert!(store.manifest(&first_recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .manifest(&second_recipe.artifact_id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn concurrent_recipe_replication_and_high_fanout_eviction_stay_consistent() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let started = Instant::now();
+        let recipes = (0_u8..128).map(|index| {
+            let store = &store;
+            let chunk_digest = chunk_digest.clone();
+            let blob_digest = reapi_digest(index, 5);
+            let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+            let recipe_id =
+                artifact_storage_id(ArtifactProducer::Reapi, &store.tenant_id, "acme", &key);
+            let bytes = ChunkedBlobRecipe::new(
+                &blob_digest,
+                vec![chunk_digest],
+                reapi::chunking_function::Value::Unknown as i32,
+            )
+            .expect("recipe should be valid")
+            .encode();
+            async move {
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "acme",
+                        &key,
+                        "application/x-protobuf",
+                        &bytes,
+                        10_000 + u64::from(index),
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("concurrent recipe apply should succeed");
+                recipe_id
+            }
+        });
+        let recipe_ids = futures_util::future::join_all(recipes).await;
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk.artifact_id).len(),
+            recipe_ids.len(),
+            "every concurrent apply must commit its reverse reference"
+        );
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("high-fanout cascade should complete");
+
+        for recipe_id in recipe_ids {
+            assert!(
+                store.manifest(&recipe_id).unwrap().is_none(),
+                "no dependent recipe may survive its shared chunk"
+            );
+        }
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+        println!("CHUNKING_STRESS_NS={}", started.elapsed().as_nanos());
+    }
+
+    #[tokio::test]
+    async fn recipe_eviction_cleanup_does_not_depend_on_action_cache_cascade() {
+        let (_temp_dir, _config, store) =
+            temp_store_with(|config| config.action_cache_eviction_cascade_enabled = false);
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store.manifest(&action.artifact_id).unwrap().is_some(),
+            "the independent action-cache cascade flag still controls action deletion"
+        );
     }
 
     #[tokio::test]
@@ -16910,7 +17988,7 @@ mod tests {
         );
 
         store
-            .delete_outbox_message(key)
+            .delete_outbox_message(key, &message.target)
             .expect("failed to delete outbox message");
         assert!(
             store
@@ -16923,7 +18001,7 @@ mod tests {
     #[tokio::test]
     async fn outbox_capacity_is_enforced_atomically_across_writers() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 5;
+            config.outbox_max_depth = Some(5);
         });
         let store = Arc::new(store);
         let mut writers = Vec::new();
@@ -16964,7 +18042,7 @@ mod tests {
     #[tokio::test]
     async fn deleting_an_outbox_message_releases_capacity() {
         let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         });
         let message = OutboxMessage {
             target: "http://peer".into(),
@@ -16984,7 +18062,9 @@ mod tests {
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
-        store.delete_outbox_message(&key).expect("outbox deletion");
+        store
+            .delete_outbox_message(&key, &message.target)
+            .expect("outbox deletion");
         store.enqueue(message).expect("capacity should be reusable");
         assert_eq!(store.outbox_depth(), 1);
     }
@@ -16992,7 +18072,7 @@ mod tests {
     #[test]
     fn reopening_the_store_rebuilds_exact_outbox_depth() {
         let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = 1;
+            config.outbox_max_depth = Some(1);
         });
         let message = OutboxMessage {
             target: "http://peer".into(),
@@ -17019,11 +18099,274 @@ mod tests {
         let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
 
         assert_eq!(reopened.outbox_depth(), 1);
+        assert_eq!(
+            reopened.outbox_target_depths(),
+            vec![("http://peer".to_string(), 1)],
+            "per-target depth is rebuilt from the persisted messages"
+        );
         assert!(is_outbox_full_error(
             &reopened
                 .enqueue(message)
                 .expect_err("reopened store must enforce persisted depth")
         ));
+    }
+
+    fn outbox_delete(target: &str) -> OutboxMessage {
+        OutboxMessage {
+            target: target.into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        }
+    }
+
+    /// Every write enqueues one message per peer, and each peer's queue is
+    /// bounded on its own: a write is refused once any of its targets is at
+    /// the share, while a peer whose queue is short keeps accepting. The
+    /// node-wide capacity is the share times the peer count and only follows
+    /// membership; nothing is dropped when it shrinks.
+    #[test]
+    fn outbox_share_is_enforced_per_target() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 2;
+            // The only static seed is the node itself, so the store starts on
+            // the single-share floor.
+            config.peers = vec![config.node_url.clone()];
+        });
+        assert_eq!(store.outbox_max_depth(), 2);
+        store.set_replication_peer_count(3);
+        assert_eq!(store.outbox_max_depth(), 6);
+        store.set_replication_peer_count(1);
+        assert_eq!(store.outbox_max_depth(), 2);
+        store.set_replication_peer_count(0);
+        assert_eq!(store.outbox_max_depth(), 2, "zero peers keeps one share");
+        store.set_replication_peer_count(2);
+
+        for _ in 0..2 {
+            store
+                .enqueue(outbox_delete("http://slow"))
+                .expect("within the slow peer's share");
+        }
+        let slow = vec!["http://slow".to_string()];
+        assert!(
+            store.outbox_saturated(&slow),
+            "a peer at its share saturates the gate for writes to it"
+        );
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://slow"))
+                .expect_err("the third message exceeds the slow peer's share")
+        ));
+        store
+            .enqueue(outbox_delete("http://fast"))
+            .expect("another peer's share is untouched by the slow one");
+        assert_eq!(store.outbox_depth(), 3);
+        let mut depths = store.outbox_target_depths();
+        depths.sort();
+        assert_eq!(
+            depths,
+            vec![
+                ("http://fast".to_string(), 1),
+                ("http://slow".to_string(), 2)
+            ]
+        );
+
+        // A write fans out to every target, so one saturated target refuses
+        // the whole write and leaves the other target's count untouched.
+        let store = Arc::new(store);
+        let outcome = tokio::runtime::Runtime::new().expect("runtime").block_on(
+            store.persist_inline_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/shared",
+                "application/x-protobuf",
+                b"value",
+                &["http://fast".into(), "http://slow".into()],
+                None,
+                None,
+            ),
+        );
+        assert!(is_outbox_full_error(&outcome.expect_err(
+            "a fan-out that cannot seat every target is refused"
+        )));
+        assert_eq!(
+            store.outbox_depth(),
+            3,
+            "a refused fan-out reserves nothing"
+        );
+
+        let (key, message) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        store
+            .delete_outbox_message(&key, &message.target)
+            .expect("outbox deletion");
+        assert!(
+            !store.outbox_saturated(&slow),
+            "draining one message frees the share"
+        );
+    }
+
+    /// F1: the write gate must only look at the targets a write would
+    /// enqueue for. A departed peer's queue is never pruned within a process
+    /// lifetime, so its full share must not shed writes to the live peers.
+    #[test]
+    fn a_departed_peers_full_share_does_not_saturate_live_targets() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 2;
+            config.peers = vec![config.node_url.clone()];
+        });
+        store.set_replication_peer_count(2);
+        for _ in 0..2 {
+            store
+                .enqueue(outbox_delete("http://departed"))
+                .expect("the departed peer's share");
+        }
+        assert!(store.outbox_saturated(&["http://departed".to_string()]));
+        let live = vec!["http://live".to_string()];
+        assert!(
+            !store.outbox_saturated(&live),
+            "a full share on a target no write enqueues for must not gate writes"
+        );
+        store
+            .enqueue(outbox_delete("http://live"))
+            .expect("the live peer's share is untouched");
+    }
+
+    /// F2: a persisted outbox value the current binary cannot decode (a
+    /// rollback across a new operation variant, a torn write) must not keep
+    /// the store from opening; it stays a per-message drain failure.
+    #[test]
+    fn reopening_the_store_tolerates_an_undecodable_outbox_value() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 4;
+        });
+        store
+            .enqueue(outbox_delete("http://peer"))
+            .expect("seed outbox");
+        // A row from a newer binary: the operation is unknown here but the
+        // target is not, so it still holds that peer's slot.
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_OUTBOX),
+                b"0-00000000000000000001-future",
+                br#"{"target":"http://peer","operation":{"type":"unknown_op"}}"#,
+            )
+            .expect("write a forward-incompatible outbox value");
+        // A torn row: counted in the total, attributable to no peer.
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_OUTBOX),
+                b"0-00000000000000000002-torn",
+                b"{\"target\":\"http://pe",
+            )
+            .expect("write a torn outbox value");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("io controller");
+        let memory = MemoryController::new(
+            io.metrics().clone(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory)
+            .expect("an undecodable outbox row must not block open");
+        assert_eq!(
+            reopened.outbox_depth(),
+            3,
+            "every row still occupies a slot"
+        );
+        assert_eq!(
+            reopened.outbox_target_depths(),
+            vec![("http://peer".to_string(), 2)],
+            "rows whose target decodes are attributed to it, torn rows to nobody"
+        );
+    }
+
+    /// F3: the per-peer share bounds each peer, and a node-wide total (the
+    /// share times the peer count, under a ceiling) bounds the outbox's disk
+    /// footprint whatever the mesh does.
+    #[test]
+    fn the_node_wide_total_bounds_the_outbox_alongside_the_share() {
+        assert_eq!(
+            outbox_max_depth_for(
+                None,
+                crate::constants::DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER,
+                1_000
+            ),
+            OUTBOX_MAX_DEPTH_CEILING,
+            "the derived total never outgrows the ceiling"
+        );
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 2;
+            config.peers = vec![config.node_url.clone()];
+        });
+        store.set_replication_peer_count(1);
+        assert_eq!(store.outbox_max_depth(), 2);
+        for _ in 0..2 {
+            store
+                .enqueue(outbox_delete("http://a"))
+                .expect("within the total");
+        }
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://b"))
+                .expect_err("a second target beyond the node-wide total is refused")
+        ));
+        store.set_replication_peer_count(2);
+        store
+            .enqueue(outbox_delete("http://b"))
+            .expect("a second share opens the room");
+    }
+
+    /// F4/F8: a fixed KURA_OUTBOX_MAX_DEPTH replaces the per-peer share, and
+    /// the exported per-peer capacity reports the bound that actually sheds.
+    #[test]
+    fn a_fixed_total_replaces_the_share_and_is_what_the_gauge_reports() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = Some(3);
+            config.outbox_max_depth_per_peer = 1;
+        });
+        for _ in 0..3 {
+            store
+                .enqueue(outbox_delete("http://peer"))
+                .expect("the per-peer share is not enforced under a fixed total");
+        }
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(outbox_delete("http://other"))
+                .expect_err("the fixed total is")
+        ));
+        let rendered = store.io.metrics().render();
+        assert!(
+            rendered.contains("kura_outbox_peer_capacity 3"),
+            "the per-peer gauge must report the fixed bound: {rendered}"
+        );
+    }
+
+    #[test]
+    fn a_fixed_outbox_cap_ignores_the_peer_count() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = Some(3);
+            config.outbox_max_depth_per_peer = 100;
+        });
+        assert_eq!(store.outbox_max_depth(), 3);
+        store.set_replication_peer_count(5);
+        assert_eq!(store.outbox_max_depth(), 3);
     }
 
     #[test]
@@ -17137,24 +18480,24 @@ mod tests {
         assert_eq!(store.outbox_bulk_depth(), 2);
 
         // The metadata lane sorts first, so the head is the inline entry.
-        let (metadata_key, _) = store
+        let (metadata_key, metadata_message) = store
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
         assert!(!is_bulk_outbox_key(&metadata_key));
         store
-            .delete_outbox_message(&metadata_key)
+            .delete_outbox_message(&metadata_key, &metadata_message.target)
             .expect("outbox deletion");
         assert_eq!(store.outbox_depth(), 2);
         assert_eq!(store.outbox_bulk_depth(), 2);
 
-        let (bulk_key, _) = store
+        let (bulk_key, bulk_message) = store
             .next_outbox_message(None)
             .expect("outbox read")
             .expect("queued message");
         assert!(is_bulk_outbox_key(&bulk_key));
         store
-            .delete_outbox_message(&bulk_key)
+            .delete_outbox_message(&bulk_key, &bulk_message.target)
             .expect("outbox deletion");
         assert_eq!(store.outbox_depth(), 1);
         assert_eq!(store.outbox_bulk_depth(), 1);

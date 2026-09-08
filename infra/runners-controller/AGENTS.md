@@ -180,7 +180,10 @@ independent workqueues:
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
-    retired. The taint is removed when the Pod lands or after
+    retired, and only once they have been bound longer than `seatGrace`
+    (2m) — a Pod that bound more recently is the seat some other
+    reservation just produced, and dispatch has not yet reached it. The
+    taint is removed when the Pod lands or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a

@@ -252,3 +252,7 @@ spec:
                   type: string
                   format: date-time
                   description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.
+                unplaceableSince:
+                  type: string
+                  format: date-time
+                  description: Timestamp this pool most recently began holding demand the scheduler could not place, and has held continuously since; absent when the pool is placing everything it wants. The node-reservation state machine reads it to decide when a pool has waited long enough to be worth draining a host for, and which of several starved pools on a fleet goes first. It lives here rather than being derived from Pod ages because the reaper recycles unplaced Pods every startTimeoutSeconds, which would restart a per-Pod clock before a drain could ever converge.

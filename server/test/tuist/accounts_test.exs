@@ -30,6 +30,7 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -4891,7 +4892,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _kura_endpoint} =
         Accounts.create_account_cache_endpoint(account, %{
           url: "https://kura-cache.example.com",
-          technology: :kura
+          technology: :kura_self_hosted_peer
         })
 
       # When
@@ -5043,11 +5044,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
@@ -5230,11 +5227,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://acme-us-east-1.kura.tuist.dev",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
       resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
@@ -5301,11 +5294,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
@@ -5568,7 +5557,7 @@ defmodule Tuist.AccountsTest do
                issued_by: %{id: ^claimed_by_user_id, email: ^email}
              } = Authentication.authenticated_subject(claimed.credential)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                claimed.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5629,8 +5618,8 @@ defmodule Tuist.AccountsTest do
       assert resent.registration.claim_requested_ip == "192.0.2.10"
 
       assert [
-               %AgentRegistrationEvent{event_type: :created},
-               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata}
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata},
+               %AgentRegistrationEvent{event_type: :created}
              ] = agent_registration_events(result.registration.id)
 
       assert metadata == %{
@@ -5714,7 +5703,7 @@ defmodule Tuist.AccountsTest do
       assert claimed_user_id == claimed_user.id
       refute claimed_user_id == anonymous_user_id
 
-      assert [:created, :claim_resent, :claimed] =
+      assert [:claim_resent, :claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5750,7 +5739,7 @@ defmodule Tuist.AccountsTest do
                assertion_jti: "id-jag-to-revoke"
              } = Repo.get!(AgentRegistration, result.registration.id)
 
-      assert [:created, :claimed] =
+      assert [:claimed, :created] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -5765,7 +5754,7 @@ defmodule Tuist.AccountsTest do
 
       assert revoked_at
 
-      assert [:created, :claimed, :revoked] =
+      assert [:claimed, :created, :revoked] =
                result.registration.id
                |> agent_registration_events()
                |> Enum.map(& &1.event_type)
@@ -6097,13 +6086,12 @@ defmodule Tuist.AccountsTest do
     }
   end
 
+  # Compare audit contents by type: occurred_at has second precision and cannot order events within a second.
   defp agent_registration_events(agent_registration_id) do
-    Repo.all(
-      from(e in AgentRegistrationEvent,
-        where: e.agent_registration_id == ^agent_registration_id,
-        order_by: e.occurred_at
-      )
-    )
+    AgentRegistrationEvent
+    |> where([e], e.agent_registration_id == ^agent_registration_id)
+    |> Repo.all()
+    |> Enum.sort_by(& &1.event_type)
   end
 
   defp id_jag_with_jwk(email, jti) do

@@ -45,6 +45,7 @@ import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
 import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
 import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
+import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -75,6 +76,7 @@ Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
 Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
+Hooks.Turnstile = Turnstile;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;

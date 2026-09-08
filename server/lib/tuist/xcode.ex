@@ -11,9 +11,12 @@ defmodule Tuist.Xcode do
   alias Tuist.Xcode.XcodeTarget
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
-  def create_xcode_graph(%{command_event: %{id: command_event_id}, xcode_graph: %{name: name} = xcode_graph}) do
+  def create_xcode_graph(%{
+        command_event: %{id: command_event_id, project_id: project_id},
+        xcode_graph: %{name: name} = xcode_graph
+      }) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
-      prepare_xcode_graph(xcode_graph, command_event_id)
+      prepare_xcode_graph(xcode_graph, command_event_id, project_id)
 
     XcodeGraphBuffer.insert(xcode_graph_data)
     XcodeProjectBuffer.insert_all(projects_data)
@@ -292,7 +295,7 @@ defmodule Tuist.Xcode do
     {start_dt, end_dt}
   end
 
-  defp prepare_xcode_graph(xcode_graph, command_event_id) do
+  defp prepare_xcode_graph(xcode_graph, command_event_id, project_id) do
     xcode_graph_id = UUIDv7.generate()
     inserted_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
@@ -329,6 +332,7 @@ defmodule Tuist.Xcode do
           xcode_project.targets,
           &XcodeTarget.changeset(
             xcode_project.project.command_event_id,
+            project_id,
             xcode_project.project.id,
             &1,
             inserted_at

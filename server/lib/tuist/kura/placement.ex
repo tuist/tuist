@@ -17,6 +17,17 @@ defmodule Tuist.Kura.Placement do
   weekend would never fire for a normal team. Volume is therefore read as a
   total across the span, with a separate count of the days that saw traffic
   so a single burst cannot pass for a durable move.
+
+  Relocation reads a fortnight. What it has to be sure of is that the majority
+  genuinely moved, which is a question about rate and spread rather than about
+  elapsed time: 140 runs at a 60% majority spread over five separate days
+  demands the same daily rate a month-long window did, and a slightly wider
+  share of the window's days, so shortening the span tightens the evidence
+  rather than weakening it. The month was also longer than the origin history
+  it reads, which meant every account whose placement predated origin
+  attribution had to wait out a window it could not yet fill before anything
+  could move it — the accounts most likely to be in the wrong region were the
+  ones the rung reached last.
   """
 
   alias Tuist.Kura.OriginMap
@@ -40,10 +51,10 @@ defmodule Tuist.Kura.Placement do
         within_days: 14
       },
       relocate: %{
-        window_days: 30,
+        window_days: 14,
         majority_share: 0.6,
         min_runs_per_day: 10,
-        min_active_days: 10
+        min_active_days: 5
       },
       expand: %{window_days: 14, min_runs_per_day: 100, min_active_days: 7},
       retire: %{window_days: 90, max_runs_per_day: 20},
@@ -60,10 +71,10 @@ defmodule Tuist.Kura.Placement do
         within_days: 14
       },
       relocate: %{
-        window_days: 30,
+        window_days: 14,
         majority_share: 0.6,
         min_runs_per_day: 10,
-        min_active_days: 10
+        min_active_days: 5
       },
       expand: %{window_days: 14, min_runs_per_day: 25, min_active_days: 7},
       retire: %{window_days: 90, max_runs_per_day: 5},
@@ -80,12 +91,21 @@ defmodule Tuist.Kura.Placement do
         within_days: 14
       },
       relocate: %{
-        window_days: 30,
+        window_days: 14,
         majority_share: 0.6,
         min_runs_per_day: 10,
-        min_active_days: 10
+        min_active_days: 5
       },
-      expand: %{window_days: 14, min_runs_per_day: 50, min_active_days: 7},
+      # Pro's floor, not a higher one. The ladder is ordered by how many
+      # instances a plan funds — Air 2, Pro 3, Enterprise 5 — so the plan that
+      # funds the most regions cannot be the one that demands the most traffic
+      # to open one; at 50 it was stricter than Pro while being entitled to two
+      # more instances. What the floor has to be is an absolute rate a real
+      # second site clears and a handful of stragglers does not, and 25 a day
+      # is that rate whatever the plan. Measured against the fleet on
+      # 2026-09-07: it opens a region for the accounts whose second site runs
+      # 30-40 builds a day, and still refuses the 5-runs-a-day tails.
+      expand: %{window_days: 14, min_runs_per_day: 25, min_active_days: 7},
       retire: %{window_days: 90, max_runs_per_day: 10},
       relocation_window_days: 90,
       max_relocations_per_window: 1
@@ -118,7 +138,9 @@ defmodule Tuist.Kura.Placement do
     * `:rollups` - `Tuist.Kura.OriginRollup` rows (or maps with the same keys)
       covering the policy windows
     * `:permitted` - the regions the account may be placed in, after residency,
-      availability and any per-plan budget have had their say
+      availability, any per-plan budget and room have had their say; a region
+      with no room for its instance is left out unless the account already
+      holds it
     * `:primary` - the region serving the account today, or `nil`
     * `:serving` - every region it holds, primary and retiring ones included
     * `:retiring` - the ones already on their way out, which no transition
@@ -162,12 +184,12 @@ defmodule Tuist.Kura.Placement do
   #
   # An account's first region is chosen the moment a build first asks where to
   # send cache traffic, from whatever origin history exists then — for a new
-  # account, often a single day of it. `relocate` needs 300 runs over 30 days
-  # at a 60% majority and fires once a quarter, so a guess made on a week of
-  # evidence would otherwise stand for months. What justifies that slowness is
-  # the cost of being wrong, and that cost is not constant: moving an account
-  # whose cache is days old and nearly cold is cheap, moving one with a warm
-  # working set is not.
+  # account, often a single day of it. `relocate` needs 140 runs over a
+  # fortnight at a 60% majority and fires once a quarter, so a guess made on a
+  # day of evidence would otherwise stand for weeks. What justifies that
+  # slowness is the cost of being wrong, and that cost is not constant: moving
+  # an account whose cache is days old and nearly cold is cheap, moving one
+  # with a warm working set is not.
   #
   # So this is narrow rather than slow. It reads the same short window the guess
   # itself read, and it only ever runs while the primary is young AND was never

@@ -269,15 +269,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           )
           |> Map.fetch!("spec")
 
-        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"]}
+        {spec["memoryFloorMib"], spec["memoryCeilingMib"], spec["memoryCeilingBinPacked"], spec["cpuCeilingMilli"]}
       end
 
       # The floor is the standing reservation, so the tier that gets the larger
       # one is the tier that pays for a guarantee. The ceiling — how large a
-      # burst Kura admits before shedding — moves with it.
-      assert profile.(:enterprise) == {1024, 4096, true}
-      assert profile.(:pro) == {512, 3072, true}
-      assert profile.(:air) == {256, 768, true}
+      # burst Kura admits before shedding — moves with it. The CPU ceiling is
+      # the same grant for the other compressible resource; its floor is absent
+      # because the controller observes that per instance.
+      assert profile.(:enterprise) == {1024, 4096, true, 4000}
+      assert profile.(:pro) == {512, 3072, true, 2000}
+      assert profile.(:air) == {256, 768, true, 1000}
     end
 
     test "sizes a self-hosted deployment off its license rather than a subscription" do
@@ -333,6 +335,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "memoryFloorMib")
       refute Map.has_key?(spec, "memoryCeilingMib")
       refute Map.has_key?(spec, "memoryCeilingBinPacked")
+      refute Map.has_key?(spec, "cpuCeilingMilli")
     end
 
     test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do
@@ -1305,6 +1308,46 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       server = %Server{account: %Account{id: 1, name: "tuist"}}
 
       refute String.contains?(KubernetesController.manifest_revision(server, eu_region()), "+egress")
+    end
+  end
+
+  describe "manifest_revision/2 and the CPU ceiling" do
+    # The reconciler re-applies an existing instance only when the desired
+    # revision differs from the annotation the live resource carries. A new
+    # manifest field that does not move the revision therefore reaches new
+    # instances only, and every instance already running keeps a manifest that
+    # no longer describes it.
+    test "moves the revision so existing instances are re-applied" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      region = eu_region(%{memory_governed: true})
+
+      revision = KubernetesController.manifest_revision(server, region)
+
+      assert String.contains?(revision, "+cpu4000")
+    end
+
+    test "keys the revision on the granted ceiling, so retuning a plan re-applies" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      region = eu_region(%{memory_governed: true})
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      enterprise = KubernetesController.manifest_revision(server, region)
+
+      stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
+      air = KubernetesController.manifest_revision(server, region)
+
+      refute enterprise == air
+    end
+
+    # An ungoverned region renders no ceiling, so its instances must not take a
+    # new revision and roll for a field they do not gain.
+    test "leaves an ungoverned region's revision alone" do
+      server = %Server{account: %{name: "tuist"}}
+
+      refute String.contains?(KubernetesController.manifest_revision(server, eu_region()), "+cpu")
     end
   end
 

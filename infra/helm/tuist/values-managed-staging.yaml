@@ -54,9 +54,30 @@ registry:
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-staging` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
   kuraCapacityAdmission:
+    enabled: true
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
     enabled: true
 
   replicaCount: 1
@@ -110,21 +131,6 @@ server:
     # done.
     - name: TUIST_KURA_ROLLOUT_PACING
       value: progressive
-    - name: TUIST_KURA_AIR_REGION
-      # Staging has no `us-east` pool, so every Air account would resolve to a
-      # region whose instances could never schedule, and the Air-only 60-day
-      # pressure rule could not be exercised at all. Run the free tier on the
-      # `ca-east` OVH validation box instead. Production omits this and serves
-      # us-east. Only Air moves: a paid account restricted to Europe or the
-      # USA chose that, and no deployment setting may relocate it.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget here, which is what makes
-      # traffic-driven placement observable at all: with one funded region
-      # every Air account resolves to it whatever its traffic says. Production
-      # funds Air in one region and omits this, so the single-region variable
-      # above still decides there.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against
@@ -309,6 +315,72 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
+  # `mode` stays `external`: ClickHouse Cloud is still the system of record
+  # here, and the workload below runs alongside it. Staging is where the
+  # migration off Cloud (spec #73) is validated end to end, so both exist at
+  # once for the duration.
+  #
+  # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
+  # data on that node's XFS `/data`, and one Keeper on the general pool.
+  # Deliberately not a highly-available shape: what staging proves is the
+  # replicated engines, the Keeper dependency, the schema clone and the
+  # storage layout. Two replicas and a three-member quorum belong to canary.
+  #
+  # The volume is sized well under the 441 GB `/data` offers, because the
+  # staging dataset is a few GiB and the headroom is more useful as page
+  # cache than as a reservation nothing fills.
+  #
+  # First deploy ordering: the schema clone runs from the migration release
+  # task, which is a pre-upgrade hook, so on the deploy that introduces this
+  # workload there is nothing listening yet and the clone logs a warning and
+  # skips. The following deploy clones. That is expected, not a failure.
+  managed:
+    enabled: true
+    persistence:
+      size: 60Gi
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    shadowWrites:
+      enabled: true
+    # On here so the backup path itself is exercised before production depends
+    # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
+    backup:
+      enabled: true
+    # One step of the migration, run as a Job by the chart. The sequence is
+    # advanced by changing `task` and deploying, so each step is a reviewed
+    # change in the release history rather than a command typed at a database.
+    #
+    # Off, because the sequence has run here: the schema clone, dual writes,
+    # the backfill, parity over the ingest path and then over the read path,
+    # and finally the read flag. Each step is a post-upgrade hook, so leaving
+    # one enabled re-runs it on every deploy, and the last of them sets a flag
+    # — turning reads back off from the ops page would be silently undone by
+    # the next deploy.
+    #
+    # `name` and `task` name the step this would run if it were enabled, which
+    # is why they are the *next* step rather than the last one that ran. On
+    # 2026-09-04 a deploy from an unrelated branch removed this workload,
+    # because that branch's chart renders none of these resources. The data
+    # survived — the volume is Retain plus helm.sh/resource-policy: keep — but
+    # every row written since is missing from the in-cluster server, so what
+    # this environment needs next is a backfill.
+    #
+    # Leaving them pointed at the read cutover would have been worse than
+    # useless: `FunWithFlags.enable/1` is idempotent, so enabling this would
+    # have quietly re-pointed staging's reads at a server missing days of rows,
+    # and succeeded while doing it.
+    #
+    # `cutoff` is deliberately absent. The backfill refuses to run without one,
+    # so enabling this without choosing a boundary fails loudly and says so,
+    # rather than copying up to a stale timestamp. Set it to a moment after the
+    # deploy that turns dual writes back on has finished rolling out.
+    migration:
+      enabled: false
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
 
 cache:
   extraEnv:

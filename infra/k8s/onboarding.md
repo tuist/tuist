@@ -12,37 +12,33 @@ If you just want to **read** an existing cluster (the day-to-day case — `kubec
 
 ## Engineer read access (Pomerium kubeconfig)
 
-Every engineer's Google Workspace identity already carries `view`-tier read access to the three production-like workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+Every engineer's Google Workspace identity already carries `view`-tier read access to the three production-like workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, staging is writable, canary/production writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
 
-`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
+`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. On **canary and production**, mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack. **Staging carries the `edit` tier for everyone all the time** — it needs no elevation, and `/elevate staging` is rejected as a no-op.
 
 ### Setup
 
-1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`.
-2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Each env needs its own gateway host in the exec `args`, so there's one user per env. Production's host is `kube-prod`, not `kube-production`.
+**Staging goes over the tailnet; canary and production go through Pomerium.** Staging's write tier is standing access rather than a per-request elevation, so there is no per-request decision left for a browser gateway to make there — being on the tailnet is the whole authentication, and the impersonated tier comes from the `tailscale.com/cap/kubernetes` grants in [`infra/tailscale/acls.json`](../tailscale/acls.json). Canary and production still need the gateway, because their tier depends on a live JIT elevation row that a static tailnet ACL cannot express.
+
+1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`. It is only needed for canary and production.
+2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Staging has no `user` entry at all: the tailnet connection is the credential. Canary and production each need their own gateway host in the exec `args`, so there is one user per env. Production's host is `kube-prod`, not `kube-production`.
 
    ```yaml
    clusters:
      - name: tuist-k8s-staging
-       cluster: { server: https://kube-staging.tuist.dev }
+       cluster: { server: https://tuist-k8s-staging.taild6d7bb.ts.net }
      - name: tuist-k8s-canary
        cluster: { server: https://kube-canary.tuist.dev }
      - name: tuist-k8s-production
        cluster: { server: https://kube-prod.tuist.dev }
    contexts:
      - name: tuist-k8s-staging
-       context: { cluster: tuist-k8s-staging, user: pomerium-staging }
+       context: { cluster: tuist-k8s-staging }
      - name: tuist-k8s-canary
        context: { cluster: tuist-k8s-canary, user: pomerium-canary }
      - name: tuist-k8s-production
        context: { cluster: tuist-k8s-production, user: pomerium-production }
    users:
-     - name: pomerium-staging
-       user:
-         exec:
-           apiVersion: client.authentication.k8s.io/v1beta1
-           command: pomerium-cli
-           args: ["k8s", "exec-credential", "https://kube-staging.tuist.dev"]
      - name: pomerium-canary
        user:
          exec:
@@ -57,11 +53,15 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
            args: ["k8s", "exec-credential", "https://kube-prod.tuist.dev"]
    ```
 
-3. Verify (a browser opens once per env for the Google login):
+   `tailscale configure kubeconfig tuist-k8s-staging` writes the staging entry for you if you would rather not paste it. The host is the staging operator's own MagicDNS name (`operatorConfig.hostname` in [`values-staging.yaml`](../helm/tailscale-operator/values-staging.yaml)), and its certificate is a normal publicly-trusted MagicDNS cert, so no CA data is needed.
+
+3. Verify. Staging answers immediately as long as you are on the tailnet; canary and production each open a browser once for the Google login.
 
    ```bash
    kubectl --context tuist-k8s-staging get pods -A
    ```
+
+   Getting `dial tcp: no such host` on staging means you are off the tailnet — `tailscale status` first. There is no browser fallback on this path; `https://kube-staging.tuist.dev` still works through Pomerium if you need one.
 
 > **This is not the admin kubeconfig.** The cluster-admin kubeconfigs in the `tuist-k8s-<env>` 1Password vaults bypass Pomerium and impersonation entirely; they're break-glass only and gated behind 1Password biometric on purpose. Don't reach for them for routine reads, and never have an agent fetch one. See [Workload-cluster incident recovery](#workload-cluster-incident-recovery).
 
@@ -97,25 +97,41 @@ kubectl get clusters -n org-tuist
 
 The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 
+> **The mgmt kubeconfig is emergency-only** (spec/72 Decision 6). The workload
+> `Cluster` CRs reconcile from git via **Flux** (`infra/flux/mgmt/`), so
+> routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
+> directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
+> and the manifests still outside Flux (ClusterClass/bare-metal templates,
+> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> always fine.
+
 ## 2. Author the Cluster CR
 
-Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
+Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. The Flux-reconciled clusters live one-per-subdir under `clusters/workloads/`:
 
-- [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
-- [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
-- [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
+- [`clusters/workloads/staging/cluster.yaml`](clusters/workloads/staging/cluster.yaml)
+- [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
+- [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
+- tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
+- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
 
-For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
-## 3. Apply the Cluster CR
+## 3. Reconcile the Cluster CR
 
-The `mgmt-cluster-apply.yml` workflow auto-applies anything under `infra/k8s/clusters/**` on push to `main`. For an out-of-band apply (e.g. before a PR is merged):
+Merging the PR is the apply: **Flux** reconciles the `workloads/` Cluster CRs from `main` on its interval, and the `flux-diff` PR job posts the server-side dry-run for review beforehand. Watch it land:
 
 ```bash
-kubectl apply -f infra/k8s/clusters/cluster-<env>.yaml
+# Read-only; the Pomerium/mgmt read path is always allowed.
+flux -n flux-system get kustomization cluster-<cluster>
 kubectl -n org-tuist get cluster <name> -w
-# Ready=True once control plane is up. ~3–5 min cold start.
+# Available=True once control plane is up. ~3–5 min cold start.
+```
+
+Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+
+```bash
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
 ```
 
 ## 4. Bootstrap the workload cluster

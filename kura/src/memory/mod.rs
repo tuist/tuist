@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::sync::{
-    Arc,
+    Arc, Mutex as StdMutex,
     atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
 };
 use std::time::Instant;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, OwnedSemaphorePermit};
 use tokio::time::timeout;
 
 use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
@@ -21,15 +22,15 @@ pub use cgroup::{
 pub use pressure::MemoryPressure;
 pub use reservation::{
     ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryPermit, MmapMemoryPermit,
-    ResponseStreamAdmissionError, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
-    ResponseTransportGuard, TransientMemoryReservation,
+    MmapRegion, ResponseStreamAdmissionError, ResponseStreamAdmissionPatience,
+    ResponseStreamMemoryPermit, ResponseTransportGuard, TransientMemoryReservation,
 };
 
 use pools::MemoryPools;
 use pressure::transition;
 use reservation::{
     AdmissionClass, DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT, FOREGROUND_ADMISSION_TIMEOUT,
-    ForegroundWaiter, ResponseStreamWaiter,
+    ForegroundWaiter, ResponseStreamWaiter, TransientElasticity,
 };
 
 /// Coordinates deterministic admission for memory that Kura allocates on behalf of a request.
@@ -66,6 +67,11 @@ fn forced_memory_pressure_for_tests() -> Option<MemoryPressure> {
     parse_forced_memory_pressure(&std::env::var("KURA_TEST_FORCE_MEMORY_PRESSURE").ok()?)
 }
 
+struct MmapRegionEntry {
+    mappings: usize,
+    _permit: OwnedSemaphorePermit,
+}
+
 struct MemoryControllerInner {
     runtime_limit_bytes: u64,
     soft_limit_bytes: u64,
@@ -88,6 +94,8 @@ struct MemoryControllerInner {
     response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
+    /// Mapped regions currently lent out, each holding its pool permit once.
+    mmap_regions: StdMutex<HashMap<MmapRegion, MmapRegionEntry>>,
     pools: MemoryPools,
     metrics: Metrics,
 }
@@ -192,7 +200,10 @@ impl MemoryController {
             pools.foreground_response_streaming_bytes(),
             pools.degraded_response_stream_slots(),
         );
-        metrics.update_transient_memory_capacity(pools.transient_capacity_bytes() as u64);
+        metrics.update_transient_memory_capacity(
+            pools.transient_capacity_bytes() as u64,
+            pools.elastic_transient_capacity_bytes() as u64,
+        );
         Self {
             inner: Arc::new(MemoryControllerInner {
                 runtime_limit_bytes,
@@ -209,6 +220,7 @@ impl MemoryController {
                 response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
+                mmap_regions: StdMutex::new(HashMap::new()),
                 pools,
                 metrics,
             }),
@@ -349,8 +361,9 @@ impl MemoryController {
     }
 
     /// Gates the *usage* (metering) outbox only. Replication delivery is
-    /// deliberately never paused: its durable backlog is bounded by
-    /// `KURA_OUTBOX_MAX_DEPTH`, and a full replication outbox rejects cache
+    /// deliberately never paused: its durable backlog is bounded by the outbox
+    /// capacity (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per replication peer, or a
+    /// fixed `KURA_OUTBOX_MAX_DEPTH`), and a full replication outbox rejects cache
     /// writes, so pausing it converts a memory problem into a correctness and
     /// availability one. Metering has no such feedback — a delayed usage batch
     /// costs nothing but freshness — so it stays sheddable.
@@ -401,6 +414,23 @@ impl MemoryController {
 
     pub fn transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.transient_reserved_bytes() as u64
+    }
+
+    pub fn elastic_transient_capacity_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_capacity_bytes() as u64
+    }
+
+    pub fn elastic_transient_reserved_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_reserved_bytes() as u64
+    }
+
+    /// Everything a borrowing foreground caller may hold: the floor-derived
+    /// pool plus the ceiling headroom above it. Callers that size a window
+    /// against the budget have to use this, or they clamp themselves to the
+    /// floor and never reach the pool at all.
+    pub fn foreground_transient_capacity_bytes(&self) -> u64 {
+        self.transient_capacity_bytes()
+            .saturating_add(self.elastic_transient_capacity_bytes())
     }
 
     pub fn snapshot_cache_target_bytes(&self, capacity_bytes: usize) -> usize {
@@ -616,6 +646,26 @@ impl MemoryController {
             .map(ForegroundMemoryReservation::new)
     }
 
+    /// A foreground reservation that may draw on ceiling headroom above the
+    /// floor-derived pool while pressure is normal.
+    ///
+    /// For the callers whose only alternative is to refuse the write outright.
+    /// `reserve_foreground_memory` waits instead, so it stays on the floor.
+    pub(crate) fn try_reserve_elastic_foreground_memory(
+        &self,
+        requested_bytes: u64,
+    ) -> Result<ForegroundMemoryReservation, ()> {
+        if requested_bytes > 0 && self.inner.foreground_waiters.load(Ordering::Acquire) > 0 {
+            return Err(());
+        }
+        self.try_reserve_transient_with(
+            requested_bytes,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowCeilingHeadroom,
+        )
+        .map(ForegroundMemoryReservation::new)
+    }
+
     pub(crate) async fn reserve_foreground_memory(
         &self,
         requested_bytes: u64,
@@ -651,21 +701,70 @@ impl MemoryController {
         self.inner.pools.mmap_serving_bytes()
     }
 
-    pub fn try_acquire_mmap_serving(&self, requested_bytes: usize) -> Option<MmapMemoryPermit> {
+    /// Lends `region` out of the mmap pool, charging `requested_bytes` (the
+    /// page-aligned span) once per distinct region rather than once per
+    /// mapping. Mapped bytes are clean, resident page cache with their own
+    /// try-only pool; the transient budget covers unreclaimable anonymous work
+    /// and is charged separately by the response-stream admission. Charging the
+    /// mapped span there as well exhausted transient once the mmap pool filled,
+    /// and the degraded response pool, which needs a small transient
+    /// reservation per stream, could then admit nothing.
+    pub fn try_acquire_mmap_serving(
+        &self,
+        region: MmapRegion,
+        requested_bytes: usize,
+    ) -> Option<MmapMemoryPermit> {
         if requested_bytes == 0 || self.should_reclaim_file_cache() {
             return None;
         }
-        let permits = u32::try_from(requested_bytes).ok()?;
-        let concurrency = self.inner.pools.try_acquire_mmap_serving(permits)?;
-        let transient = self
-            .try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)
-            .ok()?;
-        // The caller releases this reservation with the response body. Sampled
-        // container usage does not enter transient admission arithmetic.
+        let mut regions = self
+            .inner
+            .mmap_regions
+            .lock()
+            .expect("mmap region lock poisoned");
+        if let Some(entry) = regions.get_mut(&region) {
+            entry.mappings += 1;
+        } else {
+            let permits = u32::try_from(requested_bytes).ok()?;
+            let permit = self.inner.pools.try_acquire_mmap_serving(permits)?;
+            regions.insert(
+                region.clone(),
+                MmapRegionEntry {
+                    mappings: 1,
+                    _permit: permit,
+                },
+            );
+        }
+        drop(regions);
         Some(MmapMemoryPermit {
-            _concurrency: concurrency,
-            _transient: transient,
+            controller: self.clone(),
+            region,
         })
+    }
+
+    fn release_mmap_region(&self, region: &MmapRegion) {
+        let mut regions = self
+            .inner
+            .mmap_regions
+            .lock()
+            .expect("mmap region lock poisoned");
+        let Some(entry) = regions.get_mut(region) else {
+            return;
+        };
+        entry.mappings = entry.mappings.saturating_sub(1);
+        if entry.mappings == 0 {
+            regions.remove(region);
+        }
+    }
+
+    /// Distinct mapped regions currently charged to the mmap pool.
+    #[cfg(test)]
+    fn mapped_region_count(&self) -> usize {
+        self.inner
+            .mmap_regions
+            .lock()
+            .expect("mmap region lock poisoned")
+            .len()
     }
 
     pub fn response_streaming_pool_bytes(&self) -> usize {
@@ -899,11 +998,7 @@ impl MemoryController {
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(TransientElasticity::Fixed));
         }
         if requested_bytes > self.transient_capacity_bytes() {
             return Err(());
@@ -916,10 +1011,22 @@ impl MemoryController {
                 return Ok(TransientMemoryReservation {
                     controller: self.clone(),
                     permit: Some(permit),
+                    elastic_permit: None,
+                    elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
             }
             drop(permit);
+        }
+    }
+
+    fn empty_transient(&self, elasticity: TransientElasticity) -> TransientMemoryReservation {
+        TransientMemoryReservation {
+            controller: self.clone(),
+            permit: None,
+            elastic_permit: None,
+            elasticity,
+            bytes: 0,
         }
     }
 
@@ -928,25 +1035,52 @@ impl MemoryController {
         requested_bytes: u64,
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
+        self.try_reserve_transient_with(requested_bytes, class, TransientElasticity::Fixed)
+    }
+
+    fn try_reserve_transient_with(
+        &self,
+        requested_bytes: u64,
+        class: AdmissionClass,
+        elasticity: TransientElasticity,
+    ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(elasticity));
         }
-        if !self.allow_transient_admission(class)
-            || requested_bytes > self.transient_capacity_bytes()
-        {
+        let borrows = elasticity == TransientElasticity::MayBorrowCeilingHeadroom;
+        let capacity_bytes = if borrows {
+            self.foreground_transient_capacity_bytes()
+        } else {
+            self.transient_capacity_bytes()
+        };
+        if !self.allow_transient_admission(class) || requested_bytes > capacity_bytes {
             return Err(());
         }
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let permit = self.inner.pools.try_acquire_transient(permits)?;
-        Ok(TransientMemoryReservation {
-            controller: self.clone(),
-            permit: Some(permit),
-            bytes: requested_bytes,
-        })
+        let mut reservation = self.empty_transient(elasticity);
+        match self.inner.pools.try_acquire_transient(permits) {
+            Ok(permit) => reservation.permit = Some(permit),
+            Err(()) if borrows => {
+                reservation.elastic_permit = Some(self.try_acquire_elastic_transient(permits)?)
+            }
+            Err(()) => return Err(()),
+        }
+        reservation.bytes = requested_bytes;
+        Ok(reservation)
+    }
+
+    pub(super) fn try_acquire_elastic_transient(
+        &self,
+        permits: u32,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit, ()> {
+        if self.pressure() != MemoryPressure::Normal {
+            return Err(());
+        }
+        let permit = self.inner.pools.try_acquire_elastic_transient(permits)?;
+        self.inner
+            .metrics
+            .record_memory_action("transient_ceiling_headroom_borrowed");
+        Ok(permit)
     }
 
     fn allow_transient_admission(&self, class: AdmissionClass) -> bool {
@@ -972,6 +1106,14 @@ impl MemoryController {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mmap_region(source: &str, len: usize) -> MmapRegion {
+        MmapRegion {
+            source: Arc::from(source),
+            offset: 0,
+            len: len as u64,
+        }
+    }
     use crate::{
         constants::RESPONSE_STREAM_MIN_CHUNK_BYTES,
         memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT,
@@ -1130,7 +1272,11 @@ mod tests {
             MemoryPressure::Normal
         );
         assert!(controller.should_reclaim_file_cache());
-        assert!(controller.try_acquire_mmap_serving(1).is_none());
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("probe", 1), 1)
+                .is_none()
+        );
         assert!(controller.allow_background_admission());
         assert!(controller.allow_segment_refresh());
         assert!(controller.allow_manifest_cache_admission());
@@ -1151,7 +1297,11 @@ mod tests {
             MemoryPressure::Normal
         );
         assert!(!controller.should_reclaim_file_cache());
-        assert!(controller.try_acquire_mmap_serving(1).is_some());
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("probe", 1), 1)
+                .is_some()
+        );
         assert!(controller.allow_background_admission());
     }
 
@@ -1318,6 +1468,101 @@ mod tests {
         assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
     }
 
+    /// A controller whose floor-derived budget is a fraction of its ceiling
+    /// headroom, which is the shape every governed instance has in production.
+    fn elastic_controller(forced: Option<MemoryPressure>) -> (MemoryController, u64, u64) {
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let anon_budget = 192 * 1024 * 1024_u64;
+        let controller = MemoryController::with_runtime_limit_and_forced(
+            Metrics::new("us-west".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            forced,
+            Some(anon_budget),
+        );
+        (controller, anon_budget, hard_limit - soft_limit)
+    }
+
+    #[test]
+    fn the_elastic_pool_is_exactly_the_headroom_the_floor_clamp_discards() {
+        let (controller, anon_budget, ceiling_headroom) = elastic_controller(None);
+
+        assert_eq!(controller.transient_capacity_bytes(), anon_budget);
+        assert_eq!(
+            controller.elastic_transient_capacity_bytes(),
+            ceiling_headroom - anon_budget
+        );
+        // Borrowing can never take anonymous admission past what a node with no
+        // published floor would already have granted.
+        assert_eq!(
+            controller.foreground_transient_capacity_bytes(),
+            ceiling_headroom
+        );
+    }
+
+    #[test]
+    fn a_decode_reservation_borrows_ceiling_headroom_once_the_floor_pool_is_full() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        // The floor-derived pool is empty, so a fixed reservation is refused
+        // exactly as it is today.
+        assert!(controller.try_reserve_foreground_memory(1024).is_err());
+
+        let mut elastic = controller
+            .try_reserve_elastic_foreground_memory(0)
+            .expect("a zero-byte reservation always admits");
+        assert!(elastic.try_resize(64 * 1024 * 1024).is_ok());
+        assert_eq!(
+            controller.elastic_transient_reserved_bytes(),
+            64 * 1024 * 1024
+        );
+
+        // Shrinking returns borrowed ceiling memory before the protected floor
+        // allocation, so a node stops borrowing as soon as it stops needing to.
+        assert!(elastic.try_resize(0).is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn borrowing_stops_above_normal_pressure() {
+        let (controller, anon_budget, _) = elastic_controller(Some(MemoryPressure::Constrained));
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut elastic = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+
+        // Constrained is where anonymous growth above the floor stops being
+        // something the kernel can resolve by reclaiming, so the borrow closes.
+        assert!(elastic.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn a_fixed_reservation_never_reaches_the_elastic_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut fixed = controller.try_reserve_foreground_memory(0).unwrap();
+
+        assert!(fixed.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
+    }
+
     #[test]
     fn a_warm_serving_node_keeps_admitting_reads_and_background_work_at_the_limit() {
         // Mirrors a production 2 GiB cache node: the cgroup charge sits just over
@@ -1423,19 +1668,110 @@ mod tests {
         let controller = MemoryController::new(metrics, 128 * 1024 * 1024, 256 * 1024 * 1024);
 
         let permit = controller
-            .try_acquire_mmap_serving(64 * 1024 * 1024)
+            .try_acquire_mmap_serving(mmap_region("a", 64 * 1024 * 1024), 64 * 1024 * 1024)
             .expect("permit should be available");
-        assert_eq!(controller.transient_reserved_bytes(), 64 * 1024 * 1024);
+        // Mapped pages are bounded by the mmap pool alone; they never consume
+        // the transient budget that anonymous response buffers draw from.
+        assert_eq!(controller.transient_reserved_bytes(), 0);
         assert!(
             controller
-                .try_acquire_mmap_serving(65 * 1024 * 1024)
+                .try_acquire_mmap_serving(mmap_region("b", 65 * 1024 * 1024), 65 * 1024 * 1024)
                 .is_none()
         );
 
         drop(permit);
         controller.observe(128 * 1024 * 1024);
         assert_eq!(controller.transient_reserved_bytes(), 0);
-        assert!(controller.try_acquire_mmap_serving(1).is_none());
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("c", 1), 1)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn mmap_serving_charges_a_region_once_across_concurrent_mappings() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new(metrics, 128 * 1024 * 1024, 192 * 1024 * 1024);
+        assert_eq!(controller.mmap_serving_pool_bytes(), 64 * 1024 * 1024);
+        let span = 48 * 1024 * 1024;
+
+        // Two responses mapping the same artifact alias the same page-cache
+        // pages, so the pool sees one region, and a second distinct region of
+        // the same size no longer fits.
+        let first = controller
+            .try_acquire_mmap_serving(mmap_region("hot", span), span)
+            .expect("first mapping fits the pool");
+        let second = controller
+            .try_acquire_mmap_serving(mmap_region("hot", span), span)
+            .expect("a concurrent mapping of the same region is free");
+        assert_eq!(controller.mapped_region_count(), 1);
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("cold", span), span)
+                .is_none()
+        );
+
+        // The region stays charged until its last mapping drops.
+        drop(first);
+        assert_eq!(controller.mapped_region_count(), 1);
+        assert!(
+            controller
+                .try_acquire_mmap_serving(mmap_region("cold", span), span)
+                .is_none()
+        );
+        drop(second);
+        assert_eq!(controller.mapped_region_count(), 0);
+        let cold = controller
+            .try_acquire_mmap_serving(mmap_region("cold", span), span)
+            .expect("the released region's permits are available again");
+        assert_eq!(controller.mapped_region_count(), 1);
+        drop(cold);
+        assert_eq!(controller.mapped_region_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn degraded_reads_stay_admissible_while_mmap_serving_holds_its_pool() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            4 * 1024 * 1024 * 1024,
+            2_576_351_232,
+            3_650_093_056,
+        );
+        controller.observe(0);
+
+        let mapped = controller
+            .try_acquire_mmap_serving(
+                mmap_region("whole-pool", controller.mmap_serving_pool_bytes()),
+                controller.mmap_serving_pool_bytes(),
+            )
+            .expect("the whole mmap pool should be available");
+        let mut streams = Vec::new();
+        while let Ok(stream) =
+            controller.try_acquire_response_stream_memory(4 * 1024 * 1024, "http")
+        {
+            streams.push(stream);
+        }
+        assert!(!streams.is_empty());
+
+        // With the fixed and elastic response pools exhausted and the mmap pool
+        // fully lent out, a public read must still find transient headroom for
+        // its degraded reservation instead of being shed.
+        let degraded_stream_bytes =
+            RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        let degraded = match controller
+            .acquire_degraded_response_stream_memory(degraded_stream_bytes, "http")
+            .await
+        {
+            Ok(permit) => permit,
+            Err(error) => panic!("degraded admission failed: {error:?}"),
+        };
+
+        drop(degraded);
+        drop(streams);
+        drop(mapped);
+        assert_eq!(controller.transient_reserved_bytes(), 0);
     }
 
     #[test]

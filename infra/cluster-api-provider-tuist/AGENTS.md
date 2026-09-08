@@ -335,11 +335,31 @@ property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
 before any SSH, and the `capt_node_kata_runtime_ready` gauge (0 = requested but
-missing) is what the **Runner Box Missing Kata Runtime** rule alerts on
+missing or unverified) is what the **Runner Box Missing Kata Runtime** rule alerts on
 (Grafana Cloud, Alerts folder, `Runners` group, `for: 20m`, routed to Slack like
 its siblings). `Machine.Status.Ready` is deliberately left alone: the node is a
 healthy Kubernetes node, and failing it would make CAPI churn a box that needs a
 two-minute in-place fix.
+
+Kata's virtio-fs configuration backs guest RAM with files in `/dev/shm`. The
+Linux default tmpfs ceiling is half of host RAM, below the runner node's
+allocatable memory: concurrent guests can exhaust it while the host still has
+free RAM, causing QEMU `kvm run failed Bad address` failures. The shared-memory
+setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
+`MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
+result. This changes a ceiling; it does not preallocate memory.
+
+Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
+and the Ready-path repair installs and runs the same service on existing OVH
+Kata hosts without restarting containerd, kubelet, or guests. Only a successful
+repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
+and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
+invalidates that proof; it is not continuous detection of manual mount changes
+within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
+repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
+runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
+in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+(checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
 rather than checked in: managed clusters run no Prometheus Operator, so there is

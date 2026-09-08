@@ -5,7 +5,7 @@ import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
-import Noora from "noora";
+import NooraTooltip from "noora/hooks/Tooltip.js";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -17,7 +17,7 @@ const liveSocketFallbackMs = 10000;
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora.Hooks, ...Hooks, ...colocatedHooks },
+  hooks: { NooraTooltip, ...Hooks, ...colocatedHooks },
 });
 liveSocket.connect();
 

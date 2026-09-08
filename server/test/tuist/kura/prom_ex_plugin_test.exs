@@ -52,7 +52,8 @@ defmodule Tuist.Kura.PromExPluginTest do
             Telemetry.event_name_archived(),
             Telemetry.event_name_resolution_refused(),
             Telemetry.event_name_seed_declined(),
-            Telemetry.event_name_placement_preference_unmet()
+            Telemetry.event_name_placement_preference_unmet(),
+            Telemetry.event_name_placement_capacity_spill()
           ] do
         assert MapSet.member?(scraped, event), "#{inspect(event)} is emitted but never scraped"
       end
@@ -162,6 +163,33 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       assert_received {[:tuist, :kura, :lifecycle, :hit_rate_recovery], ^ref,
                        %{returned_hit_rate: +0.0, steady_hit_rate: +0.0}, _metadata}
+    end
+  end
+
+  describe "execute_unroutable_instances_telemetry_event/0" do
+    test "counts instances that exist but cannot be resolved" do
+      instance(account())
+
+      account()
+      |> instance()
+      |> Ecto.Changeset.change(status: :failed, url: nil, current_image_tag: nil)
+      |> Repo.update!()
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 1}, %{region: @region}}
+    end
+
+    test "reports zero for a healthy region rather than dropping the series" do
+      instance(account())
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :instance_routability]])
+
+      PromExPlugin.execute_unroutable_instances_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :instance_routability], ^ref, %{unroutable: 0}, %{region: @region}}
     end
   end
 

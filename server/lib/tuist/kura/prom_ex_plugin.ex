@@ -7,7 +7,7 @@ defmodule Tuist.Kura.PromExPlugin do
   reclaimed bytes, archive cancellations, refused provisions, and the accounts
   refused a service region before they reach any transition at all.
 
-  Two polled gauges cover what a transition cannot see:
+  Three polled gauges cover what a transition cannot see:
 
     * per-region occupancy — the forecast enforced warm quota against what is
       installed. This is the number that decides whether another machine is
@@ -16,8 +16,12 @@ defmodule Tuist.Kura.PromExPlugin do
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
       inactivity windows are trading against.
+    * unroutable instances: instances that exist in a public region but are not
+      `:active`, so the CLI cannot be handed them. The account holds an
+      allocation and builds against the legacy cache lane, and nothing errors,
+      so there is no transition to hang this off and no failure to count.
 
-  Both are tagged by region only. Account never appears as a tag.
+  All three are tagged by region only. Account never appears as a tag.
   """
 
   use PromEx.Plugin
@@ -26,6 +30,7 @@ defmodule Tuist.Kura.PromExPlugin do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
@@ -133,6 +138,15 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:origin, :wanted, :served]
           ),
           counter(
+            @metric_prefix ++ [:placement_capacity_spill, :count],
+            event_name: Telemetry.event_name_placement_capacity_spill(),
+            description:
+              "First placements that skipped the region nearest the traffic because it had no room " <>
+                "for the instance. The other procurement signal: sustained counts on one wanted region " <>
+                "are the case for another box there.",
+            tags: [:plan, :wanted, :served]
+          ),
+          counter(
             @metric_prefix ++ [:origin_attribution, :count],
             event_name: Telemetry.event_name_origin_attribution(),
             description:
@@ -197,6 +211,23 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:region]
           )
         ]
+      ),
+      Polling.build(
+        :tuist_kura_instance_routability_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_unroutable_instances_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:unroutable_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :instance_routability],
+            measurement: :unroutable,
+            description:
+              "Instances in a public region that are not active, so the CLI resolves the legacy " <>
+                "cache lane instead of the instance the account is paying for. Provisioning passes " <>
+                "through here for a minute or two, so what matters is how long a count persists.",
+            tags: [:region]
+          )
+        ]
       )
     ]
   end
@@ -216,6 +247,24 @@ defmodule Tuist.Kura.PromExPlugin do
           allocatable_gib: occupancy.allocatable_gib || 0,
           instances: occupancy.instances
         },
+        %{region: region_id}
+      )
+    end)
+  end
+
+  @doc false
+  def execute_unroutable_instances_telemetry_event do
+    region_ids = Enum.map(lifecycle_regions(), & &1.id)
+    counts = Kura.unroutable_instance_counts(region_ids)
+
+    # Emitted for every region, not only the ones with a count, so a region
+    # whose instances stop reaching `:active` is a series moving off zero
+    # rather than a series appearing. An alert on the latter has to decide what
+    # No Data means.
+    Enum.each(region_ids, fn region_id ->
+      :telemetry.execute(
+        [:tuist, :kura, :lifecycle, :instance_routability],
+        %{unroutable: Map.get(counts, region_id, 0)},
         %{region: region_id}
       )
     end)

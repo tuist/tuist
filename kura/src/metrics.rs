@@ -41,6 +41,7 @@ pub struct MetricsInner {
     internal_backfill_request_duration: Family<InternalBackfillRouteLabels, Histogram>,
     backfill_bodies_peer_requests: Family<BackfillBodiesPeerLabels, Counter>,
     backfill_bodies_peer_label_set: Arc<Mutex<HashSet<String>>>,
+    outbox_target_label_set: Arc<Mutex<HashSet<String>>>,
     public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -67,6 +68,8 @@ pub struct MetricsInner {
     // cascade doing its job; compare against the serve-side presence-gate hit
     // rate, which should trend to zero once the cascade carries the load.
     action_cache_cascade_removed: Counter,
+    reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
+    reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -109,7 +112,10 @@ pub struct MetricsInner {
     manifest_index_rebuilds: Family<ManifestIndexResultLabels, Counter>,
     manifest_index_rebuild_duration: Histogram,
     outbox_messages: Gauge,
+    outbox_capacity: Gauge,
+    outbox_peer_capacity: Gauge,
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
+    outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
@@ -178,6 +184,8 @@ pub struct MetricsInner {
     memory_protection_low_bytes: Gauge,
     memory_transient_reserved_bytes: Gauge,
     memory_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_capacity_bytes: Gauge,
+    memory_elastic_transient_reserved_bytes: Gauge,
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
@@ -572,6 +580,8 @@ impl Metrics {
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_fsyncs = Counter::default();
         let action_cache_cascade_removed = Counter::default();
+        let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
+        let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -661,6 +671,9 @@ impl Metrics {
         let manifest_index_rebuilds = Family::<ManifestIndexResultLabels, Counter>::default();
         let manifest_index_rebuild_duration = Histogram::new(exponential_buckets(0.0005, 2.0, 16));
         let outbox_messages = Gauge::default();
+        let outbox_capacity = Gauge::default();
+        let outbox_peer_capacity = Gauge::default();
+        let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
@@ -744,6 +757,8 @@ impl Metrics {
         let memory_protection_low_bytes = Gauge::default();
         let memory_transient_reserved_bytes = Gauge::default();
         let memory_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_capacity_bytes = Gauge::default();
+        let memory_elastic_transient_reserved_bytes = Gauge::default();
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
@@ -933,6 +948,16 @@ impl Metrics {
             "kura_action_cache_cascade_removed_total",
             "Action-cache entries removed by the eviction cascade when a blob they reference was evicted",
             action_cache_cascade_removed.clone(),
+        );
+        registry.register(
+            "kura_reapi_chunking_events_total",
+            "Content-defined chunking events by operation and bounded outcome",
+            reapi_chunking_events.clone(),
+        );
+        registry.register(
+            "kura_reapi_chunking_bytes_total",
+            "Content-defined chunking bytes by logical or recipe representation",
+            reapi_chunking_bytes.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -1185,9 +1210,24 @@ impl Metrics {
             outbox_messages.clone(),
         );
         registry.register(
+            "kura_outbox_capacity",
+            "Replication outbox messages the node may hold across all target peers",
+            outbox_capacity.clone(),
+        );
+        registry.register(
             "kura_outbox_lane_messages",
             "Replication outbox messages waiting to be processed, split by drain lane",
             outbox_lane_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_target_messages",
+            "Replication outbox messages waiting to be processed, split by target peer",
+            outbox_target_messages.clone(),
+        );
+        registry.register(
+            "kura_outbox_peer_capacity",
+            "Replication outbox messages one target peer may hold",
+            outbox_peer_capacity.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
@@ -1525,6 +1565,16 @@ impl Metrics {
             memory_transient_capacity_bytes.clone(),
         );
         registry.register(
+            "kura_memory_elastic_transient_capacity_bytes",
+            "Ceiling headroom above the floor-derived transient budget, lent to remote-execution write decoding while memory pressure is normal. Zero when no floor is published, because the budget is already the whole headroom",
+            memory_elastic_transient_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_memory_elastic_transient_reserved_bytes",
+            "Borrowed ceiling headroom currently held. Non-zero means writes are outgrowing the pod's floor and are being served from headroom rather than shed; sustained residency is the signal to raise the account's memory profile",
+            memory_elastic_transient_reserved_bytes.clone(),
+        );
+        registry.register(
             "kura_foreground_memory_waiters",
             "Foreground requests currently waiting for memory admission",
             foreground_memory_waiters.clone(),
@@ -1706,12 +1756,15 @@ impl Metrics {
                 internal_backfill_request_duration,
                 backfill_bodies_peer_requests,
                 backfill_bodies_peer_label_set: Arc::new(Mutex::new(HashSet::new())),
+                outbox_target_label_set: Arc::new(Mutex::new(HashSet::new())),
                 public_request_latency,
                 http_exceptions,
                 artifact_reads,
                 artifact_writes,
                 segment_fsyncs,
                 action_cache_cascade_removed,
+                reapi_chunking_events,
+                reapi_chunking_bytes,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -1764,7 +1817,10 @@ impl Metrics {
                 manifest_index_rebuilds,
                 manifest_index_rebuild_duration,
                 outbox_messages,
+                outbox_capacity,
+                outbox_peer_capacity,
                 outbox_lane_messages,
+                outbox_target_messages,
                 multipart_uploads,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
@@ -1833,6 +1889,8 @@ impl Metrics {
                 memory_protection_low_bytes,
                 memory_transient_reserved_bytes,
                 memory_transient_capacity_bytes,
+                memory_elastic_transient_capacity_bytes,
+                memory_elastic_transient_reserved_bytes,
                 foreground_memory_waiters,
                 response_stream_pool_capacity_bytes,
                 response_stream_foreground_pool_capacity_bytes,
@@ -2174,6 +2232,23 @@ impl Metrics {
         self.action_cache_cascade_removed.inc_by(removed_entries);
     }
 
+    pub fn record_reapi_chunking_event(&self, operation: &str, outcome: &str) {
+        self.reapi_chunking_events
+            .get_or_create(&ReapiChunkingEventLabels {
+                operation: operation.to_owned(),
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {
+        self.reapi_chunking_bytes
+            .get_or_create(&ReapiChunkingBytesLabels {
+                kind: kind.to_owned(),
+            })
+            .inc_by(bytes);
+    }
+
     pub fn record_replication(
         &self,
         target: &str,
@@ -2447,6 +2522,41 @@ impl Metrics {
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
+    }
+
+    pub fn update_outbox_capacity(&self, max_depth: usize) {
+        self.outbox_capacity.set(max_depth as i64);
+    }
+
+    pub fn update_outbox_peer_capacity(&self, per_peer: usize) {
+        self.outbox_peer_capacity.set(per_peer as i64);
+    }
+
+    /// A target whose queue drained (or that left) is zeroed rather than
+    /// removed, the `clear_backfill_pass_progress` convention: the series
+    /// never gaps under a scrape, so a ratio alert always has a sample.
+    pub fn update_outbox_target_messages(&self, depths: &[(String, usize)]) {
+        let mut known = self
+            .outbox_target_label_set
+            .lock()
+            .expect("outbox target label set lock");
+        for (target, depth) in depths {
+            known.insert(target.clone());
+            self.outbox_target_messages
+                .get_or_create(&OutboxTargetLabels {
+                    target: target.clone(),
+                })
+                .set(*depth as i64);
+        }
+        for target in known.iter() {
+            if !depths.iter().any(|(present, _)| present == target) {
+                self.outbox_target_messages
+                    .get_or_create(&OutboxTargetLabels {
+                        target: target.clone(),
+                    })
+                    .set(0);
+            }
+        }
     }
 
     pub fn update_segment_fsyncs(&self, total: u64) {
@@ -2762,9 +2872,20 @@ impl Metrics {
             .set(reserved_bytes as i64);
     }
 
-    pub fn update_transient_memory_capacity(&self, capacity_bytes: u64) {
+    pub fn update_transient_memory_capacity(
+        &self,
+        capacity_bytes: u64,
+        elastic_capacity_bytes: u64,
+    ) {
         self.memory_transient_capacity_bytes
             .set(capacity_bytes as i64);
+        self.memory_elastic_transient_capacity_bytes
+            .set(elastic_capacity_bytes as i64);
+    }
+
+    pub fn update_elastic_transient_reserved(&self, reserved_bytes: u64) {
+        self.memory_elastic_transient_reserved_bytes
+            .set(reserved_bytes as i64);
     }
 
     pub fn update_foreground_memory_waiters(&self, waiters: u64) {
@@ -3075,6 +3196,11 @@ struct OutboxLaneLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct OutboxTargetLabels {
+    target: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpRequestLabels {
     route: Cow<'static, str>,
     status: u16,
@@ -3126,6 +3252,17 @@ struct HttpExceptionLabels {
 struct PublicRequestLatencyLabels {
     transport: String,
     route: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingEventLabels {
+    operation: String,
+    outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ReapiChunkingBytesLabels {
+    kind: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4118,6 +4255,8 @@ mod tests {
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_segment_shed_age(7_200.0);
         metrics.record_capacity_eviction_report_dropped();
+        metrics.record_reapi_chunking_event("splice", "ok");
+        metrics.record_reapi_chunking_bytes("logical", 2048);
         metrics.record_replication(
             "https://kura.example.com/internal",
             "upsert_artifact",
@@ -4245,6 +4384,9 @@ mod tests {
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_segment_shed_age_seconds"));
         assert!(rendered.contains("kura_capacity_eviction_reports_dropped_total"));
+        assert!(rendered.contains("kura_reapi_chunking_events_total"));
+        assert!(rendered.contains("operation=\"splice\""));
+        assert!(rendered.contains("kura_reapi_chunking_bytes_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
         assert!(rendered.contains("kura_replication_apply_results_total"));
         assert!(rendered.contains("source=\"replication\""));
@@ -4276,6 +4418,15 @@ mod tests {
         assert!(rendered.contains("kura_outbox_messages"));
         assert!(rendered.contains("kura_outbox_lane_messages{lane=\"bulk\"} 3"));
         assert!(rendered.contains("kura_outbox_lane_messages{lane=\"metadata\"} 1"));
+
+        // F5: a target that drained (or left) is zeroed rather than removed,
+        // the `clear_backfill_pass_progress` convention, so the series never
+        // gaps under a scrape and ratio alerts keep a sample to evaluate.
+        metrics.update_outbox_target_messages(&[("http://a".to_string(), 5)]);
+        metrics.update_outbox_target_messages(&[("http://b".to_string(), 2)]);
+        let rendered = metrics.render();
+        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://a\"} 0"));
+        assert!(rendered.contains("kura_outbox_target_messages{target=\"http://b\"} 2"));
         assert!(rendered.contains("kura_multipart_uploads"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));

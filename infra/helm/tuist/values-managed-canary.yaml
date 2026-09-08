@@ -37,11 +37,32 @@ registry:
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-canary` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
   replicaCount: 1
 
   kuraCapacityAdmission:
+    enabled: true
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; canary's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
     enabled: true
 
   appUrl: https://canary.tuist.dev
@@ -185,17 +206,6 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
-    - name: TUIST_KURA_AIR_REGION
-      # Air is funded on the ca-east OVH validation box, as on staging.
-      # Without this the default names us-east, which this environment does not
-      # serve, so every Air account resolved into a region the lifecycle loop
-      # never iterates and no instance was ever provisioned.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget, matching staging, so
-      # traffic-driven placement is observable rather than collapsing onto a
-      # single funded region.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -240,6 +250,37 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
+  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
+  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
+  # and their volume stay Pending and `helm --wait` fails the deploy.
+  #
+  # Turning it on is step 2 of the rollout plan in the pull request, and the
+  # steps after it are `shadowWrites.enabled`, then `migration` with the
+  # backfill in the background, then the read flag. Each is its own deploy, and
+  # each has a gate.
+  managed:
+    enabled: false
+    # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
+    # mirror, so this is sized for the environment's own data. What canary is
+    # for is the shape production will run — a second replica and a
+    # three-member quorum, neither of which staging exercises.
+    #
+    # Both are still 1 here, because two replicas need a volume per replica and
+    # a database initialised on each of them, and neither exists yet. Raise
+    # them together once they do.
+    #
+    # The volume per replica is what gates `enabled: true` above, not just this
+    # count: the pool is two nodes and the local PersistentVolume binds on the
+    # pool label rather than a node name, so even one pod can be scheduled onto
+    # the node that does not hold the data.
+    replicas: 1
+    persistence:
+      size: 200Gi
+    keeper:
+      replicas: 1
+    backup:
+      enabled: true
+
   poolSize: "30"
   bufferPoolSize: "30"
   # Exercise the shared application-user memory guard before production with a
@@ -304,7 +345,14 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      item: kura-sentry
+      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
+      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
+      # `tuist-k8s-canary` holds the Hive DSN under the default
+      # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
+      # remoteRef whose item is missing fails the whole `kura-shared-secrets`
+      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
+      # flip this back to `kura-sentry` and reroll.
+      item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,

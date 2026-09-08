@@ -23,6 +23,7 @@ use crate::{
     analytics::Analytics,
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     http,
     io::IoController,
@@ -138,9 +139,6 @@ async fn run_with_config(
         .map_err(|error| format!("failed to create directories: {error}"))?;
     let auth = AuthEngine::from_env(metrics.clone())
         .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
@@ -183,7 +181,18 @@ async fn run_with_config(
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store = Store::open(&config, io.clone(), memory.clone())?;
+    let store = Arc::new(Store::open(&config, io.clone(), memory.clone())?);
+    let analytics =
+        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
+            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .map_err(|error| format!("failed to initialize Bazel test-artifact delivery: {error}"))?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -212,10 +221,12 @@ async fn run_with_config(
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -223,12 +234,14 @@ async fn run_with_config(
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -264,9 +277,7 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
-    if state.config.action_cache_eviction_cascade_enabled {
-        spawn_action_cache_blob_refs_backfill_task(state.clone());
-    }
+    spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
@@ -285,6 +296,7 @@ async fn run_with_config(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -614,6 +626,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.outbox_messages,
                             snapshot.outbox_bulk_messages,
                         );
+                        state
+                            .metrics
+                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics
@@ -774,6 +789,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                 state
                     .metrics
                     .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+                state.metrics.update_elastic_transient_reserved(
+                    state.memory.elastic_transient_reserved_bytes(),
+                );
 
                 let pressure = state.memory.pressure();
                 let snapshot_target = state
@@ -904,38 +922,46 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     );
 }
 
-/// Expires REAPI action-cache entries whose write time predates the TTL.
-/// Clients publish new keys on every source change and nothing else removes
-/// the stale ones, so this recency sweep is what bounds a namespace's
-/// keyspace (and with it the snapshot reconcile scan and index memory). An
-/// expired entry that is still genuinely used costs its next cold reader one
-/// recompile + republish, which refreshes it for the whole fleet. Node-local
-/// by design: peers apply the same rule over the replicated version_ms and
-/// converge on their own. The manifest-keyspace walk is a full scan, so it
-/// runs on the blocking pool at a long interval.
-/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
-/// from the entries already on disk, then arm the readiness flag that lets the
-/// eviction cascade consult it. Runs on the blocking pool because it scans the
-/// manifest keyspace. Idempotent and marker-gated, so a restart after
-/// completion is cheap; a failure leaves the cascade inert (the serve-side
-/// presence gates keep clients safe) and it retries on the next boot.
-fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+/// One-shot startup migration: rebuild the action-cache and chunk-recipe
+/// reverse maps from the entries already on disk. Runs on the blocking pool
+/// because it scans the manifest keyspace. Each map is independently
+/// idempotent and cursor-resumable, so a restart after completion is cheap.
+fn spawn_cache_reverse_refs_backfill_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
-            let mut rows = 0_usize;
+            let mut action_rows = 0_usize;
+            let mut recipe_rows = 0_usize;
+            let mut action_complete = !state.config.action_cache_eviction_cascade_enabled;
+            let mut recipes_complete = false;
             loop {
                 state.memory.wait_for_background_headroom().await;
                 let backfill_state = state.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                let result = tokio::task::spawn_blocking(move || -> Result<_, String> {
+                    let action = (!action_complete)
+                        .then(|| backfill_state.store.backfill_action_cache_blob_refs_step())
+                        .transpose()?;
+                    let recipes = (!recipes_complete)
+                        .then(|| backfill_state.store.backfill_chunk_recipe_refs_step())
+                        .transpose()?;
+                    Ok((action, recipes))
                 })
                 .await;
                 match result {
-                    Ok(Ok(step)) => {
-                        rows += step.rows;
-                        if step.complete {
-                            if rows > 0 {
-                                info!(rows, "action-cache blob-refs backfill complete");
+                    Ok(Ok((action, recipes))) => {
+                        if let Some(step) = action {
+                            action_rows += step.rows;
+                            action_complete = step.complete;
+                        }
+                        if let Some(step) = recipes {
+                            recipe_rows += step.rows;
+                            recipes_complete = step.complete;
+                        }
+                        if action_complete && recipes_complete {
+                            if action_rows > 0 || recipe_rows > 0 {
+                                info!(
+                                    action_rows,
+                                    recipe_rows, "cache reverse-reference backfill complete"
+                                );
                             }
                             break;
                         }
@@ -1017,6 +1043,14 @@ async fn backfill_index_task_loop(state: SharedState) {
     }
 }
 
+/// Expires REAPI action-cache entries and chunk recipes whose write time
+/// predates the TTL. Both are inline records outside segment-capacity
+/// eviction, so this recency sweep bounds their metadata even when shared
+/// chunks remain hot forever. An expired record that is still genuinely used
+/// costs its next cold reader one recompile and republish. Node-local by
+/// design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
@@ -1039,10 +1073,10 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
                 match expired {
                     Ok(Ok(0)) => {}
                     Ok(Ok(expired)) => {
-                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                        info!(expired, cutoff_ms, "expired stale cache metadata records");
                     }
-                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
-                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                    Ok(Err(error)) => warn!("cache metadata expiry sweep failed: {error}"),
+                    Err(error) => warn!("cache metadata expiry task panicked: {error}"),
                 }
             }
         }
@@ -1177,6 +1211,7 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    state.rebuild_replication_targets().await;
     Ok(())
 }
 

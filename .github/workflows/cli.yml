@@ -73,10 +73,6 @@ env:
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
-  # Jobs are ephemeral and persist .build with actions/cache. Keep Tuist metadata
-  # outside the per-account runner cache volume so a saturated warm cache cannot
-  # prevent authentication before the job starts.
-  TUIST_XDG_CACHE_HOME: /tmp/tuist-cache
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
 

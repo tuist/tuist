@@ -8,6 +8,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   alias Tuist.ReapiCache
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   @render_async_timeout 1_000
 
@@ -57,6 +58,43 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     render_async(live_view, @render_async_timeout)
 
     assert has_element?(live_view, "[data-part=empty-bazel-invocations]")
+  end
+
+  test "renders invocation logs from a Bazel test run", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        build_system: "bazel",
+        bazel_invocation_id: "invocation-1"
+      )
+
+    Bazel.create_invocation_logs([
+      %{
+        id: UUIDv7.generate(),
+        invocation_id: "invocation-1",
+        sequence_number: 10,
+        stream: "stdout",
+        message: "Bazel test output",
+        project_id: project.id,
+        observed_at: ~N[2026-09-04 12:00:00]
+      }
+    ])
+
+    {:ok, live_view, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=logs"
+      )
+
+    assert has_element?(live_view, "[data-part=bazel-invocation-logs]", "Bazel test output")
+    assert has_element?(live_view, "a", "Logs")
+    refute has_element?(live_view, "[data-part=metadata]", "Mac device")
+    refute has_element?(live_view, "[data-part=metadata]", "macOS version")
   end
 
   defp create_invocation(project) do

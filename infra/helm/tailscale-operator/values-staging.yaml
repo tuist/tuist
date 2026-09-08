@@ -9,6 +9,29 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
+  # Staging is the one env where human kubectl runs over the tailnet
+  # instead of through Pomerium. Being on the tailnet IS the
+  # authentication; the impersonated tier comes from the
+  # `tailscale.com/cap/kubernetes` grants in
+  # infra/tailscale/acls.json. Reachable at
+  # `https://tuist-k8s-staging.taild6d7bb.ts.net` — the operator's
+  # own MagicDNS name, per `operatorConfig.hostname` above.
+  #
+  # Staging can afford this because its write tier is standing
+  # access, not a per-request elevation, so nothing here needs the
+  # per-request PolicyController lookup Pomerium exists to carry.
+  # Read the CAUTION in values.yaml before copying this into another
+  # env: auth mode brings an unrestricted impersonation ClusterRole
+  # with it.
+  #
+  # Pomerium stays deployed in staging. It still owns the
+  # `tuist-admins` / `tuist-eng` / `tuist-staging-write` →
+  # ClusterRole bindings this path depends on, and it remains a
+  # working door for anyone off the tailnet.
+  apiServerProxyConfig:
+    mode: "true"
+    allowImpersonation: "true"
+
 connector:
   hostname: tuist-cluster-router-staging
   tags:

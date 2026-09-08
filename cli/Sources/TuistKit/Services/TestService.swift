@@ -420,7 +420,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         testPlanConfiguration: testPlanConfiguration,
                         action: action
                     )
-                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                    try await finishSkippedTests(
+                        schemes: [scheme],
+                        mapperEnvironment: mapperEnvironment,
+                        config: config,
+                        action: action,
+                        isSharding: isSharding
+                    )
                     return
                 } else {
                     throw TestServiceError.schemeNotFound(
@@ -449,14 +455,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     level: .info,
                     "The scheme \(schemeName)'s test action has no tests to run, finishing early."
                 )
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                try await finishSkippedTests(
+                    schemes: [scheme],
+                    mapperEnvironment: mapperEnvironment,
+                    config: config,
+                    action: action,
+                    isSharding: isSharding
+                )
                 return
             case (_?, _, true), (_?, _, nil):
                 Logger.current.log(
                     level: .info,
                     "The scheme \(schemeName)'s test action has no test plans to run, finishing early."
                 )
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                try await finishSkippedTests(
+                    schemes: [scheme],
+                    mapperEnvironment: mapperEnvironment,
+                    config: config,
+                    action: action,
+                    isSharding: isSharding
+                )
                 return
             default:
                 break
@@ -482,16 +500,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             requestedTestTargets: testTargets,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ) {
-            if action == .build {
-                try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
-            } else {
-                let timer = clock.startTimer()
-                try await uploadSkippedTestSummary(
-                    schemeName: schemes.first?.name,
-                    config: config,
-                    timer: timer
-                )
-            }
+            try await finishSkippedTests(
+                schemes: schemes,
+                mapperEnvironment: mapperEnvironment,
+                config: config,
+                action: action,
+                isSharding: isSharding
+            )
             return
         }
 
@@ -532,16 +547,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mode: mode
             )
             if !didRunTests {
-                if action == .build {
-                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
-                } else {
-                    let timer = clock.startTimer()
-                    try await uploadSkippedTestSummary(
-                        schemeName: schemes.first?.name,
-                        config: config,
-                        timer: timer
-                    )
-                }
+                try await finishSkippedTests(
+                    schemes: schemes,
+                    mapperEnvironment: mapperEnvironment,
+                    config: config,
+                    action: action,
+                    isSharding: isSharding
+                )
                 return
             }
         } catch {
@@ -1429,6 +1441,34 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 to: runResultBundlePath.parentDirectory.appending(
                     components: "\(Constants.resultBundleName).xcresult"
                 )
+            )
+        }
+    }
+
+    private func finishSkippedTests(
+        schemes: [Scheme],
+        mapperEnvironment: MapperEnvironment,
+        config: Tuist,
+        action: XcodeBuildTestAction,
+        isSharding: Bool
+    ) async throws {
+        try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+
+        // An empty shard matrix means no test job will follow to publish the completed run.
+        guard action != .build || isSharding else { return }
+
+        let skippedSchemes: [Scheme]
+        if schemes.isEmpty, let initialGraph = mapperEnvironment.initialGraph {
+            skippedSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: GraphTraverser(graph: initialGraph))
+        } else {
+            skippedSchemes = schemes
+        }
+
+        for scheme in skippedSchemes {
+            try await uploadSkippedTestSummary(
+                schemeName: scheme.name,
+                config: config,
+                timer: clock.startTimer()
             )
         }
     }
