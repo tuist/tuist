@@ -13,10 +13,11 @@
 #   B-5..B-7   two regions × two replicas (gateway links, tombstones, failover)
 #   B-8        two regions, pull flipped on in one of them only
 #   B-9, B-10  a region of one beside a two-replica region, no server
+#   B-11       a pair whose membership is one-way (§11.2's push exception)
 #
 # Observables are the ones the plan names: /status/cluster (`pulling`,
 # `gateway`, `sync_links`, `feed`), /_internal/status (`pulling`,
-# `traffic_state`), the kura_sync_* / kura_gateway_role* / kura_outbox_messages
+# `traffic_state`, `peers`), the kura_sync_* / kura_gateway_role* / kura_outbox_messages
 # metric families (counters scrape with the doubled `_total_total` suffix;
 # metric_sum accepts the registered name), and the nodes' JSON logs where a
 # node has already exited. Measured latencies are appended to the file named
@@ -28,6 +29,8 @@ A2_NODE_URL=http://kura-a2.kura.internal:7443
 B1_NODE_URL=http://kura-b1.kura.internal:7443
 B2_NODE_URL=http://kura-b2.kura.internal:7443
 SOLO_NODE_URL=http://kura-solo.kura.internal:7443
+D1_NODE_URL=http://kura-d1.kura.internal:7443
+D2_NODE_URL=http://kura-d2.kura.internal:7443
 
 # The sync compose file is self-contained (not layered on docker-compose.yml),
 # so the project directory is pinned to the crate root for its build context.
@@ -44,7 +47,8 @@ sync_setup_project() {
   sync_compose_files
   setup_suite_tmpdir
   suite_env COMPOSE_PROJECT_NAME "$1"
-  ephemeral_ports KURA_A1_PORT KURA_A2_PORT KURA_B1_PORT KURA_B2_PORT KURA_SOLO_PORT
+  ephemeral_ports KURA_A1_PORT KURA_A2_PORT KURA_B1_PORT KURA_B2_PORT KURA_SOLO_PORT \
+    KURA_D1_PORT KURA_D2_PORT
 }
 
 sync_build_nodes() {
@@ -1007,5 +1011,64 @@ Describe 'serverless mesh of a region of one beside a two-replica region'
     The variable a1_pushes_to_solo should eq 0
     outbox_total=$(( $(metric_sum "${KURA_A1_URL}" kura_outbox_messages) + $(metric_sum "${KURA_A2_URL}" kura_outbox_messages) + $(metric_sum "${KURA_SOLO_URL}" kura_outbox_messages) ))
     The variable outbox_total should eq 0
+  End
+End
+
+Describe 'one-way membership between two pulling nodes'
+  Include spec/e2e/support.sh
+
+  setup_suite() {
+    sync_setup_project kura-sync-one-way
+    sync_build_nodes kura-d1 kura-d2 || return 1
+    sync_start_nodes kura-d1 kura-d2 || return 1
+    wait_for_node_ready "${KURA_D1_URL}" || return 1
+    wait_for_node_ready "${KURA_D2_URL}" || return 1
+    wait_for_ring_members "${KURA_D2_URL}" 2 || return 1
+    wait_for_output true 60 1 node_links_settled "${KURA_D2_URL}" >/dev/null || return 1
+  }
+
+  teardown_suite() {
+    compose_teardown
+  }
+
+  BeforeAll 'setup_suite'
+  Before 'resolve_sync_nodes kura-d1 kura-d2'
+  AfterAll 'teardown_suite'
+
+  # B-11
+  It 'keeps pushing to a pulling peer that cannot dial back while pulling from it'
+    # The one-way view (design §11.2): d2 lists d1, so it probes it and
+    # names it; d1 lists nobody, so its own advertised view is empty and it
+    # can never learn that d2 exists.
+    capture_into d1_internal internal_status kura-d1 || return 1
+    The variable d1_internal should include '"pulling":true'
+    The variable d1_internal should include '"peers":[]'
+    capture_into d2_internal internal_status kura-d2 || return 1
+    The variable d2_internal should include '"pulling":true'
+    The variable d2_internal should include "\"peers\":[\"${D1_NODE_URL}\"]"
+    d1_links="$(node_links "${KURA_D1_URL}")"
+    The variable d1_links should eq none
+    d2_links="$(node_links "${KURA_D2_URL}")"
+    The variable d2_links should eq "replica:region-d>${D1_NODE_URL}"
+
+    # d1 -> d2 by pull: d2 reads d1's arrival feed.
+    from_d1="$(kv_put "${KURA_D1_URL}" "${SYNC_NAMESPACE}" b11-from-d1 b11-from-d1-value)"
+    The variable from_d1 should eq 204
+    capture_into d2_read \
+      wait_for_contains "$(kv_url "${KURA_D2_URL}" "${SYNC_NAMESPACE}" b11-from-d1)" '"b11-from-d1-value"' 300 0.1 || return 1
+    The variable d2_read should include '"b11-from-d1-value"'
+
+    # d2 -> d1 by push: nothing on d1 pulls, so the exception is the only
+    # leg this direction has.
+    from_d2="$(kv_put "${KURA_D2_URL}" "${SYNC_NAMESPACE}" b11-from-d2 b11-from-d2-value)"
+    The variable from_d2 should eq 204
+    wait_for_kv_present "${KURA_D1_URL}" "${SYNC_NAMESPACE}" b11-from-d2 b11-from-d2-value 60 0.2 || return 1
+    d2_pushes_to_d1="$(push_requests_to "${KURA_D2_URL}" kura-d1.kura.internal:7443)"
+    d2_pushed=$((d2_pushes_to_d1 >= 1 ? 1 : 0))
+    The variable d2_pushed should eq 1
+    capture_into d2_outbox wait_for_output 0 30 1 metric_sum "${KURA_D2_URL}" kura_outbox_messages || return 1
+    The variable d2_outbox should eq 0
+    d1_outbox="$(metric_sum "${KURA_D1_URL}" kura_outbox_messages)"
+    The variable d1_outbox should eq 0
   End
 End

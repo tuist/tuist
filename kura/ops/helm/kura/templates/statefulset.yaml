@@ -164,6 +164,14 @@ spec:
             - name: KURA_SYNC_DRAIN_MARGIN_MS
               value: {{ printf "%d" (int64 .) | quote }}
             {{- end }}
+            {{- with (dig "sync" "peerBodiesSlotsPerPeer" "" .Values.config) }}
+            - name: KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "peerServingMaxInflight" "" .Values.config) }}
+            - name: KURA_SYNC_PEER_SERVING_MAX_INFLIGHT
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
             {{- with .Values.config.memory.softLimitBytes }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
               value: {{ printf "%d" (int64 .) | quote }}

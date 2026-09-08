@@ -9,7 +9,8 @@ use crate::{
         DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER,
         DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_SYNC_DRAIN_MARGIN_MS,
         DEFAULT_SYNC_FEED_MAX_ROWS, DEFAULT_SYNC_FEED_STALE_PEER_SECS, DEFAULT_SYNC_LONG_POLL_SECS,
-        DEFAULT_SYNC_PASS_START_BUFFER_MS, DEFAULT_SYNC_REGION_SETTLE_MS,
+        DEFAULT_SYNC_PASS_START_BUFFER_MS, DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT, DEFAULT_SYNC_REGION_SETTLE_MS,
         DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
         DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
         DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES, SYNC_LONG_POLL_MAX_SECS,
@@ -128,6 +129,8 @@ const KURA_SYNC_PASS_START_BUFFER_MS: &str = "KURA_SYNC_PASS_START_BUFFER_MS";
 const KURA_SYNC_REGION_SETTLE_MS: &str = "KURA_SYNC_REGION_SETTLE_MS";
 const KURA_SYNC_FEED_STALE_PEER_SECS: &str = "KURA_SYNC_FEED_STALE_PEER_SECS";
 const KURA_SYNC_DRAIN_MARGIN_MS: &str = "KURA_SYNC_DRAIN_MARGIN_MS";
+const KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER: &str = "KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER";
+const KURA_SYNC_PEER_SERVING_MAX_INFLIGHT: &str = "KURA_SYNC_PEER_SERVING_MAX_INFLIGHT";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -266,6 +269,12 @@ pub struct Config {
     /// Margin kept back from the drain timeout by the sibling wait
     /// (`KURA_SYNC_DRAIN_MARGIN_MS`).
     pub sync_drain_margin_ms: u64,
+    /// Bodies requests one peer identity may hold in flight on the serving
+    /// side (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`, design §11.1).
+    pub sync_peer_bodies_slots_per_peer: u64,
+    /// Bodies requests this node serves in flight across every peer identity
+    /// (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, design §11.1).
+    pub sync_peer_serving_max_inflight: u64,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -1404,8 +1413,30 @@ impl Config {
             &mut invalid,
             DEFAULT_SYNC_DRAIN_MARGIN_MS,
         );
+        let sync_peer_bodies_slots_per_peer = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+            &mut invalid,
+            DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        );
+        let sync_peer_serving_max_inflight = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_PEER_SERVING_MAX_INFLIGHT,
+            &mut invalid,
+            DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT,
+        );
         if sync_feed_max_rows == 0 {
             invalid.push(format!("{KURA_SYNC_FEED_MAX_ROWS} must be greater than 0"));
+        }
+        if sync_peer_bodies_slots_per_peer == 0 {
+            invalid.push(format!(
+                "{KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER} must be greater than 0"
+            ));
+        }
+        if sync_peer_serving_max_inflight == 0 {
+            invalid.push(format!(
+                "{KURA_SYNC_PEER_SERVING_MAX_INFLIGHT} must be greater than 0"
+            ));
         }
         let backfill_batch_bytes = optional_parsed_value(
             &mut lookup,
@@ -1945,6 +1976,8 @@ impl Config {
             sync_region_settle_ms,
             sync_feed_stale_peer_secs,
             sync_drain_margin_ms,
+            sync_peer_bodies_slots_per_peer,
+            sync_peer_serving_max_inflight,
             analytics,
             usage,
             otlp_traces_endpoint,

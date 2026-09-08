@@ -3,7 +3,13 @@
 //! start, then ascending origin-filtered forward reads from the per-origin
 //! watermark, long-polling when caught up.
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
+    time::Instant,
+};
 
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -161,8 +167,8 @@ pub async fn run(
     region: String,
     cancel: CancellationToken,
     status: Arc<LinkStatusCell>,
+    pass_failures: Arc<AtomicU32>,
 ) {
-    let mut pass_failures = 0_u32;
     loop {
         let outcome = tokio::select! {
             biased;
@@ -171,6 +177,7 @@ pub async fn run(
         };
         match outcome {
             Ok(()) => {
+                pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
                     status.last_success = Some(Instant::now());
@@ -181,9 +188,11 @@ pub async fn run(
                 if error == "cancelled" {
                     return;
                 }
-                pass_failures = pass_failures.saturating_add(1);
+                let failures = pass_failures
+                    .fetch_add(1, Ordering::Relaxed)
+                    .saturating_add(1);
                 app.metrics.record_backfill_pass_event("failed");
-                if pass_failures >= BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
+                if failures >= BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
                     status.update(|status| status.settled = true);
                 }
                 status.update(|status| status.phase = LinkPhase::Retrying);
@@ -191,7 +200,7 @@ pub async fn run(
                 tokio::select! {
                     biased;
                     _ = cancel.cancelled() => return,
-                    _ = tokio::time::sleep(pass_backoff(pass_failures)) => {}
+                    _ = tokio::time::sleep(pass_backoff(failures)) => {}
                 }
             }
         }

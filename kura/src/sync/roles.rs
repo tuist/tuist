@@ -18,6 +18,10 @@ pub struct PeerView {
     pub draining: bool,
     /// The peer advertises that it pulls (the flip, §5.2).
     pub pulling: bool,
+    /// The peer's advertised membership view names this node's URL, so it
+    /// can dial back and its pull can replace this node's push (§11.2). A
+    /// peer that advertises no view at all counts as not knowing us.
+    pub knows_me: bool,
 }
 
 /// A role the control plane published (`peer_roles` beside `peers`).
@@ -38,8 +42,9 @@ pub struct Roles {
     /// `(url, region)` of every remote region's gateway(s) this node reads,
     /// empty unless `own_gateway`.
     pub remote_gateways: Vec<(String, String)>,
-    /// Peers still on push (not pulling), or every peer when this node is
-    /// not pulling itself.
+    /// Peers still on push (not pulling, or pulling without being able to
+    /// dial this node back), or every peer when this node is not pulling
+    /// itself.
     pub push_targets: Vec<String>,
 }
 
@@ -94,7 +99,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
     roles.push_targets = inputs
         .peers
         .iter()
-        .filter(|peer| !peer.pulling)
+        .filter(|peer| !(peer.pulling && peer.knows_me))
         .map(|peer| peer.url.clone())
         .collect();
     roles.push_targets.sort();
@@ -113,6 +118,7 @@ pub fn derive_roles(inputs: &RoleInputs<'_>) -> Roles {
         serving: inputs.own_serving,
         draining: inputs.own_draining,
         pulling: true,
+        knows_me: true,
     };
     let mut by_region: BTreeMap<&str, Vec<&PeerView>> = BTreeMap::new();
     by_region.entry(inputs.own_region).or_default().push(&own);
@@ -154,6 +160,7 @@ mod tests {
             serving,
             draining,
             pulling,
+            knows_me: true,
         }
     }
 

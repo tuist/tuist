@@ -56,6 +56,11 @@ struct PeerStatusPayload {
     traffic_state: Option<String>,
     #[serde(default)]
     pulling: Option<bool>,
+    /// The node URLs of the peer's own membership view (design §11.2). A
+    /// peer that reports none is treated as not knowing this node, which
+    /// errs toward a duplicate push rather than a silent gap.
+    #[serde(default)]
+    peers: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -192,12 +197,22 @@ async fn membership_task_loop(state: SharedState) {
                             }
                             members.insert(payload.region.clone());
                             let traffic_state = payload.traffic_state.as_deref();
+                            let knows_me = payload.peers.as_ref().is_some_and(|peers| {
+                                peers.iter().any(|url| {
+                                    is_self_or_own_gateway(
+                                        url,
+                                        &state.config.node_url,
+                                        state.config.peer_gateway_url.as_deref(),
+                                    )
+                                })
+                            });
                             views.push(PeerView {
                                 url: payload.node_url.clone(),
                                 region: payload.region.clone(),
                                 serving: traffic_state.is_none_or(|s| s == "serving"),
                                 draining: traffic_state == Some("draining"),
                                 pulling: payload.pulling.unwrap_or(false),
+                                knows_me,
                             });
                             peer_nodes.insert(payload.node_url, payload.region);
                         }

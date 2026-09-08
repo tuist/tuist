@@ -52,6 +52,9 @@ the same `A-n` tag):
 | A-22 | Limiter bypass for same-region peers | limiter untouched on the sibling link |
 | A-23 | `origin_region` additive on the wire | old-format frames decode; new frames carry it |
 | A-24 | Watermark seed from `backfill/wm/` rows | first read starts at the seeded value |
+| A-25 | Push exception for a pulling peer that cannot dial back (§11.2) | a pulling peer whose advertised view omits us stays a push target, leaves once it names us, and never earns D-20's stickiness before that; `/_internal/status` carries the view |
+| A-27 | Bootstrap failure budget survives a link respawn (§3.6) | a peer that leaves and re-enters the view continues its failure count; readiness settles after the budget however often the link reopens |
+| A-26 | Peer bodies limits are configuration (§11.1) | the configured per-peer slot count admits exactly that many; the (N+1)th request across distinct identities is refused as `rejected_node_busy` |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 
@@ -74,6 +77,7 @@ cd kura && mise exec -- shellspec spec/e2e/discovery_spec.sh spec/e2e/backfill_s
 | B-8 | 2 regions, pull on in region 1 only | mixed mesh | region 2 still pushes; region 1 pulls from region 1 peers; all records converge |
 | B-9 | region of one + 2-replica region | co-located instance | region of one pulls from the gateway; no feed on the region of one |
 | B-10 | serverless 3 nodes, 2 regions, no server | roles derived locally | exactly one gateway per region in `/status/cluster` |
+| B-11 | 2 nodes, 1 region, pull on, one-way membership (d2 lists d1, d1 lists nobody) | §11.2's push exception under the runner-region shape | a write on d1 reaches d2 by pull; a write on d2 reaches d1 by push, with d2's outbox back to zero |
 
 ## Ring C — k01 clusters (tens of minutes per setup)
 

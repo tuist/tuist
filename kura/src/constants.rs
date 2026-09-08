@@ -456,6 +456,13 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
 /// Re-check cadence of an idle long-poll, the bound on a missed wake.
 pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` default: bodies requests one peer
+/// identity may hold in flight on this node's serving side (design §11.1).
+pub const DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER: u64 = 1;
+/// `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` default: bodies requests this node
+/// serves in flight across every peer identity (design §11.1). Above it the
+/// node answers `503` rather than queueing, so a receiver backs off or skips.
+pub const DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT: u64 = 8;
 
 #[cfg(test)]
 mod tests {

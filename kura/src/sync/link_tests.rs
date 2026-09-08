@@ -37,6 +37,8 @@ impl Node {
             serving: true,
             draining: false,
             pulling: true,
+            // In-process nodes are on real listeners and see each other.
+            knows_me: true,
         }
     }
 
@@ -257,4 +259,47 @@ async fn regions_of_one_converge_through_the_ascending_read() {
         us.state().store.sync_feed().head() == 0,
         "no sibling asked, so no rows yet"
     );
+}
+
+// A-27: a sibling that flaps through the membership view keeps charging the
+// same bootstrap budget, so readiness cannot be held open by a peer that
+// reappears faster than the budget expires.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_flapping_sibling_keeps_its_bootstrap_budget_across_respawns() {
+    let a = node("local", |_| {}).await;
+    let ghost = PeerView {
+        url: "http://127.0.0.1:1".to_owned(),
+        region: "local".to_owned(),
+        serving: true,
+        draining: false,
+        pulling: true,
+        knows_me: true,
+    };
+    async fn failures_reach(a: &Node, peer: &str, target: u32) -> u32 {
+        for _ in 0..200 {
+            let count = a.state().sync.bootstrap_failures(peer);
+            if count >= target {
+                return count;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("{peer} never reached {target} bootstrap failures");
+    }
+
+    a.state().apply_peer_views(vec![ghost.clone()]);
+    a.state().sync.evaluate(a.state());
+    assert_eq!(failures_reach(&a, &ghost.url, 1).await, 1);
+    assert!(
+        !a.state().sync.bootstrap_settled(true),
+        "one failure is within the budget"
+    );
+
+    // The sibling drops out of the view (link cancelled) and returns (link
+    // respawned): the count continues instead of restarting at one.
+    a.state().apply_peer_views(Vec::new());
+    a.state().sync.evaluate(a.state());
+    assert!(a.state().sync.link_statuses().is_empty());
+    a.state().apply_peer_views(vec![ghost.clone()]);
+    a.state().sync.evaluate(a.state());
+    assert_eq!(failures_reach(&a, &ghost.url, 2).await, 2);
 }

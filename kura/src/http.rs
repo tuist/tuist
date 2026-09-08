@@ -54,7 +54,7 @@ use crate::{
         log_request_completion, request_id, scope_request,
     },
     runtime::{HttpTrafficClass, InflightGuard},
-    state::SharedState,
+    state::{BackfillBodiesSlotRejection, SharedState},
     store::{
         ApplyProvenance, ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage,
         StagedArtifactPath, backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
@@ -2530,6 +2530,16 @@ async fn internal_status(
         _ => state.config.node_url.clone(),
     };
 
+    // The membership view this node holds (design §11.2): a pusher takes a
+    // pulling peer off its push targets only once that peer's view names the
+    // pusher, which is what tells a node it can be dialled back.
+    let peers: Vec<String> = state
+        .peer_views
+        .load()
+        .iter()
+        .map(|view| view.url.clone())
+        .collect();
+
     Json(serde_json::json!({
         "region": state.config.region.clone(),
         "tenant_id": state.config.tenant_id.clone(),
@@ -2537,6 +2547,7 @@ async fn internal_status(
         "traffic_state": state.runtime.traffic_state().as_str(),
         "pulling": state.replication_pull(),
         "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),
+        "peers": peers,
     }))
 }
 
@@ -3002,14 +3013,27 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
                 .backfill_bodies_peer_slots
                 .try_acquire(identity.0.clone())
             {
-                Some(slot) => Some(slot),
-                None => {
+                Ok(slot) => Some(slot),
+                // Both limits reject rather than queue (design §11.1) and
+                // share the `peer_busy` error so an older requester keeps
+                // classifying the answer as retryable; only the metric label
+                // separates a greedy peer from a saturated node.
+                Err(BackfillBodiesSlotRejection::PeerBusy) => {
                     state
                         .metrics
                         .record_backfill_bodies_peer_request(&peer_label, "rejected_busy");
                     return backfill_unavailable_response(
                         BACKFILL_ERROR_PEER_BUSY,
-                        "another bodies request from this peer identity is in flight; retry shortly",
+                        "this peer identity holds all of its bodies slots; retry shortly",
+                    );
+                }
+                Err(BackfillBodiesSlotRejection::NodeBusy) => {
+                    state
+                        .metrics
+                        .record_backfill_bodies_peer_request(&peer_label, "rejected_node_busy");
+                    return backfill_unavailable_response(
+                        BACKFILL_ERROR_PEER_BUSY,
+                        "this node is serving its maximum of concurrent bodies requests; retry shortly",
                     );
                 }
             }
@@ -6384,6 +6408,108 @@ mod tests {
                 && line.contains("peer=\"peer-b\"")
                 && line.contains("outcome=\"ok\"")
         }));
+    }
+
+    // A-26 (design §11.1): the per-peer slot count is configuration, not a
+    // hard-coded one.
+    #[tokio::test]
+    async fn backfill_bodies_honour_the_configured_slots_per_peer() {
+        let context = test_context(|config| {
+            config.sync_peer_bodies_slots_per_peer = 2;
+            config.sync_peer_serving_max_inflight = 8;
+        })
+        .await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        let first = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        let second = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(
+            second.status(),
+            StatusCode::OK,
+            "the second slot of the same identity is configured open"
+        );
+
+        let busy = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            busy.headers().contains_key(axum::http::header::RETRY_AFTER),
+            "cap rejection must be marked retryable"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(busy).await).expect("typed busy body");
+        assert_eq!(unavailable.error, BACKFILL_ERROR_PEER_BUSY);
+
+        drop(second);
+        let after_release = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(after_release.status(), StatusCode::OK);
+        drop(first);
+        drop(after_release);
+
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-a\"")
+                && line.contains("outcome=\"rejected_busy\"")
+        }));
+    }
+
+    // A-26: the node-wide aggregate refuses the request no per-peer count
+    // would have caught, and says so in its own label.
+    #[tokio::test]
+    async fn backfill_bodies_cap_concurrent_requests_across_peer_identities() {
+        let context = test_context(|config| {
+            config.sync_peer_bodies_slots_per_peer = 1;
+            config.sync_peer_serving_max_inflight = 2;
+        })
+        .await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        let first = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        let second = post_backfill_bodies(&context.state, &entries, Some("peer-b")).await;
+        assert_eq!(second.status(), StatusCode::OK);
+
+        let node_busy = post_backfill_bodies(&context.state, &entries, Some("peer-c")).await;
+        assert_eq!(node_busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            node_busy
+                .headers()
+                .contains_key(axum::http::header::RETRY_AFTER),
+            "the aggregate rejection is retryable backpressure like the per-peer one"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(node_busy).await).expect("typed busy body");
+        assert_eq!(
+            unavailable.error, BACKFILL_ERROR_PEER_BUSY,
+            "the error code stays the one an older requester classifies as retryable"
+        );
+
+        drop(first);
+        let after_release = post_backfill_bodies(&context.state, &entries, Some("peer-c")).await;
+        assert_eq!(after_release.status(), StatusCode::OK);
+        drop(second);
+        drop(after_release);
+
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-c\"")
+                && line.contains("outcome=\"rejected_node_busy\"")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_backfill_bodies_peer_requests_total")
+                    && line.contains("outcome=\"rejected_busy\"")
+            }),
+            "no identity exceeded its own slot count"
+        );
     }
 
     #[tokio::test]

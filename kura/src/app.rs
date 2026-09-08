@@ -224,6 +224,10 @@ async fn run_with_config(
     let replication_target_cache =
         arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let replication_pull = config.replication_pull;
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -250,7 +254,7 @@ async fn run_with_config(
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
-        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill_bodies_peer_slots,
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
         replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),

@@ -529,7 +529,11 @@ waiting for the first forward page would hold readiness for up to one
 long-poll wait with nothing to show for it (D-19). Without a sibling it settles immediately; with a sibling that
 cannot be reached it settles when the pass exhausts the failure budget the
 backfill already has, ready-but-cold exactly as today; and the existing
-ring-fullness latch is kept as the cold-but-useful escape it is.
+ring-fullness latch is kept as the cold-but-useful escape it is. The budget
+is charged per peer, not per link task: a sibling that flaps through the
+membership view has its link cancelled and reopened each time, and a count
+that restarted with the task could hold readiness open for as long as the
+flapping lasts, where the legacy cycle charges the peer once (D-23).
 
 With a sibling present, region sync never gates readiness, and neither does
 the gateway role: both are best-effort by requirement, and a replica that has
@@ -840,6 +844,11 @@ Three steps, of which only the middle one changes behaviour.
   by the pass. Reverting the flag is the same handover in reverse: the outbox
   has no rows for the window pull was active, so a revert arms one backward
   pass per peer before push resumes.
+
+  One exception to the rule above, stated in full in §11.2: a peer that
+  advertises pulling but whose own membership view does not name this node
+  cannot dial back, so pull would reach it in neither direction and it stays
+  a push target until its view names us.
 
   Two rules the code and the lab added. The legacy scheduler steps aside *per
   peer*: peers that advertise pulling leave the backfill lifecycle's view
@@ -1218,6 +1227,8 @@ to re-check when a measurement disagrees.
 | Feed stale-peer window (§3.1) — `KURA_SYNC_FEED_STALE_PEER_SECS` | 30 min | The feed turns off, dropping its rows, once no sibling has asked for this long; the mesh's own stale-peer window, so a sibling that is merely restarting never loses its feed. |
 | Drain margin (§3.5) — `KURA_SYNC_DRAIN_MARGIN_MS` | 5 s | Subtracted from the termination grace period to leave the process time to exit cleanly after the gate; the gate itself is the drain wait below. |
 | The flip (§5.2) — `KURA_REPLICATION_PULL`, account flag `kura_replication_pull` | off | Per node by env, per account by the server flag rendered into each managed instance's spec and its manifest revision, so the flip rolls; either source makes the node advertise `pulling`. |
+| Peer bodies slots per peer (§11.1) — `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` | 1 | What one peer identity may hold in flight on the serving side. One is what the requester already asks for; the value exists so a mesh whose links are latency-bound can widen it deliberately rather than by patch. Re-check against the observed `rejected_busy` rate on a gateway. |
+| Peer serving aggregate (§11.1) — `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` | 8 | Bodies requests one node serves across every peer identity. Bounds the concentration the per-peer count cannot: `R-1` gateways plus siblings all catching up at once. Rejection, never a queue. Re-check against the region count and the `rejected_node_busy` rate. |
 | Retry backoff after a failed read (§4.1) | 250 ms → 5 s | The backfill's existing constants. |
 | Staleness alert threshold (§2.2) | 5 min | Ten consecutive failed long-polls; short enough to matter, long enough that a slow transfer is not a failure. |
 | Overlap window on a role move (§2.2) | 2 heartbeat periods | Long enough for every node to have fetched the new list; costs one duplicate listing. |

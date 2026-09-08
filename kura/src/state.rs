@@ -100,10 +100,11 @@ pub struct AppState {
     /// What every reachable peer's `/_internal/status` last said, refreshed
     /// each membership tick; the role rule's input.
     pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
-    /// Peers whose last status said they pull, kept across their absence
-    /// from the view (implementation decision D-20): an unreachable pulling
-    /// peer must not be pushed to again just because it stopped answering.
-    /// In memory, like the discovered-only history.
+    /// Peers whose last status said they pull *and* named this node in their
+    /// own membership view (D-20, D-21), kept across their absence from the
+    /// view: an unreachable pulling peer must not be pushed to again just
+    /// because it stopped answering. In memory, like the discovered-only
+    /// history.
     pub pulling_peers: ArcSwap<BTreeSet<String>>,
     /// Roles the control plane published beside the peer list.
     pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
@@ -111,30 +112,59 @@ pub struct AppState {
     pub sync: Arc<crate::sync::coordinator::SyncCoordinator>,
 }
 
-/// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
+/// Serving-side concurrency gate for `POST /_internal/backfill/bodies`
+/// (design §11.1): a per-identity slot count and a node-wide aggregate.
 ///
 /// The requester side already limits itself to one in-flight bodies request
 /// per peer, but that bound is politeness: self-hosted peers hold account-CA
 /// client certificates on customer infrastructure, and a hostile or buggy
 /// peer must not be able to pin the shared tmp budget and bandwidth limiter
-/// with parallel bulk requests. Identities come from the internal mTLS
-/// listener's verified client certificate
+/// with parallel bulk requests. The aggregate covers the case the per-peer
+/// count cannot: many well-behaved peers converging on one gateway. Identities
+/// come from the internal mTLS listener's verified client certificate
 /// ([`crate::peer_tls::InternalPeerIdentity`]).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BackfillBodiesPeerSlots {
-    active: std::sync::Mutex<BTreeSet<Arc<str>>>,
+    active: std::sync::Mutex<BTreeMap<Arc<str>, u64>>,
+    slots_per_peer: u64,
+    max_inflight: u64,
+}
+
+/// Which limit refused a bodies request, so the metric can tell "this peer is
+/// greedy" from "this node is saturated".
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackfillBodiesSlotRejection {
+    PeerBusy,
+    NodeBusy,
 }
 
 impl BackfillBodiesPeerSlots {
-    /// Claims the identity's slot, or `None` while another request from the
-    /// same identity is still in flight. The returned guard must live for the
-    /// whole request, response streaming included.
-    pub fn try_acquire(self: &Arc<Self>, identity: Arc<str>) -> Option<BackfillBodiesPeerSlot> {
-        let mut active = self.active.lock().expect("backfill peer slots lock");
-        if !active.insert(identity.clone()) {
-            return None;
+    pub fn new(slots_per_peer: u64, max_inflight: u64) -> Self {
+        Self {
+            active: std::sync::Mutex::new(BTreeMap::new()),
+            slots_per_peer: slots_per_peer.max(1),
+            max_inflight: max_inflight.max(1),
         }
-        Some(BackfillBodiesPeerSlot {
+    }
+
+    /// Claims a slot for the identity, or names the limit that refused it.
+    /// The returned guard must live for the whole request, response streaming
+    /// included.
+    pub fn try_acquire(
+        self: &Arc<Self>,
+        identity: Arc<str>,
+    ) -> Result<BackfillBodiesPeerSlot, BackfillBodiesSlotRejection> {
+        let mut active = self.active.lock().expect("backfill peer slots lock");
+        let held = active.get(&identity).copied().unwrap_or(0);
+        if held >= self.slots_per_peer {
+            return Err(BackfillBodiesSlotRejection::PeerBusy);
+        }
+        if active.values().sum::<u64>() >= self.max_inflight {
+            return Err(BackfillBodiesSlotRejection::NodeBusy);
+        }
+        active.insert(identity.clone(), held + 1);
+        drop(active);
+        Ok(BackfillBodiesPeerSlot {
             slots: self.clone(),
             identity,
         })
@@ -149,11 +179,13 @@ pub struct BackfillBodiesPeerSlot {
 
 impl Drop for BackfillBodiesPeerSlot {
     fn drop(&mut self) {
-        self.slots
-            .active
-            .lock()
-            .expect("backfill peer slots lock")
-            .remove(&self.identity);
+        let mut active = self.slots.active.lock().expect("backfill peer slots lock");
+        if let Some(held) = active.get_mut(&self.identity) {
+            *held -= 1;
+            if *held == 0 {
+                active.remove(&self.identity);
+            }
+        }
     }
 }
 
@@ -509,11 +541,13 @@ impl AppState {
     /// follows with `rebuild_replication_targets`.
     /// Stores what the membership loop saw and folds each peer's pull flag
     /// into the sticky set: a peer that answered decides its own entry, a
-    /// peer that did not answer keeps its last one.
+    /// peer that did not answer keeps its last one. A peer that pulls but
+    /// does not name this node in its own view never enters the set, so the
+    /// stickiness of D-20 cannot outlive the condition that earned it.
     pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
         let mut pulling: BTreeSet<String> = (**self.pulling_peers.load()).clone();
         for view in &views {
-            if view.pulling {
+            if view.pulling && view.knows_me {
                 pulling.insert(view.url.clone());
             } else {
                 pulling.remove(&view.url);
@@ -547,8 +581,10 @@ impl AppState {
         targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
-        // The per-peer rule of the flip (design §5.2): a peer that pulls is
-        // no longer pushed to.
+        // The per-peer rule of the flip (design §5.2), with the exception of
+        // §11.2: a peer that pulls is no longer pushed to, unless it cannot
+        // dial this node back, in which case pull reaches it in neither
+        // direction and push is the only leg it has.
         if self.replication_pull() {
             for peer in self.pulling_peers.load().iter() {
                 targets.remove(peer);

@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, Mutex, PoisonError, atomic::AtomicU32},
     time::{Duration, Instant},
 };
 
@@ -114,6 +114,11 @@ pub struct SyncCoordinator {
     /// for the whole stale-peer window" before any consumer was seen.
     started_at: Instant,
     feed_deactivation_in_flight: Mutex<bool>,
+    /// Bootstrap failures per peer, kept across the link's respawns: a peer
+    /// that flaps through the membership view faster than the failure budget
+    /// would otherwise reset its count on every reopen and hold readiness
+    /// open indefinitely, where the legacy cycle charges the peer once.
+    bootstrap_failures: Mutex<BTreeMap<String, Arc<AtomicU32>>>,
 }
 
 impl Default for SyncCoordinator {
@@ -130,7 +135,28 @@ impl SyncCoordinator {
             role_known: Mutex::new(false),
             started_at: Instant::now(),
             feed_deactivation_in_flight: Mutex::new(false),
+            bootstrap_failures: Mutex::new(BTreeMap::new()),
         }
+    }
+
+    fn failure_counter(&self, peer: &str) -> Arc<AtomicU32> {
+        self.bootstrap_failures
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(peer.to_owned())
+            .or_default()
+            .clone()
+    }
+
+    /// How many bootstrap attempts against `peer` have failed since its last
+    /// success, whichever link task made them.
+    #[cfg(test)]
+    pub fn bootstrap_failures(&self, peer: &str) -> u32 {
+        self.bootstrap_failures
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(peer)
+            .map_or(0, |count| count.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     pub fn roles(&self) -> Roles {
@@ -195,14 +221,30 @@ impl SyncCoordinator {
                 .siblings
                 .iter()
                 .map(|peer| (peer.clone(), app.config.region.clone())),
-            |peer, region| spawn_link(app, LinkKind::Replica, peer, region),
+            |peer, region| {
+                spawn_link(
+                    app,
+                    LinkKind::Replica,
+                    peer,
+                    region,
+                    self.failure_counter(peer),
+                )
+            },
         )
         .into_iter()
         .for_each(|closed| app.metrics.clear_sync_forward_cursor_lag(&closed.peer));
         reconcile(
             &mut links.region,
             desired_region.into_iter(),
-            |peer, region| spawn_link(app, LinkKind::Region, peer, region),
+            |peer, region| {
+                spawn_link(
+                    app,
+                    LinkKind::Region,
+                    peer,
+                    region,
+                    self.failure_counter(peer),
+                )
+            },
         )
         .into_iter()
         .for_each(|closed| app.metrics.clear_region_sync_gauges(&closed.region));
@@ -333,7 +375,13 @@ fn reconcile(
     closed
 }
 
-fn spawn_link(app: &SharedState, kind: LinkKind, peer: &str, region: &str) -> Link {
+fn spawn_link(
+    app: &SharedState,
+    kind: LinkKind,
+    peer: &str,
+    region: &str,
+    failures: Arc<AtomicU32>,
+) -> Link {
     let cancel = CancellationToken::new();
     let status = LinkStatusCell::new(LinkStatus {
         kind,
@@ -353,7 +401,14 @@ fn spawn_link(app: &SharedState, kind: LinkKind, peer: &str, region: &str) -> Li
         async move {
             match kind {
                 LinkKind::Replica => {
-                    crate::sync::replica::run(task_app, task_peer, task_cancel, task_status).await;
+                    crate::sync::replica::run(
+                        task_app,
+                        task_peer,
+                        task_cancel,
+                        task_status,
+                        failures,
+                    )
+                    .await;
                 }
                 LinkKind::Region => {
                     crate::sync::region::run(
@@ -362,6 +417,7 @@ fn spawn_link(app: &SharedState, kind: LinkKind, peer: &str, region: &str) -> Li
                         task_region,
                         task_cancel,
                         task_status,
+                        failures,
                     )
                     .await;
                 }

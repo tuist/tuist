@@ -14,6 +14,7 @@ use tower::ServiceExt;
 use crate::{
     artifact::producer::ArtifactProducer,
     http::{SyncForwardGone, SyncForwardHead, SyncForwardPage, internal_router},
+    state::SharedState,
     store::{ApplyProvenance, Store},
     sync::feed::{SyncFeedKind, SyncPosition},
     test_support::{TestContext, test_context},
@@ -664,6 +665,100 @@ async fn status_advertises_traffic_state_pulling_and_incarnation() {
     assert!(!context.state.replication_pull());
 }
 
+// A-25 (design §11.2): a pulling peer whose advertised membership view does
+// not name this node cannot dial back, so pull reaches it in neither
+// direction and push stays its only leg.
+#[tokio::test]
+async fn a_pulling_peer_that_cannot_dial_back_stays_a_push_target() {
+    let context = test_context(|config| {
+        config.replication_pull = true;
+        config.node_url = "http://runner:7443".into();
+        config.peers = vec!["http://selfhosted:7443".into()];
+    })
+    .await;
+    let state = &context.state;
+    let view = |url: &str, knows_me: bool| crate::sync::roles::PeerView {
+        url: url.into(),
+        region: "local".into(),
+        serving: true,
+        draining: false,
+        pulling: true,
+        knows_me,
+    };
+
+    state.apply_peer_views(vec![view("http://selfhosted:7443", false)]);
+    let targets = state.rebuild_replication_targets().await;
+    assert_eq!(
+        *targets,
+        vec!["http://selfhosted:7443".to_string()],
+        "a pulling peer that does not name us is still pushed to"
+    );
+
+    // The same peer while unreachable: the stickiness of D-20 never applied
+    // to it, so it does not drift off the push targets during its absence.
+    state.apply_peer_views(vec![]);
+    let targets = state.rebuild_replication_targets().await;
+    assert_eq!(
+        *targets,
+        vec!["http://selfhosted:7443".to_string()],
+        "an absent peer that never knew us keeps its push leg"
+    );
+
+    // Its view now names us: it can dial back, and pull replaces push.
+    state.apply_peer_views(vec![view("http://selfhosted:7443", true)]);
+    let targets = state.rebuild_replication_targets().await;
+    assert!(
+        targets.is_empty(),
+        "a pulling peer that names us leaves the push targets, got {targets:?}"
+    );
+
+    // And now D-20 applies: it keeps its exemption across an absence.
+    state.apply_peer_views(vec![]);
+    let targets = state.rebuild_replication_targets().await;
+    assert!(
+        targets.is_empty(),
+        "a peer that pulled and knew us stays off push while unreachable, got {targets:?}"
+    );
+}
+
+// A-25: the status probe advertises the membership view the rule above reads.
+#[tokio::test]
+async fn status_advertises_the_membership_view_node_urls() {
+    let context = test_context(|config| config.replication_pull = true).await;
+    let status = |state: SharedState| async move {
+        let response = internal_router(state)
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("route");
+        body_json(response).await
+    };
+
+    let body = status(context.state.clone()).await;
+    assert_eq!(
+        body["peers"].as_array().map(Vec::len),
+        Some(0),
+        "a node with no view advertises an empty list, never a missing field"
+    );
+
+    context
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            url: "http://sibling:7443".into(),
+            region: "local".into(),
+            serving: true,
+            draining: false,
+            pulling: true,
+            knows_me: true,
+        }]);
+    let body = status(context.state.clone()).await;
+    assert_eq!(body["peers"][0], "http://sibling:7443");
+}
+
 // D-20: a pulling peer that stops answering stays off the push targets
 // until it comes back saying otherwise.
 #[tokio::test]
@@ -680,6 +775,7 @@ async fn a_pulling_peer_stays_off_push_while_unreachable() {
         serving: true,
         draining: false,
         pulling,
+        knows_me: true,
     };
     state.apply_peer_views(vec![
         view("http://sibling:7443", true),

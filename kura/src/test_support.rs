@@ -105,6 +105,8 @@ where
         sync_region_settle_ms: crate::constants::DEFAULT_SYNC_REGION_SETTLE_MS,
         sync_feed_stale_peer_secs: crate::constants::DEFAULT_SYNC_FEED_STALE_PEER_SECS,
         sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
+        sync_peer_bodies_slots_per_peer: crate::constants::DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        sync_peer_serving_max_inflight: crate::constants::DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
@@ -192,6 +194,10 @@ where
     let replication_target_cache =
         arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let replication_pull = config.replication_pull;
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -218,7 +224,7 @@ where
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
-        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill_bodies_peer_slots,
         replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),

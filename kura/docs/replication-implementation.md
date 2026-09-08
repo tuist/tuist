@@ -107,13 +107,15 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 
 ### Phase 9 — follow-ups from review (design §11), required before the flip
 
-- [ ] T9.1 Hard upload limits as explicit config: per-peer bodies slot count,
-      per-node peer-serving aggregate; `rejected_busy` and the limiter's
-      effective rate on the dashboard row (§11.1).
-- [ ] T9.2 Push exception for peers that cannot dial back: `/_internal/status`
+- [x] T9.1 Hard upload limits as explicit config: per-peer bodies slot count
+      (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`), per-node peer-serving
+      aggregate (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`); both rejection rates
+      and the limiter's effective rate on the dashboard row (§11.1).
+- [x] T9.2 Push exception for peers that cannot dial back: `/_internal/status`
       advertises the membership view's node URLs; a pulling peer whose view
-      does not name this node stays on the push targets. Ring-A test plus a
-      ring-B scenario with a peer that cannot reach the pusher (§11.2).
+      does not name this node stays on the push targets. Ring-A test (A-25)
+      plus ring-B scenario B-11 with a peer that cannot reach the pusher
+      (§11.2).
 
 ---
 
@@ -259,9 +261,10 @@ readiness for up to one long-poll wait with nothing to show for it.
 
 ## 3. Test runs and measurements
 
-Ring A (unit, `cargo test`): 928 passed, 0 failed at commit `0eba194aec`.
-Rings B and C are recorded per run below; the comparison of `main` against
-this branch is in §3.2.
+Ring A (unit, `cargo test`): 928 passed, 0 failed at commit `0eba194aec`;
+933 passed, 0 failed with phase 9 (A-25, A-26), `mise run clippy` and
+`mise run format -- --check` clean. Rings B and C are recorded per run below;
+the comparison of `main` against this branch is in §3.2.
 
 ### 3.1 Ring C runs
 
@@ -433,6 +436,13 @@ passes standalone with the images rebuilt from the fixed tree (`1 example,
 resumes, with the "sibling cursor reached the head" line and no timeout),
 and the full suite passes: `10 examples, 0 failures` in 139 s.
 
+With phase 9's B-11 added (the one-way `region-d` pair, images rebuilt from
+the tree): `11 examples, 0 failures` in 161 s. B-11 observed what §11.2
+predicts — `kura-d1` advertises an empty `peers` list and opens no link,
+`kura-d2` names `kura-d1`, pulls its feed and keeps a push leg towards it, a
+write on `d1` arrives on `d2` by pull, a write on `d2` arrives on `d1` by
+push, and `d2`'s outbox is back to zero afterwards.
+
 **D-20 — A peer's pull flag is remembered while it is unreachable.** The
 push targets are rebuilt from the membership view, and a peer that stops
 answering its status probe leaves the view — which read as "not pulling"
@@ -443,3 +453,54 @@ history) and keeps them off the push targets until they come back saying
 otherwise; a rolled-back peer that returns with `pulling: false` is pushed
 to again from its next tick.
 
+**D-21 — The push exception is decided from the status exchange, not from a
+server field.** Design §11.2's rule needs one bit per pair: can this peer dial
+me? `/_internal/status` already carries `region`, `traffic_state`, `pulling`
+and `incarnation`, and every node polls it each membership tick, so it gained
+`peers` — the node URLs of the view it holds — and `PeerView` gained
+`knows_me`, true when that list names this node's own URL (or the gateway URL
+it publishes instead, which is how a gateway-fronted node is listed at all).
+A server field was the alternative and was rejected: it would not exist in the
+serverless mode, would need a matching field under a self-hosted server, and
+would describe reachability from a third party's vantage point rather than
+from the peer's own. An older peer sends no `peers` at all, which reads as
+"does not know me" and keeps it on push — the safe direction, since a
+duplicate push into a node that also pulls is absorbed by last-writer-wins for
+one feed row (D-1), while the opposite error is a silent gap. The condition
+rides along with D-20's sticky set rather than beside it: a peer enters the
+set only while it is *pulling and knows me*, so a peer that never could dial
+back does not drift off the push targets during an absence, and a peer that
+could keeps its exemption exactly as before. `derive_roles` applies the same
+condition to `Roles::push_targets` so the coordinator's log field agrees with
+the targets the writes actually use.
+
+**D-22 — The peer-serving limits reject, and now say which limit rejected.**
+The serving side already refused a second concurrent bodies request per peer
+identity, but the count was a hard-coded one and there was no bound at all on
+the number of *distinct* peers in flight — the concentration a gateway
+actually sees, since every other region's gateway plus its own siblings pull
+from it. Both are configuration now
+(`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`, default 1;
+`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, default 8), rendered by the chart.
+Rejection stays the behaviour: a queue would hold the requester's connection
+and the shared tmp budget for an unbounded time, where a `503` with
+`Retry-After` lets the pass back off or skip the entry and come back on the
+next pass, which the classifier already treats as retryable backpressure. The
+aggregate reuses the `peer_busy` error code for exactly that reason — an older
+requester must keep classifying it as retryable — and is distinguished only by
+the metric label `rejected_node_busy`, so a dashboard can separate one greedy
+peer from a saturated node. The limiter's effective rate was already exported
+(`kura_replication_bandwidth_effective_limit_bytes_per_second`); it and the
+two rejection rates joined the pull replication row of the dashboard.
+
+**D-23 — The bootstrap failure budget is charged per peer, across link
+respawns.** The legacy cycle fixes its membership at the first settled tick
+and accumulates failure charges per peer for the whole cycle. The pull term
+of readiness counted bootstrap failures inside each link task, and the
+coordinator cancels and respawns a link whenever its peer leaves and
+re-enters the membership view, so a sibling flapping through the status
+probe faster than the budget reset its count on every reopen and could hold
+`/ready` open on an empty node (the ring-fullness escape still applied to a
+warm one). The coordinator now owns one counter per peer, handed to every
+task it spawns for that peer and cleared on a successful bootstrap, which
+restores the legacy cycle's property without fixing the membership.

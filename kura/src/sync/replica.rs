@@ -4,7 +4,13 @@
 //! the backfill pass pipeline and advancing its cursor only when the page
 //! is applied whole.
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
+    time::Instant,
+};
 
 use reqwest::StatusCode;
 use tokio_util::sync::CancellationToken;
@@ -232,8 +238,8 @@ pub async fn run(
     peer: String,
     cancel: CancellationToken,
     status: Arc<LinkStatusCell>,
+    bootstrap_failures: Arc<AtomicU32>,
 ) {
-    let mut bootstrap_failures = 0_u32;
     let mut request_failures = 0_u32;
     let mut cursor: Option<SyncPosition> = match app.store.sync_cursor(&peer) {
         Ok(cursor) => cursor,
@@ -256,7 +262,7 @@ pub async fn run(
                 };
                 match outcome {
                     Ok(position) => {
-                        bootstrap_failures = 0;
+                        bootstrap_failures.store(0, Ordering::Relaxed);
                         cursor = Some(position);
                         // The cursor sits at the snapshot head, so it is
                         // within one page of the sibling by construction
@@ -268,9 +274,11 @@ pub async fn run(
                         if error == "cancelled" {
                             return;
                         }
-                        bootstrap_failures = bootstrap_failures.saturating_add(1);
+                        let failures = bootstrap_failures
+                            .fetch_add(1, Ordering::Relaxed)
+                            .saturating_add(1);
                         app.metrics.record_backfill_pass_event("failed");
-                        if bootstrap_failures >= BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
+                        if failures >= BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
                             // Ready-but-cold, as the backfill cycle already
                             // allows; retries continue in the background.
                             status.update(|status| status.settled = true);
@@ -280,7 +288,7 @@ pub async fn run(
                         tokio::select! {
                             biased;
                             _ = cancel.cancelled() => return,
-                            _ = tokio::time::sleep(pass_backoff(bootstrap_failures)) => {}
+                            _ = tokio::time::sleep(pass_backoff(failures)) => {}
                         }
                         continue;
                     }
