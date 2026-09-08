@@ -364,19 +364,18 @@ defmodule Tuist.Kura.Reconciler do
         {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
           cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
 
-        {:error, {:public_host_not_resolvable, host, reason}} ->
+        {:error, {:public_host_not_resolvable, host, reason} = detail} ->
           # external-dns has not propagated yet. Leave the deployment in
           # `:running` so the next reconciler tick retries instead of
           # marking the server failed for what's a benign delay.
-          Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
-
-          :ok
-
-        {:error, {:public_endpoint_not_ready, host, reason}} ->
-          Logger.info(
-            "[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
+          wait_or_stall(
+            server,
+            deployment,
+            detail,
+            "waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}"
           )
 
+        {:error, {:public_endpoint_not_ready, host, reason} = detail} ->
           # The workload is up on the desired image but the endpoint is not
           # serving yet: the pod is typically still replicating from mesh peers
           # behind the /ready backfill gate, so it offers no healthy upstream to
@@ -388,19 +387,27 @@ defmodule Tuist.Kura.Reconciler do
           # attribute the wait to a catch-up that can never complete and leave
           # the instance sitting there. Those are cold starts and stay
           # `:provisioning` until the endpoint answers.
+          #
+          # A catch-up has a peer feeding it and a size that justifies a long
+          # wait, so it is left to run and the stalled gauge is what reports it
+          # if it never finishes. A cold start has neither, so it is the one
+          # this escalates.
           if Kura.replication_source?(server) do
             record(server, :replicating, deployment.image_tag, now())
           else
-            :ok
+            wait_or_stall(
+              server,
+              deployment,
+              detail,
+              "waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
+            )
           end
 
-        {:error, :node_port_endpoint_not_ready} ->
+        {:error, :node_port_endpoint_not_ready = detail} ->
           # The controller has not yet observed the full node-port
           # chain (Service ports allocated, primary pod placed on a
           # labeled node). Benign startup delay, same as DNS.
-          Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
-
-          :ok
+          wait_or_stall(server, deployment, detail, "waiting on node-port endpoint for server #{server.id}")
 
         {:error, reason} ->
           fail(deployment, server, reason)
@@ -714,6 +721,80 @@ defmodule Tuist.Kura.Reconciler do
     :ok
   end
 
+  # Every readiness wait above is benign at first and indistinguishable from a
+  # permanent one afterwards: the branch logs at info, returns `:ok` and writes
+  # nothing, so the row keeps the `:provisioning` it was inserted with and its
+  # `updated_at` stays at its insert time. That shape is identical whether the
+  # endpoint is thirty seconds from serving or will never serve at all (an ACME
+  # order that errored, a host that never got a certificate, a node-port chain
+  # that never completes), which is how an instance can hold an
+  # allocation for hours while its account silently builds against the legacy
+  # cache lane, looking exactly like one that is half a minute old.
+  #
+  # Past the stall threshold the wait is recorded instead of swallowed: the
+  # server goes `:failed`, which the dashboard renders as a failure with a
+  # Retry rather than an endless "Deploying", and the reason reaches Sentry.
+  #
+  # The deployment is deliberately left open. `:failed` is a projection here,
+  # not a terminal sink (see the module doc), so the fast path keeps probing
+  # every tick and the instance still activates on its own the moment its
+  # endpoint comes up, with no operator retry.
+  defp wait_or_stall(%Server{} = server, %Deployment{} = deployment, reason, message) do
+    cond do
+      not stalled?(deployment) ->
+        Logger.info("[Kura.Reconciler] #{message}")
+        :ok
+
+      # Already reported. Keep retrying quietly rather than re-reporting the
+      # same stall every tick for as long as it lasts.
+      server.status == :failed ->
+        Logger.info("[Kura.Reconciler] #{message}")
+        :ok
+
+      true ->
+        report_stall(server, deployment, reason, message)
+    end
+  end
+
+  defp stalled?(%Deployment{inserted_at: inserted_at}) do
+    stalled_seconds(inserted_at) >= Kura.provisioning_stall_seconds()
+  end
+
+  defp stalled_seconds(inserted_at), do: DateTime.diff(DateTime.utc_now(), inserted_at)
+
+  defp report_stall(%Server{} = server, %Deployment{} = deployment, reason, message) do
+    age = stalled_seconds(deployment.inserted_at)
+    kind = failure_kind(reason)
+
+    Logger.error(
+      "[Kura.Reconciler] server #{server.id} has been provisioning for #{age}s with no routable endpoint: #{message}"
+    )
+
+    Sentry.capture_message("Kura provisioning stalled",
+      level: :error,
+      tags: %{failure_kind: kind, region: server.region},
+      extra: %{
+        account_id: server.account_id,
+        deployment_id: deployment.id,
+        failure_detail: message,
+        failure_kind: kind,
+        region: server.region,
+        server_id: server.id,
+        stalled_seconds: age
+      }
+    )
+
+    case Kura.fail_server(server) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record stall for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
 
@@ -749,6 +830,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp failure_kind(:not_found), do: "not_found"
+  defp failure_kind(kind) when is_atom(kind) and not is_nil(kind), do: Atom.to_string(kind)
   defp failure_kind({kind, _}) when is_atom(kind), do: Atom.to_string(kind)
   defp failure_kind({kind, _, _}) when is_atom(kind), do: Atom.to_string(kind)
   defp failure_kind(%{__struct__: module}), do: module |> Module.split() |> List.last() |> Macro.underscore()

@@ -3291,6 +3291,73 @@ unroutable for as long as about 52 days while their pods answered `/up` the
 whole time. Nothing errored, no queue grew, and no existing rule moved, so it
 was found by reading the database rather than by an alert.
 
+**The value in the summary is inflated, the firing is not.** This is a PromEx
+polling gauge, so all five `tuist-tuist-server` replicas report the same
+fleet-wide count once a minute, and Adaptive Metrics aggregates the `pod` label
+away by summing them. On 2026-09-08 the rule read 5 while Postgres held exactly
+one non-active instance. `> 0` is unaffected, because five times a true zero is
+still zero, so the rule fires and clears correctly; what is wrong is
+`{{ $values.A.Value }}` in the summary, which reports the replica count times
+the truth. Read the count off `/ops/kura` rather than off the Slack message
+until the aggregation is fixed.
+
+The fix is a Grafana Cloud one and does not live in this repo. Nothing in
+`values.yaml` touches this metric: the drop rules there are anchored on
+`_bucket` and the `labeldrop` list is
+`container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid`, which does not
+include `pod`. Editing that file would ship a no-op. Exclude
+`tuist_kura_lifecycle_unroutable_instances_count` and
+`tuist_kura_lifecycle_stalled_instances_count` from `pod` aggregation under
+**Metrics > Adaptive Metrics** in Grafana Cloud (the same recommendations the
+two limits above **Critical alerts** describe), then read both with `max`
+rather than `sum`, which is the correct reducer for a gauge every replica
+reports identically. `max` on its own does not repair it: applied to a
+series Adaptive Metrics has already summed, it returns the same inflated value.
+
+### Kura instance stalled in provisioning
+
+```promql
+max(tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 5 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
+- Summary: `A Kura instance has been provisioning for over 15 minutes without a
+  routable endpoint`
+- Description: `The instance holds an allocation its account cannot use and is
+  building against the legacy cache lane. The reconciler has already marked the
+  server failed and captured the reason to Sentry under "Kura provisioning
+  stalled"; read it there for which of DNS, the public endpoint or the
+  node-port chain never came up, and check the account's Certificate in the
+  kura namespace, which is the usual cause.`
+
+**Why this exists next to the rule above.** The unroutable gauge counts every
+instance that is not `:active`, so a healthy cold provision is in it for a
+couple of minutes and the rule can only ask how long a count persisted, which
+is what the 30-minute pending period is buying. This gauge counts only
+instances whose open deployment has run past
+`Tuist.Kura.provisioning_stall_seconds/0`, so a fleet with nothing stuck reads
+zero and the question becomes whether the value is non-zero at all. That is
+also what makes it survive the aggregation described above: a threshold that
+only asks non-zero does not care what the true count is multiplied by.
+
+**Why 5 minutes.** The 15-minute stall threshold is already the patience, and
+it is measured against a fleet whose instances reach `:active` in about 105
+seconds on average. A second long pending period on top would only delay a
+signal that has already waited seven times the normal provisioning time.
+
+**What it would have caught.** The 2026-09-08 stall, where one account's
+instance sat in `:provisioning` for over three hours with its `updated_at`
+byte-identical to its `inserted_at`. Let's Encrypt had refused the certificate
+for its host under the 50-per-registered-domain weekly rate limit, so the
+ingress served its default self-signed certificate, the reconciler's `/up`
+probe failed TLS verification every tick, and the endpoint-not-ready branch
+logged at info and returned `:ok` without writing anything. The instance was
+indistinguishable from one thirty seconds old.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another
