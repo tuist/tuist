@@ -316,7 +316,6 @@ type server struct {
 	nano          *nanomdmClient
 	enrollProfile []byte
 	usbProfile    []byte
-	bootstrapPkg  []byte
 
 	// Enroll sequences run outside the request, because NanoMDM's webhook
 	// is fire-and-forget and holding it open buys nothing. Shutdown waits
@@ -457,9 +456,11 @@ func (s *server) runEnrollSequence(id string) {
 			build: func() ([]byte, error) { return installProfileCommand(s.usbProfile) },
 		},
 		{
-			name:  "InstallEnterpriseApplication(bootstrap)",
-			build: func() ([]byte, error) { return installBootstrapPkgCommand(s.cfg, s.bootstrapPkg) },
-			skip:  skipIf(len(s.bootstrapPkg) == 0, "no bootstrap package present in the assets secret"),
+			name: "InstallEnterpriseApplication(bootstrap)",
+			build: func() ([]byte, error) {
+				return installBootstrapPkgCommand(s.cfg, loadBootstrapPkg(s.cfg.assetsDir))
+			},
+			skip: skipIf(len(loadBootstrapPkg(s.cfg.assetsDir)) == 0, "no bootstrap package present in the assets secret"),
 		},
 		{
 			name:  "DeviceConfigured",
@@ -506,12 +507,13 @@ func (s *server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePkg(w http.ResponseWriter, r *http.Request) {
-	if len(s.bootstrapPkg) == 0 {
+	pkg := loadBootstrapPkg(s.cfg.assetsDir)
+	if len(pkg) == 0 {
 		http.Error(w, "bootstrap package not provisioned", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(s.bootstrapPkg)
+	w.Write(pkg)
 }
 
 func main() {
@@ -530,9 +532,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	pkg := loadBootstrapPkg(cfg.assetsDir)
-	if pkg == nil {
-		log.Printf("WARNING: no bootstrap package in %s; InstallEnterpriseApplication will be skipped", cfg.assetsDir)
+	// Only a startup hint. The package is re-read per use, because ESO can
+	// populate the Secret after the pod starts and a mounted Secret update
+	// does not restart anything.
+	if len(loadBootstrapPkg(cfg.assetsDir)) == 0 {
+		log.Printf("no bootstrap package in %s yet; it will be picked up without a restart once present", cfg.assetsDir)
 	}
 
 	s := &server{
@@ -540,7 +544,6 @@ func main() {
 		nano:          &nanomdmClient{baseURL: cfg.nanomdmURL, apiKey: cfg.nanomdmAPIKey, client: &http.Client{Timeout: 30 * time.Second}},
 		enrollProfile: profile,
 		usbProfile:    usb,
-		bootstrapPkg:  pkg,
 	}
 
 	mux := http.NewServeMux()
