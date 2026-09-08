@@ -1002,7 +1002,19 @@ impl Remote {
                 Err(status) if matches!(status.code(), tonic::Code::NotFound | tonic::Code::FailedPrecondition) => {
                     whole.push(blob.clone()); continue;
                 }
-                Err(status) => return Err(format!("split_blob: {status}")),
+                Err(status) => {
+                    // A per-blob split failure is a per-blob outcome: other
+                    // independent outputs in the same batch can still be
+                    // restored, so surface this one and keep going instead of
+                    // aborting every sibling.
+                    let code = status.code() as i32;
+                    outcomes.push((
+                        Some(blob.clone()),
+                        if (0..=16).contains(&code) { code } else { tonic::Code::Internal as i32 },
+                        Vec::new(),
+                    ));
+                    continue;
+                }
             };
             let chunks = recipe.chunk_digests;
             if recipe.chunking_function != reapi::chunking_function::Value::FastCdc2020 as i32

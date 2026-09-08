@@ -39,6 +39,7 @@ enum Mode {
     OmittedDigestDownload,
     OmittedResponseDownload,
     TerminalDownload,
+    TerminalSplitOne,
 }
 
 #[derive(Default)]
@@ -159,11 +160,15 @@ impl ContentAddressableStorage for Server {
                 | Mode::OmittedDigestDownload
                 | Mode::OmittedResponseDownload
                 | Mode::TerminalDownload
+                | Mode::TerminalSplitOne
         ) {
             return Err(Status::unimplemented("mixed-version server"));
         }
         let digest = request.into_inner().blob_digest.unwrap();
         let bytes = calls.blobs[&digest.hash].clone();
+        if matches!(self.mode, Mode::TerminalSplitOne) && bytes[0] == 1 {
+            return Err(Status::internal("split refused for this blob"));
+        }
         let chunks = bytes
             .chunks(1024 * 1024)
             .map(|bytes| {
@@ -369,6 +374,33 @@ fn terminal_chunk_failures_preserve_other_blobs_without_retry_or_fallback() {
     let observed = calls.lock().unwrap();
     assert_eq!(observed.whole_reads, 0);
     assert_eq!(observed.reads, 2, "terminal errors must not retry pressure-only siblings");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn per_blob_split_failure_preserves_sibling_outputs() {
+    // A terminal split_blob failure on one large output must not take down
+    // every other blob in the same batch.
+    let (remote, calls, _stop) = server(Mode::TerminalSplitOne);
+    let directory = std::env::temp_dir().join(format!(
+        "chunk-split-terminal-{}", std::process::id()
+    ));
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    let bad = vec![1u8; 3 * 1024 * 1024];
+    let good = vec![4u8; 3 * 1024 * 1024];
+    let bad_digest = blob_digest(&bad);
+    let good_digest = blob_digest(&good);
+    calls.lock().unwrap().blobs.extend([
+        (bad_digest.hash.clone(), bad),
+        (good_digest.hash.clone(), good.clone()),
+    ]);
+    let result = remote
+        .batch_read(&[bad_digest.clone(), good_digest.clone()])
+        .unwrap();
+    assert!(!result.contains_key(&bad_digest.hash));
+    assert_eq!(result[&good_digest.hash], good);
+    let observed = calls.lock().unwrap();
+    assert_eq!(observed.whole_reads, 0);
     std::fs::remove_dir_all(directory).unwrap();
 }
 
