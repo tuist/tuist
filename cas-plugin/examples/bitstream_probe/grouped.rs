@@ -428,7 +428,7 @@ mod tests {
         let base = prepared(&vec![11; 4096], 7);
         let copy = encode(&base, &base, 1024, 3, true).unwrap();
         let decoded = decode_segments(base.as_slice(), &copy.bytes, true).unwrap();
-        assert_eq!(decoded.owned_bytes(), 0);
+        assert_eq!(decoded.storage_bytes().0, 0);
         assert_eq!(decoded.into_vec(), base);
 
         let mut column = vec![11; 4096];
@@ -436,7 +436,7 @@ mod tests {
         let target = prepared(&column, 7);
         let patch = encode(&base, &target, 1024, 3, true).unwrap();
         let decoded = decode_segments(base.as_slice(), &patch.bytes, true).unwrap();
-        assert!(decoded.owned_bytes() <= 1024);
+        assert!(decoded.storage_bytes().0 <= 1024);
         assert_eq!(decoded.into_vec(), target);
         for size in [1, 7, 1031] {
             let mut fragmented = Segments::default();

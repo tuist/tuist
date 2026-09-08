@@ -64,14 +64,14 @@ impl<'a> Segments<'a> {
         output
     }
 
-    pub fn owned_bytes(&self) -> usize {
+    /// Owned buffer capacity and borrowed logical bytes are different measures.
+    pub fn storage_bytes(&self) -> (usize, usize) {
         self.parts
             .iter()
-            .map(|(_, bytes)| match bytes {
-                Cow::Borrowed(_) => 0,
-                Cow::Owned(bytes) => bytes.capacity(),
+            .fold((0, 0), |(owned, borrowed), (_, bytes)| match bytes {
+                Cow::Borrowed(bytes) => (owned, borrowed + bytes.len()),
+                Cow::Owned(bytes) => (owned + bytes.capacity(), borrowed),
             })
-            .sum()
     }
 }
 
@@ -201,7 +201,7 @@ mod tests {
             for piece in bytes.chunks(page) {
                 parts.push(Cow::Borrowed(piece)).unwrap();
             }
-            assert_eq!(parts.owned_bytes(), 0);
+            assert_eq!(parts.storage_bytes(), (0, bytes.len()));
             assert_eq!(parts.range(5, 233).unwrap().as_ref(), &bytes[5..238]);
             let mut cursor = ViewCursor::new(&parts, 0, bytes.len()).unwrap();
             assert_eq!(

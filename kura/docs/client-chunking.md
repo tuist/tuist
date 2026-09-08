@@ -58,6 +58,10 @@ The initial scale check was a reason not to ship it: the actual Xcode Swift modu
 
 These are offline measurements, not a network or build-speed result. The large Swift module still expands to 68,889,923 prepared bytes, and combined process memory remains above the 512-mebibyte promotion budget. Streamed or spooled preparation, receiver-only memory measurements, broader edit coverage, base authorization/discovery, and negotiated fallback remain required. Full results and commands are in the [research journal](../../cas-plugin/autoresearch.md).
 
+A subsequent receiver-only search kept prepared fields separate and borrowed unchanged pages from the verified base, preserving the existing patch bytes. A sequential comparison measured worst fresh-receiver peak memory falling from 322,060,288 to 164,757,504 bytes, or 48.8%, with aggregate work effectively unchanged at 1,383 versus 1,375 milliseconds. These receiver-only measurements are not comparable to the combined sender/receiver peaks above. All five compiler consumers passed again.
+
+Twenty mixed restores in one persistent process still reached 578,076,672 bytes. A memory inspection showed that most of this was freed allocator regions remaining resident. Lower per-output memory therefore does not make this safe to embed directly in the persistent proxy. Bounded recyclable workers or disk-backed preparation still need implementation and concurrency/resource testing. The [receiver-memory research](../../cas-plugin/autoresearch.md#receiver-memory-search-fifth-segment) includes both the gains and this limit.
+
 Any production field-patch path must remain experimental and explicitly opt-in per project, never the default. Server support alone must not enable it. Missing, empty, or invalid configuration leaves it off, and project policy must accompany requests and background work. The proposed build setting is not implemented by this offline prototype; it should only be added alongside a working supported runtime path. Ordinary chunking and local chunk reuse are unaffected.
 
 ## Validation and benchmarks

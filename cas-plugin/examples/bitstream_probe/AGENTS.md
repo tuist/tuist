@@ -23,6 +23,10 @@ hash verification across the logical byte sequence and check reads spanning
 segment boundaries. This is copy avoidance, not streaming or constant memory.
 Do not claim base discovery, authorization, or network integration.
 
+Measure repeated mixed-size restores in one process as well as fresh receivers.
+The current allocator retains freed regions across jobs; a fresh receiver below
+budget does not establish a persistent-proxy or concurrent-worker memory bound.
+
 The compact offline representation records repeated operation layouts as runs
 and numeric columns as variable-length integers, optionally encoding signed
 differences. These are reversible storage encodings, not compiler normalization.

@@ -156,7 +156,8 @@ fn receive(paths: &[String], config: &Config) -> serde_json::Value {
         parts
     };
     let restored = bitstream_probe::restore_source(&prepared, expected.size).unwrap();
-    let owned_prepared = base_prepared.owned_bytes() + prepared.owned_bytes();
+    let (owned_target, borrowed_prepared) = prepared.storage_bytes();
+    let owned_prepared = base_prepared.storage_bytes().0 + owned_target;
     if config.receiver_release {
         drop(prepared);
         drop(base_prepared);
@@ -169,7 +170,7 @@ fn receive(paths: &[String], config: &Config) -> serde_json::Value {
     write_new(&paths[3], &restored);
     serde_json::json!({"receiver_ms":start.elapsed().as_secs_f64()*1000.0,
         "receiver_peak_bytes":peak_bytes(), "prepare_peak_bytes":prepare_peak,
-        "owned_prepared_bytes":owned_prepared})
+        "owned_prepared_bytes":owned_prepared, "borrowed_prepared_bytes":borrowed_prepared})
 }
 
 fn main() {
@@ -236,6 +237,13 @@ fn main() {
             "{}",
             serde_json::json!({"jobs":results, "receiver_peak_bytes":peak_bytes()})
         );
+        if arguments.get(3).map(String::as_str) == Some("inspect") {
+            eprintln!(
+                "Inspect receiver process {} for 30 seconds",
+                std::process::id()
+            );
+            std::thread::sleep(std::time::Duration::from_secs(30));
+        }
         return;
     }
     let fixtures: Vec<Fixture> = serde_json::from_slice(&read(

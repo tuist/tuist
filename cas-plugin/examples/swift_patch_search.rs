@@ -1,5 +1,6 @@
 //! Offline research only. Never advertised through the existing chunk capability.
 mod bitstream_probe;
+use bitstream_probe::segments::Source;
 
 use serde::Deserialize;
 use std::{fs, time::Instant};
@@ -32,6 +33,8 @@ struct Config {
     compact_layout: bool,
     #[serde(default)]
     compact_columns: bool,
+    #[serde(default)]
+    receiver_segments: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -105,6 +108,7 @@ fn main() {
     assert!(config.group_bytes == 0 || config.fields);
     let (mut warm, mut cold, mut prepared_bytes) = (0usize, 0usize, 0usize);
     let (mut group_count, mut copied_bytes, mut metadata_bytes) = (0, 0, 0);
+    let mut peak_borrowed_prepared_bytes = 0;
     let (mut base_ms, mut target_ms, mut patch_ms, mut restore_ms, mut verify_ms) =
         (0.0, 0.0, 0.0, 0.0, 0.0);
     for fixture in fixtures {
@@ -195,24 +199,38 @@ fn main() {
             selected = (patch.len() + 192).min(expected_blob.len());
             drop(next_prepared);
             let start = Instant::now();
-            let prepared = if config.group_bytes != 0 {
-                bitstream_probe::grouped::decode(&base_prepared, &patch, config.fast_hash).unwrap()
+            let restored = if config.group_bytes != 0 && config.receiver_segments {
+                let prepared = bitstream_probe::grouped::decode_segments(
+                    base_prepared.as_slice(),
+                    &patch,
+                    config.fast_hash,
+                )
+                .unwrap();
+                assert_eq!(prepared.len(), prepared_size);
+                peak_borrowed_prepared_bytes =
+                    peak_borrowed_prepared_bytes.max(prepared.storage_bytes().1);
+                bitstream_probe::restore_source(&prepared, next.len()).unwrap()
             } else {
-                let mut decoder = zstd::zstd_safe::DCtx::create();
-                if config.prefix {
-                    decoder.ref_prefix(&base_prepared).unwrap();
+                let prepared = if config.group_bytes != 0 {
+                    bitstream_probe::grouped::decode(&base_prepared, &patch, config.fast_hash)
+                        .unwrap()
                 } else {
-                    decoder.load_dictionary(&base_prepared).unwrap();
+                    let mut decoder = zstd::zstd_safe::DCtx::create();
+                    if config.prefix {
+                        decoder.ref_prefix(&base_prepared).unwrap();
+                    } else {
+                        decoder.load_dictionary(&base_prepared).unwrap();
+                    }
+                    let mut prepared = Vec::with_capacity(prepared_size);
+                    decoder.decompress(&mut prepared, &patch).unwrap();
+                    prepared
+                };
+                assert_eq!(prepared.len(), prepared_size);
+                if config.fields {
+                    bitstream_probe::restore(&prepared, next.len()).unwrap()
+                } else {
+                    prepared
                 }
-                let mut prepared = Vec::with_capacity(prepared_size);
-                decoder.decompress(&mut prepared, &patch).unwrap();
-                prepared
-            };
-            assert_eq!(prepared.len(), prepared_size);
-            let restored = if config.fields {
-                bitstream_probe::restore(&prepared, next.len()).unwrap()
-            } else {
-                prepared
             };
             samples[3].push(elapsed(start));
             let start = Instant::now();
@@ -262,4 +280,5 @@ fn main() {
     println!("METRIC warm_bytes={warm}\nMETRIC cold_bytes={cold}\nMETRIC prepared_bytes={prepared_bytes}\nMETRIC base_prepare_ms={base_ms}\nMETRIC target_prepare_ms={target_ms}\nMETRIC patch_ms={patch_ms}\nMETRIC restore_ms={restore_ms}\nMETRIC verify_ms={verify_ms}\nMETRIC peak_rss_bytes={}", peak_bytes());
     println!("METRIC group_count={group_count}\nMETRIC copied_bytes={copied_bytes}\nMETRIC metadata_bytes={metadata_bytes}");
     println!("METRIC receiver_ms={}", base_ms + restore_ms + verify_ms);
+    println!("METRIC peak_borrowed_prepared_bytes={peak_borrowed_prepared_bytes}");
 }

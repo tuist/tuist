@@ -583,3 +583,110 @@ bounds. Reject transfer changes or an aggregate receiver-time regression over
 25% unless a separately documented memory tradeoff is compelling. Keep production
 code, capabilities, and the default-off opt-in policy unchanged. Promotion still
 needs concurrency budgets, hostile-input coverage, and a supported runtime path.
+
+### Results and decisions
+
+The six-run segment is complete. The new memory baseline is **322,191,360 bytes
+per fresh receiver**, not the earlier combined-process peak. Separating the
+measurement itself is not an optimization gain.
+
+| Experiment | Worst receiver peak bytes | Aggregate receiver milliseconds | Decision |
+| --- | ---: | ---: | --- |
+| Existing contiguous preparation/decoding | 322,191,360 | 1,392.32 | Baseline |
+| Separate field buffers and borrow unchanged pages | 196,526,080 | 1,378.56 | Keep |
+| Trim spare field capacity | 196,542,464 | 1,373.32 | Discard |
+| Release segmented state after its last use | 164,823,040 | 1,376.12 | Keep |
+| Preallocate input reads exactly | 164,855,808 | 1,361.13 | Discard |
+| Confirm retained candidate | 164,937,728 | 1,391.83 | Keep |
+
+`segments.rs` represents the prepared byte sequence as separate immutable
+buffers. It uses Rust's [borrowed-or-owned byte representation](https://doc.rust-lang.org/std/borrow/enum.Cow.html)
+to reference unchanged base pages and literal patch payloads without copying them.
+Only reconstructed changed pages need new owned buffers. Hashing walks the
+logical byte sequence, and the inverse reads across page boundaries through
+bounded cursors. The existing contiguous representation and decoder remain
+available as comparison paths. Serialized preparation and all five patch files
+match the original implementation byte-for-byte; this does not save more network
+bytes or change the format.
+
+Separating fields also avoids assembling a second contiguous base buffer.
+Once preparation has finished, the raw base can be released. Once the inverse
+has consumed every page, prepared buffers can be released before reproducing
+the final compressed node. Unlike the earlier failed whole-pipeline experiment,
+this lifetime change benefits the segmented, fresh-worker workload. Trimming
+capacity did not improve worst resident memory: reserved capacity is not the
+same as touched resident pages. The file-reader experiment was also discarded.
+
+### Sequential confirmation
+
+The original executable from `873a08f` was retained before editing the codec.
+Running that executable and the final candidate sequentially on the same corpus
+confirmed the following per-output median peaks:
+
+| Output | Original receiver peak bytes | Segmented receiver peak bytes |
+| --- | ---: | ---: |
+| ProjectDescription public declaration | 29,114,368 | 20,627,456 |
+| ProjectDescription enum change | 28,639,232 | 19,021,824 |
+| ProjectDescription hashing change | 29,032,448 | 20,578,304 |
+| Foundation precompiled header | 179,519,488 | 118,177,792 |
+| Xcode Swift module | 322,060,288 | 164,757,504 |
+
+Worst fresh-receiver memory fell **48.8%**. Selected bytes remain **1,098,158**.
+Aggregate receiver work was 1,383.23 versus 1,374.55 milliseconds, effectively
+unchanged rather than evidence of a speed improvement. Candidate worker wall
+time was 1,404.28 milliseconds: approximately 30 milliseconds of process launch,
+exit, and result handling across five outputs. This does not include networking,
+base discovery, or authorization, and is not a build-time result.
+
+The combined sender/receiver example can now consume borrowed target pages too.
+It reproduced every byte and reported 56,820,258 peak borrowed prepared bytes,
+but still peaked at 638,025,728 process bytes. Sender preparation remains
+contiguous, and allocator retention remains visible. That figure does not
+establish an improvement over the preceding 617-megabyte combined measurement.
+
+### Long-lived receiver: still not a production memory bound
+
+The new `receive-many` command runs jobs sequentially in one process. Four rounds
+of the five changed outputs reached these high-water marks after each round:
+205,651,968; 331,399,168; 453,689,344; and **578,076,672 bytes**. Every one of the
+twenty outputs matched its original file and verified both identities. A repeat
+reached 575,586,304 bytes. This exceeds the 512-mebibyte promotion budget despite
+the much smaller fresh-worker peak.
+
+After the repeated run, `vmmap -summary` showed approximately 487 mebibytes of
+resident empty large-allocation regions and 49 mebibytes of resident empty small
+regions, with only about 108 kibibytes of live allocations in the reported malloc
+zone. This supports allocator retention rather than retained prepared objects.
+It is still real process memory. Do not describe the new representation as
+streaming, constant-memory, or a safe drop-in for the persistent proxy.
+
+A bounded recyclable worker is now a concrete option: the measured spawn/exit
+overhead is modest and process exit releases retained memory. It needs explicit
+concurrency/admission limits, hard per-job resource limits, cancellation, and
+crash/fallback handling. These fresh benchmark workers are not a production
+worker pool or a security sandbox. Disk-backed prepared pages and bounded
+scratch-buffer reuse remain alternatives that need their own measurements.
+
+### Validation and reproduction
+
+All six runs passed the correctness hook. The two Swift examples run the same
+fifteen codec tests, including fragmented reads/inverse transformation, borrowed
+copies, cross-page base lookup, hash equivalence, malformed inputs, and bounds.
+The three chunking-example tests, three non-server chunk tests, 109 library
+tests, and ten negotiation/backpressure tests passed. Both examples passed Clippy
+with the existing library raw-pointer lint allowance and no example warnings.
+All five final compiler-consumer checks passed using outputs from the fourth
+same-process round. `cmp` also verified every repeated output and all five patch
+files against the baseline. Two live-Kura tests remained explicitly ignored;
+there is still no network path for this experimental codec.
+
+`./autoresearch.receiver.sh` prints its private artifact directory. Each changed
+pair produces `<name>.patch`, `<name>.json` (expected sizes and hashes), and three
+`<name>-<sample>.restored` files. To repeat same-process jobs, create a document
+containing up to 128 arrays of `[base_path, patch_path, expected_path, output_path]`
+and run `./target/release/examples/swift_receiver_search receive-many <jobs.json>`.
+Every output path must be new. An optional final `inspect` argument holds the
+finished process for 30 seconds and prints its process identifier for `vmmap`.
+Historical compiler artifacts are still external; regenerated artifacts require
+a new baseline. Project opt-in, production protocols, and compiler invalidation
+are unchanged, and the experimental format must never become the default.
