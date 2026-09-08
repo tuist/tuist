@@ -12,6 +12,7 @@ pub const MAX_INPUT: usize = 32 * 1024 * 1024;
 pub const MAX_PREPARED: usize = 256 * 1024 * 1024;
 const MAX_OPERATIONS: usize = 16 * 1024 * 1024;
 const MAX_COLUMNS: usize = 65_536;
+const MAX_COLUMN_SLOTS: usize = 1024 * 1024;
 
 fn require(condition: bool, message: &str) -> Result<()> {
     if condition {
@@ -33,6 +34,30 @@ struct Operation {
 struct Column {
     bytes: Vec<u8>,
     previous: u64,
+}
+
+impl Column {
+    fn append(&mut self, value: u64, delta: bool, compact: bool) -> usize {
+        let difference = if delta {
+            value.wrapping_sub(self.previous)
+        } else {
+            value
+        };
+        self.previous = value;
+        if compact {
+            write_variable(
+                &mut self.bytes,
+                if delta {
+                    zigzag(difference)
+                } else {
+                    difference
+                },
+            )
+        } else {
+            self.bytes.extend(difference.to_le_bytes());
+            8
+        }
+    }
 }
 
 struct Reader<'a> {
@@ -142,31 +167,37 @@ impl Reader<'_> {
                 index = end;
             }
         }
-        for (index, operation) in self.trace.drain(..).enumerate() {
-            if !self.compact_layout {
+        if !self.compact_layout {
+            for operation in &self.trace {
                 self.layout.extend([operation.kind, operation.width]);
                 self.layout.extend(operation.groups.to_le_bytes());
             }
+        }
+        let (prefix, tail) = self
+            .trace
+            .split_at(self.trace.len().min(self.column_cap as usize));
+        for (index, operation) in prefix.iter().enumerate() {
             if operation.kind != 2 {
-                let column = self
-                    .columns
-                    .entry((block, code, (index as u32).min(self.column_cap)))
-                    .or_default();
-                let value = if self.delta {
-                    operation.value.wrapping_sub(column.previous)
-                } else {
-                    operation.value
-                };
-                column.previous = operation.value;
-                if self.compact_columns {
-                    let value = if self.delta { zigzag(value) } else { value };
-                    self.column_bytes += write_variable(&mut column.bytes, value);
-                } else {
-                    column.bytes.extend(value.to_le_bytes());
-                    self.column_bytes += 8;
-                }
+                let column = self.columns.entry((block, code, index as u32)).or_default();
+                self.column_bytes +=
+                    column.append(operation.value, self.delta, self.compact_columns);
             }
         }
+        let mut scalars = tail
+            .iter()
+            .filter(|operation| operation.kind != 2)
+            .peekable();
+        if scalars.peek().is_some() {
+            let column = self
+                .columns
+                .entry((block, code, self.column_cap))
+                .or_default();
+            for operation in scalars {
+                self.column_bytes +=
+                    column.append(operation.value, self.delta, self.compact_columns);
+            }
+        }
+        self.trace.clear();
         require(self.columns.len() <= MAX_COLUMNS, "column limit exceeded")?;
         require(
             self.layout.len() + self.blobs.len() + self.column_bytes + self.columns.len() * 16 + 36
@@ -550,23 +581,26 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         data: input.take(blob_size)?,
         at: 0,
     };
-    let mut columns = BTreeMap::new();
+    let mut columns: BTreeMap<(i32, i32), Vec<Option<(Cursor<'_>, u64)>>> = BTreeMap::new();
+    let mut slots = 0;
     for (key, size) in descriptors {
-        require(
-            columns
-                .insert(
-                    key,
-                    (
-                        Cursor {
-                            data: input.take(size)?,
-                            at: 0,
-                        },
-                        0u64,
-                    ),
-                )
-                .is_none(),
-            "duplicate column",
-        )?;
+        require(key.2 <= column_cap, "invalid column index")?;
+        let row = columns.entry((key.0, key.1)).or_default();
+        let length = key.2 as usize + 1;
+        if row.len() < length {
+            slots += length - row.len();
+            require(slots <= MAX_COLUMN_SLOTS, "column slot limit exceeded")?;
+            row.resize_with(length, || None);
+        }
+        let column = &mut row[key.2 as usize];
+        require(column.is_none(), "duplicate column")?;
+        *column = Some((
+            Cursor {
+                data: input.take(size)?,
+                at: 0,
+            },
+            0,
+        ));
     }
     require(input.at == data.len(), "trailing prepared bytes")?;
     let mut writer = Writer {
@@ -581,6 +615,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         let count = layout.u32()? as usize;
         operations += count;
         require(operations <= MAX_OPERATIONS, "restore operation budget")?;
+        let mut row = columns.get_mut(&(block, code));
         let (mut kind, mut width, mut groups, mut left) = (0, 0, 0, 0usize);
         for index in 0..count {
             if compact_layout {
@@ -608,8 +643,10 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
                 writer.data.extend_from_slice(blobs.take(groups as usize)?);
                 continue;
             }
-            let (column, previous) = columns
-                .get_mut(&(block, code, (index as u32).min(column_cap)))
+            let (column, previous) = row
+                .as_mut()
+                .and_then(|row| row.get_mut(index.min(column_cap as usize)))
+                .and_then(Option::as_mut)
                 .ok_or("missing column")?;
             let mut value = if compact_columns {
                 column.variable()?
@@ -655,6 +692,8 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         blobs.at == blobs.data.len()
             && columns
                 .values()
+                .flatten()
+                .flatten()
                 .all(|(column, _)| column.at == column.data.len()),
         "unconsumed prepared data",
     )?;
