@@ -541,3 +541,32 @@ spec:
 {{- end }}
 
 {{- end }}
+
+{{- if and .Values.kuraController.enabled .Values.kuraController.privateGateway.enabled }}
+---
+# Endpoint readiness observes the shared gateway via the uncached APIReader.
+# The controller's normal Pod informer remains restricted to the kura namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+    namespace: {{ .Values.kuraController.namespace | default .Release.Namespace }}
+{{- end }}

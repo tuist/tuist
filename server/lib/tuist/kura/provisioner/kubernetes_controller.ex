@@ -86,7 +86,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def public_url(handle, %Regions{provisioner_config: config} = region, _ref) do
     cond do
-      template = config[:public_host_template] ->
+      template = config[:private_host_template] || config[:public_host_template] ->
         "https://" <> interpolate_host(template, dns_handle(handle), config)
 
       url = config[:public_url] ->
@@ -114,7 +114,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def grpc_public_url(handle, %Regions{provisioner_config: config}, _ref) do
     cond do
-      template = config[:grpc_public_host_template] ->
+      template = config[:private_host_template] || config[:grpc_public_host_template] ->
         "grpcs://" <> interpolate_host(template, dns_handle(handle), config)
 
       url = config[:grpc_public_url] ->
@@ -147,15 +147,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc """
-  The node-published URL a runner off the pod network dials:
-  `http://<node PN address>:<NodePort>`, from the KuraInstance status
-  the kura-controller maintains (node label + allocated Service port).
-  `{:error, :node_port_endpoint_not_ready}` until the whole chain —
-  Service allocated, primary pod placed, node labeled — is observed;
-  callers treat it like an unready public endpoint and retry on the
-  next reconcile tick.
+  The observed endpoint for a runner outside the pod network. Private gateways
+  return HTTPS only after the controller observes DNS, TLS, gateway and primary
+  readiness for the current spec. Legacy regions retain their NodePort URL.
   """
   @impl true
+  def external_endpoint(name, %Regions{provisioner_config: %{data_plane: :private_gateway}} = region) do
+    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region) do
+      status = instance["status"] || %{}
+      generation = get_in(instance, ["metadata", "generation"])
+      host = get_in(instance, ["spec", "privateHost"])
+
+      with true <- is_binary(host) and host != "",
+           true <- is_integer(generation) and status["endpointObservedGeneration"] == generation,
+           true <- status["privateURL"] == "https://#{host}",
+           timestamp when is_binary(timestamp) <- status["lastReconciledAt"],
+           {:ok, observed_at, _} <- DateTime.from_iso8601(timestamp),
+           age = DateTime.diff(DateTime.utc_now(), observed_at),
+           true <- age >= 0 and age < 120 do
+        {:ok, status["privateURL"]}
+      else
+        _ -> {:error, :private_endpoint_not_ready}
+      end
+    end
+  end
+
   def external_endpoint(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"nodeAddress" => address} = status}} when is_binary(address) and address != "" ->
@@ -347,6 +363,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
@@ -358,7 +375,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPeerHostNetwork" => mesh_peer_host_network?(region),
           "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
-          "exposeNodePort" => Regions.node_port_data_plane?(region),
+          "exposeNodePort" => Regions.node_port_data_plane?(region) or region.provisioner_config[:expose_node_port],
           "clientCIDRs" => client_cidrs(region),
           # The account's effective pair, not the region's. The controller
           # derives the shaper's tuist.dev/egress-class from these same two
@@ -388,15 +405,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp public_host(_handle, _region), do: nil
 
-  # The customer gateway is host-network exactly when the regional gateway is:
-  # on bare metal there is no cloud LB, so the customer plane is served by the
-  # host-network gateway DaemonSet on the box NIC. Tells the controller to
-  # publish the account's public host via a per-account DNSEndpoint targeting the
-  # box its pods run on, so each account resolves to its own box across a
-  # multi-box region. Skipped on private (runner-cache) regions, which have no
-  # public host to advertise.
+  defp private_host(handle, %Regions{provisioner_config: %{private_host_template: template} = config})
+       when is_binary(template), do: interpolate_host(template, dns_handle(handle), config)
+
+  defp private_host(_handle, _region), do: nil
+
+  # Host-network gateways publish per-account DNS directly. Private gateways
+  # use the node's PN address; public gateways use its public InternalIP.
   defp public_host_network?(region) do
-    gateway_host_network?(region) and not Regions.private?(region)
+    (gateway_host_network?(region) and not Regions.private?(region)) or
+      region.provisioner_config[:data_plane] == :private_gateway
   end
 
   defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
@@ -497,14 +515,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress) <>
-      private_replicas_revision_suffix(region)
+      egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
   end
 
-  # Existing private instances must scale up too: reconciliation compares this
-  # revision before applying the manifest. Leave unrelated regions unchanged.
-  defp private_replicas_revision_suffix(region) do
-    if Regions.private?(region), do: "+replicas#{replicas(region)}", else: ""
+  # Reapply existing private instances when replicas or their entrance changes.
+  defp private_endpoint_revision_suffix(region) do
+    if Regions.private?(region) do
+      config = region.provisioner_config
+
+      endpoint =
+        {config[:private_host_template], config[:ingress_class_name], config[:data_plane], config[:expose_node_port],
+         config[:client_cidrs]}
+
+      digest = endpoint |> :erlang.term_to_binary() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
+      "+replicas#{replicas(region)}+endpoint#{String.slice(digest, 0, 12)}"
+    else
+      ""
+    end
   end
 
   # Keyed on the pair the manifest renders rather than on the override alone: the

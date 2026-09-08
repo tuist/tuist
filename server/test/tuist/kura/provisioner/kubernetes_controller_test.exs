@@ -429,18 +429,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_BACKFILL_ENABLED"] == "true"
-      assert manifest["spec"]["replicas"] == 2
-      assert manifest["spec"]["storageSize"] == "50Gi"
-      assert manifest["spec"]["exposeNodePort"] == true
-
-      stub(Mesh, :self_hosted_peer_urls, fn _account -> [] end)
-      server = %Server{account: %Account{id: 1, name: "tuist"}}
-      revision = KubernetesController.manifest_revision(server, region)
-      legacy_region = %{region | provisioner_config: Map.put(region.provisioner_config, :replicas, 1)}
-
-      assert String.ends_with?(revision, "+replicas2")
-      assert revision != KubernetesController.manifest_revision(server, legacy_region)
-      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
     end
 
     test "hands the pod the country and subdivision its region's datacenter sits in" do
@@ -1868,6 +1856,82 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "exposeNodePort")
       refute Map.has_key?(spec, "clientCIDRs")
       refute Map.has_key?(spec, "podAnnotations")
+    end
+  end
+
+  describe "private gateway" do
+    test "renders the catalog's two replicas on the shared ingress with legacy NodePort compatibility" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      region = Regions.get("scw-fr-par-runners")
+      manifest = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})
+      spec = manifest["spec"]
+      assert spec["replicas"] == 2
+      assert spec["private"]
+      assert spec["privateHost"] == "tuist-scw-fr-par-runners.kura.tuist.dev"
+      assert spec["ingressClassName"] == "kura-runners"
+      assert spec["publicHostNetwork"]
+      assert spec["exposeNodePort"]
+      assert spec["clientCIDRs"] == ["172.16.0.0/22"]
+      refute Map.has_key?(spec, "publicHost")
+      refute Map.has_key?(spec, "rolloutPolicy")
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+replicas2+endpoint"
+      assert KubernetesController.public_url("tuist", region, "ignored") == "https://#{spec["privateHost"]}"
+      assert KubernetesController.grpc_public_url("tuist", region, "ignored") == "grpcs://#{spec["privateHost"]}"
+
+      assert KubernetesController.internal_url("tuist", region, "actual-ref") ==
+               "http://actual-ref.kura.svc.cluster.local:4000"
+    end
+
+    test "reapplies existing private instances when their replica count or entrance changes" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      region = Regions.get("scw-fr-par-runners")
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      revision = KubernetesController.manifest_revision(server, region)
+
+      for change <- [
+            %{replicas: 1},
+            %{private_host_template: "{account_handle}.replacement.kura.tuist.dev"},
+            %{ingress_class_name: "replacement"},
+            %{client_cidrs: ["172.16.4.0/22"]},
+            %{expose_node_port: false}
+          ] do
+        changed = %{region | provisioner_config: Map.merge(region.provisioner_config, change)}
+        refute KubernetesController.manifest_revision(server, changed) == revision
+      end
+    end
+
+    test "publishes only the current, fresh, observed gateway URL" do
+      region = Regions.get("scw-fr-par-runners")
+      url = "https://tuist-scw-fr-par-runners.kura.tuist.dev"
+
+      instance = %{
+        "metadata" => %{"generation" => 2},
+        "spec" => %{"privateHost" => "tuist-scw-fr-par-runners.kura.tuist.dev"},
+        "status" => %{
+          "privateURL" => url,
+          "endpointObservedGeneration" => 2,
+          "lastReconciledAt" => DateTime.to_iso8601(DateTime.utc_now()),
+          "nodeAddress" => "172.16.0.2",
+          "nodePortCache" => 30_080
+        }
+      }
+
+      stub(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
+      assert KubernetesController.external_endpoint("instance", region) == {:ok, url}
+
+      for stale <- [
+            put_in(instance, ["status", "privateURL"], ""),
+            put_in(instance, ["status", "privateURL"], "https://wrong.example.com"),
+            put_in(instance, ["metadata", "generation"], 3),
+            put_in(instance, ["status", "lastReconciledAt"], DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -121))),
+            %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortCache" => 30_080}}
+          ] do
+        stub(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, stale} end)
+        assert KubernetesController.external_endpoint("instance", region) == {:error, :private_endpoint_not_ready}
+      end
     end
   end
 

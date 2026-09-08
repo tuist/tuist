@@ -43,15 +43,13 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   - Because ceilings exceed floors, the ceilings on a box oversubscribe its memory and the native `requests.memory` bin-pack cannot see them. `spec.memoryCeilingBinPacked` makes the pod additionally request its ceiling as the `tuist.dev/memory-ceiling-mib` extended resource, which the CAPI provider advertises as a bounded multiple of node allocatable (`shared.MemoryCeilingOversubscription`). It is separate from the ceiling *value* because a pod that requests an extended resource its node does not advertise never schedules — only pools the provider patches may turn it on, while every region still wants a right-sized ceiling.
   - **The floor is only as real as the kubelet makes it.** A pod's request reaches the kernel as cgroup v2 `memory.min` / `memory.low` only when the kubelet runs with the `MemoryQoS` feature gate; without it the floor is advisory and a box that runs out resolves contention by evicting Burstable pods ranked by usage above request — the same fairness ordering, but a kill rather than a throttle. The Linux fleets enable it, along with the node reservations that have to precede it; see `infra/cluster-api-provider-tuist/AGENTS.md`. Any node pool that does not is still correct, just less protected.
 
-## Private Runner Process Rollouts
-
-- `controllers/private_rollout.go` paces private two-replica StatefulSets with `OnDelete`, retaining ordinal PVCs and gating planned primary handover on completed backfill, empty outboxes, and matching runtime rings. It observes both internal and NodePort EndpointSlices before deleting the former primary, with a persisted propagation buffer and the standard preStop drain.
-- NodePort replicas require same-host affinity so running jobs retain their node address. Automatic node evacuation leaves this topology alone; host replacement requires a separate overlapping endpoint migration.
-- Install the new controller before scaling existing private instances from one replica to two. See [private runner rollout architecture and migration](private-runner-rollouts.md) for budgets, validation, and limits.
-
 ## Development
 
 - Run tests with `go test ./...` from this directory.
 - Keep generated CRDs in `infra/helm/tuist/crds/` aligned with API changes.
 - Keep the controller independent from the Scaleway Apple Silicon CAPI provider. Kura endpoint lifecycle is a product workload concern, not a macOS node infrastructure concern.
 - cert-manager must be installed in the cluster before turning on `--grpc-cluster-issuer`. The controller does not provision the issuer itself. The flag name is historical: it now issues only the single public-host `Certificate` (gRPC co-hosts on it; there is no separate gRPC certificate).
+
+## Private runner entrance
+
+Runner instances use the same `RollingUpdate`, preferred co-location, disruption budget, primary selection, peer replication and drain as public managed instances. `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate reconciliation; it requires a host-network ingress class and valid nonempty `clientCIDRs`. The allowlist applies to both protocols. Private client DNS uses a Ready node's `tuist.dev/pn-ipv4`; public peer DNS continues to use its public address. Legacy private instances still have no ingress. `controllers/client_gateway.go` publishes `status.privateURL` only after current certificate readiness, a Ready regional gateway on the DNS target node, matching DNS resolution and primary routability. Gateway pods are read through APIReader using a list-only Role in `platform`. The server checks the observation generation and timestamp before dispatch. Keep the migration and validation steps in [private-runner-rollouts.md](private-runner-rollouts.md) current. There is no runner-specific rollout policy or pod deletion engine.

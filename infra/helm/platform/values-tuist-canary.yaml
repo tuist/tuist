@@ -98,3 +98,6 @@ kura-ca-east-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-runners-ingress-nginx:
+  enabled: true

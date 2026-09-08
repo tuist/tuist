@@ -506,3 +506,42 @@ clusterIssuer:
   enabled: true
   name: letsencrypt-cloudflare
   server: https://acme-v02.api.letsencrypt.org/directory
+
+# Same regional gateway as managed Kura, reached directly over the runner PN.
+# The per-account ingress restricts both HTTP and gRPC to clientCIDRs. Never
+# trust forwarded client IPs here: there is no trusted proxy in front of nginx.
+kura-runners-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    electionID: kura-runners-ingress-nginx-leader
+    ingressClass: kura-runners
+    ingressClassResource:
+      name: kura-runners
+      controllerValue: k8s.io/kura-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true

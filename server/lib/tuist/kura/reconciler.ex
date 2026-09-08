@@ -394,11 +394,10 @@ defmodule Tuist.Kura.Reconciler do
             :ok
           end
 
-        {:error, :node_port_endpoint_not_ready} ->
-          # The controller has not yet observed the full node-port
-          # chain (Service ports allocated, primary pod placed on a
-          # labeled node). Benign startup delay, same as DNS.
-          Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
+        {:error, reason} when reason in [:node_port_endpoint_not_ready, :private_endpoint_not_ready] ->
+          # The controller has not yet observed the private entrance ready.
+          # Gateway DNS/TLS and legacy NodePorts may converge after the pods.
+          Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
 
           :ok
 
@@ -592,24 +591,21 @@ defmodule Tuist.Kura.Reconciler do
 
   defp converge(%Server{} = server, desired) do
     if converged?(server, desired) and url_matches_rendered_host?(server) do
-      refresh_node_port_url(server)
+      refresh_private_endpoint(server)
     else
       do_converge(server, desired)
     end
   end
 
-  # A converged node-port server still needs its dispatch URL tracked:
-  # the node-published endpoint moves with the primary pod. No-op for
-  # cluster-DNS regions.
-  defp refresh_node_port_url(%Server{} = server) do
+  # Converged private instances still need an observed readiness heartbeat.
+  # This also moves legacy node-address URLs to the gateway once it is ready.
+  defp refresh_private_endpoint(%Server{} = server) do
     case Kura.refresh_private_server_url(server) do
       :ok ->
         :ok
 
       {:error, reason} ->
-        Logger.warning(
-          "[Kura.Reconciler] could not refresh node-port endpoint for server #{server.id}: #{inspect(reason)}"
-        )
+        Logger.warning("[Kura.Reconciler] could not refresh private endpoint for server #{server.id}: #{inspect(reason)}")
 
         :ok
     end
@@ -629,14 +625,13 @@ defmodule Tuist.Kura.Reconciler do
   # not re-written every tick. A non-binary render (e.g. unknown region) leaves
   # the existing `converged?` behaviour untouched.
   #
-  # Node-port regions are the exception: their dispatch `url` is the
-  # node-published `http://<pn-ip>:<node-port>`, which the cluster-DNS template
-  # `public_url/2` renders never matches, so this would report drift on every
-  # tick and route a converged node through `do_converge/2` (DB write +
-  # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
-  # tracking the moving endpoint, so report node-port regions as in sync here.
+  # Private gateway and NodePort regions use an
+  # observed endpoint, which can differ from the template during a gateway
+  # migration or a legacy NodePort move. The refresh path owns both the URL
+  # change and its readiness heartbeat, so rendered URL equality must not
+  # bypass those checks.
   defp url_matches_rendered_host?(%Server{} = server) do
-    if node_port_region?(server) do
+    if observed_endpoint_region?(server) do
       true
     else
       case Provisioner.public_url(server.account, server) do
@@ -647,9 +642,9 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  defp node_port_region?(%Server{region: region_id}) do
+  defp observed_endpoint_region?(%Server{region: region_id}) do
     case Regions.fetch(region_id) do
-      {:ok, region} -> Regions.node_port_data_plane?(region)
+      {:ok, region} -> Regions.observed_private_endpoint?(region)
       _ -> false
     end
   end
@@ -676,8 +671,8 @@ defmodule Tuist.Kura.Reconciler do
 
         record(server, server.status, desired, now())
 
-      {:error, :node_port_endpoint_not_ready} ->
-        Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
+      {:error, reason} when reason in [:node_port_endpoint_not_ready, :private_endpoint_not_ready] ->
+        Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
 
         record(server, server.status, desired, now())
 

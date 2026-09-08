@@ -543,7 +543,9 @@ defmodule Tuist.Kura.RegionsTest do
       assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
-      refute Map.has_key?(scw_config, :ingress_class_name)
+      assert scw_config.ingress_class_name == "kura-runners"
+      assert scw_config.private_host_template =~ "-runners"
+      refute Map.has_key?(scw_config, :rollout_policy)
 
       # The retired Hetzner entry remains fetchable only so old resources can
       # be deleted. It is not an available serving region.
@@ -581,10 +583,23 @@ defmodule Tuist.Kura.RegionsTest do
       refute Enum.any?(Regions.all(), &Regions.serves_runner_platform?(&1, :linux))
     end
 
-    test "scw region uses the node-port data plane; customer regions stay on cluster DNS" do
-      assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
-      refute Regions.node_port_data_plane?(Regions.get("eu-central"))
-      refute Regions.node_port_data_plane?(nil)
+    test "runner gateway readiness is observed independently of the image rollout" do
+      region = Regions.get("scw-fr-par-runners")
+      assert region.provisioner_config.data_plane == :private_gateway
+      assert region.provisioner_config.expose_node_port
+      assert Regions.observed_private_endpoint?(region)
+      refute Regions.node_port_data_plane?(region)
+      refute Regions.observed_private_endpoint?(Regions.get("eu-central"))
+      refute Regions.observed_private_endpoint?(nil)
+    end
+
+    test "private gateway hostnames are distinct in each environment" do
+      for {environment, suffix} <- [prod: "", stag: "-staging", can: "-canary"] do
+        stub(Tuist.Environment, :env, fn -> environment end)
+
+        assert Regions.get("scw-fr-par-runners").provisioner_config.private_host_template ==
+                 "{account_handle}-{cluster_id}-runners#{suffix}.kura.tuist.dev"
+      end
     end
 
     test "public regions and nil serve no runner platform" do

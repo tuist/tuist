@@ -22,10 +22,6 @@ This node covers Helm assets under `infra/helm/`.
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
 
-- `tuist/values.yaml`'s `kuraFleet.replicas` counts runner-cache hosts. Private
-  instance process replicas come from the server's region catalog; budget both
-  same-host claims and memory reservations when sizing this fleet.
-
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
@@ -33,3 +29,5 @@ This node covers Helm assets under `infra/helm/`.
 - Server runtime dependencies: `server/AGENTS.md`
 - Cache runtime dependencies: `cache/AGENTS.md`
 - Processor runtime dependencies: `processor/AGENTS.md`
+
+- Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.

@@ -173,6 +173,9 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  # Read gateway readiness in the managed platform namespace.
+  privateGateway:
+    enabled: false
   namespace: kura
   replicaCount: 2
   tolerations: []
@@ -1326,10 +1329,8 @@ capi:
 # it and set the PN id. Scale with
 # `kubectl scale machinedeployment <name> --replicas=N`.
 kuraFleet:
+  # replicas counts hosts; each account has two Kura process replicas/PVCs.
   enabled: false
-  # Host count. Each private KuraInstance runs two same-host processes with
-  # independent 50Gi claims (100Gi/account total), declared by the server region
-  # catalog. Raising this does not provide overlap for an existing NodePort.
   replicas: 1
   # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
   # region's nodeSelector pins the cache pods here.

@@ -327,6 +327,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"

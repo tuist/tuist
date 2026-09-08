@@ -165,3 +165,6 @@ kura-ap-southeast-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-runners-ingress-nginx:
+  enabled: true

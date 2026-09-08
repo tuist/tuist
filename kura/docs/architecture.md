@@ -204,20 +204,6 @@ The pieces:
 - A **Kubernetes adapter** (`ops/helm/kura/rollout.sh`) stages the new revision behind a `StatefulSet` partition, rolls the highest ordinal first, and delegates health gating to the generic gate. The adapter is a thin transport layer; it does not own rollout semantics.
 - An **adjacent-version compatibility harness** (`test/e2e/kura_compatibility_rollout.sh`) validates `PREVIOUS_REF → HEAD → PREVIOUS_REF` on the same persistent Docker volumes for the artifact CAS path.
 
-Controller-managed private runner caches use two same-host processes with
-independent PVCs and the existing peer mesh. Their `OnDelete` rollout replaces
-the standby first, waits for completed backfill and empty outboxes, repoints the
-existing internal and NodePort Services, observes the successor's ready
-EndpointSlices, and lets the old primary drain before replacement. Required
-co-location preserves the Private Network address already handed to jobs.
-The controller installs this strategy atomically with one-to-two scale-up so
-the original cache stays available while the new claim fills. Each replica
-retains its full 50 GiB disk budget and memory/CPU reservation. See the
-[controller migration runbook](../../infra/kura-controller/private-runner-rollouts.md).
-This covers process deployment overlap; host replacement needs separate host
-and endpoint overlap. Replication remains asynchronous, so catch-up does not
-promise strict read-after-write consistency across a handover.
-
 The rollout gate explicitly assumes only that it can fetch `/status/rollout` from each node. It does not depend on Kubernetes probes or Prometheus.
 
 Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (outbox replication deliveries and bootstrap runs that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions.
@@ -259,3 +245,11 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 - For replication invariants see `src/replication/mod.rs` and `src/state.rs`; for catch-up pass scheduling and retry behavior see `src/backfill/lifecycle.rs`.
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.
 - For end-to-end behavior, the shellspec suite under `spec/e2e/` exercises the live stack.
+
+### Private runner caches
+
+Runner caches share the ordinary managed two-replica StatefulSet rollout. Both pods own independent local PVCs and continuously replicate through the account mesh. The standby catches up through initial backfill after restart and the normal persistent outbox thereafter. Replication is asynchronous: a healthy standby is intended to stay roughly current, not provide synchronous write acknowledgements.
+
+Mac runner VMs resolve a stable per-account HTTPS hostname to a runner-cache node's private-network IP. A regional ingress-nginx gateway uses the same HTTP/gRPC streaming routes, TLS and primary-pinned Service as public managed instances. A primary handover changes the Service selector, not the URL. Only the DNS address and client source allowlist differ. Gateways prefer the same host as the data; cross-host placement and evacuation use the ordinary managed path. A single-host fleet still has a host failure domain, and moving the gateway address requires DNS re-resolution.
+
+See [the migration and validation runbook](../../infra/kura-controller/private-runner-rollouts.md) for legacy NodePort compatibility and the limits of readiness during asynchronous replication.

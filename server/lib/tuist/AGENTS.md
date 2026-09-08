@@ -14,12 +14,6 @@ This directory contains the core business logic and domain modules for the serve
   Its query options suppress application SQL logging without overriding managed
   ClickHouse logging policy; server password masking requires valid dictionary DDL.
 
-- Kura private runner caches use two independently budgeted, same-host replicas.
-  `kura/regions.ex` declares the shape, the Kubernetes provisioner's manifest
-  revision drives migration of existing instances, and `kura/capacity.ex`
-  requires both NodePort replicas to fit one host. The controller owns rollout
-  sequencing; see `infra/kura-controller/private-runner-rollouts.md`.
-
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
 - `Processor.XCActivityLogParser` runs the MuonTrap executable through
@@ -75,3 +69,5 @@ This directory contains the core business logic and domain modules for the serve
 - Data export requirements: `server/data-export.md`
 
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
+
+- `scw-fr-par-runners` uses two standard managed replicas and a stable private gateway hostname. `Regions.observed_private_endpoint?/1` covers gateway and legacy NodePort regions: activation, convergence and dispatch freshness must all use this predicate. The provisioner waits for `privateURL`, the current spec generation and a fresh observation; it never replaces that check with a rendered hostname. Keep the legacy NodePort service enabled during migration. Private replica and endpoint configuration changes must move the manifest revision so existing instances converge.

@@ -473,19 +473,6 @@ defmodule Tuist.Kura.CapacityTest do
       assert Capacity.room_for?(@region, :enterprise) == true
     end
 
-    test "private NodePort replicas need both claims on one host" do
-      stub_pool([
-        pool_box("box-1", allocatable: %{"ephemeral-storage" => "75Gi"}),
-        pool_box("box-2", allocatable: %{"ephemeral-storage" => "75Gi"})
-      ])
-
-      assert Capacity.room_for?("scw-fr-par-runners", :enterprise) == false
-
-      stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
-
-      assert Capacity.room_for?("scw-fr-par-runners", :enterprise) == true
-    end
-
     test "bounds every read, so a hanging apiserver costs seconds" do
       stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
 

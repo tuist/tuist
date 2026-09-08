@@ -350,11 +350,9 @@ defmodule Tuist.Kura.Regions do
       country: "SG"
     }
   ]
-  # Private runner-cache regions use two independently stored replicas per
-  # `KuraInstance`, pinned to the runner-adjacent pool. The private NodePort
-  # stays on one host through process rollouts; host replacement needs separate
-  # overlap and endpoint migration. Each replica reserves the full storage and
-  # memory profile, so adding the standby cannot spend the primary's budget.
+  # Private runner caches use the ordinary managed two-replica rollout and
+  # continuous account mesh replication. Their regional gateway admits the
+  # runner network and publishes a stable per-account private hostname.
   # The control plane provisions exactly one of
   # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
   # and the runner dispatch hands the URL back as `cache_endpoint_url`.
@@ -381,6 +379,8 @@ defmodule Tuist.Kura.Regions do
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
+      replicas: 2,
+      ingress_class_name: "kura-runners",
       display_name: "Scaleway fr-par (runner cache)",
       cluster_id: "scw-fr-par",
       node_pool: "kura-scw-fr-par",
@@ -392,15 +392,10 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       storage_size: "50Gi",
       runner_platforms: [:macos],
-      # The macOS Tart VMs reach this pool over a Scaleway Private
-      # Network, not the cluster's pod network, so cluster Service DNS
-      # neither resolves nor routes for them. Dispatch hands out
-      # `http://<node PN address>:<NodePort>` instead, read from the
-      # KuraInstance status the kura-controller maintains.
-      data_plane: :node_port,
-      # The PN subnet (minis + kura nodes). NodePort traffic keeps the
-      # client's source address, which the per-instance NetworkPolicy
-      # only admits through this ipBlock.
+      # Tart VMs use the PN gateway hostname; retain allocated NodePorts for
+      # jobs that received the former node-address URL before migration.
+      data_plane: :private_gateway,
+      expose_node_port: true,
       client_cidrs: ["172.16.0.0/22"],
       # Per-account egress ceiling (Cilium bandwidth manager). The pool's
       # node NIC is shared by every tenant pod on it; the cap keeps one
@@ -724,6 +719,11 @@ defmodule Tuist.Kura.Regions do
   def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
   def node_port_data_plane?(_), do: false
 
+  def observed_private_endpoint?(%__MODULE__{provisioner_config: config}),
+    do: config[:data_plane] in [:node_port, :private_gateway]
+
+  def observed_private_endpoint?(_), do: false
+
   @doc """
   The public hostname this region's account peer plane is reachable at from
   outside the cluster, or `nil` for regions without a peer host template (the
@@ -932,12 +932,16 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         private: true,
-        # In-cluster Service DNS the runner Pods resolve. `{instance}`
-        # interpolates to `instance_name(handle, region)`. Node-port
-        # regions don't use it for dispatch but keep it as the
-        # in-cluster debugging path.
+        # Stable in-cluster access, including debugging gateway regions.
+        # Off-cluster runner dispatch uses the observed private entrance.
         private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
+        expose_node_port: Map.get(spec, :expose_node_port, false),
+        private_host_template:
+          if(spec[:data_plane] == :private_gateway,
+            do: "{account_handle}-{cluster_id}-runners#{managed_region_host_suffix()}.kura.tuist.dev"
+          ),
+        ingress_class_name: Map.get(spec, :ingress_class_name),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: egress_bandwidth_pod_annotations(spec),
         egress_burst_mbps: Map.get(spec, :egress_burst_mbps),
@@ -948,7 +952,7 @@ defmodule Tuist.Kura.Regions do
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
-        replicas: 2,
+        replicas: Map.get(spec, :replicas, 1),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the

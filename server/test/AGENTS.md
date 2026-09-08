@@ -11,3 +11,5 @@ This directory contains ExUnit tests for the Tuist Server.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Kura private gateway coverage belongs in the region and Kubernetes provisioner suites, with dispatch/activation coverage in `tuist/kura_test.exs`. Cover stale generations, expired observations, incomplete gateway readiness, environment hostname isolation, two replicas and retained legacy NodePorts.

@@ -1088,6 +1088,17 @@ defmodule Tuist.KuraTest do
       %{server: active}
     end
 
+    test "migrates the stored NodePort URL only after the private gateway is ready", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:error, :private_endpoint_not_ready} end)
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert Repo.get!(Server, server.id).url == "http://172.16.0.2:30080"
+
+      url = "https://account-scw-fr-par-runners.kura.tuist.dev"
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, url} end)
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert Repo.get!(Server, server.id).url == url
+    end
+
     test "updates the URL when the primary pod moved nodes", %{server: server} do
       expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
         assert id == server.id
