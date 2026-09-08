@@ -99,25 +99,25 @@ The serial baseline used the pre-fix client at `94455e7378` with the same regres
 
 ### Actual Xcode action restores
 
-Build the release plugin and proxy first. On an Apple silicon Mac with Xcode 26, start local Kura with chunking enabled, then run from `kura/`:
+Build the release plugin and proxy first. On an Apple silicon Mac with Xcode 26 and the repository's pinned Tuist version available, start local Kura with chunking enabled, then run from `kura/`:
 
 ```sh
 KURA_E2E_XCODE=1 TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765 mise exec -- shellspec spec/e2e/xcode_chunking_spec.sh --format documentation
 ```
 
-The suite generates a 4,000-struct Swift fixture from the readable assets in `spec/fixtures/xcode-chunking/`. It compiles the base and a single-property rename at the same source and derived-data paths, then independently tests cold restoration, a restarted reader retaining chunks, and cross-revision reuse. Each remote restore must hit every cacheable action and reproduce twelve output files byte-for-byte. It checks positive reuse and reduced downloads after restart, using post-build transport counters. Writers and readers have separate transfer caches. The suite stops its proxies and retains its isolated directory of compiler stores and logs for inspection.
+The suite generates a 4,000-struct Swift fixture from the readable assets in `spec/fixtures/xcode-chunking/`. Its `Project.swift` defines a macOS static library and the isolated plugin settings; `Tuist.swift` enables compilation caching through Tuist's generation options. The suite runs `tuist generate --no-open --cache-profile none` and builds the resulting workspace. It compiles the base and a single-property rename at the same source and derived-data paths, then independently tests cold restoration, a restarted reader retaining chunks, and cross-revision reuse. Each remote restore must hit every cacheable action and reproduce twelve output files byte-for-byte. It checks positive reuse and reduced downloads after restart, using post-build transport counters. Writers and readers have separate transfer caches. The suite stops its proxies and retains its isolated directory of compiler stores and logs for inspection.
 
 The suite is skipped unless explicitly enabled on a supported Mac. It does not start or stop the Kura server, change launch agents, or modify a developer's existing compiler cache. The standalone artifact payloads above are historical fixture measurements; regenerating fixture names changes the corpus and can change compressed byte counts.
 
-The ShellSpec run on 2026-09-08 passed all three examples in 173.04 seconds, including fixture compilation and waiting for transport statistics. The initial build had zero of four hits; the property rename reused two imported-module actions and recompiled the two Swift actions. All five subsequent restores hit all four actions and reproduced twelve output files byte-for-byte.
+The ShellSpec run on 2026-09-08 passed all three examples with the Tuist-generated workspace in 112.39 seconds, including fixture compilation and waiting for transport statistics. The initial build had zero of four hits; the property rename reused two imported-module actions and recompiled the two Swift actions. All five subsequent restores hit all four actions and reproduced twelve output files byte-for-byte.
 
 | Empty-store restore | Batch payload downloaded | Locally reused chunk bytes |
 | --- | ---: | ---: |
-| Base, cold reader | 18,291,636 | 0 |
-| Base, restarted reader retaining chunks | 226 | 18,291,636 |
-| Property rename, reader retaining base chunks | 16,133,629 | 2,200,883 |
+| Base, cold reader | 18,293,091 | 0 |
+| Base, restarted reader retaining chunks | 1,464 | 18,291,627 |
+| Property rename, reader retaining base chunks | 16,134,197 | 2,200,883 |
 
-Each scenario uses an independent reader cache. The restart scenario seeds its own cache with 18,293,100 downloaded bytes; the edit scenario seeds another with 18,293,100. Small-output request timing can change aggregate counters slightly. The unchanged restore demonstrates reuse after cleanup, not reuse across edits. The property rename achieves much less reuse than the standalone large-module fixture.
+Each scenario uses an independent reader cache. The restart scenario seeds its own cache with 18,292,655 downloaded bytes; the edit scenario seeds another with 18,293,091. Small-output request timing can change aggregate counters slightly. The unchanged restore demonstrates reuse after cleanup, not reuse across edits. The property rename achieves much less reuse than the standalone large-module fixture.
 
 Counters exclude inline outputs, action metadata, and recipe metadata, and are not build-time measurements. A fresh source or derived-data path can change compressed sizes. The suite asserts correctness, cache hits, positive reuse, and reduced restarted-reader downloads rather than pinning byte counts to one machine.
 

@@ -22,11 +22,15 @@ setup_xcode_chunking() {
   XCODE_TEST_SOCKET="$XCODE_TEST_ROOT/proxy.sock"
   XCODE_TEST_DERIVED="$XCODE_TEST_ROOT/DerivedData"
   XCODE_TEST_INSTANCE="chunking-test/$(basename "$XCODE_TEST_ROOT")"
-  cp "$KURA_PROJECT_ROOT/spec/fixtures/xcode-chunking/project.yml" "$XCODE_TEST_ROOT/project.yml" || return 1
+  cp "$KURA_PROJECT_ROOT/spec/fixtures/xcode-chunking/Project.swift" \
+    "$KURA_PROJECT_ROOT/spec/fixtures/xcode-chunking/Tuist.swift" "$XCODE_TEST_ROOT/" || return 1
   awk -f "$KURA_PROJECT_ROOT/spec/fixtures/xcode-chunking/declarations.awk" >"$XCODE_TEST_ROOT/base.swift" || return 1
   awk -v rename_property=1 -f "$KURA_PROJECT_ROOT/spec/fixtures/xcode-chunking/declarations.awk" >"$XCODE_TEST_ROOT/edited.swift" || return 1
   cp "$XCODE_TEST_ROOT/base.swift" "$XCODE_TEST_ROOT/Fixture.swift" || return 1
-  (cd "$XCODE_TEST_ROOT" && mise x xcodegen@2.46.0 -- xcodegen generate) >"$XCODE_TEST_ROOT/generate.log" 2>&1 || return 1
+  tuist generate --path "$XCODE_TEST_ROOT" --no-open --cache-profile none >"$XCODE_TEST_ROOT/generate.log" 2>&1 || {
+    cat "$XCODE_TEST_ROOT/generate.log" >&2
+    return 1
+  }
   run_xcode_phase base-compiled base writer true || return 1
   run_xcode_phase edited-compiled edited writer true || return 1
   [ "$(xcode_hits base-compiled)" = "0/4" ] || return 1
@@ -72,7 +76,7 @@ run_xcode_phase() {
   [ -S "$XCODE_TEST_SOCKET" ] || return 1
   env TUIST_CAS_PROXY_SOCKET="$XCODE_TEST_SOCKET" TUIST_CAS_UPLOAD="$upload" \
     TUIST_CAS_LOG="$XCODE_TEST_ROOT/$phase.plugin.log" \
-    xcodebuild build -project "$XCODE_TEST_ROOT/SwiftChunkFixture.xcodeproj" -scheme SwiftChunkFixture \
+    xcodebuild build -workspace "$XCODE_TEST_ROOT/SwiftChunkFixture.xcworkspace" -scheme SwiftChunkFixture \
     -destination 'platform=macOS,arch=arm64' -derivedDataPath "$XCODE_TEST_DERIVED" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
     "TUIST_XCODE_TEST_PLUGIN=$XCODE_TEST_BIN/libtuist_cas_plugin.dylib" \
