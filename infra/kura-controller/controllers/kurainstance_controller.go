@@ -129,13 +129,18 @@ type KuraInstanceReconciler struct {
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request a
-	// cert-manager Certificate per instance with this ClusterIssuer for the
-	// single public host (which serves both the HTTP cache and gRPC, see
-	// reconcileGRPCIngress). The issued Secret is referenced by the regional
-	// Kura ingress layer that terminates TLS for customer-facing traffic.
-	// The name is historical; there is no longer a separate gRPC certificate.
-	GRPCClusterIssuer   string
+	// GRPCClusterIssuer, when non-empty, is the ClusterIssuer backing the
+	// per-instance public-host Certificate. It only applies to instances the
+	// shared wildcard in PublicTLSSecretName does not cover. The name is
+	// historical; there is no longer a separate gRPC certificate.
+	GRPCClusterIssuer string
+
+	// PublicTLSSecretName is the shared wildcard TLS Secret, in the watched
+	// namespace, that every public Ingress terminates on. While it holds a
+	// certificate no per-instance Certificate is requested, so onboarding an
+	// account issues nothing against the ACME per-registered-domain limit.
+	PublicTLSSecretName string
+
 	OTLPTracesEndpoint  string
 	Environment         string
 	RuntimeStatusClient RuntimeStatusClient
@@ -276,6 +281,36 @@ func grpcTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 
 func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-public-tls"
+}
+
+// sharedPublicTLSCovers gates the switch onto the shared wildcard. An Ingress
+// pointed at a Secret without a leaf, or at one whose leaf does not span the
+// host, makes ingress-nginx serve its self-signed default. Coverage is checked
+// rather than presence because an ACME wildcard matches exactly one label.
+func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	if r.PublicTLSSecretName == "" || instance.Spec.PublicHost == "" {
+		return false
+	}
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.PublicTLSSecretName, Namespace: instance.Namespace}, secret); err != nil {
+		return false
+	}
+	block, _ := pem.Decode(secret.Data[corev1.TLSCertKey])
+	if block == nil {
+		return false
+	}
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+	return leaf.VerifyHostname(instance.Spec.PublicHost) == nil
+}
+
+func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
+	if r.sharedPublicTLSCovers(ctx, instance) {
+		return r.PublicTLSSecretName
+	}
+	return publicTLSSecretName(instance)
 }
 
 func peerTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
@@ -1602,7 +1637,7 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
 			Hosts:      []string{instance.Spec.PublicHost},
-			SecretName: publicTLSSecretName(instance),
+			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
 			Host: instance.Spec.PublicHost,
@@ -2168,18 +2203,48 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 	return ordinal, true
 }
 
+// publicIngressServesSharedTLS reads back the live Ingress. The per-instance
+// certificate is retired against this rather than against the write issued
+// earlier in the same pass, so the Secret ingress-nginx is serving is never
+// the one deleted.
+func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	if r.PublicTLSSecretName == "" {
+		return false
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		return false
+	}
+	for _, tls := range ingress.Spec.TLS {
+		if tls.SecretName == r.PublicTLSSecretName {
+			return true
+		}
+	}
+	return false
+}
+
 // reconcilePublicCertificate provisions a cert-manager Certificate for
 // the regional Kura ingress that terminates public HTTPS. Deletes any
 // existing Certificate when the instance is private, GRPCClusterIssuer
 // is unset, or spec.publicHost is unset, so a public→private flip does
 // not leak the Certificate (and the cert-manager-rotated leaf Secret)
 // after the matching Ingress is torn down.
+// An instance whose Ingress has moved onto the shared wildcard needs none of
+// its own, so its Certificate and leaf Secret are deleted instead.
 // cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
+
+	if r.publicIngressServesSharedTLS(ctx, instance) {
+		if err := r.deleteIfExists(ctx, cert); err != nil {
+			return err
+		}
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}}
+		return r.deleteIfExists(ctx, secret)
+	}
 
 	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {

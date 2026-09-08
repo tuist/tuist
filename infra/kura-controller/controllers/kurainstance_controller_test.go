@@ -3,10 +3,15 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -3695,5 +3700,195 @@ func TestAggregateRolloutHealthSurfacesBackfillTrouble(t *testing.T) {
 	}
 	if health.BackfillingPeers != 2 {
 		t.Fatalf("expected in-flight peers to still be reported, got %d", health.BackfillingPeers)
+	}
+}
+
+// wildcardLeafPEM is a self-signed leaf carrying dnsName, standing in for what
+// cert-manager writes into the shared wildcard Secret.
+func wildcardLeafPEM(t *testing.T, dnsName string) []byte {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: dnsName},
+		DNSNames:     []string{dnsName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+}
+
+func sharedWildcardTLSTestInstance() *kurav1alpha1.KuraInstance {
+	return &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+}
+
+func TestKuraInstanceReconcileSharedWildcardTLSRetiresPerInstanceCertificate(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := sharedWildcardTLSTestInstance()
+	// The mid-migration shape: a tenant already holding a valid per-instance
+	// certificate, alongside a wildcard cert-manager has finished issuing.
+	legacyCert := &unstructured.Unstructured{}
+	legacyCert.SetGroupVersionKind(certificateGVK())
+	legacyCert.SetName(publicTLSSecretName(instance))
+	legacyCert.SetNamespace(instance.Namespace)
+	legacySecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: publicTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: []byte("per-instance-leaf")},
+	}
+	wildcardSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacyCert, legacySecret, wildcardSecret).
+			WithStatusSubresource(instance).Build(),
+		Scheme:              scheme,
+		GRPCClusterIssuer:   "letsencrypt-cloudflare",
+		PublicTLSSecretName: "kura-public-wildcard-tls",
+	}
+
+	for i := 0; i < 2; i++ {
+		if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != "kura-public-wildcard-tls" {
+		t.Fatalf("expected public ingress to terminate on the shared wildcard Secret, got %q", got)
+	}
+
+	retiredCert := &unstructured.Unstructured{}
+	retiredCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, retiredCert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the per-instance Certificate to be retired once the wildcard serves the host, got %v", err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the per-instance leaf Secret to be retired (cert-manager does not collect it), got %v", err)
+	}
+}
+
+func TestKuraInstanceReconcileKeepsPerInstanceCertificateUntilWildcardIssued(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := sharedWildcardTLSTestInstance()
+	// cert-manager has created the Secret for the wildcard Order but has not
+	// written a leaf into it yet.
+	pendingWildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, pendingWildcard).
+			WithStatusSubresource(instance).Build(),
+		Scheme:              scheme,
+		GRPCClusterIssuer:   "letsencrypt-cloudflare",
+		PublicTLSSecretName: "kura-public-wildcard-tls",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != publicTLSSecretName(instance) {
+		t.Fatalf("expected public ingress to stay on the per-instance Secret until the wildcard is issued, got %q", got)
+	}
+
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
+		t.Fatalf("expected the per-instance Certificate while the wildcard is unissued: %v", err)
+	}
+}
+
+func TestKuraInstanceReconcileKeepsPerInstanceCertificateForHostOutsideWildcard(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	// An ACME wildcard spans exactly one label, so a two-label host under the
+	// same zone is not covered by it.
+	instance := sharedWildcardTLSTestInstance()
+	instance.Spec.PublicHost = "peer.tuist-eu-1.kura.tuist.dev"
+	wildcardSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, wildcardSecret).
+			WithStatusSubresource(instance).Build(),
+		Scheme:              scheme,
+		GRPCClusterIssuer:   "letsencrypt-cloudflare",
+		PublicTLSSecretName: "kura-public-wildcard-tls",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != publicTLSSecretName(instance) {
+		t.Fatalf("expected a host the wildcard does not span to keep its own Secret, got %q", got)
+	}
+
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
+		t.Fatalf("expected the per-instance Certificate for a host outside the wildcard: %v", err)
 	}
 }
