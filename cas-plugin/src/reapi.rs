@@ -1724,7 +1724,7 @@ impl Remote {
 
 /// Splits digests into read batches that respect the size cap; oversized
 /// blobs go in single-item batches (kura accepts up to its 64MB cap).
-fn chunk_digests(blobs: &[reapi::Digest]) -> Vec<&[reapi::Digest]> {
+pub(crate) fn chunk_digests(blobs: &[reapi::Digest]) -> Vec<&[reapi::Digest]> {
     let mut chunks = Vec::new();
     let mut start = 0usize;
     let mut size = 0i64;

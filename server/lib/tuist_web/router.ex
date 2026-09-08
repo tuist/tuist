@@ -251,6 +251,10 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :ops_api do
+    plug TuistWeb.Authorization, [:current_user, :read, :ops]
+  end
+
   pipeline :scim_api do
     plug :put_request_kind, "scim"
     plug :accepts, ["scim+json", "json"]
@@ -477,6 +481,12 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api]
 
     get "/api/kura/rollout-status", KuraRolloutStatusController, :show
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :authenticated_api, :ops_api]
+
+    get "/api/ops/kura/pods/:pod/metrics", OpsKuraMetricsController, :show
   end
 
   scope "/", TuistWeb do
@@ -1258,8 +1268,10 @@ defmodule TuistWeb.Router do
       live "/gradle-cache", GradleCacheLive
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
+      live "/bazel-cache", BazelCacheLive
       live "/connect", ConnectLive
-      live "/invocations", BazelInvocationsLive
+      get "/invocations", RedirectPlug, to: "/builds"
+      live "/invocations/:invocation_id", BazelBuildInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
@@ -1268,6 +1280,7 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

@@ -67274,6 +67274,49 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path`.
                         public var critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/tags`.
+                            public var tags: [Swift.String]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public var values: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags:
+                            ///   - values:
+                            public init(
+                                tags: [Swift.String],
+                                values: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata`.
+                        public var custom_metadata: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/exit_code`.
@@ -67309,6 +67352,7 @@ public enum Operations {
                         ///   - cache_endpoint:
                         ///   - command:
                         ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
+                        ///   - custom_metadata:
                         ///   - duration_ms:
                         ///   - exit_code:
                         ///   - finished_at:
@@ -67327,6 +67371,7 @@ public enum Operations {
                             cache_endpoint: Swift.String,
                             command: Swift.String,
                             critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload? = nil,
+                            custom_metadata: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload,
                             duration_ms: Swift.Int,
                             exit_code: Swift.Int,
                             finished_at: Foundation.Date,
@@ -67345,6 +67390,7 @@ public enum Operations {
                             self.cache_endpoint = cache_endpoint
                             self.command = command
                             self.critical_path = critical_path
+                            self.custom_metadata = custom_metadata
                             self.duration_ms = duration_ms
                             self.exit_code = exit_code
                             self.finished_at = finished_at
@@ -67364,6 +67410,7 @@ public enum Operations {
                             case cache_endpoint
                             case command
                             case critical_path
+                            case custom_metadata
                             case duration_ms
                             case exit_code
                             case finished_at
@@ -73234,6 +73281,49 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path`.
                             public var critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata`.
+                            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/tags`.
+                                public var tags: [Swift.String]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/values`.
+                                public struct valuesPayload: Codable, Hashable, Sendable {
+                                    /// A container of undocumented properties.
+                                    public var additionalProperties: [String: Swift.String]
+                                    /// Creates a new `valuesPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - additionalProperties: A container of undocumented properties.
+                                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                                        self.additionalProperties = additionalProperties
+                                    }
+                                    public init(from decoder: any Decoder) throws {
+                                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                    }
+                                    public func encode(to encoder: any Encoder) throws {
+                                        try encoder.encodeAdditionalProperties(additionalProperties)
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/values`.
+                                public var values: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload.valuesPayload
+                                /// Creates a new `custom_metadataPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - tags:
+                                ///   - values:
+                                public init(
+                                    tags: [Swift.String],
+                                    values: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload.valuesPayload
+                                ) {
+                                    self.tags = tags
+                                    self.values = values
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case tags
+                                    case values
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata`.
+                            public var custom_metadata: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/exit_code`.
@@ -73269,6 +73359,7 @@ public enum Operations {
                             ///   - cache_endpoint:
                             ///   - command:
                             ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
+                            ///   - custom_metadata:
                             ///   - duration_ms:
                             ///   - exit_code:
                             ///   - finished_at:
@@ -73287,6 +73378,7 @@ public enum Operations {
                                 cache_endpoint: Swift.String,
                                 command: Swift.String,
                                 critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload? = nil,
+                                custom_metadata: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload,
                                 duration_ms: Swift.Int,
                                 exit_code: Swift.Int,
                                 finished_at: Foundation.Date,
@@ -73305,6 +73397,7 @@ public enum Operations {
                                 self.cache_endpoint = cache_endpoint
                                 self.command = command
                                 self.critical_path = critical_path
+                                self.custom_metadata = custom_metadata
                                 self.duration_ms = duration_ms
                                 self.exit_code = exit_code
                                 self.finished_at = finished_at
@@ -73324,6 +73417,7 @@ public enum Operations {
                                 case cache_endpoint
                                 case command
                                 case critical_path
+                                case custom_metadata
                                 case duration_ms
                                 case exit_code
                                 case finished_at

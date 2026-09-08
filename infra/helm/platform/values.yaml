@@ -255,6 +255,29 @@ kura-ap-southeast-ingress-nginx:
     metrics:
       enabled: true
 
+# Declared while the region is gated off everywhere, for the same reason
+# kura-ap-southeast is: a region whose ingress class no controller declares has
+# its Ingresses go unclaimed the moment it is switched on.
+kura-sa-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-sa-west-ingress-nginx-leader
+    ingressClass: kura-sa-west
+    ingressClassResource:
+      name: kura-sa-west
+      controllerValue: k8s.io/kura-sa-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 external-dns:
   enabled: true
   provider: cloudflare

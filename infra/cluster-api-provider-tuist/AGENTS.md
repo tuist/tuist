@@ -24,6 +24,13 @@ Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
+A fifth kind for Vultr is designed but not built, in
+`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
+given a partitioning plan, so its box is converted after install by
+`baremetal:prep-vultr` rather than installed into the right layout, and that
+pushes a conversion stage into the release-then-reinstall lifecycle the other
+Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
+
 ## CRDs
 
 | Kind | Purpose |
@@ -683,6 +690,25 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-dedibox` / `baremetal:mark-ovh` (those
    are also the tasks to re-name a box).
+
+   **Vultr is a conversion, not an install.** Its API exposes no partitioning
+   control and its installer offers only RAID 1 across both disks (one
+   filesystem spanning the pair) or no RAID, so neither option yields the
+   mirrored root plus separate XFS `/data` the OVH and Dedibox installs lay
+   down. Order the box as RAID 1 with the fleet key attached, then convert it in
+   place, which splits the mirror and hands the freed disk to `/data`:
+   ```bash
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-vultr 64.176.17.88
+   ```
+   The root keeps running on the remaining leg, so there is no reinstall, no
+   reboot and no bootloader change; the cost is that the root is no longer
+   mirrored. `/data` is what the cluster gates on rather than the mirror:
+   `tuist.kuraVolumeQuotaProgram` leaves every cache volume unbounded without an
+   XFS `/data` carrying project quotas, and the self-join refuses a box that
+   cannot enforce. It lands on the disk that does not hold the ESP, so losing
+   the data disk leaves a box that still boots. The task waits on any in-flight
+   array rebuild, is a no-op on an already-converted box, and prints the four
+   gates at the end.
 3. **Declare the fleet at `replicas: 1`** in `values-managed-<env>.yaml` and
    deploy. The controller claims the marked box and self-joins it in ~2-5 min.
    `replicas` here is the **box** count (one per region today); a region's

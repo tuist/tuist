@@ -3240,6 +3240,138 @@ stronger statement than the region-level pressure fraction
 (`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
 on which is authoritative.
 
+### Kura instance provisioned but not serving
+
+```promql
+max by (region) (tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`, so the alert value is how many instances are unroutable
+- Pending period: 30 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
+- Live: rule `dfxnedzs40i68f`, created 2026-09-08.
+- Summary and description: see the deployed rule, which carries the full
+  triage text.
+
+**This rule was documented here for weeks before it existed.** It was written
+up in this file and never created in Grafana, so the 2026-09-08 stall ran for
+over three hours against a rule that looked specified and was not deployed.
+That is the reason nothing fired. Treat a section in this file as a claim
+about intent, not as evidence a rule exists: check
+`alerting_manage_rules` before concluding a rule is broken or missing, and
+record the uid here when one is created.
+
+**Read it with `max`, not `sum`.** Adaptive Metrics has aggregated `instance`
+and `pod` away from this gauge, which a bare selector now reports as an error
+rather than silently. `region` and `cluster` both survive. Every
+`tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
+has to be one that collapses identical values rather than adding them.
+Measured on 2026-09-08 against a ground truth of two stuck instances in
+us-east and one in eu-central:
+
+| query | us-east | eu-central |
+| --- | --- | --- |
+| `sum by (region)` | 10 | 5 |
+| `max by (region)` | 2 | 1 |
+| Postgres | 2 | 1 |
+
+`sum` returns the truth multiplied by the five web replicas, so it tracks
+replica count rather than anything about the fleet. `max` is exact. No
+Adaptive Metrics change is needed for this: the aggregation keeps a max
+variant and rewrites the query onto it, so the correct reducer recovers the
+correct number today.
+
+**Summed rather than read per region.** The gauge carries a `region` label and
+the underlying series is per region, but Adaptive Metrics has already
+aggregated `region` away from the other `tuist_kura_*` gauges (see the two
+limits above **Critical alerts**), and this rule must survive that: what it
+asserts is that nothing is stuck anywhere, which the fleet-wide sum answers on
+its own. Use the labelled series in Explore to find which region when it fires,
+and keep the sum in the rule.
+
+**Why 30 minutes.** Provisioning, replicating and failed all count here, and a
+healthy cold provision passes through the first two in a couple of minutes, so
+a short pending period would fire on ordinary fleet growth. Thirty minutes is
+long enough that only an instance that is actually stuck survives it, and short
+enough to catch one inside the hour rather than the days a wedged instance has
+historically gone unnoticed.
+
+**Why warning rather than critical.** An account with no instance still builds.
+It builds against the legacy cache lane, so it gets worse hit rates and holds
+an allocation it is not using, but nothing fails and no build breaks. The
+damage is measured in days of wasted capacity, not in an outage.
+
+**No Data means alerting, deliberately.** The gauge is emitted once a minute
+per region for every region in the catalog, including regions with nothing
+stuck, so an absent series means the poller stopped, not that the fleet is
+clean.
+
+**What it would have caught.** The 2026-09-07 backlog, where instances sat
+unroutable for as long as about 52 days while their pods answered `/up` the
+whole time. Nothing errored, no queue grew, and no existing rule moved, so it
+was found by reading the database rather than by an alert.
+
+**Nothing in `values.yaml` is involved, and nothing needs excluding.** The
+first instinct on finding an inflated count is to look for a drop or
+aggregation rule in `infra/helm/k8s-monitoring/values.yaml`. There is none that
+touches this metric: the drop rules there are anchored on `_bucket`, which a
+gauge never matches, and the `labeldrop` list is
+`container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid`, which does not
+include `pod`. The deployed `k8s-monitoring-alloy-metrics` configmap does not
+mention the metric either, so editing that file would ship a no-op. The
+aggregation is Adaptive Metrics, on the Grafana Cloud side, and the fix is the
+reducer in the query rather than any change to the aggregation. See the
+measured comparison under the rule at the top of this section.
+
+### Kura instance stalled in provisioning
+
+```promql
+max by (region) (tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 5 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
+- **Not deployed yet.** The metric ships with the reconciler stall escalation;
+  create the rule once a release carrying it is in production, or it evaluates
+  No Data and pages immediately. Record its uid here when you do.
+- Summary: `A Kura instance in {{ $labels.region }} has been provisioning for
+  over 15 minutes without a routable endpoint`
+- Description: `The instance holds an allocation its account cannot use and is
+  building against the legacy cache lane. The reconciler has already marked the
+  server failed and captured the reason to Sentry under "Kura provisioning
+  stalled"; read it there for which of DNS, the public endpoint or the
+  node-port chain never came up, and check the account's Certificate in the
+  kura namespace, which is the usual cause.`
+
+**Why this exists next to the rule above.** The unroutable gauge counts every
+instance that is not `:active`, so a healthy cold provision is in it for a
+couple of minutes and the rule can only ask how long a count persisted, which
+is what the 30-minute pending period is buying. This gauge counts only
+instances whose open deployment has run past
+`Tuist.Kura.provisioning_stall_seconds/0`, so a fleet with nothing stuck reads
+zero and the question becomes whether the value is non-zero at all. That is
+also what makes it survive the aggregation described above: a threshold that
+only asks non-zero does not care what the true count is multiplied by.
+
+**Why 5 minutes.** The 15-minute stall threshold is already the patience, and
+it is measured against a fleet whose instances reach `:active` in about 105
+seconds on average. A second long pending period on top would only delay a
+signal that has already waited seven times the normal provisioning time.
+
+**What it would have caught.** The 2026-09-08 stall, where one account's
+instance sat in `:provisioning` for over three hours with its `updated_at`
+byte-identical to its `inserted_at`. Let's Encrypt had refused the certificate
+for its host under the 50-per-registered-domain weekly rate limit, so the
+ingress served its default self-signed certificate, the reconciler's `/up`
+probe failed TLS verification every tick, and the endpoint-not-ready branch
+logged at info and returned `:ok` without writing anything. The instance was
+indistinguishable from one thirty seconds old.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another
@@ -4825,6 +4957,118 @@ statistical cutoff or show sensitivity to a known widespread regression: ten
 is an interruption policy that should be reassessed with more history. It
 delays detection of low-volume regressions; the lower-percentile rules remain
 independent.
+
+**First firing above the floor, 2026-09-07: p99 14.56s, 1043 samples, D=13 — and
+not a regression.** p75 was 1.67s and flat over the preceding three days
+(1.17 -> 1.67), so the site was healthy for typical visitors the whole time.
+**Check p75 before investigating a p99 page.** The 13 sessions were spread over
+12 pages, 11 of them with a single session, and broke down as:
+
+- **Seven were one automated client.** Chrome on Linux X11, viewport exactly
+  1919x992, `browser_os="Linux unknown"`, one LCP sample per session, 47 such
+  sessions in 24h. Their origin timings were fast — `requestTime` 258-675ms,
+  `responseTime` 6-213ms, `pageLoadTime` 642ms — while `ttfb` read 12-31s,
+  because the wait sits before `fetchStart` with `dnsLookupTime`,
+  `tcpHandshakeTime`, `tlsNegotiationTime`, `redirectTime` and
+  `serviceWorkerTime` all zero. That gap is the crawler's own request queue, not
+  this service. It reached nothing private: 43 of its 47 samples were
+  `/users/log_in`, which carries `view_name=dashboard` and so looks like
+  dashboard traffic in a `view_name` breakdown. It was crawling public localized
+  docs and following the docs header's log-in link, ignoring `Disallow: /users/`.
+- **Two were restored documents.** Navigation entries with `ttfb`,
+  `requestTime`, `responseTime` and `tcpHandshakeTime` all zero but `duration`
+  53.0s and 7.4s. The 53s session's other navigation was normal (TTFB 567ms,
+  page load 1.38s). No one waited 53 seconds; these are not user-perceived
+  latency.
+- **Four were genuine**, one of them network distance (zh-CN client, 3.7s TCP
+  plus 3.4s TLS).
+
+Two rules of thumb fall out. `ttfb` far exceeding `requestTime + responseTime`
+with every connection phase at zero means client-side queueing. Every network
+phase at zero under a large `duration` means a restored document.
+
+`shared/js/analytics.js` skips Faro when `navigator.webdriver` is set. This
+does not catch every crawler: on September 8, the six-hour window ending at
+06:35 UTC still contained 40 LCP samples matching the Linux fingerprint and
+nine identifying themselves as `meta-externalagent`, out of 232 samples. The
+current production bundle contained the WebDriver guard, but telemetry does
+not identify each client's loaded bundle or WebDriver flag.
+
+The Cloudflare rule in
+`infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
+verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
+management-cluster operator reconciles it into the zone's WAF ruleset. It
+blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
+true, so crawlers can still read public pages. This uses the same verified-bot
+signal as the existing crawler rate-limit rules and does not require granular
+Enterprise Bot Management scores. There is no browser-version or viewport
+denylist and no challenge on the collector's background requests.
+
+**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+`cf.client.bot` does not mean human. We have not correlated the Linux cohort
+with Cloudflare's classification, so disappearance of that cohort is a
+post-deployment check, not an established result. If it persists, inspect
+Cloudflare's request classification and available Bot Management entitlement
+before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+After merge, use the management-cluster context to inspect
+`kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
+Require a current `status.observedGeneration`, `Ready=True`, and a populated
+`status.ruleId`. The Flux Kustomization uses `wait: false`, so Flux being ready
+alone does not establish that Cloudflare accepted the rule. Inspect that rule's
+matches in Cloudflare Security Events and check that ordinary-browser
+collector submissions still succeed and emit new LCP samples. WAF blocking
+returns an error response, rather than a successful discarded submission;
+this change does not introduce a Worker.
+
+Watch fresh samples from both crawler cohorts after rollout. Existing samples
+remain in the six- and 24-hour alert windows until they age out; do not treat
+an immediately firing alert as proof the new rule failed. The Linux query is:
+
+```logql
+count(sum by (session_id) (
+  count_over_time(
+    {service_name="tuist-web"}
+      | logfmt
+      | kind="measurement"
+      | type="web-vitals"
+      | app_environment="prod"
+      | lcp!=""
+      | browser_os="Linux unknown"
+      | browser_viewportWidth="1919"
+      | browser_viewportHeight="992"
+      | session_id!=""
+      | __error__="" [24h]
+  )
+))
+```
+
+For the explicitly identified Meta cohort, use the same measurement selector
+with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
+OS and viewport filters. To roll back the edge filter, set `enabled: false`
+in its Kubernetes manifest and let Flux and the operator reconcile; editing
+the rule in the Cloudflare dashboard would be reverted by the operator.
+
+**D scales with traffic**, which is worth remembering before reading a rise as a
+regression. It is an absolute count over 24h and it tracked the weekly cycle
+across these three days: 2-3 sessions at about 410 samples over the weekend, 13
+at about 1026 on the Monday. The poor-session *rate* did roughly double
+(0.5% -> 1.3%), so volume was not the whole story, but a rate would be a truer
+signal than a raw count.
+
+**The finding worth acting on was document weight, not the tail.** Dashboard
+navigations carry a p99 of 1.88 MB decoded HTML and a 24h peak of 8.26 MB
+(230 KB gzipped), against 610 KB for docs and 454 KB for marketing; the
+bundle-size-analysis pages serve 1.88 MB every time. The origin renders them
+quickly (TTFB 0.8-5.0s, `responseTime` 23-338ms), so this is invisible in server
+latency, but the size is a multiplier at both ends: the worst sample in the
+window (58.4s) spent 49.1s in the response phase moving that body, and a large
+DOM inflates `element_render_delay` directly — one real-user sample paired a
+249ms TTFB with 15.1s of element render delay. Image weight was not involved
+(`mise run marketing:image-budget` passed; `resource_load_duration` was
+122-153ms wherever present), and HTTP/1.1 is a client property rather than a
+route misconfiguration, appearing on 9-13% of navigations across every
+`view_name`.
 
 For per-page investigation, group the inner sum by
 `(app_environment, page_url, session_id)` and the outer count by

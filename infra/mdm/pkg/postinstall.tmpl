@@ -1,0 +1,45 @@
+#!/bin/sh
+# postinstall for the MDM-pushed bootstrap package. Runs as root under
+# installd during automated device enrollment, while the device is held
+# in "awaiting configuration". Everything else on the host is installed
+# by the operator SSH bootstrap once this makes the machine reachable.
+set -eu
+
+SVC_ACCOUNT="@SVC_ACCOUNT@"
+
+# Remote Login. systemsetup -setremotelogin requires Full Disk Access
+# for its responsible process, which an MDM-delivered postinstall does
+# not reliably have; enabling the launchd job directly flips the same
+# service override without touching TCC.
+/bin/launchctl enable system/com.openssh.sshd
+/bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || true
+
+# Boot when power is applied; the PDU outlet cycle is the fleet's
+# remote reboot.
+/usr/bin/pmset autorestart 1
+
+# The AccountConfiguration command that creates the service account is
+# queued ahead of this package, but give directory services a moment in
+# case the install is retried out of order.
+i=0
+while ! /usr/bin/id "$SVC_ACCOUNT" >/dev/null 2>&1; do
+  i=$((i + 1))
+  if [ "$i" -ge 30 ]; then
+    echo "service account $SVC_ACCOUNT does not exist after 60s" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+HOME_DIR=$(/usr/bin/dscl . -read "/Users/$SVC_ACCOUNT" NFSHomeDirectory | /usr/bin/awk '{print $2}')
+HOME_DIR=${HOME_DIR:-/Users/$SVC_ACCOUNT}
+
+/bin/mkdir -p "$HOME_DIR/.ssh"
+cat > "$HOME_DIR/.ssh/authorized_keys" <<'KEYS'
+@AUTHORIZED_KEYS@
+KEYS
+/usr/sbin/chown -R "$SVC_ACCOUNT:staff" "$HOME_DIR/.ssh"
+/bin/chmod 700 "$HOME_DIR/.ssh"
+/bin/chmod 600 "$HOME_DIR/.ssh/authorized_keys"
+
+exit 0

@@ -7,6 +7,7 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics, as: RunsAnalytics
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "lists latest test runs" do
@@ -54,6 +55,28 @@ defmodule TuistWeb.TestRunsLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='test-runs-table']")
+    end
+
+    test "lists Bazel invocations using the shared test runs page", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          build_system: "bazel",
+          scheme: "//app:unit_tests",
+          ran_at: ~N[2024-04-30 10:19:30]
+        )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      assert has_element?(lv, "#test-runs-table", "Invocation")
+      assert has_element?(lv, "#test-runs-table", "bazel test //app:unit_tests")
     end
 
     test "handles cursor from another page with different sort fields", %{

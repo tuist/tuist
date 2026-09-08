@@ -1,0 +1,104 @@
+{{- $host := required "host is required" .Values.host -}}
+{{- $fullname := include "mdm.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-nanomdm
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm
+spec:
+  replicas: {{ .Values.nanomdm.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mdm.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nanomdm
+  template:
+    metadata:
+      labels:
+        {{- include "mdm.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nanomdm
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- include "mdm.podScheduling" . | nindent 6 }}
+      containers:
+        - name: nanomdm
+          image: "{{ .Values.images.nanomdm.repository }}:{{ .Values.images.nanomdm.tag }}"
+          imagePullPolicy: {{ .Values.images.nanomdm.pullPolicy }}
+          # The API key and the DSN (which carries the database password)
+          # are passed as environment variables, not flags: argv is world
+          # readable through /proc and shows up in any sidecar or debug
+          # container. NanoMDM maps NANOMDM_<FLAG> onto every flag.
+          args:
+            - -listen
+            - :9000
+            - -ca
+            - /scep-ca/ca.pem
+            - -storage
+            - pgsql
+            {{- with .Values.nanomdm.storageOptions }}
+            - -storage-options
+            - {{ . | quote }}
+            {{- end }}
+            - -webhook-url
+            - http://{{ $fullname }}-enroller:9004/webhook
+          env:
+            - name: NANOMDM_API
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: nanomdm-api-key
+            - name: NANOMDM_WEBHOOK_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: webhook-hmac-key
+            {{- include "mdm.storageDSNEnv" (dict "root" . "name" "NANOMDM_STORAGE_DSN") | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 9000
+          volumeMounts:
+            - name: scep-ca
+              mountPath: /scep-ca
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          resources:
+            {{- toYaml .Values.nanomdm.resources | nindent 12 }}
+      volumes:
+        - name: scep-ca
+          secret:
+            secretName: {{ $fullname }}-scep-ca
+            items:
+              - key: ca.pem
+                path: ca.pem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-nanomdm
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm
+  {{- if .Values.tailnet.enabled }}
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ .Values.tailnet.nanomdmHostname | quote }}
+    tailscale.com/tags: {{ required "tailnet.tags is required when tailnet.enabled" .Values.tailnet.tags | quote }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+  selector:
+    {{- include "mdm.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nanomdm

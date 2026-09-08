@@ -252,11 +252,12 @@ struct SetupCacheCommandService {
         try await body()
     }
 
-    private func ensureCacheDaemonIsListening(label: String, socketPath: AbsolutePath) async throws {
-        if await cacheSocketService.waitUntilListening(
-            at: socketPath,
-            timeout: cacheDaemonStartupTimeout
-        ) {
+    private func ensureCacheDaemonIsListening(
+        label: String,
+        socketPath: AbsolutePath,
+        displacing displacedProcessIdentifier: Int32?
+    ) async throws {
+        if await isCacheDaemonReady(label: label, socketPath: socketPath, displacing: displacedProcessIdentifier) {
             return
         }
 
@@ -265,10 +266,7 @@ struct SetupCacheCommandService {
         )
         do {
             try await launchAgentService.restartLaunchAgent(label: label)
-            if await cacheSocketService.waitUntilListening(
-                at: socketPath,
-                timeout: cacheDaemonStartupTimeout
-            ) {
+            if await isCacheDaemonReady(label: label, socketPath: socketPath, displacing: displacedProcessIdentifier) {
                 return
             }
         } catch {
@@ -285,6 +283,20 @@ struct SetupCacheCommandService {
             socketPath: socketPath.pathString,
             logPath: logPath.pathString
         )
+    }
+
+    /// The socket answering is not on its own evidence that the daemon this setup
+    /// installed is the one serving it: a daemon booted out moments ago goes on
+    /// accepting connections until it leaves, so its socket confirms a
+    /// configuration that never took effect. Pairing the socket with the process
+    /// behind the label is what tells the two apart, and what lets a connection
+    /// answered by the outgoing daemon reach the restart above instead of being
+    /// reported as success.
+    private func isCacheDaemonReady(label: String, socketPath: AbsolutePath, displacing displaced: Int32?) async -> Bool {
+        guard await cacheSocketService.waitUntilListening(at: socketPath, timeout: cacheDaemonStartupTimeout) else {
+            return false
+        }
+        return await launchAgentService.runningProcessIdentifier(label: label) != displaced
     }
 
     func run(
@@ -531,7 +543,7 @@ struct SetupCacheCommandService {
         )
 
         let label = Environment.current.casProxyLaunchAgentLabel()
-        try await launchAgentService.setupLaunchAgent(
+        let displacedProcessIdentifier = try await launchAgentService.setupLaunchAgent(
             label: label,
             plistFileName: "\(label).plist",
             programArguments: programArguments,
@@ -539,7 +551,8 @@ struct SetupCacheCommandService {
         )
         try await ensureCacheDaemonIsListening(
             label: label,
-            socketPath: Environment.current.casProxySocketPath()
+            socketPath: Environment.current.casProxySocketPath(),
+            displacing: displacedProcessIdentifier
         )
     }
 
@@ -578,7 +591,7 @@ struct SetupCacheCommandService {
         )
 
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
-        try await launchAgentService.setupLaunchAgent(
+        let displacedProcessIdentifier = try await launchAgentService.setupLaunchAgent(
             label: label,
             plistFileName: "\(label).plist",
             programArguments: programArguments,
@@ -586,7 +599,8 @@ struct SetupCacheCommandService {
         )
         try await ensureCacheDaemonIsListening(
             label: label,
-            socketPath: Environment.current.cacheSocketPath(for: fullHandle)
+            socketPath: Environment.current.cacheSocketPath(for: fullHandle),
+            displacing: displacedProcessIdentifier
         )
     }
 }

@@ -23,13 +23,13 @@ defmodule Tuist.Kura.OriginMap do
   # always has an answer, so a region being unserved or unfunded narrows the
   # choice instead of leaving the account unplaced.
   @zone_preferences %{
-    us_east: ["us-east", "ca-east", "us-west", "eu-central", "ap-southeast"],
-    us_west: ["us-west", "us-east", "ca-east", "ap-southeast", "eu-central"],
-    canada_east: ["ca-east", "us-east", "us-west", "eu-central", "ap-southeast"],
-    europe: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast"],
-    apac: ["ap-southeast", "us-west", "us-east", "eu-central", "ca-east"],
-    south_america: ["us-east", "ca-east", "us-west", "eu-central", "ap-southeast"],
-    africa_middle_east: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast"]
+    us_east: ["us-east", "ca-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
+    us_west: ["us-west", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-central"],
+    canada_east: ["ca-east", "us-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
+    europe: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"],
+    apac: ["ap-southeast", "us-west", "us-east", "eu-central", "ca-east", "sa-west"],
+    south_america: ["sa-west", "us-east", "ca-east", "us-west", "eu-central", "ap-southeast"],
+    africa_middle_east: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"]
   }
 
   # Where an origin no entry covers is served from. The same region an account
