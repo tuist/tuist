@@ -1228,10 +1228,12 @@ to re-check when a measurement disagrees.
 
 ---
 
-## 11. Deferred extensions and open items
+## 11. Follow-ups on this branch, and one future extension
 
-Additive steps on the same plane. None changes the endpoints, the identity, or
-the migration rule; each is gated on a trigger stated with it.
+All on the same plane: none changes the endpoints, the identity or the
+migration rule. §11.1 and §11.2 are part of this design and ship on the pull
+replication branch before any account flips; §11.3 is gated on the trigger
+stated with it.
 
 ### 11.1 Hard upload limits, made explicit
 
@@ -1245,9 +1247,9 @@ count and a per-node aggregate on peer-serving concurrency. Rejection stays
 the behaviour, never a queue, so a receiver can back off or skip. The
 `rejected_busy` rate and the limiter's effective rate join the pull
 replication dashboard row, so concentration on one gateway is measured
-rather than argued. Status: to land with the pull replication branch.
+rather than argued. Ships on the branch (implementation log T9.1).
 
-### 11.2 Co-located instances that other nodes cannot dial (placeholder)
+### 11.2 Co-located instances that other nodes cannot dial
 
 The runner-cache region publishes no public peer host, so an enrolled
 self-hosted node never lists it as a peer and cannot dial it, while the
@@ -1256,12 +1258,21 @@ covers that leg. After the flip the runner node sees the self-hosted peer
 advertise `pulling`, stops pushing to it and opens a region link *from* it,
 and nothing pulls the other way: the runner region's writes reach that
 self-hosted node only through backward passes from other managed gateways.
-Decision pending; the candidate is a push exception, keep pushing to a
-pulling peer that has no route back, driven by a server signal (a region
-without a public peer host) or a heartbeat field, with a ring-A test. It must
-land before any account with both a self-hosted node and a runner region
-flips. Giving the runner region a public peer host is the alternative and
-removes the exception.
+
+The rule: **a node keeps pushing to a pulling peer that does not know it.**
+Every node already advertises `pulling` in `/_internal/status`; it also
+advertises the node URLs of its membership view. A pusher takes a pulling
+peer off its push targets only once that peer's advertised view names the
+pusher's own URL; until then, and whenever the view stops naming it, the peer
+is pushed to as a non-pulling peer would be. The rule is decided from what
+the two nodes already exchange, so it needs no server field, works under a
+self-hosted server and in the serverless mode, and errs toward duplicate
+delivery (a push into a node that is also pulling the same records is
+absorbed by last-writer-wins and earns one feed row, D-1) rather than toward
+a silent gap. The runner region's node therefore keeps pushing to every
+self-hosted node for as long as those nodes cannot list it, and stops on its
+own the day the region gains a public peer host. Ships on the branch with a
+ring-A test and a ring-B scenario (implementation log T9.2).
 
 ### 11.3 A Plumtree-shaped tree, if the clique or egress spread ever matters
 
