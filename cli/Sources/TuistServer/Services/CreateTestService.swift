@@ -177,13 +177,7 @@ import TuistHTTP
                             in: stressRepetitionsByTestCase,
                             after: testCase.repetitions.count,
                             firstPass: testCase.repetitions.isEmpty
-                                ? TestCaseRepetitionPayload(
-                                    duration: testCase.duration ?? 0,
-                                    name: "First Run",
-                                    repetition_number: 1,
-                                    source: .run,
-                                    status: repetitionStatusToServerStatus(testCase.status)
-                                )
+                                ? (testCase.status, testCase.duration ?? 0)
                                 : nil
                         )
 
@@ -401,19 +395,6 @@ import TuistHTTP
             }
         }
 
-        private func repetitionStatusToServerStatus(_ status: TestStatus)
-            -> Operations.createTest.Input.Body.jsonPayload
-            .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
-            .statusPayload
-        {
-            switch status {
-            case .passed, .skipped, .processing:
-                return .success
-            case .failed:
-                return .failure
-            }
-        }
-
         private func mapArgumentIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createTest
             .Input.Body.jsonPayload
             .test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload
@@ -458,6 +439,15 @@ struct StressRepetitionKey: Hashable {
     }
 }
 
+private func repetitionStatusToServerStatus(_ status: TestStatus) -> TestCaseRepetitionPayload.statusPayload {
+    switch status {
+    case .passed, .skipped, .processing:
+        return .success
+    case .failed:
+        return .failure
+    }
+}
+
 private typealias TestCaseRepetitionPayload = Operations.createTest.Input.Body.jsonPayload
     .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
 
@@ -472,12 +462,22 @@ private func stressRepetitions(
     in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
             .repetition_resultsPayloadPayload]],
     after ownCount: Int,
-    firstPass: TestCaseRepetitionPayload?
+    firstPass: (status: TestStatus, duration: Int)?
 ) -> [TestCaseRepetitionPayload] {
     let stressed = repetitionsByTestCase[key] ?? []
     guard !stressed.isEmpty else { return [] }
 
-    let own = firstPass.map { [$0] } ?? []
+    let own = firstPass.map {
+        [
+            TestCaseRepetitionPayload(
+                duration: $0.duration,
+                name: "First Run",
+                repetition_number: 1,
+                source: .run,
+                status: repetitionStatusToServerStatus($0.status)
+            ),
+        ]
+    } ?? []
     let offset = ownCount + own.count
 
     return own + stressed.enumerated().map { index, repetition in
