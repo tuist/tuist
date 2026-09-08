@@ -936,6 +936,7 @@
     & > [data-part="content"] {
       display: flex;
       flex-direction: column;
+      margin-top: var(--noora-spacing-5);
       border-top: 1px solid var(--noora-surface-border-primary);
       padding: var(--noora-spacing-5);
 

@@ -11,6 +11,10 @@
 #
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
+#     200 carrying ONE provider's credential set. GitHub sends
+#       `encoded_jit_config`; Buildkite sends `buildkite_acquisition_token`
+#       plus `buildkite_job_uuid`, and the agent launched below is chosen
+#       on which is present.
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
 #                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
 #       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
@@ -312,12 +316,17 @@ CAS_ENABLED_MARKER="cas-enabled"
 VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
 VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 
-# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
-# subtrees whose churn means the job actually changed the cache: binaries
-# added/evicted, manifests or ProjectDescriptionHelpers compiled. Pure cache
-# hits only bump mtimes (they don't add/remove entries), so they don't move
-# this hash — matching the reconciler's rule that mtime-only deltas are not
-# dirty and must not trigger a promote that could clobber a concurrent writer.
+# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under EVERY cache
+# category, so any entry the job added or removed moves the hash: binaries
+# added/evicted, manifests or ProjectDescriptionHelpers compiled, and anything
+# the CLI's support-cache retention reclaimed. The list has to be every category
+# rather than the few that a job writes, because a job whose only change is a
+# retention pass freeing a leaked result bundle is exactly the job worth
+# promoting, and a digest blind to its subtree would report the branch clean and
+# the host would discard the cleaned image. Pure cache hits only bump mtimes
+# (they don't add/remove entries), so they don't move this hash — matching the
+# reconciler's rule that mtime-only deltas are not dirty and must not trigger a
+# promote that could clobber a concurrent writer.
 #
 # It takes the mountpoint to measure rather than reading CACHE_MOUNT, because the
 # two snapshots are read through DIFFERENT mounts: the pre-job one through the
@@ -340,7 +349,7 @@ cache_inventory() {
   # (Go sort.Strings is byte-wise). The `~cas/` lines sort LAST (0x7E > the
   # alphanumeric subdir names), matching the host's casLinePrefix placement.
   {
-    for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+    for d in Binaries EditProjects GenerationMetadata Manifests Plugins ProjectDescriptionHelpers Projects Runs SelectiveTests; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
     ( cd "${cas}" 2>/dev/null && find . -type f -not -path '*/.*' -exec stat -f "%N$(printf '\t')%z" {} + 2>/dev/null ) \
@@ -360,6 +369,7 @@ use_local_cold_cache() {
   mkdir -p "${local_cache}/tuist" 2>/dev/null || true
   export TUIST_XDG_CACHE_HOME="${local_cache}"
   unset TUIST_CACHE_MAX_BYTES
+  unset TUIST_COMPILATION_CACHE_CAS_PATH
   CACHE_MOUNT=""
   CACHE_IMAGE_ACTIVE=""
   CACHE_INVENTORY_BEFORE=""
@@ -567,6 +577,17 @@ setup_cas_store() {
     fi
   } > "${CAS_XCCONFIG}"
   export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
+  # The xcconfig is not enough on its own for `tuist cache`, which passes
+  # COMPILATION_CACHE_CAS_PATH on the xcodebuild COMMAND LINE — and a command-line
+  # build setting BEATS XCODE_XCCONFIG_FILE (measured on Xcode 26.5 via
+  # `xcodebuild -showBuildSettings`). Its store therefore landed on the VM's boot
+  # volume, died with the VM, and was never promoted, which is why that job read
+  # ~35% hits with every one of them served from the remote. Naming the durable
+  # store explicitly is what the CLI honours instead of picking DerivedData; it
+  # is the same contract TUIST_XDG_CACHE_HOME and TUIST_CACHE_MAX_BYTES already
+  # ride. An older CLI ignores it and keeps its VM-local store, which is exactly
+  # today's behaviour.
+  export TUIST_COMPILATION_CACHE_CAS_PATH="${store}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
@@ -620,14 +641,22 @@ cas_spool_records() {
   find "$1" -type f ! -name '*.tags' 2>/dev/null | wc -l | tr -d ' '
 }
 
-# cas_proxy_client finds the binary that can ask the running proxy to drain,
-# so the gate waits on the publisher itself instead of sampling a directory.
+# cas_proxy_client finds the binary that can ask the running proxy to drain (so
+# the gate waits on the publisher itself instead of sampling a directory) and to
+# prune (so the compilation cache is bounded at all).
 #
 # The launch agent `tuist setup cache` installed is the reliable pointer: its
-# `Program` IS the tuist whose bundle serves this machine's socket, and the
-# proxy binary ships beside it. Nothing found (a job that never ran `tuist setup
-# cache`, or a tuist this shell cannot see) is not a failure — the gate falls
-# back to watching the spool, which proves the same thing more slowly.
+# `Program` IS the tuist whose bundle serves this machine's socket, and the proxy
+# binary ships beside it. It is preferred over the image's own copy because it
+# matches the proxy actually running, which is what a drain has to talk to.
+#
+# The image's copy at /opt/tuist is the LAST resort, and it exists for the jobs
+# that have neither: a plain `xcodebuild` workflow never runs Tuist, so it
+# installs no launch agent and puts no tuist on PATH. Those jobs still write a
+# compilation cache — Xcode's builtin `generic` lane, into this same volume — and
+# without a binary in the image they were exactly the jobs whose store nothing
+# could ever prune, which is the unbounded growth this path exists to stop. (The
+# drain is a legitimate no-op for them: no plugin means no spool.)
 cas_proxy_client() {
   local candidate program plist
   plist="${HOME:-/Users/runner}/Library/LaunchAgents/tuist.cas-proxy.plist"
@@ -639,7 +668,8 @@ cas_proxy_client() {
     "${TUIST_CAS_PROXY_PATH:-}" \
     "$(command -v tuist-cas-proxy 2>/dev/null)" \
     "${program:+$(dirname "${program}")/tuist-cas-proxy}" \
-    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}"; do
+    "${program:+$(dirname "${program}")/lib/tuist-cas-proxy}" \
+    /opt/tuist/tuist-cas-proxy; do
     if [ -n "${candidate}" ] && [ -x "${candidate}" ]; then
       printf '%s' "${candidate}"
       return 0
@@ -741,6 +771,146 @@ EOF
   return "${status}"
 }
 
+# cas_store_dirs lists the llcas STORES inside the mounted image. A store is a
+# directory holding `v1.N` generation dirs; the compiler picks the lane name
+# under COMPILATION_CACHE_CAS_PATH (`plugin` for ours, `generic` for Xcode's
+# builtin), so discover them by that shape rather than assume the set. Both need
+# bounding: the builtin lane never loads our plugin but writes to the same image.
+cas_store_dirs() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  find "${CACHE_MOUNT}/${CAS_STORE_DIR}" -maxdepth 3 -type d -name 'v1.*' 2>/dev/null |
+    while IFS= read -r generation; do dirname "${generation}"; done | sort -u
+}
+
+# prune_cas_stores is what actually bounds the compilation cache on this image.
+#
+# COMPILATION_CACHE_LIMIT_SIZE does NOT cap the store directory, which is the
+# defect that filled this account's volume every ~2 days. Measured against Xcode
+# 26.5: the limit bounds a GENERATION, and it is enforced by ROTATION — when the
+# live chain is over it, closing the store's last handle starts a new primary and
+# demotes the old one. Nothing then deletes the generations that fall off the end
+# unless `llcas_cas_prune_ondisk_data` is called, and no part of a build ever
+# calls it, so the directory grows without bound (measured 9.4x its limit and
+# still climbing). This is the call.
+#
+# It runs at BOTH ends of a job, and the two are not redundant.
+#
+# At TEARDOWN it bounds what the fleet inherits: the image is measured and
+# promoted straight after, so every host that later clones this master starts
+# from a bounded store.
+#
+# At ATTACH it bounds what THIS job inherits, which is the case teardown cannot
+# reach. A master that is already over budget — promoted before this path
+# existed, or converged from a host still running an older image — can fill the
+# volume mid-build and FAIL the job, and a failed job never promotes, so
+# teardown is skipped and no replacement is ever published. That is the wedge
+# that leaves an account needing a manual reset. Pruning at attach gives the job
+# the headroom to succeed, and its teardown then publishes the bounded image, so
+# the account heals itself on its next job instead of on an operator's.
+#
+# Placement in teardown is load-bearing on three sides:
+#   - AFTER drain_cas_publications: a prune deletes objects, and deleting one the
+#     spool still owed the remote would strand the association naming it;
+#   - BEFORE sample_cache_fill, so the fill % that gates promotion describes the
+#     image as it will be published rather than as it was at its peak;
+#   - BEFORE the detach, since the store has to be mounted to be pruned — and it
+#     finishes here, so it cannot be the straggler that writes past
+#     capture_settled_inventory's measurement.
+#
+# The prune runs through the proxy binary rather than in this shell because llcas
+# rotates a store as its LAST handle closes, and the per-machine proxy holds one
+# open for its process lifetime. A prune driven from a handle of its own would
+# find the chain still live, collect nothing, and report success. `--prune` asks
+# the running proxy first for exactly that reason, and only prunes in-process for
+# a store no proxy holds (the builtin lane).
+#
+# Best-effort: a store we could not prune costs the volume space, which
+# sample_cache_fill's ceiling already guards. It never fails the job or blocks
+# promotion.
+#
+# The teardown call site applies an rc gate; the attach one does not need it
+# (nothing has been drained yet because nothing has been written yet).
+#
+# `$1` names the call site and is echoed into every line this emits. The two
+# passes are otherwise indistinguishable in the logs, and telling them apart is
+# what says whether an account is being saved on the way IN (it inherited a
+# store over budget) or merely kept tidy on the way OUT.
+prune_cas_stores() {
+  local when="${1:-teardown}"
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local stores
+  stores=$(cas_store_dirs)
+  [ -n "${stores}" ] || return 0
+
+  local client budget store
+  client=$(cas_proxy_client) || {
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
+    return 0
+  }
+  # The per-generation budget the host staged, from the same marker
+  # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
+  # prunes against whatever limit the store already carries rather than
+  # inventing one.
+  budget=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  case "${budget}" in ''|*[!0-9]*) budget=0 ;; esac
+
+  # SPLIT across the stores actually present, because the marker is the CAS's
+  # allowance as a whole and llcas only takes a per-generation bound per STORE.
+  # A job that used both lanes would otherwise get the full allowance twice --
+  # 2 x 5.5 GiB per generation under production's settings, so ~22 GiB of CAS
+  # inside a 20 GiB image before the binary cache gets a byte, which is the
+  # over-commit this budget exists to prevent.
+  #
+  # This is the enforcement point rather than the build-time setting because it
+  # is the only one that can count: COMPILATION_CACHE_LIMIT_SIZE is written
+  # before a single lane exists, so it cannot know how many there will be, while
+  # what the promoted image carries is settled here.
+  #
+  # An even split is deliberately crude. A tiny second lane (a `generic` store of
+  # a few KB beside a multi-GB `plugin` one is the usual shape) costs the primary
+  # half its budget, which spends warmth to keep the image's arithmetic true --
+  # the conservative direction, and the fill ceiling is not a bound to lean on.
+  local stores_count
+  stores_count=$(printf '%s\n' "${stores}" | grep -c . || true)
+  case "${stores_count}" in ''|*[!0-9]*|0) stores_count=1 ;; esac
+  budget=$((budget / stores_count))
+
+  while IFS= read -r store; do
+    [ -n "${store}" ] || continue
+    # `env -u TUIST_CAS_REMOTE_GRPC_URL` is the version-skew guard the drain uses
+    # for the same reason: a proxy binary older than this op does not recognise
+    # `--prune` and falls through to its SERVE path, which unlinks the machine's
+    # socket and binds its own — killing the live proxy from a teardown script.
+    # Without that variable it exits before reaching the bind, every time.
+    # Captured rather than left to stream: the client reports the bytes it
+    # freed and which route it took, and both belong ON this line. Loose on
+    # stderr they land in the runner's own multi-MB log, attributable to
+    # neither the store nor the pass that produced them.
+    local output reclaimed via
+    if output=$(env -u TUIST_CAS_REMOTE_GRPC_URL "${client}" --prune "${store}" \
+      --limit-bytes "${budget}" --socket "${CAS_PROXY_SOCKET}" 2>&1); then
+      # 0 is the ordinary healthy answer — a store inside its budget has no
+      # generation to collect — so it must stay distinguishable from "no figure
+      # reported", which would mean the client changed under us.
+      reclaimed=$(printf '%s\n' "${output}" | sed -n 's/.*reclaiming \([0-9][0-9]*\) bytes.*/\1/p' | tail -1)
+      # Which path actually ran. A store the proxy holds can ONLY be rotated
+      # through the proxy, so a `local` route on the plugin lane is the shape of
+      # a prune that collected nothing while reporting success.
+      case "${output}" in
+        *"proxy pruned"*) via="proxy" ;;
+        *"holds no handle"*) via="local, proxy holds no handle" ;;
+        *"could not ask the proxy"*) via="local, no proxy" ;;
+        *) via="local" ;;
+      esac
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS store pruned (${when}): ${store} (limit ${budget}B/generation, reclaimed ${reclaimed:-unknown}B, ${via})"
+    else
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not prune CAS store (${when}) ${store}: ${output}"
+    fi
+  done <<EOF
+${stores}
+EOF
+}
+
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
 # most a job's start can be delayed by the cache. The host materializes from its
 # LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
@@ -777,6 +947,24 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      # Bound the store this job INHERITED, before the job can run out of room
+      # in it. Nothing has opened it yet — `tuist setup cache` has not run, so
+      # there is no proxy, and a runner VM is single-shot so no previous one
+      # survives — which makes this the most quiescent moment in the VM's life
+      # and the only one besides teardown where a rotation can happen at all.
+      #
+      # AFTER the inventory snapshot, and that order is load-bearing: the
+      # snapshot is the baseline the dirty check compares against, so pruning
+      # first would fold the collection into the baseline and a pure-cache-hit
+      # job would then read as clean, be discarded, and leave the over-budget
+      # master in place — the opposite of the intent. Taking the baseline first
+      # makes the collection itself the change that earns the promote, which is
+      # the same reasoning that puts reclaim_cas_if_disabled at teardown.
+      #
+      # Deliberately not time-bounded. It delays the job's start only by what it
+      # frees, which is space the job was going to need, and killing an unlink
+      # midway would leave a half-collected generation behind.
+      prune_cas_stores attach
       return 0
     fi
     sleep 1
@@ -785,18 +973,36 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
+# The post-job fill % at or above which an image is refused promotion. A master
+# is cloned into every later job of the account, and the CLI writes to the volume
+# before it does anything else (the manifest cache is on the load path of every
+# command), so a master with no headroom fails those jobs at their first cache
+# write rather than merely running them cold. Promotion is the only channel that
+# can carry the fill fleet-wide, and nothing on the job path can undo it: the
+# account is then wedged from the inside, because a failing job never promotes a
+# replacement. Refusing costs the account one job's warmth and keeps the last
+# master that still had room.
+CACHE_FILL_PROMOTE_CEILING=98
+
 # sample_cache_fill records the image's post-job fill % (binary cache + CAS +
 # overhead) for the host's fill histogram — the signal for whether the reserve is
 # holding or the volume is running near ENOSPC. Must run while the image is still
 # MOUNTED, since `df` reports on a mount. `df -P` for the portable one-line
 # format; column 5 is Use%.
+#
+# Returns non-zero once the fill reaches CACHE_FILL_PROMOTE_CEILING so teardown
+# can withdraw the branch. An unreadable fill returns 0: the gauge is the only
+# evidence here, and refusing to promote every image whose `df` did not parse
+# would freeze the account's cache on a reporting failure.
 sample_cache_fill() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   local fill
   fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
   case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
-  [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ -n "${fill}" ] || return 0
+  printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
+  [ "${fill}" -lt "${CACHE_FILL_PROMOTE_CEILING}" ]
 }
 
 # Where the detached image is re-attached to be measured. Deliberately not
@@ -1165,8 +1371,15 @@ while true; do
       # optional whitespace lets a future pretty-printer not
       # break this path.
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -z "${jit}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
+      # Buildkite's counterpart. The server sends one credential set or
+      # the other, never both, so which key is present is what selects
+      # the agent to launch further down. Same value-safety as the JIT:
+      # a `bkjat_` token and a UUID are both opaque ASCII with no quotes.
+      bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
       fi
@@ -1197,6 +1410,39 @@ while true; do
       if [ -n "${cache_grant}" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
+      fi
+      # The GitHub runner inherits this process's environment, so exporting
+      # is enough there. The Buildkite agent sanitizes the job environment
+      # instead, so anything the build needs has to be re-exported from
+      # inside a hook — which can only read what is on disk.
+      if [ -n "${bk_token}" ]; then
+        # This script runs as `runner`, and a shell redirect into /etc is
+        # performed by the shell as that user, not by sudo — so writing
+        # the file directly fails with EACCES. It did, silently, and the
+        # pre-exit hook then found no credential and skipped reporting
+        # while the job itself passed: the run looked fine on Buildkite
+        # and arrived on the dashboard with no logs and no conclusion.
+        #
+        # `sudo tee` puts the privileged process on the writing side, and
+        # the outcome is checked rather than discarded.
+        job_env_tmp=$(mktemp)
+        {
+          [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
+          [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+          # The credential the pre-exit hook reports with. Job-scoped, so
+          # unlike the SA token it can only write this job's log and
+          # declare this job's outcome — which is why the hook may read it
+          # from inside the job at all.
+          printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
+          printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+        } >"${job_env_tmp}"
+        if sudo tee /etc/tuist-runner-job.env <"${job_env_tmp}" >/dev/null 2>&1; then
+          sudo chmod 0644 /etc/tuist-runner-job.env 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: staged buildkite job env for the hooks"
+        else
+          echo "$(date -u +%FT%TZ) dispatch-poll: FAILED to stage /etc/tuist-runner-job.env; the job will run but report no logs or outcome"
+        fi
+        rm -f "${job_env_tmp}"
       fi
       # Stage the account's volume HEAD for the host to converge a stale master
       # toward before it materializes into this VM's branch.
@@ -1302,6 +1548,33 @@ HOOK
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
+      if [ -n "${bk_token}" ]; then
+        # Buildkite needs none of the idle-watchdog machinery below. The
+        # acquisition token names one job UUID, so the assignment already
+        # happened server-side before this VM was handed anything: the
+        # agent either takes that job or exits. There is no window in
+        # which a registered agent sits waiting to be given work, which
+        # is the whole hazard the GitHub watchdog exists to bound.
+        #
+        # `--enable-job-log-tmpfile` is what makes the log ours to ship.
+        # The agent writes the job's output verbatim to the path it
+        # exports as BUILDKITE_JOB_LOG_TMPFILE, and the global pre-exit
+        # hook posts it to the server while the file still exists (the
+        # agent removes it when the job ends).
+        export BUILDKITE_AGENT_TOKEN="${bk_token}"
+        export BUILDKITE_AGENT_ACQUIRE_JOB="${bk_job_uuid}"
+        echo "$(date -u +%FT%TZ) dispatch-poll: acquiring buildkite job ${bk_job_uuid}"
+        /opt/tuist/buildkite-agent start \
+          --name "$(hostname)" \
+          --hooks-path /opt/tuist/buildkite-hooks \
+          --build-path /Users/runner/work \
+          --enable-job-log-tmpfile \
+          --job-log-path /var/log/tuist-runner \
+          --disconnect-after-job &
+        runner_pid=$!
+        wait "${runner_pid}"
+        rc=$?
+      else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
@@ -1346,12 +1619,19 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      fi
       # Cache teardown. The order here is load-bearing:
       #   0. wait for the compilation cache's asynchronous publications to reach
       #      the remote, while the spool is still mounted and the publisher can
       #      still read it. The image carries the associations those uploads
       #      exist to back, so promoting ahead of them hands every host that
       #      clones this master keys naming objects nothing can produce;
+      #   0b. prune the compilation-cache stores, which nothing else does: the
+      #      configured limit bounds a generation, not the directory, so without
+      #      this the folded CAS grows without bound until the volume is full and
+      #      the account wedges. After the drain (a prune must not delete an
+      #      object the spool still owed) and before the fill sample (so the
+      #      gauge describes the image that gets published);
       #   1. sample the signals that need a live mount (fill %), but withhold the
       #      promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
@@ -1374,12 +1654,35 @@ HOOK
       if ! drain_cas_publications "${rc}"; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
-      sample_cache_fill
+      # Bound the compilation cache before the image is measured: nothing else
+      # ever collects the generations that fall out of its chain, and an
+      # unbounded store is what fills this volume and wedges the account.
+      #
+      # Gated on rc, like the drain and for the matching reason. A non-zero rc
+      # never promotes, so there is no image for this to shrink — and the drain
+      # was skipped too, so the spool may still owe the remote objects this
+      # would delete. Nothing inherits those associations (the branch is
+      # discarded), but "prune only what has been drained" is the invariant
+      # worth being unable to get wrong later. The attach-time prune is what
+      # covers a failing job, from the other end.
+      if [ "${rc}" = "0" ]; then
+        prune_cas_stores teardown
+      fi
+      # A full image is withheld from BOTH channels, so the detach still runs
+      # (the host must be handed a settled file either way) but the reporting
+      # that would authorize a promote is skipped. report_cache_dirty writes the
+      # marker unconditionally, so the ceiling has to be carried past it here
+      # rather than left to mark_cache_not_promotable's provisional "0".
+      cache_within_fill_ceiling=1
+      if ! sample_cache_fill; then
+        mark_cache_not_promotable "cache volume $(cat "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null)% full"
+        cache_within_fill_ceiling=0
+      fi
       if ! detach_cache_image; then
         mark_cache_not_promotable "detach failed"
       elif ! capture_settled_inventory; then
         mark_cache_not_promotable "settled image could not be measured"
-      else
+      elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         report_cache_dirty "${rc}"
         report_volume_head "${rc}"
       fi

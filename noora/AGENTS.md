@@ -36,3 +36,8 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
+- Delegate date-picker month navigation from the hook root so LiveView can replace
+  calendar controls without losing their click handlers.
+- The LiveView chart hook supports opt-in `data-lazy="true"` initialization near
+  the viewport. Keep offscreen updates and destruction safe, and register resize
+  listeners once per hook lifetime rather than once per render.

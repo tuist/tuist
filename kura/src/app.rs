@@ -23,6 +23,7 @@ use crate::{
     analytics::Analytics,
     auth::AuthEngine,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     http,
     io::IoController,
@@ -40,6 +41,8 @@ use crate::{
     utils::directory_size_bytes,
 };
 
+// Bound request and header state per connection independently of the response
+// memory pools. Additional cache traffic can use another connection.
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 // The co-hosted listener carries large Bazel REAPI uploads, so it advertises a
 // 4 MiB stream window (a single ByteStream write is otherwise capped at
@@ -48,7 +51,7 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
+const HTTP_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
@@ -91,7 +94,20 @@ pub async fn run() -> Result<(), String> {
     );
     let telemetry = init_tracing(&config, &node_location);
     if let Some(error) = nofile_raise_error {
-        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+        warn!(
+            event.name = "kura.runtime.file_descriptor_limit_raise_failed",
+            error = %error,
+            "failed to raise file descriptor soft limit"
+        );
+    }
+    if let Some(enrollment) = enrollment.as_ref() {
+        info!(
+            event.name = "kura.enrollment.completed",
+            kura.node_url = %enrollment.node_url,
+            kura.tenant_id = %enrollment.tenant_id,
+            kura.peer.count = enrollment.peers.len(),
+            "node enrollment completed"
+        );
     }
     let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, node_location, enrollment)
@@ -123,9 +139,6 @@ async fn run_with_config(
         .map_err(|error| format!("failed to create directories: {error}"))?;
     let auth = AuthEngine::from_env(metrics.clone())
         .map_err(|error| format!("failed to initialize the authorization engine: {error}"))?;
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
@@ -168,7 +181,18 @@ async fn run_with_config(
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store = Store::open(&config, io.clone(), memory.clone())?;
+    let store = Arc::new(Store::open(&config, io.clone(), memory.clone())?);
+    let analytics =
+        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
+            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .map_err(|error| format!("failed to initialize Bazel test-artifact delivery: {error}"))?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -197,10 +221,12 @@ async fn run_with_config(
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -208,12 +234,14 @@ async fn run_with_config(
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -226,6 +254,13 @@ async fn run_with_config(
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
+    info!(
+        event.name = "kura.request_observability.configured",
+        kura.request_log.sample_rate = state.config.request_log_sample_rate,
+        kura.slow_request.threshold_ms = state.config.slow_request_threshold_ms,
+        kura.warning_log.interval_ms = state.config.warning_log_interval_ms,
+        "request observability configured"
+    );
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
@@ -242,9 +277,7 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
-    if state.config.action_cache_eviction_cascade_enabled {
-        spawn_action_cache_blob_refs_backfill_task(state.clone());
-    }
+    spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
     spawn_backfill_index_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
@@ -263,6 +296,7 @@ async fn run_with_config(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.refresh_outbox_capacity(true).await;
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -498,18 +532,24 @@ async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::R
 // serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so one listener
 // handles cache + gRPC.
 fn configure_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    // `max_buf_size` is what bounds hyper's HTTP/1.1 write queue. Without it
+    // hyper keeps pulling response chunks for a stalled client until it holds
+    // 16 buffers or ~408 KiB, far past the `RESPONSE_STREAM_SEND_BUFFER_BYTES`
+    // every response stream is charged. The public Ingress proxies to kura over
+    // HTTP/1.1, so this is the common cache-serving transport, not an edge case.
     builder
         .http1()
         .keep_alive(true)
         .timer(TokioTimer::new())
-        .header_read_timeout(Some(Duration::from_secs(30)));
+        .header_read_timeout(Some(Duration::from_secs(30)))
+        .max_buf_size(HTTP_MAX_SEND_BUFFER_BYTES);
     builder
         .http2()
         .initial_stream_window_size(Some(HTTP2_STREAM_WINDOW_BYTES))
         .initial_connection_window_size(Some(HTTP2_CONNECTION_WINDOW_BYTES))
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
-        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
+        .max_send_buf_size(HTTP_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
@@ -582,9 +622,13 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 .await
                 {
                     Ok((Ok(snapshot), jemalloc)) => {
+                        state.metrics.update_outbox_messages(
+                            snapshot.outbox_messages,
+                            snapshot.outbox_bulk_messages,
+                        );
                         state
                             .metrics
-                            .update_outbox_messages(snapshot.outbox_messages);
+                            .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
                         state
                             .metrics
@@ -745,6 +789,9 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                 state
                     .metrics
                     .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+                state.metrics.update_elastic_transient_reserved(
+                    state.memory.elastic_transient_reserved_bytes(),
+                );
 
                 let pressure = state.memory.pressure();
                 let snapshot_target = state
@@ -875,38 +922,46 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     );
 }
 
-/// Expires REAPI action-cache entries whose write time predates the TTL.
-/// Clients publish new keys on every source change and nothing else removes
-/// the stale ones, so this recency sweep is what bounds a namespace's
-/// keyspace (and with it the snapshot reconcile scan and index memory). An
-/// expired entry that is still genuinely used costs its next cold reader one
-/// recompile + republish, which refreshes it for the whole fleet. Node-local
-/// by design: peers apply the same rule over the replicated version_ms and
-/// converge on their own. The manifest-keyspace walk is a full scan, so it
-/// runs on the blocking pool at a long interval.
-/// One-shot startup migration: rebuild the action-cache blob-refs reverse map
-/// from the entries already on disk, then arm the readiness flag that lets the
-/// eviction cascade consult it. Runs on the blocking pool because it scans the
-/// manifest keyspace. Idempotent and marker-gated, so a restart after
-/// completion is cheap; a failure leaves the cascade inert (the serve-side
-/// presence gates keep clients safe) and it retries on the next boot.
-fn spawn_action_cache_blob_refs_backfill_task(state: Arc<AppState>) {
+/// One-shot startup migration: rebuild the action-cache and chunk-recipe
+/// reverse maps from the entries already on disk. Runs on the blocking pool
+/// because it scans the manifest keyspace. Each map is independently
+/// idempotent and cursor-resumable, so a restart after completion is cheap.
+fn spawn_cache_reverse_refs_backfill_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
-            let mut rows = 0_usize;
+            let mut action_rows = 0_usize;
+            let mut recipe_rows = 0_usize;
+            let mut action_complete = !state.config.action_cache_eviction_cascade_enabled;
+            let mut recipes_complete = false;
             loop {
                 state.memory.wait_for_background_headroom().await;
                 let backfill_state = state.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    backfill_state.store.backfill_action_cache_blob_refs_step()
+                let result = tokio::task::spawn_blocking(move || -> Result<_, String> {
+                    let action = (!action_complete)
+                        .then(|| backfill_state.store.backfill_action_cache_blob_refs_step())
+                        .transpose()?;
+                    let recipes = (!recipes_complete)
+                        .then(|| backfill_state.store.backfill_chunk_recipe_refs_step())
+                        .transpose()?;
+                    Ok((action, recipes))
                 })
                 .await;
                 match result {
-                    Ok(Ok(step)) => {
-                        rows += step.rows;
-                        if step.complete {
-                            if rows > 0 {
-                                info!(rows, "action-cache blob-refs backfill complete");
+                    Ok(Ok((action, recipes))) => {
+                        if let Some(step) = action {
+                            action_rows += step.rows;
+                            action_complete = step.complete;
+                        }
+                        if let Some(step) = recipes {
+                            recipe_rows += step.rows;
+                            recipes_complete = step.complete;
+                        }
+                        if action_complete && recipes_complete {
+                            if action_rows > 0 || recipe_rows > 0 {
+                                info!(
+                                    action_rows,
+                                    recipe_rows, "cache reverse-reference backfill complete"
+                                );
                             }
                             break;
                         }
@@ -988,6 +1043,14 @@ async fn backfill_index_task_loop(state: SharedState) {
     }
 }
 
+/// Expires REAPI action-cache entries and chunk recipes whose write time
+/// predates the TTL. Both are inline records outside segment-capacity
+/// eviction, so this recency sweep bounds their metadata even when shared
+/// chunks remain hot forever. An expired record that is still genuinely used
+/// costs its next cold reader one recompile and republish. Node-local by
+/// design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
 fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
     use crate::constants::{
         REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
@@ -1010,10 +1073,10 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
                 match expired {
                     Ok(Ok(0)) => {}
                     Ok(Ok(expired)) => {
-                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                        info!(expired, cutoff_ms, "expired stale cache metadata records");
                     }
-                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
-                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                    Ok(Err(error)) => warn!("cache metadata expiry sweep failed: {error}"),
+                    Err(error) => warn!("cache metadata expiry task panicked: {error}"),
                 }
             }
         }
@@ -1148,6 +1211,7 @@ pub(crate) async fn apply_renewed_enrollment(
 
     // Pick up any newly-learned peers for discovery.
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    state.rebuild_replication_targets().await;
     Ok(())
 }
 
@@ -1351,10 +1415,15 @@ async fn wait_for_task_shutdown<T>(
 
 #[cfg(test)]
 mod tests {
+    use std::{pin::Pin, task::Poll};
+
     use tokio::{sync::oneshot, time::timeout};
 
     use super::*;
-    use crate::test_support::test_context;
+    use crate::{
+        constants::{RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES},
+        test_support::test_context,
+    };
 
     #[test]
     fn http_builder_accepts_http1_and_http2() {
@@ -1366,6 +1435,127 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    /// In-memory transport that behaves like the production socket: it reports
+    /// vectored-write support, so hyper's HTTP/1.1 connection picks the same
+    /// queued write strategy it uses for `TcpStream` and TLS streams.
+    struct VectoredDuplex(tokio::io::DuplexStream);
+
+    impl tokio::io::AsyncRead for VectoredDuplex {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_read(cx, buf)
+        }
+    }
+
+    impl tokio::io::AsyncWrite for VectoredDuplex {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            buf: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+
+        fn poll_write_vectored(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+            bufs: &[std::io::IoSlice<'_>],
+        ) -> Poll<std::io::Result<usize>> {
+            let Some(buf) = bufs.iter().find(|buf| !buf.is_empty()) else {
+                return Poll::Ready(Ok(0));
+            };
+            Pin::new(&mut self.0).poll_write(cx, buf)
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            true
+        }
+
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_flush(cx)
+        }
+
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_shutdown(cx)
+        }
+    }
+
+    const STALLED_CLIENT_TRANSPORT_BYTES: usize = 1024;
+
+    /// Bytes hyper pulls from a response body over HTTP/1.1, configured the
+    /// way the production listener is, for a client that never reads. The
+    /// transport holds exactly `STALLED_CLIENT_TRANSPORT_BYTES`, so everything
+    /// past that sits in hyper's own write queue.
+    async fn http1_body_bytes_pulled_for_a_stalled_client() -> usize {
+        use std::{
+            convert::Infallible,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
+        use tokio::io::AsyncWriteExt as _;
+
+        let (mut client, server) = tokio::io::duplex(STALLED_CLIENT_TRANSPORT_BYTES);
+        let pulled = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&pulled);
+        let service =
+            hyper::service::service_fn(move |_request: hyper::Request<hyper::body::Incoming>| {
+                let counted = Arc::clone(&counted);
+                async move {
+                    let body = futures_util::stream::unfold((), move |()| {
+                        let counted = Arc::clone(&counted);
+                        async move {
+                            counted.fetch_add(RESPONSE_STREAM_MIN_CHUNK_BYTES, Ordering::SeqCst);
+                            let chunk =
+                                bytes::Bytes::from(vec![b'x'; RESPONSE_STREAM_MIN_CHUNK_BYTES]);
+                            Some((Ok::<_, Infallible>(hyper::body::Frame::data(chunk)), ()))
+                        }
+                    });
+                    Ok::<_, Infallible>(hyper::Response::new(http_body_util::StreamBody::new(body)))
+                }
+            });
+        let mut builder = HttpBuilder::new(TokioExecutor::new());
+        configure_http_builder(&mut builder);
+        tokio::spawn(async move {
+            let _ = builder
+                .serve_connection(
+                    hyper_util::rt::TokioIo::new(VectoredDuplex(server)),
+                    service,
+                )
+                .await;
+        });
+        client
+            .write_all(b"GET /artifact HTTP/1.1\r\nHost: kura\r\n\r\n")
+            .await
+            .expect("send request");
+        sleep(Duration::from_millis(500)).await;
+        drop(client);
+        pulled.load(Ordering::SeqCst)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn http1_send_queue_stays_within_the_charged_send_buffer() {
+        let pulled = http1_body_bytes_pulled_for_a_stalled_client().await;
+        let queued = pulled.saturating_sub(STALLED_CLIENT_TRANSPORT_BYTES);
+
+        // Response streams charge `RESPONSE_STREAM_SEND_BUFFER_BYTES` for the
+        // transport buffer plus their live reader chunks; hyper may hold one
+        // more chunk in flight past the cap.
+        let charged = RESPONSE_STREAM_SEND_BUFFER_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES * 2;
+        assert!(
+            queued <= charged,
+            "hyper queued {queued} bytes for a stalled HTTP/1.1 client, more than the \
+             {charged} bytes a response stream is charged"
+        );
     }
 
     #[test]
@@ -1554,6 +1744,254 @@ mod tests {
         let _ = server.await;
     }
 
+    #[derive(Clone, Copy)]
+    struct ConnectionShardingSample {
+        requests_per_second: f64,
+        p50_us: u64,
+        p95_us: u64,
+        p99_us: u64,
+    }
+
+    async fn run_connection_sharding_sample(
+        channels: &[tonic::transport::Channel],
+        resource_name: Arc<str>,
+        request_count: usize,
+        concurrency: usize,
+        expected_bytes: usize,
+    ) -> ConnectionShardingSample {
+        use bazel_remote_apis::google::bytestream::{
+            ReadRequest, byte_stream_client::ByteStreamClient,
+        };
+        use futures_util::StreamExt as _;
+
+        let started_at = Instant::now();
+        let mut latencies = futures_util::stream::iter(0..request_count)
+            .map(|index| {
+                let channel = channels[index % channels.len()].clone();
+                let resource_name = resource_name.clone();
+                async move {
+                    let request_started_at = Instant::now();
+                    let mut responses = ByteStreamClient::new(channel)
+                        .read(ReadRequest {
+                            resource_name: resource_name.as_ref().to_owned(),
+                            read_offset: 0,
+                            read_limit: 0,
+                        })
+                        .await
+                        .expect("benchmark read should start")
+                        .into_inner();
+                    let mut received_bytes = 0_usize;
+                    while let Some(response) = responses
+                        .message()
+                        .await
+                        .expect("benchmark response should decode")
+                    {
+                        received_bytes = received_bytes.saturating_add(response.data.len());
+                    }
+                    assert_eq!(received_bytes, expected_bytes);
+                    request_started_at.elapsed().as_micros() as u64
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect::<Vec<_>>()
+            .await;
+        let elapsed = started_at.elapsed();
+        latencies.sort_unstable();
+        let percentile = |percent: usize| {
+            let index = latencies
+                .len()
+                .saturating_mul(percent)
+                .div_ceil(100)
+                .saturating_sub(1)
+                .min(latencies.len().saturating_sub(1));
+            latencies[index]
+        };
+        ConnectionShardingSample {
+            requests_per_second: request_count as f64 / elapsed.as_secs_f64(),
+            p50_us: percentile(50),
+            p95_us: percentile(95),
+            p99_us: percentile(99),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "performance benchmark run manually"]
+    async fn bytestream_connection_sharding_benchmark() {
+        use sha2::{Digest as _, Sha256};
+
+        use crate::{artifact::producer::ArtifactProducer, utils::blob_key};
+
+        const BLOB_BYTES: usize = 256 * 1024;
+        const CONCURRENCY: usize = 512;
+        const CONNECTION_COUNTS: [usize; 4] = [1, 2, 4, 8];
+        const REQUESTS_PER_SAMPLE: usize = 10_000;
+        const SAMPLE_COUNT: usize = 3;
+        const GIBIBYTE: u64 = 1024 * 1024 * 1024;
+
+        let context = test_context(|config| {
+            config.memory_limit_bytes = 4 * GIBIBYTE;
+            config.memory_soft_limit_bytes = 2 * GIBIBYTE;
+            config.memory_hard_limit_bytes = 3 * GIBIBYTE;
+        })
+        .await;
+        let blob = vec![0x5a; BLOB_BYTES];
+        let hash = hex::encode(Sha256::digest(&blob));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "default",
+                &blob_key(&format!("{hash}/{BLOB_BYTES}")),
+                "application/octet-stream",
+                &blob,
+            )
+            .await
+            .expect("benchmark blob should persist");
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind benchmark listener");
+        let addr = listener.local_addr().expect("benchmark listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let state = context.state.clone();
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            configure_http_builder,
+        ));
+
+        let endpoint = format!("http://{addr}");
+        let max_connections = *CONNECTION_COUNTS.last().expect("connection counts");
+        let mut channels = Vec::with_capacity(max_connections);
+        for _ in 0..max_connections {
+            channels.push(
+                tonic::transport::Endpoint::from_shared(endpoint.clone())
+                    .expect("benchmark endpoint should be valid")
+                    .connect()
+                    .await
+                    .expect("benchmark connection should open"),
+            );
+        }
+        let resource_name: Arc<str> = Arc::from(format!("default/blobs/{hash}/{BLOB_BYTES}"));
+
+        for channel in &channels {
+            run_connection_sharding_sample(
+                std::slice::from_ref(channel),
+                resource_name.clone(),
+                1,
+                1,
+                BLOB_BYTES,
+            )
+            .await;
+        }
+
+        let mut samples = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+        for sample_index in 0..SAMPLE_COUNT {
+            let order: &[usize] = if sample_index % 2 == 0 {
+                &[0, 1, 2, 3]
+            } else {
+                &[3, 2, 1, 0]
+            };
+            for &connection_index in order {
+                let connection_count = CONNECTION_COUNTS[connection_index];
+                samples[connection_index].push(
+                    run_connection_sharding_sample(
+                        &channels[..connection_count],
+                        resource_name.clone(),
+                        REQUESTS_PER_SAMPLE,
+                        CONCURRENCY,
+                        BLOB_BYTES,
+                    )
+                    .await,
+                );
+            }
+        }
+
+        let median = |values: &mut [f64]| {
+            values.sort_unstable_by(f64::total_cmp);
+            values[values.len() / 2]
+        };
+        let median_integer = |values: &mut [u64]| {
+            values.sort_unstable();
+            values[values.len() / 2]
+        };
+        let mut medians = Vec::with_capacity(CONNECTION_COUNTS.len());
+        for (connection_count, connection_samples) in CONNECTION_COUNTS.into_iter().zip(samples) {
+            let requests_per_second = median(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.requests_per_second)
+                    .collect::<Vec<_>>(),
+            );
+            let p50_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p50_us)
+                    .collect::<Vec<_>>(),
+            );
+            let p95_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p95_us)
+                    .collect::<Vec<_>>(),
+            );
+            let p99_us = median_integer(
+                &mut connection_samples
+                    .iter()
+                    .map(|sample| sample.p99_us)
+                    .collect::<Vec<_>>(),
+            );
+            println!(
+                "connection sharding benchmark: connections={connection_count} requests_per_second={requests_per_second:.3} p50_us={p50_us} p95_us={p95_us} p99_us={p99_us}"
+            );
+            medians.push(ConnectionShardingSample {
+                requests_per_second,
+                p50_us,
+                p95_us,
+                p99_us,
+            });
+        }
+
+        let one_connection = medians[0].requests_per_second;
+        let best_sharded = medians[1..]
+            .iter()
+            .map(|sample| sample.requests_per_second)
+            .max_by(f64::total_cmp)
+            .expect("at least one sharded sample");
+        println!(
+            "METRIC connection_sharding_speedup_ratio={:.6}",
+            best_sharded / one_connection
+        );
+        for (connection_count, sample) in CONNECTION_COUNTS.into_iter().zip(medians) {
+            println!(
+                "METRIC connections_{connection_count}_requests_per_second={:.3}",
+                sample.requests_per_second
+            );
+            println!(
+                "METRIC connections_{connection_count}_p50_us={}",
+                sample.p50_us
+            );
+            println!(
+                "METRIC connections_{connection_count}_p95_us={}",
+                sample.p95_us
+            );
+            println!(
+                "METRIC connections_{connection_count}_p99_us={}",
+                sample.p99_us
+            );
+        }
+
+        shutdown_tx.send(true).expect("signal benchmark shutdown");
+        server
+            .await
+            .expect("benchmark server task should finish")
+            .expect("benchmark server should shut down cleanly");
+    }
+
     // Same as above but over TLS (reusing the public cert): both HTTPS and REAPI
     // gRPC ride one TLS port, ALPN-negotiated (http/1.1 for HTTP, h2 for gRPC).
     #[tokio::test]
@@ -1705,6 +2143,7 @@ mod tests {
         let guard = context
             .state
             .start_http_request(crate::runtime::HttpTrafficClass::Public);
+        context.state.enter_draining();
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),
@@ -1724,6 +2163,7 @@ mod tests {
     async fn wait_for_inflight_drain_times_out_when_requests_do_not_finish() {
         let context = test_context(|_| {}).await;
         let _guard = context.state.start_grpc_request();
+        context.state.enter_draining();
 
         assert!(
             !wait_for_inflight_drain(

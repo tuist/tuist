@@ -252,11 +252,12 @@ struct SetupCacheCommandService {
         try await body()
     }
 
-    private func ensureCacheDaemonIsListening(label: String, socketPath: AbsolutePath) async throws {
-        if await cacheSocketService.waitUntilListening(
-            at: socketPath,
-            timeout: cacheDaemonStartupTimeout
-        ) {
+    private func ensureCacheDaemonIsListening(
+        label: String,
+        socketPath: AbsolutePath,
+        displacing displacedProcessIdentifier: Int32?
+    ) async throws {
+        if await isCacheDaemonReady(label: label, socketPath: socketPath, displacing: displacedProcessIdentifier) {
             return
         }
 
@@ -265,10 +266,7 @@ struct SetupCacheCommandService {
         )
         do {
             try await launchAgentService.restartLaunchAgent(label: label)
-            if await cacheSocketService.waitUntilListening(
-                at: socketPath,
-                timeout: cacheDaemonStartupTimeout
-            ) {
+            if await isCacheDaemonReady(label: label, socketPath: socketPath, displacing: displacedProcessIdentifier) {
                 return
             }
         } catch {
@@ -285,6 +283,20 @@ struct SetupCacheCommandService {
             socketPath: socketPath.pathString,
             logPath: logPath.pathString
         )
+    }
+
+    /// The socket answering is not on its own evidence that the daemon this setup
+    /// installed is the one serving it: a daemon booted out moments ago goes on
+    /// accepting connections until it leaves, so its socket confirms a
+    /// configuration that never took effect. Pairing the socket with the process
+    /// behind the label is what tells the two apart, and what lets a connection
+    /// answered by the outgoing daemon reach the restart above instead of being
+    /// reported as success.
+    private func isCacheDaemonReady(label: String, socketPath: AbsolutePath, displacing displaced: Int32?) async -> Bool {
+        guard await cacheSocketService.waitUntilListening(at: socketPath, timeout: cacheDaemonStartupTimeout) else {
+            return false
+        }
+        return await launchAgentService.runningProcessIdentifier(label: label) != displaced
     }
 
     func run(
@@ -307,8 +319,9 @@ struct SetupCacheCommandService {
         }
 
         // The `kura` client feature flag selects the machine-wide CAS proxy +
-        // plugin. Without it, accounts stay on the legacy per-project cache daemon
-        // they rely on today, until they are migrated to kura.
+        // plugin. It is on unless `TUIST_FEATURE_FLAG_KURA` is set to a falsey
+        // value, which puts the machine back on the legacy per-project cache
+        // daemon.
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
             // Register BEFORE starting the proxy. The proxy
@@ -487,6 +500,23 @@ struct SetupCacheCommandService {
         // turn them on for a proxy running under launchd.
         if let logPath = Environment.current.variables["TUIST_CAS_LOG"] {
             environmentVariables["TUIST_CAS_LOG"] = logPath
+        } else if Environment.current.isCI {
+            // The counters that tell the CAS failure shapes apart are written ONLY
+            // to this file, so a variable nobody knew to set is off during every
+            // incident that needs it. What makes defaulting it acceptable is that
+            // the plugin bounds the file, truncating it in place past a cap.
+            //
+            // Only the PROXY's half is defaulted here. The plugin resolves the same
+            // path itself (`default_log_path`), which is what covers the compiler
+            // frontends however `xcodebuild` was invoked, including workflows that
+            // generate and then drive `xcodebuild` or Fastlane directly. The proxy
+            // cannot do the same because launchd hands it no CI markers to key on.
+            //
+            // CI only, and deliberately not on developer machines: the proxy there
+            // is a long-lived LaunchAgent, so even a bounded file is state we would
+            // create on every `tuist setup cache` for a reader who never asked for
+            // it. A CI machine is ephemeral and the job bounds it.
+            environmentVariables["TUIST_CAS_LOG"] = Environment.current.casLogPath().pathString
         }
         // Trunk ingestion pays for itself only where the machine can warm the CAS
         // BEFORE a build: it pulls the trunk closure in the background so the next
@@ -513,7 +543,7 @@ struct SetupCacheCommandService {
         )
 
         let label = Environment.current.casProxyLaunchAgentLabel()
-        try await launchAgentService.setupLaunchAgent(
+        let displacedProcessIdentifier = try await launchAgentService.setupLaunchAgent(
             label: label,
             plistFileName: "\(label).plist",
             programArguments: programArguments,
@@ -521,7 +551,8 @@ struct SetupCacheCommandService {
         )
         try await ensureCacheDaemonIsListening(
             label: label,
-            socketPath: Environment.current.casProxySocketPath()
+            socketPath: Environment.current.casProxySocketPath(),
+            displacing: displacedProcessIdentifier
         )
     }
 
@@ -560,7 +591,7 @@ struct SetupCacheCommandService {
         )
 
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
-        try await launchAgentService.setupLaunchAgent(
+        let displacedProcessIdentifier = try await launchAgentService.setupLaunchAgent(
             label: label,
             plistFileName: "\(label).plist",
             programArguments: programArguments,
@@ -568,7 +599,8 @@ struct SetupCacheCommandService {
         )
         try await ensureCacheDaemonIsListening(
             label: label,
-            socketPath: Environment.current.cacheSocketPath(for: fullHandle)
+            socketPath: Environment.current.cacheSocketPath(for: fullHandle),
+            displacing: displacedProcessIdentifier
         )
     }
 }

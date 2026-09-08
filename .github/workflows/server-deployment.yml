@@ -188,7 +188,6 @@ permissions:
   packages: write
 
 env:
-  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
@@ -389,9 +388,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
@@ -463,7 +461,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -547,7 +545,7 @@ jobs:
             echo "$VALUES not present; skipping tailscale-operator install for this env."
           fi
       - if: steps.check-values.outputs.exists == 'true'
-        uses: jdx/mise-action@v3.2.0
+        uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -613,7 +611,7 @@ jobs:
           # Full history + tags so k8s:install-platform can resolve the
           # stable-egress-controller@<semver> image tag reachable from this commit.
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -777,7 +775,7 @@ jobs:
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
             echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
@@ -1241,6 +1239,52 @@ jobs:
           rm -f "$runner_pools_render"
           echo "::endgroup::"
 
+          # Push the rendered release through the API server, admission
+          # webhooks included, without persisting anything. A rejection fails
+          # the deploy here, before the real upgrade has mutated the release,
+          # so the run cannot end in an --atomic rollback. That rollback is
+          # what makes a rejected resource expensive: it reverts every other
+          # resource in the release along with it, including changes applied
+          # outside the release by a hotfix, and it restores the previous
+          # manifest under a database the pre-upgrade migration has already
+          # moved forward.
+          #
+          # Same arguments as the upgrade below, built from the same shell, so
+          # the two cannot drift. Hooks are rendered but not executed, so the
+          # migration Job does not run twice.
+          #
+          # Skipped when the namespace does not exist: a server-side dry run
+          # cannot validate namespaced resources against a namespace that is
+          # not there, and --create-namespace does not create one during a dry
+          # run. That case is a first install, where there is no live release
+          # for a rollback to damage.
+          echo "::group::helm upgrade --dry-run=server (preflight)"
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            preflight_log="$(mktemp)"
+            if helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace "$NAMESPACE" \
+              "${helm_values_args[@]}" \
+              --set server.image.tag="$IMAGE_TAG" \
+              --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+              --set registry.image.tag="$registry_image_tag" \
+              --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+              "${image_sets[@]}" \
+              --dry-run=server >"$preflight_log" 2>&1; then
+              rm -f "$preflight_log"
+              echo "Preflight passed; the API server accepts the rendered release."
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error title=Helm preflight failed::The API server rejected the rendered release. Nothing was applied and the live release is untouched."
+              tail -80 "$preflight_log"
+              rm -f "$preflight_log"
+              exit 1
+            fi
+          else
+            echo "Namespace $NAMESPACE does not exist yet; skipping the preflight for this first install."
+            echo "::endgroup::"
+          fi
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
@@ -1270,9 +1314,15 @@ jobs:
           echo "::group::events (last 100, sorted)"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
           echo "::endgroup::"
-          echo "::group::migration job"
-          kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o wide || true
-          for job in $(kubectl -n "$NAMESPACE" get jobs -l app.kubernetes.io/component=server-migration -o name 2>/dev/null); do
+          echo "::group::migration jobs"
+          # Both the Ecto migration (pre-upgrade) and the ClickHouse migration
+          # steps (post-upgrade). A failed hook Job is deleted before the next
+          # deploy recreates it, and its pod is short-lived enough that the log
+          # collector can miss it entirely, so this is the only place its
+          # output survives.
+          JOB_SELECTOR='app.kubernetes.io/component in (server-migration,clickhouse-migration)'
+          kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o wide || true
+          for job in $(kubectl -n "$NAMESPACE" get jobs -l "$JOB_SELECTOR" -o name 2>/dev/null); do
             echo "--- describe $job ---"
             kubectl -n "$NAMESPACE" describe "$job" || true
             echo "--- logs $job ---"

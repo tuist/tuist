@@ -112,11 +112,11 @@ defmodule TuistOpsWeb.SlackControllerTest do
       :ok
     end
 
-    test "valid /elevate staging 5m \"reason\" → creates Request + ephemeral reply" do
+    test "valid /elevate canary 5m \"reason\" → creates Request + ephemeral reply" do
       conn =
         TuistOpsWeb.SlackController.slash(
           build_conn(),
-          %{"user_id" => "U_MAREK", "text" => "staging 5m fix flaky test"}
+          %{"user_id" => "U_MAREK", "text" => "canary 5m fix flaky test"}
         )
 
       assert conn.status == 200
@@ -126,6 +126,43 @@ defmodule TuistOpsWeb.SlackControllerTest do
 
       assert Repo.one(from r in Request, where: r.status == "pending") |> Map.get(:intent) ==
                "fix flaky test"
+    end
+
+    test "/elevate staging → rejected as already writable, no Request created" do
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{"user_id" => "U_MAREK", "text" => "staging 5m fix flaky test"}
+        )
+
+      assert conn.status == 200
+      {:ok, body} = JSON.decode(conn.resp_body)
+      assert body["response_type"] == "ephemeral"
+      assert body["text"] =~ "no elevation needed"
+      assert Repo.aggregate(Request, :count) == 0
+    end
+
+    test "usage + unknown-env messages don't offer staging" do
+      usage =
+        build_conn()
+        |> TuistOpsWeb.SlackController.slash(%{"user_id" => "U_MAREK"})
+        |> then(&JSON.decode!(&1.resp_body))
+        |> Map.fetch!("text")
+
+      bad_env =
+        build_conn()
+        |> TuistOpsWeb.SlackController.slash(%{
+          "user_id" => "U_MAREK",
+          "text" => "europe 5m nope"
+        })
+        |> then(&JSON.decode!(&1.resp_body))
+        |> Map.fetch!("text")
+
+      for text <- [usage, bad_env] do
+        assert text =~ "canary"
+        assert text =~ "production"
+        refute text =~ "staging"
+      end
     end
 
     test "/elevate without args → usage message" do

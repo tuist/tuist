@@ -126,8 +126,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [affected_id], all: [affected_id]}
     end)
 
-    expect(Automations, :list_active_alert_events, fn id, [^affected_id] ->
-      assert id == automation.id
+    expect(Automations, :list_active_alert_events, fn alert, [^affected_id] ->
+      assert alert.id == automation.id
       []
     end)
 
@@ -168,9 +168,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [], all: test_case_ids}
     end)
 
-    expect(Automations, :list_active_alert_events, 2, fn id, [test_case_id] ->
-      assert id == automation.id
-      send(test_pid, {:checked_active_test_case_id, test_case_id})
+    expect(Automations, :list_active_alert_events, fn alert, test_case_ids ->
+      assert alert.id == automation.id
+      send(test_pid, {:checked_active_test_case_ids, test_case_ids})
       []
     end)
 
@@ -181,8 +181,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert_receive {:evaluated_test_case_id, ^first_id}
     assert_receive {:evaluated_test_case_id, ^second_id}
-    assert_receive {:checked_active_test_case_id, ^first_id}
-    assert_receive {:checked_active_test_case_id, ^second_id}
+    assert_receive {:checked_active_test_case_ids, [^first_id, ^second_id]}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:02Z]
@@ -396,8 +395,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{valid_alert.id => [], second_valid_alert.id => []}
     end)
 
-    expect(Automations, :list_active_alert_events, 2, fn alert_id, [^test_case_id] ->
-      assert alert_id in [valid_alert.id, second_valid_alert.id]
+    expect(Automations, :list_active_alert_events, 2, fn alert, [^test_case_id] ->
+      assert alert.id in [valid_alert.id, second_valid_alert.id]
       []
     end)
 
@@ -437,9 +436,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: [], all: chunk}
     end)
 
-    expect(Automations, :list_active_alert_events, 5, fn id, chunk ->
-      assert id == automation.id
-      send(test_pid, {:active_events_chunk_size, length(chunk)})
+    expect(Automations, :list_active_alert_events, fn alert, ids ->
+      assert alert.id == automation.id
+      send(test_pid, {:active_events_size, length(ids)})
       []
     end)
 
@@ -453,11 +452,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1000}
-    assert_receive {:active_events_chunk_size, 1}
+    # The monitor still reads a range at a time so ClickHouse can prune between
+    # ranges, but the ledger is read once for their union rather than per range.
+    assert_receive {:active_events_size, 4001}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]

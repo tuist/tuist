@@ -29,6 +29,8 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
         git_commit_sha: "abc123",
         root_project_name: "my-app",
         requested_tasks: ["assembleRelease"],
+        custom_tags: ["nightly"],
+        custom_values: %{"team" => "android"},
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true, duration_ms: 5000},
           %{task_path: ":app:test", outcome: "remote_hit", cacheable: true, duration_ms: 3000},
@@ -49,6 +51,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert build["duration_ms"] == 45_000
       assert build["gradle_version"] == "8.5"
       assert build["status"] == "success"
+      assert build["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
     end
 
     test "returns error for unauthorized user", %{project: project} do
@@ -62,6 +65,32 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
         })
 
       assert %{"content" => [%{"type" => "text", "text" => _text}], "isError" => true} = result
+    end
+
+    test "filters builds by custom tag", %{conn: conn, user: user, project: project} do
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        root_project_name: "nightly-build",
+        custom_tags: ["nightly"]
+      )
+
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        account_id: user.account.id,
+        root_project_name: "release-build",
+        custom_tags: ["release"]
+      )
+
+      result =
+        ListGradleBuilds.call(conn, %{
+          "account_handle" => user.account.name,
+          "project_handle" => project.name,
+          "tag" => "nightly"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      assert [%{"root_project_name" => "nightly-build"}] = JSON.decode!(text)["builds"]
     end
   end
 
@@ -80,6 +109,8 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
           git_commit_sha: "abc123",
           root_project_name: "my-app",
           requested_tasks: ["assembleRelease"],
+          custom_tags: ["nightly"],
+          custom_values: %{"team" => "android"},
           tasks: [
             %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true, duration_ms: 5000},
             %{task_path: ":app:test", outcome: "executed", cacheable: true, duration_ms: 3000}
@@ -96,6 +127,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert result["status"] == "success"
       assert result["tasks_local_hit_count"] == 1
       assert result["tasks_executed_count"] == 1
+      assert result["custom_metadata"] == %{"tags" => ["nightly"], "values" => %{"team" => "android"}}
     end
 
     test "returns error when build not found", %{conn: conn} do

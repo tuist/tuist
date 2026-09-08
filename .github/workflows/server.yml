@@ -10,7 +10,9 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -20,8 +22,10 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml
+      - mise/tasks/marketing/**
       - .trivyignore
   merge_group: {}
 
@@ -33,7 +37,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,8 +103,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       # Pre-compile the project in its own step so the OOM (if any)
       # surfaces here rather than inside the extract heartbeat loop —
       # makes the failure mode obvious. The throttle stack:
@@ -257,7 +258,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
@@ -327,7 +327,6 @@ jobs:
           echo "Testing against ClickHouse ${version}"
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
           restore-mix-cache: "false"
@@ -361,8 +360,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Run Credo
         env:
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
@@ -374,15 +371,16 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: erlang elixir node aube npm:prettier
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Install mix dependencies
-        run: mix deps.get
+      - uses: ./.github/actions/mix-deps-get
+        with:
+          working-directory: server
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install aube dependencies
         run: aube install
       - name: Check Elixir format
@@ -392,6 +390,15 @@ jobs:
       - name: Check CSS custom property references
         working-directory: ${{ github.workspace }}
         run: mise run css:lint-tokens server
+  image-budget:
+    name: Image budget
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check marketing and app image budgets
+        working-directory: ${{ github.workspace }}
+        run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
     name: esbuild
     runs-on: tuist-linux
@@ -401,7 +408,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir node aube
       - name: Restore Aube Cache
         uses: actions/cache@v4
@@ -445,8 +451,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
-        with:
-          mise-version: ${{ env.MISE_VERSION }}
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -599,7 +603,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           restore-mix-cache: "false"
       - name: Start ClickHouse

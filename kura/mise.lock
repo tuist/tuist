@@ -33,36 +33,36 @@ checksum = "sha256:165b2f9aa966482e7feba016c73cdc8f971c6810fa0b91f02c3e979197a4a
 url = "https://github.com/facebook/buck2/releases/download/2026-04-15/buck2-x86_64-pc-windows-msvc.exe.zst"
 
 [[tools.bazel]]
-version = "9.1.0"
+version = "9.1.1"
 backend = "aqua:bazelbuild/bazel"
 
 [tools.bazel."platforms.linux-arm64"]
-checksum = "sha256:ba933bfc943e4c44f0743a5823aa2312a34b39628532add5dd037e08d8ec27a4"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-linux-arm64"
+checksum = "sha256:82d1163884e45a6a7ff764cc01197b1b1ed497000726b84dc4b47c1dfc8a2bb4"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-linux-arm64"
 
 [tools.bazel."platforms.linux-arm64-musl"]
-checksum = "sha256:ba933bfc943e4c44f0743a5823aa2312a34b39628532add5dd037e08d8ec27a4"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-linux-arm64"
+checksum = "sha256:82d1163884e45a6a7ff764cc01197b1b1ed497000726b84dc4b47c1dfc8a2bb4"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-linux-arm64"
 
 [tools.bazel."platforms.linux-x64"]
-checksum = "sha256:a667454f3f4f8878df8199136b82c199f6ada8477b337fae3b1ef854f01e4e2f"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-linux-x86_64"
+checksum = "sha256:857bed5d2756b4d998d3caebf2d941d13d434c4eda4b1d6d7dda205736c25a93"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-linux-x86_64"
 
 [tools.bazel."platforms.linux-x64-musl"]
-checksum = "sha256:a667454f3f4f8878df8199136b82c199f6ada8477b337fae3b1ef854f01e4e2f"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-linux-x86_64"
+checksum = "sha256:857bed5d2756b4d998d3caebf2d941d13d434c4eda4b1d6d7dda205736c25a93"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-linux-x86_64"
 
 [tools.bazel."platforms.macos-arm64"]
-checksum = "sha256:084a1784fa8f0dcae77fb4e88faa15048d8149a36c947ce198508bffb060e1bb"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-darwin-arm64"
+checksum = "sha256:2db883718453f0437a7bcb408e889dbf8539cdc4d61c8ebc3807a1a88d02ff08"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-darwin-arm64"
 
 [tools.bazel."platforms.macos-x64"]
-checksum = "sha256:666c6c79eda285cada5f5c39c891c6dd7ee0971b20bff365ea87a4b897271433"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-darwin-x86_64"
+checksum = "sha256:6fd490084bdccf044d7a6d8360a26f8770fa09f4e624328efea292f493204930"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-darwin-x86_64"
 
 [tools.bazel."platforms.windows-x64"]
-checksum = "sha256:3da113b315dff34d66f0e16273612b311236e566fef405b79b506fd59657f842"
-url = "https://github.com/bazelbuild/bazel/releases/download/9.1.0/bazel-9.1.0-windows-x86_64.zip"
+checksum = "sha256:9db1cb8a809378c89c3eb216c4186a7eae3aedc78b9117970384893fb5cd1ea8"
+url = "https://github.com/bazelbuild/bazel/releases/download/9.1.1/bazel-9.1.1-windows-x86_64.zip"
 
 [[tools.node]]
 version = "25.9.0"

@@ -9,7 +9,7 @@ public struct BazelSetupCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "setup",
             _superCommandName: "bazel",
-            abstract: "Generate a .bazelrc.tuist file that configures Bazel to use the Tuist remote cache."
+            abstract: "Generate a .bazelrc.tuist file that configures Bazel to use Tuist's remote cache and build insights."
         )
     }
 
@@ -20,9 +20,25 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: "Configure Bazel to send build insights through the Build Event Service."
+    )
+    var buildInsights = true
+
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: "Add the generated .bazelrc.tuist import to .bazelrc."
+    )
+    var addBazelrcImport = true
+
     public func run() async throws {
         try await BazelSetupCommandService().run(
-            directory: path
+            directory: path,
+            buildInsights: buildInsights,
+            addBazelrcImport: addBazelrcImport
         )
     }
 }

@@ -126,6 +126,44 @@ defmodule Tuist.Kura.PlacerRegions do
   end
 
   @doc """
+  Writes `region` as the account's primary unless it already has one, and
+  says which primary the account has afterwards: `{:recorded, row}` when this
+  call wrote it, `{:existing, row}` when another already had.
+
+  Insert-only, on purpose. `put_primary/3` demotes whatever holds the role,
+  which is right for a decision that supersedes another and wrong for a first
+  placement racing itself: two demand flushes on two nodes can each read an
+  account with no primary and, from their separately cached room readings,
+  choose different regions, and the second `put_primary/3` would demote the
+  first region to a serving secondary, leaving the account provisioned in
+  both. Here the one-primary-per-account index decides the race, and the
+  loser follows the winner. `{:error, changeset}` is the insert failing for
+  any other reason, such as the account already holding `region` as a
+  secondary; the caller places without recording.
+  """
+  def record_first_primary(%Account{id: account_id}, region, evidence \\ %{}) do
+    %PlacerRegion{}
+    |> PlacerRegion.changeset(%{
+      account_id: account_id,
+      region: region,
+      role: :primary,
+      status: :desired,
+      evidence: evidence
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, row} ->
+        {:recorded, row}
+
+      {:error, changeset} ->
+        case Repo.get_by(PlacerRegion, account_id: account_id, role: :primary) do
+          %PlacerRegion{} = row -> {:existing, row}
+          nil -> {:error, changeset}
+        end
+    end
+  end
+
+  @doc """
   Adds `region` as a secondary the account serves alongside its primary.
   """
   def put_secondary(%Account{id: account_id}, region, evidence \\ %{}) do

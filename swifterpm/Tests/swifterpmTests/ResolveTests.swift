@@ -303,6 +303,62 @@ struct ResolveTests {
     }
 
     @Test
+    func updateReresolvesFreshEvenWhenTheWorkspaceStatePinsAnOldVersion() async throws {
+        // swifterpm implements update as "delete Package.resolved, run
+        // `swift package resolve`", but SwiftPM's `resolve` falls back to the
+        // pins recorded in `.build/workspace-state.json` when Package.resolved
+        // is missing. Leaving that file in place silently pinned the resolve
+        // at whatever the previous install had checked out — so `tuist install
+        // -u` never actually updated the graph. Update has to clear both.
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+
+            let initial = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            try #require(initial.pins.first?.version == "1.0.0", "expected initial pin at 1.0.0")
+
+            // Publish a newer version at its own commit and widen the manifest
+            // so both 1.0.0 and 1.5.0 satisfy it. Update has to pick 1.5.0.
+            try await addCommitAndTag(at: dependency, tag: "1.5.0")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                fromVersion: "1.0.0"
+            )
+
+            let updated = try await SwifterPM().update(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(updated.pins.first?.version == "1.5.0")
+        }
+    }
+
+    @Test
     func nativeColdPathIsUsedWhenTheSharedCacheOnlyContainsOtherPackages() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
@@ -338,6 +394,21 @@ struct ResolveTests {
                 )
             )
         }
+    }
+
+    private func addCommitAndTag(at dependency: URL, tag: String) async throws {
+        // Move the working tree forward by a commit so the new tag points at a
+        // distinct commit — SwiftPM collapses same-commit tags into a single
+        // version, and never advances past the earliest one.
+        try await fileSystem.atomicWrite(
+            "public struct Marker_\(tag.replacingOccurrences(of: ".", with: "_")) {}\n",
+            to: dependency.appendingPathComponent("Sources/Dependency/Marker_\(tag).swift")
+        )
+        try await SystemProcess.run("git", ["add", "Sources"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["commit", "-m", "bump to \(tag)"], workingDirectory: dependency
+        )
+        try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
     }
 
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
@@ -385,12 +456,19 @@ struct ResolveTests {
     private func writeAppPackageManifest(
         at packageDir: URL,
         dependencyURL: String,
-        exactVersion: String = "1.0.0"
+        exactVersion: String = "1.0.0",
+        fromVersion: String? = nil
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
             options: [.createTargetParentDirectories]
         )
+        let dependencyLine =
+            if let fromVersion {
+                #".package(url: "\#(dependencyURL)", from: "\#(fromVersion)"),"#
+            } else {
+                #".package(url: "\#(dependencyURL)", exact: "\#(exactVersion)"),"#
+            }
         try await fileSystem.atomicWrite(
             """
             // swift-tools-version: 6.0
@@ -402,7 +480,7 @@ struct ResolveTests {
                     .library(name: "App", targets: ["App"]),
                 ],
                 dependencies: [
-                    .package(url: "\(dependencyURL)", exact: "\(exactVersion)"),
+                    \(dependencyLine)
                 ],
                 targets: [
                     .target(name: "App", dependencies: [

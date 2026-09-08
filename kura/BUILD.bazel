@@ -3,6 +3,8 @@ load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load("@rules_rs//rs:rust_library.bzl", "rust_library")
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
+_KURA_VERSION = "0.8.0"
+
 # CI-only gate: deny warnings on the first-party crates (the bazel equivalent of cargo's
 # RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run compile`
 # stay warning-tolerant, like `cargo build` locally; CI flips it on with
@@ -28,6 +30,7 @@ rust_library(
     crate_name = "kura",
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,
+    version = _KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True),
 )
@@ -38,6 +41,7 @@ rust_binary(
     aliases = aliases(),
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,
+    version = _KURA_VERSION,
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True) + [":kura_lib"],
 )
@@ -61,5 +65,6 @@ rust_test(
     edition = "2024",
     rustc_flags = _DENY_WARNINGS,
     size = "small",
+    version = _KURA_VERSION,
     deps = all_crate_deps(normal_dev = True),
 )

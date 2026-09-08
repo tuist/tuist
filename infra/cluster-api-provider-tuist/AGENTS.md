@@ -24,6 +24,13 @@ Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
+A fifth kind for Vultr is designed but not built, in
+`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
+given a partitioning plan, so its box is converted after install by
+`baremetal:prep-vultr` rather than installed into the right layout, and that
+pushes a conversion stage into the release-then-reinstall lifecycle the other
+Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
+
 ## CRDs
 
 | Kind | Purpose |
@@ -31,8 +38,8 @@ detail the Apple Silicon kind.
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
-| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Left installed on release. |
-| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Left installed on release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
+| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
@@ -335,11 +342,31 @@ property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
 before any SSH, and the `capt_node_kata_runtime_ready` gauge (0 = requested but
-missing) is what the **Runner Box Missing Kata Runtime** rule alerts on
+missing or unverified) is what the **Runner Box Missing Kata Runtime** rule alerts on
 (Grafana Cloud, Alerts folder, `Runners` group, `for: 20m`, routed to Slack like
 its siblings). `Machine.Status.Ready` is deliberately left alone: the node is a
 healthy Kubernetes node, and failing it would make CAPI churn a box that needs a
 two-minute in-place fix.
+
+Kata's virtio-fs configuration backs guest RAM with files in `/dev/shm`. The
+Linux default tmpfs ceiling is half of host RAM, below the runner node's
+allocatable memory: concurrent guests can exhaust it while the host still has
+free RAM, causing QEMU `kvm run failed Bad address` failures. The shared-memory
+setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
+`MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
+result. This changes a ceiling; it does not preallocate memory.
+
+Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
+and the Ready-path repair installs and runs the same service on existing OVH
+Kata hosts without restarting containerd, kubelet, or guests. Only a successful
+repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
+and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
+invalidates that proof; it is not continuous detection of manual mount changes
+within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
+repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
+runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
+in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+(checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
 rather than checked in: managed clusters run no Prometheus Operator, so there is
@@ -663,6 +690,25 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-dedibox` / `baremetal:mark-ovh` (those
    are also the tasks to re-name a box).
+
+   **Vultr is a conversion, not an install.** Its API exposes no partitioning
+   control and its installer offers only RAID 1 across both disks (one
+   filesystem spanning the pair) or no RAID, so neither option yields the
+   mirrored root plus separate XFS `/data` the OVH and Dedibox installs lay
+   down. Order the box as RAID 1 with the fleet key attached, then convert it in
+   place, which splits the mirror and hands the freed disk to `/data`:
+   ```bash
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-vultr 64.176.17.88
+   ```
+   The root keeps running on the remaining leg, so there is no reinstall, no
+   reboot and no bootloader change; the cost is that the root is no longer
+   mirrored. `/data` is what the cluster gates on rather than the mirror:
+   `tuist.kuraVolumeQuotaProgram` leaves every cache volume unbounded without an
+   XFS `/data` carrying project quotas, and the self-join refuses a box that
+   cannot enforce. It lands on the disk that does not hold the ESP, so losing
+   the data disk leaves a box that still boots. The task waits on any in-flight
+   array rebuild, is a no-op on an already-converted box, and prints the four
+   gates at the end.
 3. **Declare the fleet at `replicas: 1`** in `values-managed-<env>.yaml` and
    deploy. The controller claims the marked box and self-joins it in ~2-5 min.
    `replicas` here is the **box** count (one per region today); a region's
@@ -695,6 +741,21 @@ the box back into the pool**. It stays a monthly contract (release is not a cont
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
+**A reinstall already in flight is a completed release, not a failure.** All three
+kinds reach the provider before dropping the finalizer, so a controller restart
+between a successful install call and the finalizer patch — or two Machines on one
+box — has the release ask for a second wipe of a box already being wiped. Every
+provider rejects that for the whole ~30 minute install, and retrying on it holds
+the Machine in `Deleting`: the MachineDeployment stays a replica above spec and a
+`helm upgrade --atomic` rollback waiting on that count runs out its step ceiling
+(2026-09-03, 13 minutes on `ns3048220`). Each kind therefore reads the box's own
+install state and releases when a wipe is already running — OVH gates on
+`Client::BadRequest::TaskAlreadyExists` plus an install-function task in the task
+list, Dedibox and Elastic Metal on the install status the API reports, since
+neither names the collision. A failure that is not that retries on a bounded
+interval rather than controller-runtime's default backoff, which doubles to a
+1000s cap and idles the Machine long after the provider frees the box.
+
 ### Disk layout, and why it is an install-time decision
 
 Every install these kinds start lays down a redundant root plus a **separate XFS
@@ -702,15 +763,39 @@ Every install these kinds start lays down a redundant root plus a **separate XFS
 join a box where it cannot (`dataProjectQuotaScript` in
 `controllers/linux/linux_cloudinit.go`).
 
-The image store gets a reserved project of its own (`containerdQuotaScript`,
-project 100). It is the only consumer of `/data` that is not a tenant, and a
-per-volume quota is a ceiling rather than a reservation, so a tenant inside its
-own ceiling can still be denied space something else took first. Nothing else
-bounds it: the kubelet's image GC triggers on the FILESYSTEM being nearly full,
-so it only reclaims once the box is already squeezing tenants. The ceiling is
-deliberately generous, because containerd hitting it means failed pulls that
-image GC cannot resolve, and unlike the `/data` mount setup a failure to apply
-it does not fail the join.
+On a **cache box** the image store gets a reserved project of its own
+(`containerdQuotaScript`, project 100). It is the only consumer of `/data` that
+is not a tenant, and a per-volume quota is a ceiling rather than a reservation,
+so a tenant inside its own ceiling can still be denied space something else took
+first. Nothing else bounds it: the kubelet's image GC triggers on the FILESYSTEM
+being nearly full, so it only reclaims once the box is already squeezing
+tenants. The ceiling is deliberately generous, because containerd hitting it
+means failed pulls that image GC cannot resolve, and unlike the `/data` mount
+setup a failure to apply it does not fail the join.
+
+**Only cache boxes get it** (`hostsKuraCacheVolumes`, keyed off the
+`tuist.dev/kura-cache` taint). A runner box has no tenant volumes on `/data`, so
+the quota protects nothing there while still being reachable: under `kata-qemu`
+the runner container's writable layer is a host overlayfs snapshot inside the
+image store, so ordinary CI writes land against project 100. XFS reports a blown
+project quota as ENOSPC, and image GC keys on the filesystem's free space, which
+on an 828 GiB `/data` never trips. A runner box that hit the ceiling therefore
+failed every job it accepted, permanently, on a disk that was 94% free. Absence
+of the taint means no quota: quota-ing a box with no tenants buys nothing and
+costs an unclearable ceiling, while skipping one that has tenants only returns
+it to the defence-in-depth it had before the quota existed.
+
+Gating the self-join alone reaches no live box (see "strategy: OnDelete"
+above), so `reconcileLinuxContainerdQuotaDrift` (`containerd_quota_drift.go`)
+lifts the limit in place from any Ready non-cache box and stamps
+`tuist.dev/containerd-quota-lifted` on the Node. The quota is XFS metadata with
+no Kubernetes-visible observable, so like the kubelet-config hash the stamp IS
+the observable, written only on the lift script's exit status. The lift is one
+`xfs_quota limit -p bhard=0` plus dropping the `/etc/projects` line: no restart
+of anything, effective in the kernel immediately, so a box mid-ENOSPC recovers
+without a drain. `ContainerdQuotaLifted=False/ContainerdQuotaPresent` on the
+Machine is the loud state before the lift, `ContainerdQuotaLiftFailed` after a
+failed one.
 
 The chain it exists to close: a Kura cache PV is a local-path *directory* on
 `/data`, a directory has no size, so the pod's `ephemeral-storage` request is

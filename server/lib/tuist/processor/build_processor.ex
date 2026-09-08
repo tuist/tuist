@@ -60,7 +60,7 @@ defmodule Tuist.Processor.BuildProcessor do
   defp parse_build(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, xcode_cache_upload_enabled) do
     :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
       result =
-        Tuist.Processor.XCActivityLogNIF.parse(
+        Tuist.Processor.XCActivityLogParser.parse(
           xcactivitylog_path,
           cas_analytics_db_path,
           legacy_cas_metadata_path,

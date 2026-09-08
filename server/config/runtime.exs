@@ -297,8 +297,14 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    # The client gives up on a query after this long. ClickHouse's own limit
+    # below is shorter so a slow read fails with TIMEOUT_EXCEEDED (159), which
+    # the server records in query_log and the app can tell from a dropped
+    # connection.
+    timeout: to_timeout(second: 20),
     settings: [
       readonly: 1,
+      max_execution_time: 15,
       max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
       # Per-query memory ceiling so one heavy read fails on its own with a
       # `(for query)` error (retryable) rather than driving the process to its
@@ -360,6 +366,50 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       show_econnreset: true,
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
+
+  if bare_metal_url = Tuist.Environment.clickhouse_bare_metal_url(secrets) do
+    # The in-cluster ClickHouse (spec #73), configured here next to the URL so
+    # the credential never reaches application code.
+    #
+    # The read side first, carrying the read path's own settings rather than
+    # the ingest path's: whether this server accepts them is part of what the
+    # migration has to establish before reads move onto it.
+    config :tuist, Tuist.ShadowClickHouseRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        readonly: 1,
+        max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
+        max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+        max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
+        join_algorithm: "direct,parallel_hash,hash"
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+
+    # And the write side, as a mirror destination while Cloud is still the
+    # system of record. A small pool on purpose: it carries the same write
+    # volume as `Tuist.IngestRepo` but nothing waits on it, and it must not be
+    # able to starve the pool that serves customer requests.
+    config :tuist, Tuist.ShadowIngestRepo,
+      url: bare_metal_url,
+      pool_size: Tuist.Environment.clickhouse_shadow_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
 
   config :tuist, Tuist.Repo, database_options
 
@@ -627,12 +677,15 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #
 #   * Web/server (default): every queue. Self-hosted installs without
 #     dedicated processors stay on this shape.
-#   * Build processor (TUIST_MODE=processor): only :process_build. CPU-
-#     heavy xcactivitylog parse, runs in-cluster on Linux.
+#   * Build processor (TUIST_MODE=processor): :process_build for CPU-heavy
+#     xcactivitylog parsing and :process_bazel_tests for memory- and
+#     input/output-bound JUnit report processing. Both run in-cluster on Linux
+#     with independent concurrency limits.
 #   * Xcresult processor (TUIST_MODE=xcresult_processor): only
 #     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
 #     Tart VM because xcresulttool is Xcode-only.
 #   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_BAZEL_TESTS=1 /
 #     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
 #     jobs land exclusively on the dedicated fleet — without those
 #     flags the server would race the processors on SKIP LOCKED, and
@@ -646,6 +699,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
 # `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
@@ -658,7 +712,7 @@ swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 oban_queues =
   cond do
     Tuist.Environment.processor_mode?() ->
-      [process_build_queue]
+      [process_build_queue, process_bazel_tests_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
       [process_xcresult_queue]
@@ -669,6 +723,12 @@ oban_queues =
     true ->
       base = base_queues
       base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_bazel_tests?(),
+          do: base,
+          else: base ++ [process_bazel_tests_queue]
+
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
@@ -935,20 +995,4 @@ if otel_endpoint do
 else
   config :opentelemetry,
     traces_exporter: :none
-end
-
-if Tuist.Environment.analytics_enabled?(secrets) do
-  config :posthog,
-    api_url: Tuist.Environment.posthog_url(secrets),
-    api_key: Tuist.Environment.posthog_api_key(secrets)
-
-  config :posthog,
-    json_library: Jason,
-    enabled_capture: true,
-    http_client: Tuist.PostHog.HTTPClient,
-    http_client_opts: [
-      timeout: 5_000,
-      retries: 3,
-      retry_delay: 1_000
-    ]
 end

@@ -207,7 +207,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"},
+              %Item{label: "Bazel cache and invocations", slug: "/en/guides/features/cache/bazel-cache"}
             ]
           },
           %Item{
@@ -274,7 +275,8 @@ defmodule Tuist.Docs.Sidebar do
             label: "Runners",
             slug: "/en/guides/features/runners",
             items: [
-              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
+              %Item{label: "GitHub Actions", slug: "/en/guides/features/runners/github-actions"},
+              %Item{label: "Buildkite", slug: "/en/guides/features/runners/buildkite"},
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
               %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
             ]

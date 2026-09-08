@@ -10,8 +10,16 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
+  Its query options suppress application SQL logging without overriding managed
+  ClickHouse logging policy; server password masking requires valid dictionary DDL.
+
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
+- `Processor.XCActivityLogParser` runs the MuonTrap executable through
+  `System.cmd` in a timed task, collecting the parser's inherited stderr without
+  MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
+  while retaining process cleanup when the task times out or its caller dies.
 
 ## Related Context (Downlinks)
 
@@ -22,6 +30,7 @@ This directory contains the core business logic and domain modules for the serve
 - Authentication: `server/lib/tuist/authentication/AGENTS.md`
 - Authorization: `server/lib/tuist/authorization/AGENTS.md`
 - Aws: `server/lib/tuist/aws/AGENTS.md`
+- Bazel: `server/lib/tuist/bazel/AGENTS.md`
 - Billing: `server/lib/tuist/billing/AGENTS.md`
 - Bundles: `server/lib/tuist/bundles/AGENTS.md`
 - Cache: `server/lib/tuist/cache/AGENTS.md`
@@ -38,10 +47,10 @@ This directory contains the core business logic and domain modules for the serve
 - Namespace: `server/lib/tuist/namespace/AGENTS.md`
 - Oauth: `server/lib/tuist/oauth/AGENTS.md`
 - Ops: `server/lib/tuist/ops/AGENTS.md`
-- Posthog: `server/lib/tuist/posthog/AGENTS.md`
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
 - Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`
+- Remote Execution API Cache: `server/lib/tuist/reapi_cache/AGENTS.md`
 - Repo: `server/lib/tuist/repo/AGENTS.md`
 - Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
 - Runs: `server/lib/tuist/runs/AGENTS.md`
@@ -58,3 +67,5 @@ This directory contains the core business logic and domain modules for the serve
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
+
+- Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).

@@ -99,10 +99,48 @@ while true; do
   case "${http}" in
     200)
       jit=$(jq -r '.encoded_jit_config // empty' /tmp/dispatch.json)
-      if [ -z "${jit}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
+      # Buildkite's credential set. The server sends one or the other,
+      # never both, so which is present selects the agent run-job.sh
+      # launches. The report token is what the job's `pre-exit` hook
+      # authenticates with: it is scoped to this one job, so unlike the
+      # SA token it is safe to stage into the credential-free runner
+      # container.
+      bk_token=$(jq -r '.buildkite_acquisition_token // empty' /tmp/dispatch.json)
+      bk_job_uuid=$(jq -r '.buildkite_job_uuid // empty' /tmp/dispatch.json)
+      bk_report_token=$(jq -r '.buildkite_report_token // empty' /tmp/dispatch.json)
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
+      fi
+      if [ -n "${JIT_OUTPUT_PATH}" ] && [ -n "${bk_token}" ]; then
+        # Buildkite staging. Same atomic-write discipline as the JIT
+        # below, and the same fail-closed rule: the job is already
+        # reserved server-side, so a silent staging failure would strand
+        # it until the reservation lapses.
+        #
+        # The acquisition token and the report token go into one env file
+        # the runner container sources, rather than separate files, so the
+        # hook has a single thing to read on both fleets.
+        bk_env_path="${JIT_OUTPUT_PATH}.buildkite-env"
+        bk_tmp="${bk_env_path}.tmp"
+        cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
+        cache_grant=$(jq -r '.cache_signing_grant // empty' /tmp/dispatch.json)
+        {
+          printf 'BUILDKITE_AGENT_TOKEN=%s\n' "${bk_token}"
+          printf 'BUILDKITE_AGENT_ACQUIRE_JOB=%s\n' "${bk_job_uuid}"
+          printf 'TUIST_RUNNER_REPORT_TOKEN=%s\n' "${bk_report_token}"
+          printf 'TUIST_RUNNER_REPORT_URL=%s\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+          [ -n "${cache_endpoint}" ] && printf 'TUIST_CACHE_ENDPOINT=%s\n' "${cache_endpoint}"
+          [ -n "${cache_grant}" ] && printf 'TUIST_CACHE_SIGNING_GRANT=%s\n' "${cache_grant}"
+        } >"${bk_tmp}" 2>/dev/null
+        if ! { chmod 0644 "${bk_tmp}" && mv -f "${bk_tmp}" "${bk_env_path}"; }; then
+          rm -f "${bk_tmp}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage buildkite env to ${bk_env_path}; aborting"
+          exit 1
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: claimed buildkite job ${bk_job_uuid}, staged for runner container"
+        exit 0
       fi
       if [ -n "${JIT_OUTPUT_PATH}" ]; then
         # Stage the JIT for the sibling runner container and exit.

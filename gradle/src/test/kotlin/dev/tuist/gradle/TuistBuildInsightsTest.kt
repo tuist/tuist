@@ -61,7 +61,9 @@ class TuistBuildInsightsTest {
             durationMs = 1500,
             cacheKey = "def456",
             cacheArtifactSize = 2048,
-            startedAt = "2026-02-06T10:00:00Z"
+            startedAt = "2026-02-06T10:00:00Z",
+            remoteCacheMiss = true,
+            remoteCacheStored = true
         )
 
         val json = gson.toJson(entry)
@@ -70,31 +72,12 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"cache_key\""))
         assertTrue(json.contains("\"cache_artifact_size\""))
         assertTrue(json.contains("\"started_at\""))
+        assertTrue(json.contains("\"remote_cache_miss\""))
+        assertTrue(json.contains("\"remote_cache_stored\""))
         assertTrue(!json.contains("\"taskPath\""))
         assertTrue(!json.contains("\"startedAt\""))
         assertTrue(!json.contains("\"cacheKey\""))
         assertTrue(!json.contains("\"cacheArtifactSize\""))
-    }
-
-    @Test
-    fun `TaskCacheMetadata defaults are correct`() {
-        val metadata = TaskCacheMetadata()
-        assertNull(metadata.cacheKey)
-        assertNull(metadata.artifactSize)
-        assertEquals(CacheHitType.MISS, metadata.cacheHitType)
-    }
-
-    @Test
-    fun `TaskCacheMetadata copy preserves and overrides fields`() {
-        val metadata = TaskCacheMetadata(cacheKey = "abc123", artifactSize = 4096, cacheHitType = CacheHitType.REMOTE)
-        assertEquals("abc123", metadata.cacheKey)
-        assertEquals(4096L, metadata.artifactSize)
-        assertEquals(CacheHitType.REMOTE, metadata.cacheHitType)
-
-        val updated = metadata.copy(cacheHitType = CacheHitType.LOCAL, artifactSize = 8192)
-        assertEquals("abc123", updated.cacheKey)
-        assertEquals(8192L, updated.artifactSize)
-        assertEquals(CacheHitType.LOCAL, updated.cacheHitType)
     }
 
     @Test
@@ -112,7 +95,12 @@ class TuistBuildInsightsTest {
             gitRemoteUrlOrigin = "https://github.com/tuist/tuist.git",
             rootProjectName = null,
             requestedTasks = listOf("assembleRelease", "connectedAndroidTest"),
-            tasks = emptyList()
+            tasks = emptyList(),
+            customMetadata = BuildCustomMetadata(
+                tags = listOf("nightly"),
+                values = mapOf("team" to "android")
+            ),
+            configurationCache = ConfigurationCacheReport(status = "reused")
         )
 
         val json = gson.toJson(report)
@@ -125,8 +113,14 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"git_ref\""))
         assertTrue(json.contains("\"git_remote_url_origin\""))
         assertTrue(json.contains("\"requested_tasks\""))
+        assertTrue(json.contains("\"configuration_cache\""))
+        assertTrue(json.contains("\"configuration_operations\""))
+        assertTrue(json.contains("\"artifact_transforms\""))
         assertTrue(json.contains("\"assembleRelease\""))
         assertTrue(json.contains("\"connectedAndroidTest\""))
+        assertTrue(json.contains("\"custom_metadata\""))
+        assertTrue(json.contains("\"nightly\""))
+        assertTrue(json.contains("\"team\""))
     }
 
     @Test
@@ -181,6 +175,61 @@ class TuistBuildInsightsTest {
         assertEquals(500, second.durationMs)
         assertNull(second.cacheKey)
         assertNull(second.cacheArtifactSize)
+    }
+
+    @Test
+    fun `buildReport includes cache and setup diagnostics`() {
+        val report = buildReport(
+            id = "test-id",
+            taskOutcomes = listOf(
+                TaskOutcomeData(
+                    taskPath = ":app:compileKotlin",
+                    outcome = TaskOutcome.EXECUTED,
+                    cacheable = true,
+                    durationMs = 3000,
+                    cacheKey = "abc123",
+                    cacheArtifactSize = 1024,
+                    startedAt = "2026-02-06T10:00:00Z",
+                    remoteCacheMiss = true,
+                    remoteCacheStored = true
+                )
+            ),
+            buildFailed = false,
+            totalDurationMs = 5000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider(),
+            configurationCache = ConfigurationCacheReport(
+                status = "invalid",
+                invalidationReasons = listOf("environment variable changed")
+            ),
+            configurationOperations = listOf(
+                ConfigurationOperationReportEntry(
+                    phase = "project",
+                    buildPath = ":",
+                    projectPath = ":app",
+                    durationMs = 1200,
+                    startedAt = "2026-02-06T10:00:00Z"
+                )
+            ),
+            artifactTransforms = listOf(
+                ArtifactTransformReportEntry(
+                    transformerName = "JetifyTransform",
+                    transformActionClass = "com.android.build.gradle.internal.dependency.JetifyTransform",
+                    subjectName = "example.jar",
+                    artifactName = "example.jar",
+                    consumerProjectPath = ":app",
+                    durationMs = 300,
+                    startedAt = "2026-02-06T10:00:01Z"
+                )
+            )
+        )
+
+        assertTrue(report.tasks.single().remoteCacheMiss)
+        assertTrue(report.tasks.single().remoteCacheStored!!)
+        assertEquals("invalid", report.configurationCache?.status)
+        assertEquals(listOf("environment variable changed"), report.configurationCache?.invalidationReasons)
+        assertEquals(":app", report.configurationOperations.single().projectPath)
+        assertEquals("JetifyTransform", report.artifactTransforms.single().transformerName)
     }
 
     @Test
@@ -323,5 +372,24 @@ class TuistBuildInsightsTest {
         )
 
         assertEquals(42000, report.durationMs)
+    }
+
+    @Test
+    fun `buildReport includes custom metadata`() {
+        val report = buildReport(
+            id = "test-id",
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            customMetadata = BuildCustomMetadata(
+                tags = listOf("nightly"),
+                values = mapOf("team" to "android")
+            ),
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals(listOf("nightly"), report.customMetadata.tags)
+        assertEquals(mapOf("team" to "android"), report.customMetadata.values)
     }
 }

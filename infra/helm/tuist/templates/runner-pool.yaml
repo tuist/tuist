@@ -371,7 +371,7 @@ spec:
   runtimeClass: {{ $runtimeClass | quote }}
   {{- end }}
   provisioning:
-    maxConcurrentPerFleetSelector: {{ dig "maxConcurrentPerFleetSelector" 4 $provisioning }}
+    maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}
     startTimeoutSeconds: {{ dig "startTimeoutSeconds" 300 $provisioning }}
   {{- if $autoscaling }}
   autoscaling:
@@ -458,7 +458,7 @@ spec:
   runtimeClass: {{ $shapeRuntimeClass | quote }}
   {{- end }}
   provisioning:
-    maxConcurrentPerFleetSelector: {{ dig "maxConcurrentPerFleetSelector" 4 $provisioning }}
+    maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}
     startTimeoutSeconds: {{ dig "startTimeoutSeconds" 300 $provisioning }}
   autoscaling:
     enabled: {{ dig "enabled" true $autoscaling }}

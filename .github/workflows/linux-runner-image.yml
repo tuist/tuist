@@ -54,6 +54,18 @@ jobs:
           bash -n infra/linux-runner-image/dispatch-poll.sh
           bash -n infra/linux-runner-image/run-job.sh
           bash -n infra/linux-runner-image/vitals.sh
+          bash -n infra/linux-runner-image/metrics-sampler.sh
+
+      # Runs on the image's own base rather than the CI runner, because
+      # the assertions are about how Ubuntu's awk (mawk) formats byte
+      # counters. Under gawk or BWK awk they pass no matter what the
+      # sampler does. Keep the tag in step with the Dockerfile's final
+      # `FROM`.
+      - name: Test metrics sampler
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
+            -w /w ubuntu:22.04 bash ./metrics-sampler_test.sh
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

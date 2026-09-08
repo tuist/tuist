@@ -3,6 +3,8 @@
 Describe 'actively supported protocol interoperability'
   Include spec/e2e/support.sh
 
+  greater_than() { [ "${greater_than:?}" -gt "$1" ]; }
+
   setup_suite() {
     COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
@@ -71,6 +73,42 @@ Describe 'actively supported protocol interoperability'
 
     The variable second_build should include 'remote cache hit'
     The variable second_artifact should include "${marker}"
+  End
+
+  It 'advertises and exercises content-defined chunking with Bazel'
+    marker="chunking-$(new_marker)"
+    instance_name="bazel/${marker}"
+    work1="$(mktemp -d "${SUITE_TMP_DIR}/bazel-chunking-1.XXXXXX")"
+    splice_route='route="/build.bazel.remote.execution.v2.ContentAddressableStorage/SpliceBlob"'
+    split_route='route="/build.bazel.remote.execution.v2.ContentAddressableStorage/SplitBlob"'
+    splice_before="$(metric_sum "$KURA_US_URL" kura_public_request_latency_seconds_count "$splice_route")"
+    split_before="$(metric_sum "$KURA_EU_URL" kura_public_request_latency_seconds_count "$split_route")"
+
+    create_chunked_bazel_workspace "$work1" "$marker"
+    capture_into first_build bazel_build_chunked "$work1" "$KURA_US_CACHE_PORT" "$instance_name" || return 1
+    first_size="$(wc -c <"$work1/bazel-bin/large-output.bin" | tr -d ' ')"
+    splice_after="$(metric_sum "$KURA_US_URL" kura_public_request_latency_seconds_count "$splice_route")"
+
+    second_build=""
+    second_size=""
+    for attempt in $(seq 1 10); do
+      work2="$(mktemp -d "${SUITE_TMP_DIR}/bazel-chunking-2.${attempt}.XXXXXX")"
+      create_chunked_bazel_workspace "$work2" "$marker"
+      capture_into second_build bazel_build_chunked "$work2" "$KURA_EU_CACHE_PORT" "$instance_name" false || return 1
+      second_size="$(wc -c <"$work2/bazel-bin/large-output.bin" | tr -d ' ')"
+      if [[ "${second_build}" == *'remote cache hit'* ]]; then
+        break
+      fi
+      sleep 1
+    done
+    split_after="$(metric_sum "$KURA_EU_URL" kura_public_request_latency_seconds_count "$split_route")"
+
+    The variable first_build should not include 'remote cache hit'
+    The value "$first_size" should equal $((8 * 1024 * 1024 + ${#marker}))
+    The variable second_build should include 'remote cache hit'
+    The value "$second_size" should equal "$first_size"
+    The value "$splice_after" should satisfy greater_than "$splice_before"
+    The value "$split_after" should satisfy greater_than "$split_before"
   End
 
   It 'builds Buck2 targets against the REAPI surface in multiple regions'

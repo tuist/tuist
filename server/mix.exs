@@ -100,6 +100,7 @@ defmodule Tuist.MixProject do
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
+      {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
@@ -159,7 +160,13 @@ defmodule Tuist.MixProject do
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:x509, "~> 0.9"},
-      {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
+      # Upstream has no Hex release carrying the commits we depend on, so this
+      # tracks git. Pinned to an explicit ref rather than `branch: "master"`:
+      # master is 180+ commits ahead and includes a resource-indicator
+      # (RFC 8707) rewrite of the token schema and refresh grant, so moving
+      # forward has to be a deliberate, reviewed step with the matching
+      # migration, not a side effect of `mix deps.update`.
+      {:boruta, git: "https://github.com/malach-it/boruta_auth", ref: "f72db0b1a85b3ed1bc4e2b1f5ea77421fa92c7d4"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
@@ -171,7 +178,6 @@ defmodule Tuist.MixProject do
       {:lumis, "~> 0.1.2"},
       {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},

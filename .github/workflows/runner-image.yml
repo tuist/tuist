@@ -47,10 +47,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: infra/runner-image/go.mod
-
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
@@ -66,12 +62,11 @@ jobs:
 
       - uses: ./.github/actions/reclaim-tart-disk
 
-      - name: Build runner shell agent
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
+      # Every binary runner.pkr.hcl provisions, built the same way the
+      # production cascade builds them — see the action for why it is shared.
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         id: build

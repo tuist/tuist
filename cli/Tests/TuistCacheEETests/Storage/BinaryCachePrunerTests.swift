@@ -111,8 +111,9 @@ struct BinaryCachePrunerTests {
 
         let headroom = try #require(try await subject(binariesDirectory: binariesDirectory).headroom())
 
-        // The two entries hold ~2 MB, plus the inode size of the directories carrying them.
-        #expect(headroom > 490_000 && headroom <= 500_000)
+        // The module cache's share of the 2.5 MB staged budget is 2.25 MB, and the two entries hold
+        // ~2 MB of it plus the inode size of the directories carrying them.
+        #expect(headroom > 240_000 && headroom <= 250_000)
     }
 
     @Test(.inTemporaryDirectory)

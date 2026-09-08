@@ -49,6 +49,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -255,11 +256,12 @@ func main() {
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
 			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) budget (GiB) within each per-account cache image, passed to "+
-			"tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
-			"share of the master cap; the binary cache gets the rest minus a reserve. 0 (default) leaves the "+
-			"compilation cache VM-local. Only meaningful with --runner-cache-volume-gib > 0. Flows from "+
-			"macosFleet.runnerCacheVolume.casGib.")
+		"Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) within each per-account cache image, passed "+
+			"to tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
+			"share of the master cap; the binary cache gets the rest minus a reserve. Size it for what the store "+
+			"should occupy: the compiler is given HALF of it as COMPILATION_CACHE_LIMIT_SIZE, which bounds one "+
+			"generation of a store that keeps two. 0 (default) leaves the compilation cache VM-local. Only "+
+			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -654,6 +656,34 @@ func main() {
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
+	}
+
+	// Vultr bare metal: the South America cache region, on the one provider that
+	// sells there. Gated on VULTR_API_KEY so it stays dormant until an env opts
+	// in. Note the key is useless without its source IP on Vultr's ACL, which the
+	// other providers have no equivalent of: a controller 401 here is usually the
+	// cluster's egress address missing from the allowlist rather than a bad key.
+	if os.Getenv("VULTR_API_KEY") != "" {
+		vultrClient, err := vultr.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "vultr client")
+			os.Exit(1)
+		}
+		if err := (&linux.VultrMachineReconciler{
+			Client:             mgr.GetClient(),
+			APIReader:          mgr.GetAPIReader(),
+			Scheme:             mgr.GetScheme(),
+			VultrClient:        vultrClient,
+			Recorder:           mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager: credsManager,
+			Kubeconfig:         kubeconfigBuilder,
+			KubernetesMinor:    "v1.34",
+			DefaultRegion:      "scl",
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup VultrMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("Vultr machine reconciler enabled")
 	}
 
 	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same

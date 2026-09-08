@@ -1,9 +1,11 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -134,6 +136,181 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       assert :noop = WorkflowJobs.transition_running(910_021, "runner-x", DateTime.utc_now())
       assert get_row!(910_021).status == "queued"
+    end
+  end
+
+  describe "transition_executing/3" do
+    test "CAS queued → running stamps the executing Pod's identity" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_025))
+
+      assert :ok = WorkflowJobs.transition_executing(910_025, "runner-x", "pod-1")
+
+      row = get_row!(910_025)
+      assert row.status == "running"
+      assert row.runner_name == "runner-x"
+      assert row.pod_name == "pod-1"
+      assert row.executed_workflow_job_id == 910_025
+      assert %DateTime{} = row.started_at
+      assert %DateTime{} = row.claimed_at
+    end
+
+    # A row another Pod holds belongs to that Pod's claim generation;
+    # stamping this runner over it would misattribute the next execution.
+    test "leaves a row another Pod already claimed alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_026))
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_026, "pod-other", claimed_at)
+
+      assert :noop = WorkflowJobs.transition_executing(910_026, "runner-x", "pod-1")
+
+      row = get_row!(910_026)
+      assert row.status == "claimed"
+      assert row.pod_name == "pod-other"
+    end
+
+    test "cannot resurrect a terminal row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_027))
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_027), "success", DateTime.utc_now())
+
+      assert :noop = WorkflowJobs.transition_executing(910_027, "runner-x", "pod-1")
+      assert get_row!(910_027).status == "completed"
+    end
+
+    # The handle it stamps is its own, not the minting claim's, so the
+    # stale claim a ClickHouse-lagged dispatch can still hand this job
+    # cannot re-queue it mid-flight.
+    test "the stamped handle does not match the minting claim's" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_028))
+      minting_claimed_at = DateTime.utc_now()
+
+      assert :ok = WorkflowJobs.transition_executing(910_028, "runner-x", "pod-1")
+
+      assert :noop = WorkflowJobs.requeue_by_handle(910_028, minting_claimed_at)
+      assert get_row!(910_028).status == "running"
+    end
+  end
+
+  describe "start_executing_queued/1" do
+    # The claim carries the whole proof, so the strand is built the way
+    # the webhook path leaves it: the claim records the execution, and
+    # the row it names never moved out of `queued`.
+    defp strand_executing!(account, workflow_job_id, pod_name, runner_name) do
+      Repo.insert_all(Claim, [
+        %{
+          workflow_job_id: nil,
+          account_id: account.id,
+          fleet_name: "fleet-a",
+          pod_name: pod_name,
+          claimed_at: DateTime.utc_now(),
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 16,
+          lifecycle_state: "running",
+          runner_name: runner_name,
+          executed_workflow_job_id: workflow_job_id
+        }
+      ])
+    end
+
+    test "starts the rows a live claim proves are executing" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_060))
+      strand_executing!(account, 910_060, "pod-1", "runner-stuck")
+
+      assert [started] = WorkflowJobs.start_executing_queued(10)
+      assert started.workflow_job_id == 910_060
+
+      row = get_row!(910_060)
+      assert row.status == "running"
+      assert row.runner_name == "runner-stuck"
+      assert row.pod_name == "pod-1"
+      assert %DateTime{} = row.started_at
+      assert %DateTime{} = row.claimed_at
+    end
+
+    # The row's own `runner_name` is stamped by a separate write that
+    # never ran when the `queued` webhook arrived after the execution
+    # did. Requiring the two to agree would exclude exactly this row.
+    test "starts a row that never learned the runner's name" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_061))
+      strand_executing!(account, 910_061, "pod-1", "runner-late")
+
+      assert [_started] = WorkflowJobs.start_executing_queued(10)
+
+      row = get_row!(910_061)
+      assert row.status == "running"
+      assert row.runner_name == "runner-late"
+    end
+
+    test "leaves a row another Pod has since claimed alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_062))
+      strand_executing!(account, 910_062, "pod-1", "runner-raced")
+      :ok = WorkflowJobs.transition_claimed(910_062, "pod-other", DateTime.utc_now())
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_062).status == "claimed"
+    end
+
+    test "cannot resurrect a row a completion already settled" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_063))
+      strand_executing!(account, 910_063, "pod-1", "runner-done")
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_063), "success", DateTime.utc_now())
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_063).status == "completed"
+    end
+
+    test "does not cross accounts" do
+      account = account_fixture()
+      other_account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_064))
+      strand_executing!(other_account, 910_064, "pod-1", "runner-foreign")
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_064).status == "queued"
+    end
+
+    test "honours the per-tick limit, oldest arrival first" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_065, enqueued_at: DateTime.add(now, -60, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_066, enqueued_at: DateTime.add(now, -600, :second)))
+      strand_executing!(account, 910_065, "pod-1", "runner-newer")
+      strand_executing!(account, 910_066, "pod-2", "runner-older")
+
+      assert [started] = WorkflowJobs.start_executing_queued(1)
+      assert started.workflow_job_id == 910_066
+      assert get_row!(910_065).status == "queued"
+    end
+
+    # One statement for the batch, one outbox insert alongside it — the
+    # ClickHouse replay has to see every row this moved.
+    test "emits one transition event per started row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_067))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_068))
+      strand_executing!(account, 910_067, "pod-1", "runner-a")
+      strand_executing!(account, 910_068, "pod-2", "runner-b")
+
+      Repo.delete_all(WorkflowJobTransitionEvent)
+
+      assert length(WorkflowJobs.start_executing_queued(10)) == 2
+
+      events = Repo.all(WorkflowJobTransitionEvent)
+      assert length(events) == 2
+      assert Enum.all?(events, &(&1.payload["status"] == "running"))
+      assert Enum.sort(Enum.map(events, & &1.workflow_job_id)) == [910_067, 910_068]
+    end
+
+    test "returns an empty list when nothing is stranded" do
+      assert WorkflowJobs.start_executing_queued(10) == []
     end
   end
 
@@ -401,6 +578,28 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert %{"fleet-a" => %{count: 2, oldest_enqueued_at: reported}, "fleet-b" => %{count: 1}} = stats
       assert DateTime.compare(reported, oldest) == :eq
       refute Map.has_key?(stats, "fleet-c")
+    end
+
+    # The dispatchable-age gauge needs to know which account each queued
+    # job belongs to, because headroom is per account. Carrying it on the
+    # same scan keeps depth, age and dispatchable age describing one queue.
+    test "queue_stats_by_fleet carries each account's oldest arrival per fleet" do
+      account = account_fixture()
+      other_account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+      oldest = DateTime.add(now, -3600, :second)
+      newer = DateTime.add(now, -600, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_210, enqueued_at: oldest))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_211, enqueued_at: newer))
+      :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_212, enqueued_at: newer))
+
+      stats = WorkflowJobs.queue_stats_by_fleet(floor)
+
+      assert %{"fleet-a" => %{count: 3, by_account: by_account}} = stats
+      assert DateTime.compare(Map.fetch!(by_account, account.id), oldest) == :eq
+      assert DateTime.compare(Map.fetch!(by_account, other_account.id), newer) == :eq
     end
   end
 

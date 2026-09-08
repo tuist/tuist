@@ -17,18 +17,44 @@ enum BazelrcFile {
 
     private static let remoteCacheFlag = "build --remote_cache="
     private static let credentialHelperFlag = "build --credential_helper="
+    private static let buildEventServiceFlag = "build --bes_backend="
+    private static let legacyBuildEventServiceTimeoutFlag = "build --bes_timeout=30s"
+    private static let buildEventServiceTimeoutFlag = "build --bes_timeout=10m"
+    private static let publishAllActionsFlag = "build --build_event_publish_all_actions"
+    private static let publishAllActionsOption = "--build_event_publish_all_actions"
+    private static let doNotPublishAllActionsOption = "--nobuild_event_publish_all_actions"
+    private static let outputChunkFlag = "build --bes_outerr_chunk_size=262144"
+    private static let outputChunkOption = "--bes_outerr_chunk_size"
+    private static let namedSetEntriesFlag = "build --build_event_max_named_set_of_file_entries=500"
+    private static let namedSetEntriesOption = "--build_event_max_named_set_of_file_entries"
+    private static let remoteHeaderFlag = "build --remote_header=x-tuist-account-handle="
+    private static let remoteInstanceNameFlag = "build --remote_instance_name="
 
     static func render(
         endpoint: GRPCEndpoint,
         accountHandle: String,
         projectHandle: String,
-        credentialHelperPath: AbsolutePath
+        credentialHelperPath: AbsolutePath,
+        buildInsights: Bool = true
     ) -> String {
-        """
+        let buildEventServiceConfiguration = buildInsights ? """
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        \(buildEventServiceTimeoutFlag)
+        build --bes_upload_mode=fully_async
+        \(outputChunkFlag)
+        \(namedSetEntriesFlag)
+        \(publishAllActionsFlag)
+
+        """ : ""
+
+        return """
         \(remoteCacheFlag)\(endpoint.url)
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
+        \(buildEventServiceConfiguration)
 
         """
     }
@@ -43,13 +69,13 @@ enum BazelrcFile {
 
     /// `contents` pointed at `endpoint`, or `nil` when it already is.
     ///
-    /// The two lines naming the host are rewritten and everything else is left
+    /// The endpoint lines are rewritten and everything else is left
     /// alone, so anything a developer added to the file survives a move. The
     /// credential helper's own path is carried across rather than recomputed:
     /// the file records where Bazel was told to find it, and that is not this
     /// code's to change.
     static func replacingRemoteCache(in contents: String, with endpoint: GRPCEndpoint) -> String? {
-        guard let current = remoteCache(in: contents), current != endpoint.url else { return nil }
+        guard remoteCache(in: contents) != nil else { return nil }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -64,10 +90,66 @@ enum BazelrcFile {
                     let path = value[value.index(after: separator)...]
                     return "\(credentialHelperFlag)\(endpoint.host)=\(path)"
                 }
+                if line.hasPrefix(buildEventServiceFlag) {
+                    return "\(buildEventServiceFlag)\(endpoint.url)"
+                }
+                if line == Substring(legacyBuildEventServiceTimeoutFlag) {
+                    return buildEventServiceTimeoutFlag
+                }
                 return String(line)
             }
             .joined(separator: "\n")
 
-        return rewritten
+        let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+        if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
+            var missingFlags: [String] = []
+            if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
+                missingFlags.append(outputChunkFlag)
+            }
+            if !lines.contains(where: { hasOption(namedSetEntriesOption, in: $0) }) {
+                missingFlags.append(namedSetEntriesFlag)
+            }
+            if !lines.contains(where: hasActionPublicationPreference) {
+                missingFlags.append(publishAllActionsFlag)
+            }
+            let updated = missingFlags.isEmpty
+                ? rewritten
+                : rewritten.trimmingCharacters(in: .newlines) + "\n" + missingFlags.joined(separator: "\n") + "\n"
+            return updated == contents ? nil : updated
+        }
+        guard let accountHandle = lines.first(where: { $0.hasPrefix(remoteHeaderFlag) })
+            .map({ String($0.dropFirst(remoteHeaderFlag.count)) }),
+            let projectHandle = lines.first(where: { $0.hasPrefix(remoteInstanceNameFlag) })
+            .map({ String($0.dropFirst(remoteInstanceNameFlag.count)) })
+        else {
+            return rewritten == contents ? nil : rewritten
+        }
+
+        let suffix = """
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        \(buildEventServiceTimeoutFlag)
+        build --bes_upload_mode=fully_async
+        \(outputChunkFlag)
+        \(namedSetEntriesFlag)
+        \(publishAllActionsFlag)
+        """
+
+        return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
+    }
+
+    private static func hasActionPublicationPreference(_ line: Substring) -> Bool {
+        hasOption(publishAllActionsOption, in: line) || hasOption(doNotPublishAllActionsOption, in: line)
+    }
+
+    private static func hasOption(_ option: String, in line: Substring) -> Bool {
+        let configuration = line.split(separator: "#", maxSplits: 1).first ?? line
+        let tokens = configuration.split(whereSeparator: \.isWhitespace)
+        guard let command = tokens.first, command == "build" || command == "common" else { return false }
+
+        return tokens.dropFirst().contains { token in
+            token == Substring(option) || token.hasPrefix("\(option)=")
+        }
     }
 }

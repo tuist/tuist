@@ -202,28 +202,16 @@ defmodule Tuist.Runners.AllowanceTest do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the
       # third is entirely billed.
-      for days_ago <- [3, 2, 1] do
-        started = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+      period_start =
+        DateTime.new!(Date.add(Date.utc_today(), -3), ~T[00:00:00], "Etc/UTC")
 
-        Repo.insert!(%RunnerSession{
-          account_id: account.id,
-          workflow_job_id: System.unique_integer([:positive]),
-          fleet_name: "tuist-macos",
-          pod_name: "pod-#{System.unique_integer([:positive])}",
-          runner_name: "",
-          platform: :macos,
-          vcpus: 6,
-          memory_gb: 14,
-          billing_multiplier: 10_000,
-          started_at: started,
-          job_started_at: started,
-          job_ended_at: DateTime.add(started, 60 * 60, :second),
-          inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
-          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-        })
+      period_end = DateTime.add(period_start, 4, :day)
+
+      for day <- 0..2 do
+        ran_minutes(account, DateTime.add(period_start, day, :day), 60)
       end
 
-      breakdown = Allowance.period_breakdown(account)
+      breakdown = Allowance.period_breakdown(account, {period_start, period_end})
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.
@@ -452,7 +440,7 @@ defmodule Tuist.Runners.AllowanceTest do
     test "leaves a day that ran wholly inside the trial with nothing billed", %{account: account} do
       # Past the allowance, so a day the trial covered has to be zeroed
       # deliberately rather than by the free tier happening to reach it.
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[12:00:00], "Etc/UTC")
       period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
       account = trial_ended(account, DateTime.add(now, -2, :day))
 

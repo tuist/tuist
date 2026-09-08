@@ -552,6 +552,25 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                  ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 20))
       end
     end
+
+    test "discards the job and marks failed_processing on the first attempt when the project has been deleted",
+         %{account: account} do
+      test_run_id = Ecto.UUID.generate()
+      deleted_project_id = 999_999_999
+
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        assert attrs.project_id == deleted_project_id
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:cancel, :project_not_found} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, deleted_project_id), 1, 20))
+    end
   end
 
   describe "perform/1 parse timeouts" do

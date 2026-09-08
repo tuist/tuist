@@ -1018,6 +1018,10 @@ defmodule Tuist.CommandEvents do
   defp apply_is_ci_filter(query, true), do: where(query, [event: e], e.is_ci == true)
   defp apply_is_ci_filter(query, false), do: where(query, [event: e], e.is_ci == false)
 
+  defp apply_git_branch_filter(query, nil), do: query
+  defp apply_git_branch_filter(query, ""), do: query
+  defp apply_git_branch_filter(query, branch), do: where(query, [event: e], e.git_branch == ^branch)
+
   defp apply_scheme_filter(query, nil), do: query
   defp apply_scheme_filter(query, scheme), do: where(query, [event: e], e.scheme == ^scheme)
 
@@ -1045,6 +1049,7 @@ defmodule Tuist.CommandEvents do
   defp add_filters(query, opts) do
     query
     |> query_with_is_ci_filter(opts)
+    |> apply_git_branch_filter(Keyword.get(opts, :git_branch))
     |> apply_scheme_filter(Keyword.get(opts, :scheme))
     |> apply_category_filter(Keyword.get(opts, :category))
     |> apply_status_filter(Keyword.get(opts, :status))

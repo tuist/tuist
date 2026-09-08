@@ -4,31 +4,29 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.Project
-import org.gradle.api.internal.GradleInternal
+import org.gradle.internal.build.event.BuildEventListenerRegistryInternal
 import org.gradle.api.logging.Logging
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
-import org.gradle.api.tasks.CacheableTask
 import org.gradle.build.event.BuildEventsListenerRegistry
-import org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType
-import org.gradle.caching.internal.operations.BuildCacheLocalLoadBuildOperationType
-import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperationType
-import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
+import org.gradle.configuration.project.ConfigureProjectBuildOperationType
+import org.gradle.initialization.ConfigureBuildBuildOperationType
+import org.gradle.initialization.EvaluateSettingsBuildOperationType
+import org.gradle.internal.configurationcache.ConfigurationCacheLoadBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.BuildOperationListener
-import org.gradle.internal.operations.BuildOperationListenerManager
 import org.gradle.internal.operations.OperationFinishEvent
 import org.gradle.internal.operations.OperationIdentifier
 import org.gradle.internal.operations.OperationProgressEvent
 import org.gradle.internal.operations.OperationStartEvent
-import org.gradle.tooling.events.FinishEvent
-import org.gradle.tooling.events.OperationCompletionListener
-import org.gradle.tooling.events.task.TaskFinishEvent
-import org.gradle.tooling.events.task.TaskFailureResult
-import org.gradle.tooling.events.task.TaskSkippedResult
-import org.gradle.tooling.events.task.TaskSuccessResult
+import org.gradle.operations.configuration.ConfigurationCacheCheckFingerprintBuildOperationType
+import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
+import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -44,9 +42,10 @@ import javax.inject.Inject
 
 // --- Data classes ---
 
-enum class CacheHitType { LOCAL, REMOTE, MISS }
+enum class CacheHitType { LOCAL, REMOTE }
 
 enum class TaskOutcome(val value: String) {
+    @SerializedName("cache_hit") CACHE_HIT("cache_hit"),
     @SerializedName("local_hit") LOCAL_HIT("local_hit"),
     @SerializedName("remote_hit") REMOTE_HIT("remote_hit"),
     @SerializedName("up_to_date") UP_TO_DATE("up_to_date"),
@@ -56,12 +55,6 @@ enum class TaskOutcome(val value: String) {
     @SerializedName("no_source") NO_SOURCE("no_source");
 }
 
-data class TaskCacheMetadata(
-    val cacheKey: String? = null,
-    val artifactSize: Long? = null,
-    val cacheHitType: CacheHitType = CacheHitType.MISS
-)
-
 data class TaskOutcomeData(
     val taskPath: String,
     val outcome: TaskOutcome,
@@ -69,7 +62,10 @@ data class TaskOutcomeData(
     val durationMs: Long,
     val cacheKey: String?,
     val cacheArtifactSize: Long?,
-    val startedAt: String?
+    val startedAt: String?,
+    val remoteCacheMiss: Boolean = false,
+    val remoteCacheStored: Boolean? = null,
+    val execution: TaskExecutionTelemetry? = null
 )
 
 data class TaskReportEntry(
@@ -79,7 +75,35 @@ data class TaskReportEntry(
     @SerializedName("duration_ms") val durationMs: Long,
     @SerializedName("cache_key") val cacheKey: String?,
     @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?,
-    @SerializedName("started_at") val startedAt: String?
+    @SerializedName("started_at") val startedAt: String?,
+    @SerializedName("remote_cache_miss") val remoteCacheMiss: Boolean = false,
+    @SerializedName("remote_cache_stored") val remoteCacheStored: Boolean? = null,
+    val execution: TaskExecutionTelemetry? = null
+)
+
+data class ConfigurationCacheReport(
+    val status: String,
+    @SerializedName("entry_size") val entrySize: Long? = null,
+    @SerializedName("load_duration_ms") val loadDurationMs: Long? = null,
+    @SerializedName("invalidation_reasons") val invalidationReasons: List<String> = emptyList()
+)
+
+data class ConfigurationOperationReportEntry(
+    val phase: String,
+    @SerializedName("build_path") val buildPath: String,
+    @SerializedName("project_path") val projectPath: String? = null,
+    @SerializedName("duration_ms") val durationMs: Long,
+    @SerializedName("started_at") val startedAt: String
+)
+
+data class ArtifactTransformReportEntry(
+    @SerializedName("transformer_name") val transformerName: String,
+    @SerializedName("transform_action_class") val transformActionClass: String,
+    @SerializedName("subject_name") val subjectName: String,
+    @SerializedName("artifact_name") val artifactName: String,
+    @SerializedName("consumer_project_path") val consumerProjectPath: String,
+    @SerializedName("duration_ms") val durationMs: Long,
+    @SerializedName("started_at") val startedAt: String
 )
 
 data class BuildReportRequest(
@@ -96,7 +120,11 @@ data class BuildReportRequest(
     @SerializedName("root_project_name") val rootProjectName: String?,
     @SerializedName("requested_tasks") val requestedTasks: List<String>,
     val tasks: List<TaskReportEntry>,
-    @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null
+    @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null,
+    @SerializedName("custom_metadata") val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
+    @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
+    @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
+    @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
 )
 
 data class BuildReportResponse(val id: String)
@@ -105,7 +133,6 @@ data class BuildReportResponse(val id: String)
 
 abstract class TuistBuildInsightsService :
     BuildService<TuistBuildInsightsService.Params>,
-    OperationCompletionListener,
     BuildOperationListener,
     AutoCloseable {
 
@@ -116,177 +143,143 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
         val projectDir: DirectoryProperty
+        val customTags: ListProperty<String>
+        val customValues: MapProperty<String, String>
+        val gitBranch: Property<String>
+        val gitCommitSha: Property<String>
+        val gitRef: Property<String>
+        val gitRemoteUrlOrigin: Property<String>
+        val requestedTasks: ListProperty<String>
+        val backgroundUpload: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
-    private val machineMetricsCollector = MachineMetricsCollector().also { it.start() }
 
-    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    @get:Inject
+    abstract val objects: ObjectFactory
+
+    private val machineMetricsCollector = MachineMetricsCollector(
+        inputTrackingState = objects.newInstance(MetricsInputTracking::class.java).state
+    ).also { it.start() }
+
+    internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
 
     val buildId: String = UUID.randomUUID().toString()
 
-    private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
-    private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
-    private val requestedTaskNames: MutableList<String> = mutableListOf()
-    private var buildStartTime: Long = System.currentTimeMillis()
-    @Volatile private var buildFailed = false
+    private val executionTelemetry = BuildExecutionTelemetry()
+    private val configurationOperations = ConcurrentLinkedQueue<ConfigurationOperationReportEntry>()
+    private val artifactTransforms = ConcurrentLinkedQueue<ArtifactTransformReportEntry>()
+    private val buildStartTime = System.currentTimeMillis()
+    private val configurationCacheInvalidationReasons = ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var configurationCacheStatus: String? = null
+    @Volatile private var configurationCacheEntrySize: Long? = null
+    @Volatile private var configurationCacheLoadDurationMs: Long? = null
 
-    internal var listenerManager: BuildOperationListenerManager? = null
-    private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
-    private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
-    private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
+    override fun started(buildOperation: BuildOperationDescriptor, startEvent: OperationStartEvent) = Unit
 
-    fun setCacheableTasks(paths: Set<String>) {
-        cacheableTaskPaths.addAll(paths)
-    }
-
-    fun setRequestedTasks(tasks: List<String>) {
-        requestedTaskNames.addAll(tasks)
-    }
-
-    override fun started(buildOperation: BuildOperationDescriptor, startEvent: OperationStartEvent) {
-        val opId = buildOperation.id ?: return
-        buildOperation.parentId?.let { operationParents[opId] = it }
-
-        val details = buildOperation.details
-        if (details is ExecuteTaskBuildOperationType.Details) {
-            operationTaskPaths[opId] = details.taskPath
-        }
-    }
-
-    override fun progress(operationIdentifier: OperationIdentifier, progressEvent: OperationProgressEvent) {
-        // No-op
-    }
+    override fun progress(operationIdentifier: OperationIdentifier, progressEvent: OperationProgressEvent) = Unit
 
     override fun finished(buildOperation: BuildOperationDescriptor, finishEvent: OperationFinishEvent) {
-        val result = finishEvent.result
-        val details = buildOperation.details
-        val opId = buildOperation.id ?: return
-
-        when (result) {
-            is BuildCacheLocalLoadBuildOperationType.Result -> {
-                if (result.isHit) {
-                    val taskPath = findTaskPathForOperation(opId) ?: return
-                    val cacheKey = (details as? BuildCacheLocalLoadBuildOperationType.Details)?.cacheKey
-                    val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
-                    taskCacheMetadata[taskPath] = existing.copy(
-                        cacheKey = cacheKey,
-                        artifactSize = result.archiveSize,
-                        cacheHitType = CacheHitType.LOCAL
-                    )
-                }
-            }
-            is BuildCacheRemoteLoadBuildOperationType.Result -> {
-                if (result.isHit) {
-                    val taskPath = findTaskPathForOperation(opId) ?: return
-                    val cacheKey = (details as? BuildCacheRemoteLoadBuildOperationType.Details)?.cacheKey
-                    val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
-                    taskCacheMetadata[taskPath] = existing.copy(
-                        cacheKey = cacheKey,
-                        artifactSize = result.archiveSize,
-                        cacheHitType = CacheHitType.REMOTE
-                    )
-                }
-            }
-            is BuildCacheArchivePackBuildOperationType.Result -> {
-                val taskPath = findTaskPathForOperation(opId) ?: return
-                val cacheKey = (details as? BuildCacheArchivePackBuildOperationType.Details)?.cacheKey
-                val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
-                taskCacheMetadata[taskPath] = existing.copy(
-                    cacheKey = cacheKey,
-                    artifactSize = result.archiveSize
-                )
-            }
-        }
-
-        // Clean up when task-level operations finish
-        if (buildOperation.details is ExecuteTaskBuildOperationType.Details) {
-            operationTaskPaths.remove(opId)
-        }
-        operationParents.remove(opId)
-    }
-
-    /**
-     * Walks up the operation tree to find which Gradle task a nested build operation belongs to.
-     *
-     * Gradle's BuildOperationListener fires for operations at many levels — a cache load/store
-     * operation is a child of the task execution operation, not the task itself. This method
-     * follows [operationParents] (child → parent mappings recorded in [started]) upward until
-     * it finds an operation that has an entry in [operationTaskPaths] (populated when an
-     * ExecuteTaskBuildOperationType starts).
-     *
-     * For example, for a chain like `Task(:app:compileKotlin) → CacheLoad → …`, it walks from
-     * the cache load op up to the task op and returns `:app:compileKotlin`.
-     */
-    private fun findTaskPathForOperation(opId: OperationIdentifier): String? {
-        var currentId = opId
-        while (true) {
-            operationTaskPaths[currentId]?.let { return it }
-            currentId = operationParents[currentId] ?: return null
+        try {
+            executionTelemetry.finished(buildOperation, finishEvent)
+            recordConfigurationOperation(buildOperation.details, finishEvent)
+            recordConfigurationCacheMetadata(finishEvent.result, finishEvent)
+            recordArtifactTransform(buildOperation.details, finishEvent)
+        } catch (error: LinkageError) {
+            logger.debug("Tuist: Build operation is unavailable on this Gradle version", error)
+        } catch (error: Exception) {
+            logger.debug("Tuist: Could not capture build operation", error)
         }
     }
 
-    override fun onFinish(event: FinishEvent) {
-        if (event !is TaskFinishEvent) return
-        val result = event.result
-        val taskPath = event.descriptor.taskPath
-        val durationMs = result.endTime - result.startTime
-        val metadata = taskCacheMetadata[taskPath]
+    private fun recordConfigurationOperation(details: Any?, finishEvent: OperationFinishEvent) {
+        val durationMs = finishEvent.endTime - finishEvent.startTime
+        val startedAt = formatTimestamp(finishEvent.startTime)
 
-        val (outcome, cacheable) = when (result) {
-            is TaskSuccessResult -> {
-                when {
-                    result.isFromCache -> {
-                        val outcome = when (metadata?.cacheHitType) {
-                            CacheHitType.REMOTE -> TaskOutcome.REMOTE_HIT
-                            else -> TaskOutcome.LOCAL_HIT
-                        }
-                        outcome to true
-                    }
-                    result.isUpToDate -> TaskOutcome.UP_TO_DATE to cacheableTaskPaths.contains(taskPath)
-                    else -> TaskOutcome.EXECUTED to cacheableTaskPaths.contains(taskPath)
-                }
-            }
-            is TaskFailureResult -> {
-                buildFailed = true
-                TaskOutcome.FAILED to cacheableTaskPaths.contains(taskPath)
-            }
-            is TaskSkippedResult -> {
-                val skipMessage = result.skipMessage ?: ""
-                val outcome = if (skipMessage.contains("NO-SOURCE", ignoreCase = true)) TaskOutcome.NO_SOURCE else TaskOutcome.SKIPPED
-                outcome to false
-            }
-            else -> TaskOutcome.EXECUTED to false
+        val operation = when (details) {
+            is ConfigureBuildBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "build",
+                buildPath = details.buildPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            is EvaluateSettingsBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "settings",
+                buildPath = details.buildPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            is ConfigureProjectBuildOperationType.Details -> ConfigurationOperationReportEntry(
+                phase = "project",
+                buildPath = details.buildPath,
+                projectPath = details.projectPath,
+                durationMs = durationMs,
+                startedAt = startedAt
+            )
+            else -> null
         }
 
-        val startedAt = Instant.ofEpochMilli(result.startTime)
+        operation?.let(configurationOperations::add)
+    }
+
+    private fun recordConfigurationCacheMetadata(result: Any?, finishEvent: OperationFinishEvent) {
+        when {
+            result is ConfigurationCacheLoadBuildOperationType.Result -> {
+                configurationCacheStatus = "reused"
+                configurationCacheEntrySize = result.cacheEntrySize
+                configurationCacheLoadDurationMs = finishEvent.endTime - finishEvent.startTime
+            }
+            result is ConfigurationCacheCheckFingerprintBuildOperationType.Result -> {
+                configurationCacheStatus = result.status.name.lowercase()
+                result.buildInvalidationReasons
+                    .flatMap { it.invalidationReasons }
+                    .map { it.message }
+                    .forEach(configurationCacheInvalidationReasons::add)
+                result.projectInvalidationReasons
+                    .flatMap { it.invalidationReasons }
+                    .map { it.message }
+                    .forEach(configurationCacheInvalidationReasons::add)
+            }
+        }
+    }
+
+    private fun recordArtifactTransform(details: Any?, finishEvent: OperationFinishEvent) {
+        if (details !is ExecutePlannedTransformStepBuildOperationType.Details) return
+
+        val identity = details.plannedTransformStepIdentity
+        artifactTransforms.add(
+            ArtifactTransformReportEntry(
+                transformerName = details.transformerName,
+                transformActionClass = details.transformActionClass.name,
+                subjectName = details.subjectName,
+                artifactName = identity.artifactName,
+                consumerProjectPath = identity.consumerProjectPath,
+                durationMs = finishEvent.endTime - finishEvent.startTime,
+                startedAt = formatTimestamp(finishEvent.startTime)
+            )
+        )
+    }
+
+    private fun configurationCacheReport(): ConfigurationCacheReport? {
+        val status = configurationCacheStatus ?: return null
+        return ConfigurationCacheReport(
+            status = status,
+            entrySize = configurationCacheEntrySize,
+            loadDurationMs = configurationCacheLoadDurationMs,
+            invalidationReasons = configurationCacheInvalidationReasons.toList().sorted()
+        )
+    }
+
+    private fun formatTimestamp(timestampMs: Long): String =
+        Instant.ofEpochMilli(timestampMs)
             .atOffset(ZoneOffset.UTC)
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
-        taskOutcomes.add(
-            TaskOutcomeData(
-                taskPath = taskPath,
-                outcome = outcome,
-                cacheable = cacheable,
-                durationMs = durationMs,
-                cacheKey = metadata?.cacheKey,
-                cacheArtifactSize = metadata?.artifactSize,
-                startedAt = startedAt
-            )
-        )
-
-        taskCacheMetadata.remove(taskPath)
-    }
-
     override fun close() {
-        try {
-            listenerManager?.removeListener(this)
-        } catch (_: Exception) {}
-
         val machineMetrics = downsample(machineMetricsCollector.stop(), maxCount = 3600)
-        val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
+        val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
@@ -328,19 +321,27 @@ abstract class TuistBuildInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val totalDurationMs = System.currentTimeMillis() - buildStartTime
+        val totalDurationMs = ((executionTelemetry.lastTaskAt ?: System.currentTimeMillis()) -
+            (executionTelemetry.firstEventAt ?: buildStartTime)).coerceAtLeast(0)
 
         val report = buildReport(
             id = buildId,
-            taskOutcomes = taskOutcomes.toList(),
-            buildFailed = buildFailed,
+            taskOutcomes = executionTelemetry.tasks.toList(),
+            buildFailed = false,
             totalDurationMs = totalDurationMs,
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
-            requestedTasks = requestedTaskNames.toList(),
+            requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
             ciDetector = ciDetector,
-            gitInfoProvider = gitInfoProvider,
-            machineMetrics = machineMetrics
+            gitInfoProvider = reportGitInfoProvider(),
+            customMetadata = buildCustomMetadata(
+                configuredTags = parameters.customTags.get(),
+                configuredValues = parameters.customValues.get()
+            ),
+            machineMetrics = machineMetrics,
+            configurationCache = configurationCacheReport(),
+            configurationOperations = configurationOperations.toList(),
+            artifactTransforms = artifactTransforms.toList(),
         )
 
         val response = httpClient.execute { config ->
@@ -385,6 +386,14 @@ abstract class TuistBuildInsightsService :
             logger.warn("Tuist: Failed to report build insights.")
         }
     }
+
+    private fun reportGitInfoProvider(): GitInfoProvider =
+        gitInfoProvider ?: GitInfo(
+            branch = parameters.gitBranch.orNull,
+            commitSha = parameters.gitCommitSha.orNull,
+            ref = parameters.gitRef.orNull,
+            remoteUrlOrigin = parameters.gitRemoteUrlOrigin.orNull
+        )
 }
 
 internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
@@ -405,7 +414,11 @@ internal fun buildReport(
     requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
-    machineMetrics: List<MachineMetricSample>? = null
+    customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
+    machineMetrics: List<MachineMetricSample>? = null,
+    configurationCache: ConfigurationCacheReport? = null,
+    configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
+    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
 ): BuildReportRequest {
     val status = when {
         buildFailed -> "failure"
@@ -434,10 +447,17 @@ internal fun buildReport(
                 durationMs = task.durationMs,
                 cacheKey = task.cacheKey,
                 cacheArtifactSize = task.cacheArtifactSize,
-                startedAt = task.startedAt
+                startedAt = task.startedAt,
+                remoteCacheMiss = task.remoteCacheMiss,
+                remoteCacheStored = task.remoteCacheStored,
+                execution = task.execution
             )
         },
-        machineMetrics = machineMetrics
+        customMetadata = customMetadata,
+        machineMetrics = machineMetrics,
+        configurationCache = configurationCache,
+        configurationOperations = configurationOperations,
+        artifactTransforms = artifactTransforms
     )
 }
 
@@ -450,6 +470,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
+        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
@@ -461,34 +482,26 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
             parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.customTags.set(config.customMetadata.tags)
+            parameters.customValues.set(config.customMetadata.values)
+            parameters.gitBranch.set(gitInfo.branch())
+            parameters.gitCommitSha.set(gitInfo.commitSha())
+            parameters.gitRef.set(gitInfo.ref())
+            parameters.gitRemoteUrlOrigin.set(gitInfo.remoteUrlOrigin())
+            parameters.requestedTasks.set(project.gradle.startParameter.taskRequests.flatMap { it.args })
+            parameters.backgroundUpload.set(config.uploadInBackground ?: !EnvironmentCIDetector().isCi())
         }
 
-        eventsListenerRegistry.onTaskCompletion(serviceProvider)
-
-        project.gradle.taskGraph.whenReady {
-            val cacheablePaths = allTasks
-                .filter { task ->
-                    task.javaClass.isAnnotationPresent(CacheableTask::class.java)
-                }
-                .map { it.path }
-                .toSet()
-
-            val requestedTasks = project.gradle.startParameter.taskRequests
-                .flatMap { it.args }
-
-            val service = serviceProvider.get()
-            service.setCacheableTasks(cacheablePaths)
-            service.setRequestedTasks(requestedTasks)
-            service.uploadInBackground = config.uploadInBackground
-
-            try {
-                val gradleInternal = project.gradle as GradleInternal
-                val manager = gradleInternal.services.get(BuildOperationListenerManager::class.java)
-                manager.addListener(service)
-                service.listenerManager = manager
-            } catch (e: Exception) {
-                logger.warn("Tuist: Could not register build operation listener. Cache metadata may be incomplete.")
-            }
+        // A provider can have only one subscription. An operation-only service also
+        // restores the operation subscription when Gradle reuses configuration.
+        try {
+            (eventsListenerRegistry as BuildEventListenerRegistryInternal).onOperationCompletion(serviceProvider)
+        } catch (error: LinkageError) {
+            logger.warn("Tuist: Detailed build telemetry is unavailable on this Gradle version.")
+        } catch (error: Exception) {
+            logger.warn("Tuist: Detailed build telemetry is unavailable on this Gradle version.")
         }
     }
 }
+
+internal abstract class MetricsInputTracking @Inject constructor(val state: InputTrackingState)

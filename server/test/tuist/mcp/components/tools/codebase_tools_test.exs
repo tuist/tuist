@@ -7,14 +7,13 @@ defmodule Tuist.MCP.Components.Tools.CodebaseToolsTest do
   alias Tuist.MCP.Components.Tools.ReadTuistFile
   alias Tuist.MCP.Components.Tools.SearchTuistCode
 
-  test "descriptions guide agents through source-backed questions" do
+  test "descriptions state the scope of source-backed tools" do
     assert SearchTuistCode.description() =~ "current command behavior"
-    assert SearchTuistCode.description() =~ "instead of an unrelated local checkout or general web search"
-    assert SearchTuistCode.description() =~ "relevant call sites and tests"
-    assert SearchTuistCode.description() =~ "truncated response is partial"
+    assert SearchTuistCode.description() =~ "behavior not covered by public documentation"
+    assert SearchTuistCode.description() =~ "literal identifiers"
     assert ListTuistFiles.description() =~ "relevant Tuist source path is unknown"
-    assert ListTuistFiles.description() =~ "instead of enumerating the entire repository"
-    assert ReadTuistFile.description() =~ "smallest relevant line range"
+    assert ListTuistFiles.description() =~ "avoid broad repository enumeration"
+    assert ReadTuistFile.description() =~ "bounded line range"
     assert ReadTuistFile.description() =~ "implementation file, call site, or focused test"
   end
 

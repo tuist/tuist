@@ -92,6 +92,27 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
+  def render("503.html", assigns) do
+    reason = assigns.reason
+
+    reason_message =
+      if is_nil(reason) do
+        dgettext("dashboard", "Sorry, this page is temporarily unavailable. Please try again in a moment.")
+      else
+        reason.message
+      end
+
+    assigns
+    |> Map.put(:head_title, dgettext("dashboard", "Temporarily unavailable"))
+    |> Map.put(:title, dgettext("dashboard", "Temporarily unavailable."))
+    |> Map.put(
+      :message,
+      reason_message
+    )
+    |> Map.put(:error_name, dgettext("dashboard", "503"))
+    |> render_error_page()
+  end
+
   def render("500.html", assigns) do
     assigns
     |> Map.put(:head_title, dgettext("dashboard", "Server error"))

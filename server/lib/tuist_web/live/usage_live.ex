@@ -19,18 +19,13 @@ defmodule TuistWeb.UsageLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
-    runner_breakdown = Allowance.period_breakdown(account)
-
-    # The page used to exist only for accounts with cache traffic. Runner
-    # usage is billed the same way and belongs on the same page, so an
-    # account with runner time but no cache reaches it too.
-    runners_enabled = FeatureFlags.runners_enabled?(account)
-
-    if Authorization.authorize(:account_dashboard_read, current_user, account) != :ok or
-         (not FeatureFlags.kura_enabled?(account) and runner_breakdown.minutes == 0 and not runners_enabled) do
+    if Authorization.authorize(:account_dashboard_read, current_user, account) != :ok do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end
+
+    runner_breakdown = Allowance.period_breakdown(account)
+    runners_enabled = FeatureFlags.runners_enabled?(account)
 
     # Twelve is enough history to look back a year without listing
     # periods the account did not exist for; empty ones simply report
@@ -48,8 +43,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:periods, periods)
      |> assign(:runner_breakdown, runner_breakdown)
      |> assign(:runners_enabled, runners_enabled)
-     |> assign(:prepaid_balance, prepaid_balance)
-     |> assign(:kura_enabled, FeatureFlags.kura_enabled?(account))}
+     |> assign(:prepaid_balance, prepaid_balance)}
   end
 
   @widgets ["egress", "ingress", "requests"]

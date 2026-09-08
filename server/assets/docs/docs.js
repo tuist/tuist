@@ -10,6 +10,7 @@ import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
 import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 import { copyTextToClipboard } from "../shared/js/clipboard.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 import "./docs.css";
 
@@ -110,11 +111,7 @@ window.addEventListener("phx:page-loading-stop", (info) => {
 
 liveSocket.connect();
 
-window.addEventListener("phx:navigate", () => {
-  if (globalThis.analytics.enabled) {
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 window.liveSocket = liveSocket;
 

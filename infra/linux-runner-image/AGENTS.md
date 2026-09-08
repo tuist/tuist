@@ -52,7 +52,13 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   warm-standby Pods don't post — then samples VM-wide `/proc` plus the
   JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
   (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
-  never affects the job.
+  never affects the job. Format byte counters with awk's `%.0f` and
+  compute counter deltas in bash: `awk` here is mawk, whose
+  `printf "%d"` saturates at INT_MAX and whose bare `print` renders
+  integers above 2^31 in `%.6g` scientific notation. Read `MemTotal`
+  and `MemAvailable` in the same pass — kata hot-plugs the sandbox up
+  to the shape's memory after boot, so a total cached at sidecar
+  start goes stale mid-job. `metrics-sampler_test.sh` covers both.
 - `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
   Built from the Go source in `cmd/runner-shell-agent/`. The trusted
   `shell` native sidecar waits for the poller to stage a JIT (claimed
@@ -127,6 +133,18 @@ queued jobs. The controller's `podtemplate.Build` splits the Pod:
   and `exec`s the runner. A leaked JIT post-claim grants nothing
   the runner isn't already running under.
 
+A Buildkite job goes through the same split. The poller stages a
+`<jit>.buildkite-env` file instead of a JIT, holding the single-job
+acquisition token plus a **report token**, and `run-job.sh` runs
+`buildkite-agent` rather than `./run.sh`. The report token is what
+makes this work under token isolation: a Buildkite job reports its own
+log and outcome from a `pre-exit` hook, which needs a credential, and
+the SA token is exactly the credential this split exists to keep out of
+that container. A report token names one job and authorizes only what
+that job could already do — write its own log, declare its own exit
+status — so staging it changes nothing about what the container can
+reach. See `Tuist.Runners.Buildkite.ReportToken`.
+
 A warm-standby Pod therefore sits in `Pending` (poller polling in
 Init) until a job is claimed, not `Running`. macOS keeps the
 single-container shape — the Tart VM is the isolation boundary and
@@ -178,6 +196,11 @@ rebuilds for branch validation go through
 without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
 (`:latest` and semver tags belong exclusively to the release
 flow).
+
+`pull_request` also syntax-checks every shell script and runs
+`metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
+base, so the sampler's byte formatting is exercised against mawk
+rather than whichever awk the CI runner happens to ship.
 
 ## How it ends up serving traffic
 

@@ -15,10 +15,16 @@ build_path = Mix.Project.build_path()
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   max_ttl: [authorization_code: 300],
+  # `access_tokens` is deliberately absent: it defaults to
+  # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
+  # configured here, and copies of it silently rot. Atlas ran the same copy
+  # with `resource` missing from the attributes it persisted, and every OAuth
+  # refresh failed with `invalid_target` for four months. The copy justified
+  # itself by resolving the client through `Tuist.OAuth.Clients`, which the
+  # upstream adapter already does through this `clients` context.
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
-    clients: Tuist.OAuth.Clients,
-    access_tokens: Tuist.OAuth.AccessTokens
+    clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
@@ -57,6 +63,7 @@ config :esbuild,
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
@@ -173,6 +180,11 @@ config :logger, :console,
     :labels,
     :installation_id,
     :requested_labels,
+    # Tuist.Runners.Buildkite structured fields
+    :queue,
+    :job_uuid,
+    :errors,
+    :requested,
     :target,
     :observed,
     :gap,
@@ -243,7 +255,10 @@ config :logger, :console,
     :cap,
     :urls,
     :configured,
-    :reconciling
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis

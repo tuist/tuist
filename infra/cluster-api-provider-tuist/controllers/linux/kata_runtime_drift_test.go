@@ -20,6 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"sigs.k8s.io/cluster-api/util/patch"
+
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
@@ -114,7 +116,11 @@ func testFleetPrivateKey(t *testing.T) []byte {
 
 func (h *kataHarness) reconcile() {
 	h.t.Helper()
-	if _, err := h.r.reconcileNormal(context.Background(), h.machine); err != nil {
+	helper, err := patch.NewHelper(h.machine, h.client)
+	if err != nil {
+		h.t.Fatalf("patch helper: %v", err)
+	}
+	if _, err := h.r.reconcileNormal(context.Background(), h.machine, helper); err != nil {
 		h.t.Fatalf("reconcileNormal: %v", err)
 	}
 }
@@ -163,6 +169,10 @@ func TestKataRuntimeMissingIsSurfacedOnTheMachine(t *testing.T) {
 // correctly-bootstrapped runner box looks like, and it must cost nothing.
 func TestKataRuntimeReadyWhenNodeCarriesTheLabel(t *testing.T) {
 	h := newKataHarness(t, true, map[string]string{"katacontainers.io/kata-runtime": "true"})
+	h.node.Annotations[kataSharedMemoryAnnotation] = kataSharedMemoryRevision(h.node)
+	if err := h.client.Update(context.Background(), h.node); err != nil {
+		t.Fatal(err)
+	}
 	h.reconcile()
 
 	cond := conditions.Get(h.machine, clusterv1.ConditionType("KataRuntimeReady"))

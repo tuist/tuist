@@ -44,7 +44,8 @@ data class TuistGradleConfig(
     val project: String?,
     val network: Network,
     val uploadInBackground: Boolean? = null,
-    val testQuarantineEnabled: Boolean? = null
+    val testQuarantineEnabled: Boolean? = null,
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata()
 ) {
     data class Network(val proxy: Boolean)
 
@@ -65,7 +66,11 @@ data class TuistGradleConfig(
                     )
                 ),
                 uploadInBackground = extension.uploadInBackground,
-                testQuarantineEnabled = extension.testQuarantine.enabled
+                testQuarantineEnabled = extension.testQuarantine.enabled,
+                customMetadata = BuildCustomMetadata(
+                    tags = extension.buildInsights.tags,
+                    values = extension.buildInsights.values
+                )
             )
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
@@ -214,6 +219,18 @@ open class TuistExtension {
     fun testQuarantine(action: Action<TestQuarantineExtension>) {
         action.execute(testQuarantine)
     }
+
+    /**
+     * Build insight metadata configuration.
+     */
+    val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
+
+    /**
+     * Configure tags and key-value metadata for build insights.
+     */
+    fun buildInsights(action: Action<BuildInsightsExtension>) {
+        action.execute(buildInsights)
+    }
 }
 
 /**
@@ -258,4 +275,23 @@ open class TestQuarantineExtension {
      * automatically enabled on CI and disabled for local builds.
      */
     var enabled: Boolean? = null
+}
+
+/**
+ * Configuration for build insight tags and key-value metadata.
+ */
+open class BuildInsightsExtension {
+    private val configuredTags = mutableListOf<String>()
+    private val configuredValues = mutableMapOf<String, String>()
+
+    internal val tags: List<String> get() = configuredTags.toList()
+    internal val values: Map<String, String> get() = configuredValues.toMap()
+
+    fun tag(value: String) {
+        configuredTags.add(value)
+    }
+
+    fun value(key: String, value: String) {
+        configuredValues[key] = value
+    }
 }

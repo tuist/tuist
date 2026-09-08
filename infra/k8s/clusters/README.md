@@ -20,21 +20,54 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 ```
 clusters/
 ├── README.md                  this file
-├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass
-├── cluster-staging.yaml       per-env Cluster CRs in topology mode
-├── cluster-canary.yaml
-├── cluster-production.yaml
-├── cluster-preview.yaml
-└── cluster-pentest.yaml
+├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass  (mgmt-cluster-apply.yml)
+├── bare-metal.yaml            runner substrate: bare-metal-worker class
+│                              (Kata, whole-disk root)        (mgmt-cluster-apply.yml)
+├── bare-metal-stateful.yaml   stateful substrate: stateful-worker class
+│                              (separate /data, no Kata, per-cluster RAID;
+│                              carries ClickHouse)            (mgmt-cluster-apply.yml)
+├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
+├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
+├── cluster-pentest.yaml       isolated pentest Cluster CR    (mgmt-cluster-apply.yml)
+└── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
+    ├── staging/{cluster,kustomization}.yaml
+    ├── canary/{cluster,kustomization}.yaml
+    ├── production/{cluster,kustomization}.yaml
+    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
+    ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
+    └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
+
+## Reconciliation ownership
+
+Two mechanisms apply these manifests, split deliberately (see
+[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+
+- **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
+  `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
+  scoped never to prune a `Cluster` object. This is the source of truth
+  for the staging / canary / production and hive / once / atlas topologies.
+- **`mgmt-cluster-apply.yml`** keeps everything else at the flat `clusters/`
+  path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
+  templates (whose delete-and-apply fallback for `field is immutable` a plain
+  Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
+  glob without touching the workflow), `machinedrainrules.yaml`, and the
+  `cluster-preview.yaml` (replicas mutated out-of-band by the preview
+  workflows) and `cluster-pentest.yaml` (isolated security-assessment) CRs.
+  Flux never sees these files.
+
+Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
+(`infra/k8s/cluster-production.yaml`). Keep each `workloads/<tenant>/cluster.yaml`
+byte-identical to the live object so the first Flux reconcile is a no-op;
+the tenant-repo copies are then retired to a pointer.
 
 ## Target shape per cluster
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 4× OVH RISE-L in `gra` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 | `tuist-pentest` | 3× cpx22 | md-0: 2× cpx32 (`pool=general`) |
 

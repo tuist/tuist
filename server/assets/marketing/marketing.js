@@ -4,7 +4,8 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
-import Noora from "noora";
+import { initAnalytics } from "../shared/js/analytics.js";
+import NooraTooltip from "noora/hooks/Tooltip.js";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -16,17 +17,11 @@ const liveSocketFallbackMs = 10000;
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora.Hooks, ...Hooks, ...colocatedHooks },
+  hooks: { NooraTooltip, ...Hooks, ...colocatedHooks },
 });
 liveSocket.connect();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
-});
+initAnalytics();
 
 window.liveSocket = liveSocket;
 

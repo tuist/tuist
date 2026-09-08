@@ -43,8 +43,8 @@ node:
   # to a CrashLoopBackOff with "context deadline exceeded" trying to
   # GET /hetzner/v1/metadata/availability-zone.
   hostNetwork: true
-  # Skip Hetzner Robot bare-metal nodes (the `runners-linux` pool in
-  # `cluster-<env>.yaml`). The chart's default tolerations are
+  # Skip Hetzner Robot bare-metal nodes (the `runners-linux` and
+  # `clickhouse` pools). The chart's default tolerations are
   # `operator: Exists`, which swallows the
   # `tuist.dev/runner-tier=bare-metal:NoSchedule` taint and lands the
   # pod on bare metal, where two things go wrong:
@@ -58,13 +58,16 @@ node:
   #      before binding its `:9808` healthz port, so the liveness
   #      probe gets `connection refused` and CrashLoopBackOff kicks
   #      in. Observed on `bm-tuist-staging-runners-linux-*`.
+  # ClickHouse nodes also lack Hetzner Cloud's metadata service, so
+  # the driver exits on an availability-zone lookup timeout. Their
+  # data lives on local storage and needs no Hetzner Cloud CSI driver.
   #
   # Helm replaces (rather than merges) `node.affinity` when set, so
   # the chart's upstream Robot exclusions (`is-root-server`,
   # `provided-by=robot`) are re-declared here alongside our own
   # rules. All match expressions live in one list so they AND
   # together — a node schedules the pod only if it is none of:
-  # Hetzner root server, Robot-provisioned, in `runners-linux`,
+  # Hetzner root server, Robot-provisioned, in `runners-linux` or `clickhouse`,
   # provisioned by the in-house CAPI provider on non-Hetzner infra
   # (OVHcloud / Dedibox / Scaleway), or running darwin. Our CAPI
   # HCCM doesn't set the `is-root-server` / `provided-by` labels
@@ -104,7 +107,7 @@ node:
                 operator: NotIn
                 values:
                   - robot
-              # Hetzner Robot bare metal (the `runners-linux` pool).
+              # Hetzner Robot bare metal (`runners-linux` and `clickhouse`).
               # caph provisions these, so they carry no
               # `node.cluster.x-k8s.io/instance-type` label and the
               # provider rule below can't catch them; exclude by pool.
@@ -113,6 +116,7 @@ node:
                 operator: NotIn
                 values:
                   - runners-linux
+                  - clickhouse
               # Nodes the in-house CAPI provider brings up on
               # non-Hetzner infrastructure (OVHcloud, Dedibox,
               # Scaleway) for the kura cache fleets. hcloud Volumes

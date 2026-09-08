@@ -68,7 +68,7 @@ components:
           x-validate:
         build_system:
           default: xcode
-          description: The build system used by the project.
+          description: The build system used by the test run.
           enum:
             - xcode
             - gradle
@@ -1748,8 +1748,7 @@ components:
       x-struct:
       x-validate:
     RunsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
       minimum: 1
       title: RunsIndexPage
       type: integer
@@ -2724,6 +2723,7 @@ components:
           enum:
             - xcode
             - gradle
+            - bazel
           type: string
           x-struct:
           x-validate:
@@ -4579,6 +4579,12 @@ components:
       type: integer
       x-struct:
       x-validate:
+    RunsIndexBefore:
+      description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+      title: RunsIndexBefore
+      type: string
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -4922,6 +4928,12 @@ components:
           type: number
           x-struct:
           x-validate:
+        error_message:
+          description: Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         git_branch:
           description: Git branch of the repository
           type: string
@@ -4940,6 +4952,11 @@ components:
         id:
           description: ID of the run
           type: number
+          x-struct:
+          x-validate:
+        is_ci:
+          description: Whether the run was executed on CI
+          type: boolean
           x-struct:
           x-validate:
         local_cache_target_hits:
@@ -5015,6 +5032,9 @@ components:
           x-validate:
         status:
           description: Status of the command event
+          enum:
+            - success
+            - failure
           type: string
           x-struct:
           x-validate:
@@ -5057,6 +5077,7 @@ components:
         - swift_version
         - macos_version
         - status
+        - is_ci
         - git_commit_sha
         - git_ref
         - git_branch
@@ -5576,10 +5597,17 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunsIndexAfter:
+      description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+      title: RunsIndexAfter
+      type: string
+      x-struct:
+      x-validate:
     GradleTaskOutcome:
       enum:
         - local_hit
         - remote_hit
+        - cache_hit
         - up_to_date
         - executed
         - failed
@@ -9108,7 +9136,7 @@ paths:
                   x-validate:
                 build_system:
                   default: xcode
-                  description: The build system used by the project.
+                  description: The build system used by the test run.
                   enum:
                     - xcode
                     - gradle
@@ -10539,10 +10567,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -10555,20 +10583,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11488,6 +11516,15 @@ paths:
                                   type: string
                                   x-struct:
                                   x-validate:
+                                dependencies:
+                                  description: Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
+                                  items:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
                                 destinations:
                                   description: Destinations for the target
                                   items:
@@ -12038,6 +12075,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Token exchange successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unsupported CI provider or missing repository claim
         '401':
           content:
             application/json:
@@ -12156,7 +12199,6 @@ paths:
   /api/projects/{account_handle}/{project_handle}/runs:
     get:
       callbacks: {}
-      deprecated: true
       operationId: listRuns
       parameters:
         - description: The handle of the account.
@@ -12175,7 +12217,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The name of the run.
+        - description: Filter by command name, such as `install` or `generate`.
           in: query
           name: name
           required: false
@@ -12207,6 +12249,43 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter to runs executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Only return runs that ran at or after this Unix timestamp in seconds.
+          in: query
+          name: from
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Only return runs that ran at or before this Unix timestamp in seconds.
+          in: query
+          name: to
+          required: false
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -12220,16 +12299,36 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - deprecated: true
+          description: ''
           in: query
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
             minimum: 1
             title: RunsIndexPage
             type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: after
+          required: false
+          schema:
+            description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+            title: RunsIndexAfter
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: before
+          required: false
+          schema:
+            description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+            title: RunsIndexBefore
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -12238,6 +12337,8 @@ paths:
             application/json:
               schema:
                 properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
                   runs:
                     items:
                       $ref: '#/components/schemas/Run'
@@ -12246,10 +12347,17 @@ paths:
                     x-validate:
                 required:
                   - runs
+                  - pagination_metadata
                 type: object
                 x-struct:
                 x-validate:
           description: List of runs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -12277,7 +12385,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: 'List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.'
+      summary: List runs associated with a given project.
       tags:
         - Runs
     post:
@@ -13365,6 +13473,122 @@ paths:
       summary: List runner workflows for an account.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs:
+    get:
+      callbacks: {}
+      operationId: listBazelInvocationLogs
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The maximum number of results to return.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The page number to return.
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  logs:
+                    items:
+                      properties:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        message:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        observed_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        sequence_number:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        stream:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - invocation_id
+                        - sequence_number
+                        - stream
+                        - message
+                        - observed_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - logs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Bazel invocation logs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List the sanitized logs captured for a Bazel invocation.
+      tags:
+        - Bazel
   /api/cache/exists:
     get:
       callbacks: {}
@@ -22301,6 +22525,7 @@ paths:
             enum:
               - local_hit
               - remote_hit
+              - cache_hit
               - up_to_date
               - executed
               - failed
@@ -22376,6 +22601,63 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        execution:
+                          nullable: true
+                          properties:
+                            build_path:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                            cacheability:
+                              enum:
+                                - cacheable
+                                - disabled
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            incremental:
+                              nullable: true
+                              type: boolean
+                              x-struct:
+                              x-validate:
+                            remote_cache_download_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            remote_cache_lookup_outcome:
+                              enum:
+                                - hit
+                                - miss
+                                - error
+                                - not_requested
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            remote_cache_upload_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            task_type:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - build_path
+                            - task_type
+                            - cacheability
+                          type: object
+                          x-struct:
+                          x-validate:
                         id:
                           description: The task ID.
                           format: uuid
@@ -22387,6 +22669,7 @@ paths:
                           enum:
                             - local_hit
                             - remote_hit
+                            - cache_hit
                             - up_to_date
                             - executed
                             - failed
@@ -23195,6 +23478,102 @@ paths:
       summary: Authenticate with Apple identity token.
       tags:
         - Authentication
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}:
+    get:
+      callbacks: {}
+      operationId: getBazelInvocationLog
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The invocation log identifier.
+          in: path
+          name: invocation_log_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  invocation_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  message:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  observed_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  sequence_number:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  stream:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - invocation_id
+                  - sequence_number
+                  - stream
+                  - message
+                  - observed_at
+                type: object
+                x-struct:
+                x-validate:
+          description: Bazel invocation log
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bazel invocation log not found
+      summary: Get one sanitized log captured for a Bazel invocation.
+      tags:
+        - Bazel
   /api/organizations/{organization_name}/members/{user_name}:
     delete:
       callbacks: {}
@@ -24034,6 +24413,14 @@ paths:
             application/json:
               schema:
                 properties:
+                  artifact_transforms:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   cache_hit_rate:
                     nullable: true
                     type: number
@@ -24041,6 +24428,58 @@ paths:
                     x-validate:
                   cacheable_tasks_count:
                     type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_entry_size:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_invalidation_reasons:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  configuration_cache_load_duration_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  configuration_cache_status:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration_operations:
+                    items:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
                     x-struct:
                     x-validate:
                   duration_ms:
@@ -24128,8 +24567,74 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        execution:
+                          nullable: true
+                          properties:
+                            build_path:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                            cacheability:
+                              enum:
+                                - cacheable
+                                - disabled
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            incremental:
+                              nullable: true
+                              type: boolean
+                              x-struct:
+                              x-validate:
+                            remote_cache_download_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            remote_cache_lookup_outcome:
+                              enum:
+                                - hit
+                                - miss
+                                - error
+                                - not_requested
+                                - unknown
+                              type: string
+                              x-struct:
+                              x-validate:
+                            remote_cache_upload_duration_ms:
+                              maximum: 604800000
+                              minimum: 0
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            task_type:
+                              maxLength: 1024
+                              type: string
+                              x-struct:
+                              x-validate:
+                          required:
+                            - build_path
+                            - task_type
+                            - cacheability
+                          type: object
+                          x-struct:
+                          x-validate:
                         outcome:
                           type: string
+                          x-struct:
+                          x-validate:
+                        remote_cache_miss:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        remote_cache_stored:
+                          nullable: true
+                          type: boolean
                           x-struct:
                           x-validate:
                         started_at:
@@ -24151,6 +24656,10 @@ paths:
                       x-struct:
                       x-validate:
                     type: array
+                    x-struct:
+                    x-validate:
+                  tasks_cache_hit_count:
+                    type: integer
                     x-struct:
                     x-validate:
                   tasks_executed_count:
@@ -24221,6 +24730,328 @@ paths:
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}:
+    get:
+      callbacks: {}
+      operationId: getBazelInvocation
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  bazel_version:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  build_metrics:
+                    description: Build metrics reported by Bazel.
+                    properties:
+                      actions_created:
+                        description: Actions Bazel created while analyzing the requested targets.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      actions_executed:
+                        description: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      cpu_time_ms:
+                        description: Total central processing unit time in milliseconds.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      packages_loaded:
+                        description: Packages Bazel loaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      targets_configured:
+                        description: Targets Bazel configured.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - cpu_time_ms
+                      - actions_created
+                      - actions_executed
+                      - targets_configured
+                      - packages_loaded
+                    type: object
+                    x-struct:
+                    x-validate:
+                  build_timeline:
+                    description: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                    nullable: true
+                    properties:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      lanes:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      spans:
+                        items:
+                          properties:
+                            category:
+                              enum:
+                                - analysis
+                                - execution
+                              type: string
+                              x-struct:
+                              x-validate:
+                            description:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            lane:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            start_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - lane
+                            - start_ms
+                            - duration_ms
+                            - category
+                            - description
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - duration_ms
+                      - lanes
+                      - spans
+                    type: object
+                    x-struct:
+                    x-validate:
+                  cache:
+                    properties:
+                      download_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      hit_rate:
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      hits:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      misses:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      upload_bytes:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hits
+                      - misses
+                      - download_bytes
+                      - upload_bytes
+                      - hit_rate
+                    type: object
+                    x-struct:
+                    x-validate:
+                  cache_endpoint:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  command:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  critical_path:
+                    description: The critical path reported by Bazel, bounded to 32 actions.
+                    nullable: true
+                    properties:
+                      actions:
+                        items:
+                          properties:
+                            description:
+                              type: string
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - description
+                            - duration_ms
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - duration_ms
+                      - actions
+                    type: object
+                    x-struct:
+                    x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - tags
+                      - values
+                    type: object
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  exit_code:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  finished_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  invocation_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  started_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target_patterns:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - invocation_id
+                  - command
+                  - target_patterns
+                  - git_branch
+                  - git_commit_sha
+                  - is_ci
+                  - custom_metadata
+                  - bazel_version
+                  - cache_endpoint
+                  - status
+                  - exit_code
+                  - started_at
+                  - finished_at
+                  - duration_ms
+                  - build_metrics
+                  - build_timeline
+                  - critical_path
+                  - cache
+                type: object
+                x-struct:
+                x-validate:
+          description: Bazel invocation
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bazel invocation not found
+      summary: Get a Bazel invocation by its Bazel invocation identifier.
+      tags:
+        - Bazel
   /api/accounts/{account_handle}/webhooks/{webhook_endpoint_id}:
     get:
       callbacks: {}
@@ -24597,6 +25428,193 @@ paths:
       summary: List test module runs for a test run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/bazel/cache-events:
+    get:
+      callbacks: {}
+      operationId: listBazelCacheEvents
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The maximum number of results to return.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The page number to return.
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter by Bazel invocation identifier.
+          in: query
+          name: invocation_id
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by cache outcome.
+          in: query
+          name: outcome
+          required: false
+          schema:
+            enum:
+              - hit
+              - miss
+              - write
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by action cache or content-addressable storage operation.
+          in: query
+          name: operation
+          required: false
+          schema:
+            enum:
+              - action_cache
+              - cas
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_events:
+                    items:
+                      properties:
+                        action_digest:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        action_mnemonic:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_endpoint:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        client_kind:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        configuration_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        observed_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        operation:
+                          enum:
+                            - action_cache
+                            - cas
+                          type: string
+                          x-struct:
+                          x-validate:
+                        outcome:
+                          enum:
+                            - hit
+                            - miss
+                            - write
+                          type: string
+                          x-struct:
+                          x-validate:
+                        size:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        target_label:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - invocation_id
+                        - client_kind
+                        - operation
+                        - outcome
+                        - action_digest
+                        - action_mnemonic
+                        - target_label
+                        - configuration_id
+                        - size
+                        - duration_ms
+                        - cache_endpoint
+                        - observed_at
+                        - inserted_at
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - cache_events
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Bazel remote-cache events
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List Bazel remote-cache events for a project.
+      tags:
+        - Bazel
   /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}/revisions:
     get:
       callbacks: {}
@@ -24768,6 +25786,141 @@ paths:
       summary: List an automation alert's revision history.
       tags:
         - Automation Alerts
+  /api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}:
+    get:
+      callbacks: {}
+      operationId: getBazelCacheEvent
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The Bazel cache event identifier.
+          in: path
+          name: cache_event_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  action_digest:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  action_mnemonic:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  cache_endpoint:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  client_kind:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  invocation_id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  observed_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  operation:
+                    enum:
+                      - action_cache
+                      - cas
+                    type: string
+                    x-struct:
+                    x-validate:
+                  outcome:
+                    enum:
+                      - hit
+                      - miss
+                      - write
+                    type: string
+                    x-struct:
+                    x-validate:
+                  size:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  target_label:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - invocation_id
+                  - client_kind
+                  - operation
+                  - outcome
+                  - action_digest
+                  - action_mnemonic
+                  - target_label
+                  - configuration_id
+                  - size
+                  - duration_ms
+                  - cache_endpoint
+                  - observed_at
+                  - inserted_at
+                type: object
+                x-struct:
+                x-validate:
+          description: Bazel remote-cache event
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bazel remote-cache event not found
+      summary: Get a Bazel remote-cache event by its identifier.
+      tags:
+        - Bazel
   /api/projects/{account_handle}/{project_handle}/tokens:
     get:
       callbacks: {}
@@ -24979,6 +26132,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by a custom build tag.
+          in: query
+          name: tag
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -25020,6 +26181,50 @@ paths:
                           x-validate:
                         cacheable_tasks_count:
                           type: integer
+                          x-struct:
+                          x-validate:
+                        configuration_cache_entry_size:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        configuration_cache_invalidation_reasons:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        configuration_cache_load_duration_ms:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        configuration_cache_status:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          type: object
                           x-struct:
                           x-validate:
                         duration_ms:
@@ -25079,6 +26284,10 @@ paths:
                             - failure
                             - cancelled
                           type: string
+                          x-struct:
+                          x-validate:
+                        tasks_cache_hit_count:
+                          type: integer
                           x-struct:
                           x-validate:
                         tasks_executed_count:
@@ -25167,8 +26376,159 @@ paths:
           application/json:
             schema:
               properties:
+                artifact_transforms:
+                  description: Artifact transforms executed while resolving dependencies.
+                  items:
+                    properties:
+                      artifact_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      consumer_project_path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      started_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      subject_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      transform_action_class:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      transformer_name:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - transformer_name
+                      - transform_action_class
+                      - subject_name
+                      - artifact_name
+                      - consumer_project_path
+                      - duration_ms
+                      - started_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  nullable: true
+                  type: array
+                  x-struct:
+                  x-validate:
+                configuration_cache:
+                  description: Configuration cache status and invalidation diagnostics.
+                  nullable: true
+                  properties:
+                    entry_size:
+                      nullable: true
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    invalidation_reasons:
+                      items:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    load_duration_ms:
+                      nullable: true
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    status:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - status
+                  type: object
+                  x-struct:
+                  x-validate:
+                configuration_operations:
+                  description: Settings, build, and project configuration operations.
+                  items:
+                    properties:
+                      build_path:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      phase:
+                        enum:
+                          - build
+                          - settings
+                          - project
+                        type: string
+                        x-struct:
+                        x-validate:
+                      project_path:
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      started_at:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - phase
+                      - build_path
+                      - duration_ms
+                      - started_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  nullable: true
+                  type: array
+                  x-struct:
+                  x-validate:
+                custom_metadata:
+                  description: Custom metadata for the build.
+                  properties:
+                    tags:
+                      description: Simple labels for filtering and grouping.
+                      items:
+                        maxLength: 50
+                        pattern: ^[a-zA-Z0-9_-]+$
+                        type: string
+                        x-struct:
+                        x-validate:
+                      maxItems: 50
+                      type: array
+                      x-struct:
+                      x-validate:
+                    values:
+                      additionalProperties:
+                        maxLength: 500
+                        type: string
+                        x-struct:
+                        x-validate:
+                      description: Key-value pairs for structured build data.
+                      maxProperties: 20
+                      type: object
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
                 duration_ms:
                   description: Build duration in milliseconds.
+                  minimum: 0
                   type: integer
                   x-struct:
                   x-validate:
@@ -25329,17 +26689,87 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
+                      execution:
+                        nullable: true
+                        properties:
+                          build_path:
+                            maxLength: 1024
+                            type: string
+                            x-struct:
+                            x-validate:
+                          cacheability:
+                            enum:
+                              - cacheable
+                              - disabled
+                              - unknown
+                            type: string
+                            x-struct:
+                            x-validate:
+                          incremental:
+                            nullable: true
+                            type: boolean
+                            x-struct:
+                            x-validate:
+                          remote_cache_download_duration_ms:
+                            maximum: 604800000
+                            minimum: 0
+                            nullable: true
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          remote_cache_lookup_outcome:
+                            enum:
+                              - hit
+                              - miss
+                              - error
+                              - not_requested
+                              - unknown
+                            type: string
+                            x-struct:
+                            x-validate:
+                          remote_cache_upload_duration_ms:
+                            maximum: 604800000
+                            minimum: 0
+                            nullable: true
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          task_type:
+                            maxLength: 1024
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - build_path
+                          - task_type
+                          - cacheability
+                        type: object
+                        x-struct:
+                        x-validate:
                       outcome:
                         description: Task outcome.
                         enum:
                           - local_hit
                           - remote_hit
+                          - cache_hit
                           - up_to_date
                           - executed
                           - failed
                           - skipped
                           - no_source
                         type: string
+                        x-struct:
+                        x-validate:
+                      remote_cache_miss:
+                        description: Whether the remote cache was checked and did not contain the task output.
+                        nullable: true
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      remote_cache_stored:
+                        description: Whether this build wrote the task output to the remote cache.
+                        nullable: true
+                        type: boolean
                         x-struct:
                         x-validate:
                       started_at:
@@ -25479,6 +26909,7 @@ paths:
                   enum:
                     - xcode
                     - gradle
+                    - bazel
                   type: string
                   x-struct:
                   x-validate:
@@ -25533,6 +26964,360 @@ paths:
       summary: Create a new project.
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations:
+    get:
+      callbacks: {}
+      operationId: listBazelInvocations
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The maximum number of results to return.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: The page number to return.
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter by invocation status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  invocations:
+                    items:
+                      properties:
+                        bazel_version:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        build_metrics:
+                          description: Build metrics reported by Bazel.
+                          properties:
+                            actions_created:
+                              description: Actions Bazel created while analyzing the requested targets.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            actions_executed:
+                              description: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            cpu_time_ms:
+                              description: Total central processing unit time in milliseconds.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            packages_loaded:
+                              description: Packages Bazel loaded.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            targets_configured:
+                              description: Targets Bazel configured.
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - cpu_time_ms
+                            - actions_created
+                            - actions_executed
+                            - targets_configured
+                            - packages_loaded
+                          type: object
+                          x-struct:
+                          x-validate:
+                        build_timeline:
+                          description: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                          nullable: true
+                          properties:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            lanes:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            spans:
+                              items:
+                                properties:
+                                  category:
+                                    enum:
+                                      - analysis
+                                      - execution
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  description:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  duration_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  lane:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  start_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - lane
+                                  - start_ms
+                                  - duration_ms
+                                  - category
+                                  - description
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                          required:
+                            - duration_ms
+                            - lanes
+                            - spans
+                          type: object
+                          x-struct:
+                          x-validate:
+                        cache:
+                          properties:
+                            download_bytes:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            hits:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            misses:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            upload_bytes:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - hits
+                            - misses
+                            - download_bytes
+                            - upload_bytes
+                            - hit_rate
+                          type: object
+                          x-struct:
+                          x-validate:
+                        cache_endpoint:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        command:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        critical_path:
+                          description: The critical path reported by Bazel, bounded to 32 actions.
+                          nullable: true
+                          properties:
+                            actions:
+                              items:
+                                properties:
+                                  description:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  duration_ms:
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - description
+                                  - duration_ms
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            duration_ms:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - duration_ms
+                            - actions
+                          type: object
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          required:
+                            - tags
+                            - values
+                          type: object
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        exit_code:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        finished_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        invocation_id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target_patterns:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                      required:
+                        - invocation_id
+                        - command
+                        - target_patterns
+                        - git_branch
+                        - git_commit_sha
+                        - is_ci
+                        - custom_metadata
+                        - bazel_version
+                        - cache_endpoint
+                        - status
+                        - exit_code
+                        - started_at
+                        - finished_at
+                        - duration_ms
+                        - build_metrics
+                        - build_timeline
+                        - critical_path
+                        - cache
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - invocations
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Bazel invocations
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List Bazel invocations for a project.
+      tags:
+        - Bazel
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}:
     get:
       callbacks: {}
