@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle traffic on the same route families in Prometheus, with REAPI as a Kura-only lane. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
+    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, legacy Swift CAS daemon and Gradle traffic on the same HTTP route families in Prometheus, and shows the Xcode compilation cache (REAPI over gRPC) as a Kura-only rate, since the legacy cache service has no REAPI endpoint to compare against. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
       "panel-10": {
@@ -513,7 +513,7 @@
           "description": "Kura-default CLI is 4.207.0-canary.15+. \"Kura-default CLI, legacy endpoint\" is the migration lag: a capable CLI that still hit the legacy hosted cache, either because the account's instance was still provisioning (the server hands back the legacy endpoints meanwhile) or because TUIST_FEATURE_FLAG_KURA was turned off.",
           "id": 15,
           "links": [],
-          "title": "Cache runs by CLI capability",
+          "title": "Module cache runs by CLI capability",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -691,7 +691,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/.*\"}[$__rate_interval]))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/.*|/build.bazel.*|/google.bytestream.*\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "Kura",
                         "queryType": "range",
@@ -707,7 +707,7 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on the `/api/cache/*` routes: the production legacy cache service instances (`cache_prom_ex_phoenix_http_requests_total`, canary and staging instances excluded since that series has no cluster label) versus every production Kura node (`kura_http_requests_total_total{cluster=\"tuist-production\"}`). Prometheus, so this is the real-time view the ClickHouse panels lag behind.",
+          "description": "Requests per second across every hosted cache route: the production legacy cache service instances (`cache_prom_ex_phoenix_http_requests_total`, canary and staging instances excluded since that series has no cluster label) versus every production Kura node. The Kura arm reads `kura_public_request_latency_seconds_count`, the only Kura series that covers both transports: `kura_http_requests_total_total` is HTTP-only and carries none of the REAPI gRPC routes, which are the largest Kura lane by request count. Build event streaming (`/google.devtools.build.v1.PublishBuildEvent/*`) is left out because it is not cache traffic. Prometheus, so this is the real-time view the ClickHouse panels lag behind.",
           "id": 21,
           "links": [],
           "title": "Live cache request rate by backend",
@@ -1002,7 +1002,7 @@
           "description": "Every account with hosted cache runs in the range, rolled up from ClickHouse `command_events` per project and joined to the Postgres account map. Kura share is Kura runs over Kura + legacy runs: 0% = still fully on the legacy cache, 100% = fully migrated, anything in between = using both.",
           "id": 30,
           "links": [],
-          "title": "Account migration status",
+          "title": "Account migration status (module cache)",
           "vizConfig": {
             "group": "table",
             "kind": "VizConfig",
@@ -1510,7 +1510,7 @@
                         "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__range])))",
                         "format": "time_series",
                         "instant": true,
-                        "legendFormat": "Xcode",
+                        "legendFormat": "Legacy CAS daemon",
                         "queryType": "instant",
                         "range": false
                       },
@@ -1548,7 +1548,7 @@
               "transformations": []
             }
           },
-          "description": "Share of `/api/cache/*` requests served by production Kura nodes rather than the production legacy cache service, per lane, over the selected range. Lanes are the route families both backends expose: module cache (`/api/cache/module/*`), Xcode compilation cache (`/api/cache/cas/*` and `/api/cache/keyvalue*`), Gradle (`/api/cache/gradle/*`). REAPI is gRPC and Kura-only, so it has no share to show.",
+          "description": "Share of `/api/cache/*` requests served by production Kura nodes rather than the production legacy cache service, per lane, over the selected range. Lanes are the HTTP route families both backends expose: module cache (`/api/cache/module/*`), the legacy per-project Swift CAS daemon (`/api/cache/cas/*` and `/api/cache/keyvalue*`), Gradle (`/api/cache/gradle/*`). The Xcode compilation cache is not here: it speaks REAPI over gRPC, the legacy cache service has no REAPI endpoint, so there is no share to compute. Its volume is on the REAPI rate panel instead.",
           "id": 40,
           "links": [],
           "title": "Kura share per cache lane",
@@ -1658,7 +1658,7 @@
                         "editorMode": "code",
                         "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])))",
                         "instant": false,
-                        "legendFormat": "Xcode",
+                        "legendFormat": "Legacy CAS daemon",
                         "queryType": "range",
                         "range": true
                       },
@@ -1695,7 +1695,7 @@
               "transformations": []
             }
           },
-          "description": "Kura requests over Kura + legacy requests on each lane's route family, from Prometheus. Gaps mean neither backend saw traffic on that lane in the interval.",
+          "description": "Kura requests over Kura + legacy requests on each lane's HTTP route family, from Prometheus. The Xcode compilation cache is absent for the same reason as on the summary panel: it is REAPI over gRPC and Kura-only, so it has no share. Gaps mean neither backend saw traffic on that lane in the interval.",
           "id": 41,
           "links": [],
           "title": "Kura share per cache lane over time",
@@ -1774,7 +1774,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Xcode"
+                      "options": "Legacy CAS daemon"
                     },
                     "properties": [
                       {
@@ -2046,10 +2046,10 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on `/api/cache/(cas|keyvalue).*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "description": "Requests per second on `/api/cache/(cas|keyvalue).*`: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name). This is the legacy per-project Swift CAS daemon lane (`ArtifactProducer::Xcode`, mapped in `kura/src/accelerated_file_serving.rs`), not the Xcode compilation cache. The compilation cache runs on REAPI over gRPC and has its own panel. The daemon lane is winding down, so a low Kura share here says nothing about Xcode adoption.",
           "id": 43,
           "links": [],
-          "title": "Xcode lane request rate by backend",
+          "title": "Legacy CAS daemon lane request rate by backend",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2778,6 +2778,119 @@
           }
         }
       },
+      "panel-47": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (route) (rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/build.bazel.*|/google.bytestream.*\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{route}}",
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Requests per second on the REAPI gRPC routes, broken out by method: ActionCache, ContentAddressableStorage, ByteStream and Capabilities. This is the lane the Xcode compilation cache runs on (the cas-plugin), shared with any Bazel client pointed at Kura; Kura records both under `ArtifactProducer::Reapi`, so they are not separable here. Kura-only, so this is a raw rate rather than a share: the legacy cache service has no REAPI endpoint. Sourced from `kura_public_request_latency_seconds_count` because `kura_http_requests_total_total` is HTTP-only and carries none of these routes; `_count` rather than `_bucket` because the adaptive-metrics drop rules in `infra/helm/k8s-monitoring/values.yaml` are anchored on `_bucket`. Build event streaming (`/google.devtools.build.v1.PublishBuildEvent/*`) is excluded because it is not cache traffic.",
+          "id": 47,
+          "links": [],
+          "title": "REAPI lane request rate (Xcode compilation cache)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.8,
+                    "drawStyle": "line",
+                    "fillOpacity": 40,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 4,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "reqps"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
       "panel-5": {
         "kind": "Panel",
         "spec": {
@@ -2975,7 +3088,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\",\n  uniqExactIf(project_id, has_kura AND NOT has_legacy) AS \"Kura only\",\n  round(100 * uniqExactIf(project_id, has_kura) / uniqExact(project_id), 1) AS \"Kura share\"\nFROM (\n  SELECT project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toDateTime(0) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY project_id\n)"
+                        "rawSql": "SELECT uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\",\n  uniqExactIf(project_id, has_kura AND NOT has_legacy) AS \"Kura only\",\n  round(100 * uniqExactIf(project_id, has_kura) / uniqExact(project_id), 1) AS \"Kura share\"\nFROM (\n  SELECT project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toDateTime(0) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000))) AND project_id != 0\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND project_id != 0 AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toDateTime(0) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND project_id != 0 AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY project_id\n)"
                       },
                       "version": "v0"
                     },
@@ -2987,7 +3100,7 @@
               "transformations": []
             }
           },
-          "description": "Distinct projects with cache traffic in the selected range, per backend. \"Both\" reached Kura and the legacy hosted cache in the same range; \"Kura only\" have fully moved. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Kura rows from account-scoped tokens carry no project id and are not counted, so the Kura side is a floor.",
+          "description": "Distinct projects with cache traffic in the selected range, per backend. \"Both\" reached Kura and the legacy hosted cache in the same range; \"Kura only\" have fully moved. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Rows carrying no project id are excluded on every arm, not just the Kura one, so the backends are counted the same way. Kura sees more of them (account-scoped tokens do not carry a project id), so the Kura side is a floor.",
           "id": 8,
           "links": [],
           "title": "Projects by cache backend",
@@ -3142,7 +3255,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT time,\n  uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\"\nFROM (\n  SELECT time, project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n    UNION ALL\n    SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY time, project_id\n)\nGROUP BY time ORDER BY time"
+                        "rawSql": "SELECT time,\n  uniqExactIf(project_id, has_kura) AS \"Kura\",\n  uniqExactIf(project_id, has_legacy) AS \"Legacy hosted cache\",\n  uniqExactIf(project_id, has_kura AND has_legacy) AS \"Both\"\nFROM (\n  SELECT time, project_id, max(k) AS has_kura, max(l) AS has_legacy FROM (\n    SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time, project_id, 1 AS k, 0 AS l FROM kura_usage_events\n    WHERE $__timeFilter(window_start) AND project_id != 0\n    UNION ALL\n    SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM cas_events_daily_stats\n    WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000))) AND project_id != 0\n    UNION ALL\n    SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM gradle_cache_events\n    WHERE $__timeFilter(inserted_at) AND project_id != 0 AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n    UNION ALL\n    SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time, project_id, 0, 1 FROM command_events\n    WHERE $__timeFilter(ran_at) AND project_id != 0 AND cache_endpoint LIKE 'https://cache-%.tuist.dev'\n  ) GROUP BY time, project_id\n)\nGROUP BY time ORDER BY time"
                       },
                       "version": "v0"
                     },
@@ -3154,7 +3267,7 @@
               "transformations": []
             }
           },
-          "description": "Distinct projects with cache traffic per bucket against Kura, against the legacy hosted cache, and against both in the same bucket. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Kura rows from account-scoped tokens carry no project id and are not counted, so the Kura side is a floor.",
+          "description": "Distinct projects with cache traffic per bucket against Kura, against the legacy hosted cache, and against both in the same bucket. All lanes. A project counts as on Kura if `kura_usage_events` recorded transfers for it (module, Xcode, Gradle or REAPI), and as on the legacy hosted cache if it appears in `cas_events_daily_stats` (Xcode), `gradle_cache_events` (Gradle) or a `command_events` module cache run against `cache-*.tuist.dev`. Rows carrying no project id are excluded on every arm, not just the Kura one, so the backends are counted the same way. Kura sees more of them (account-scoped tokens do not carry a project id), so the Kura side is a floor.",
           "id": 9,
           "links": [],
           "title": "Projects by cache backend over time",
@@ -3427,12 +3540,25 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-47"
+                        },
+                        "height": 8,
+                        "width": 24,
+                        "x": 0,
+                        "y": 16
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-45"
                         },
                         "height": 9,
                         "width": 12,
                         "x": 0,
-                        "y": 16
+                        "y": 24
                       }
                     },
                     {
@@ -3445,7 +3571,7 @@
                         "height": 9,
                         "width": 12,
                         "x": 12,
-                        "y": 16
+                        "y": 24
                       }
                     }
                   ]
