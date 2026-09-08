@@ -1870,8 +1870,9 @@ timeouts.
   - max by (cluster, env, fleet) (tuist_runners_queue_withheld{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})
 ) > 0
 unless on (cluster, fleet) (
-  max by (cluster, fleet) (
-    label_replace(tuist_runners_pool_replicas_observed{env="production", pool=~"tuist-tuist-runner-pool-linux-.*"}, "fleet", "$1", "pool", "(.*)")
+  label_replace(
+    sum by (cluster, pool) (tuist_runners_pool_phase_replicas{env="production", pool=~"tuist-tuist-runner-pool-linux-.*"}),
+    "fleet", "$1", "pool", "(.*)"
   ) > 0
 )
 ```
@@ -1883,11 +1884,22 @@ unless on (cluster, fleet) (
 
 The queue side is the server's `tuist_runners_queue_length` minus
 `tuist_runners_queue_withheld` (labelled `fleet`), so an account parked
-at its concurrency limit does not count. The Pod side is the server's
-`tuist_runners_pool_replicas_observed` (also labelled `fleet`, same
-value), which counts Pods of every phase, so a pool whose Pods are
-merely Pending does not fire this; only a pool that has been admitted
-nothing at all does.
+at its concurrency limit does not count. The Pod side is the
+controller's `tuist_runners_pool_phase_replicas` (labelled `pool`),
+summed over phases, so a pool whose Pods are merely Pending does not
+fire this; only a pool that has been admitted nothing at all does.
+
+Two details in that leg are load-bearing, and both were arrived at the
+hard way. The aggregation happens **inside** the `label_replace`,
+because Adaptive Metrics has taken `instance` and `pod` off these
+series and a `label_replace` over the raw selector errors rather than
+returning nothing. And the metric is `..._phase_replicas` rather than
+`..._pool_replicas_observed`: the latter mirrors a status field that has
+read blank for pools that did have Pods, and it carries no `pool` label
+at all, so a selector on one matches nothing and the `unless` leg
+silently stops suppressing. This document described that older,
+broken form until 2026-09-08; the deployed rule has been on the working
+one, and the query above is now what is deployed.
 
 When it fires, find the hog:
 
@@ -1920,28 +1932,6 @@ a gap holds nothing. If a pool is still targeted far above its fleet's
 seats, suspect the cap rather than reaching for a values change:
 `tuist_runners_fleet_ready_nodes` going to zero, or a RuntimeClass the
 controller cannot read, both degrade it to the byte budget alone.
-
-**The `unless` leg of the deployed rule is currently dead, and the
-metric it names is not the controller's.**
-`tuist_runners_pool_replicas_observed` comes from the server's PromEx
-plugin (`job="tuist"`) and is labelled **`fleet`**, carrying the pool
-name. There is no `pool` label on it, so
-`{pool=~"tuist-tuist-runner-pool-linux-.*"}` matches nothing, the
-`label_replace` has nothing to rename, and `unless` with an empty right
-side suppresses nothing. The rule is therefore running as "dispatchable
-queued jobs > 0 for 10 minutes" on any Linux pool. Drop the
-`label_replace` and select the label that exists:
-
-```promql
-unless on (cluster, fleet) (
-  max by (cluster, env, fleet) (
-    tuist_runners_pool_replicas_observed{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"}
-  ) > 0
-)
-```
-
-This is the failure mode the section below is built to avoid: a leg that
-returns nothing fails open, and nothing in Grafana says so.
 
 ### Linux fleet cannot seat a shape
 
@@ -1979,10 +1969,14 @@ and on (cluster, env, shape) (
 )
 ```
 
+Created 2026-09-08 as rule uid `bfxmy59vtljpca`, group `Runners`.
+
 - Pending period: 10 minutes
-- Severity: warning
+- Severity: warning, receiver `Slack #notifications 2`
 - No `affected_service`: see "Why this is a warning" below
-- `no_data_state`: `OK`; `execution_error_state`: **Alerting**
+- `no_data_state`: `OK`; `execution_error_state`: `Error`, the folder's
+  convention. `Error` still raises a `DatasourceError` instance, so an
+  aggregated-away label surfaces rather than passing as healthy.
 - Summary: `Linux fleet in {{ $labels.cluster }} cannot seat a
   {{ $labels.shape }} Pod on any host, with {{ $values.A.Value }}
   dispatchable job(s) queued for it`
@@ -2062,8 +2056,10 @@ public page meaningless.
 
 #### Before trusting this rule
 
-Both hazards this document warns about are live on these exact series,
-and one of them has already silently disabled the rule above.
+The rule is live, but its seat leg cannot report until the controller
+carrying `tuist_runners_fleet_shape_seats_free` is deployed. Until then
+the `and` yields nothing and `no_data_state: OK` keeps it quiet, which
+is the intended holding state rather than a fault.
 
 - **Confirm the query returns data.** `label_replace` on a **raw**
   selector fails here, because Adaptive Metrics has aggregated
@@ -2086,9 +2082,9 @@ and one of them has already silently disabled the rule above.
   `shape` is present before saving the rule. If it has been aggregated,
   add `shape` to the Adaptive Metrics `keep_labels` escape hatch rather
   than deleting the recommendation.
-- **The rule is the usage.** Once it is saved and evaluating, its own
-  query is what keeps the recommender off these labels. Do not leave it
-  paused.
+- **The rule is the usage.** Its own evaluation is what keeps the
+  recommender off these labels, which is why it was created unpaused
+  ahead of the deploy rather than staged. Do not pause it.
 
 #### When it fires
 
