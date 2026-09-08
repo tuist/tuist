@@ -49,7 +49,9 @@ To set up the cache on the CI, make sure you are <.localized_link href="/guides/
 
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 
-Add the following build settings to your Xcode project:
+For an existing Xcode project, copy the build settings printed by `tuist setup cache` into your project's Build Settings or an existing `.xcconfig` file. The command prints the configuration for your account; it does not generate a configuration file or edit your Xcode project. Keep `$(inherited)` when extending `OTHER_SWIFT_FLAGS` so other compiler options are preserved.
+
+The settings include:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
@@ -140,6 +142,18 @@ let tuist = Tuist(
 ```
 
 With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
+
+### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
+
+The Xcode cache can reduce transfers with [content-defined chunking](https://www.buildbuddy.io/blog/content-defined-chunking/). Instead of treating each large output as unrelated to earlier versions, it splits the compressed output at boundaries determined by its contents. After an edit, matching chunks can be reused even when their offsets have changed.
+
+Uploads send only chunks that the server is missing. Downloads first obtain the exact cached action and the output's chunk recipe, then reuse verified chunks stored on the local machine and fetch the missing pieces. The complete reconstructed output is verified before it is restored to the compiler cache.
+
+The transfer-chunk cache is separate from `DerivedData`, so its chunks can survive cleaning the compilation cache or restarting the local cache service. It is disposable and bounded to at most one gibibyte of chunk payload, with an additional temporary staging file of at most two mebibytes. Evicted or damaged chunks are downloaded again when needed. Keeping the compilation cache itself is still faster than reconstructing its contents.
+
+The client uses chunked transfers only when the server advertises compatible support. Older clients can still read complete outputs, and clients connected to older or unsupported servers retain ordinary transfers. Small outputs stay on the existing whole-output path.
+
+This reduces transferred bytes, not compiler invalidation. Changing a source file can still require compilation; chunking helps publish or restore the resulting output. Savings depend on the output and the edit, and a cold machine with no matching chunks must download all of the output. Experimental Swift field patches are not part of this transfer path.
 
 ### Continuous integration {#continuous-integration}
 

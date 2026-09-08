@@ -130,12 +130,12 @@ The edited output inventories give the next optimization priorities. Matching by
 
 | Empty-store restore | Batch payload downloaded | Locally reused chunk bytes |
 | --- | ---: | ---: |
-| Base, cold reader | 18,351,285 | 0 |
-| Base, restarted reader retaining chunks | 452 | 18,350,047 |
-| Edited revision, reader retaining base chunks | 16,896,156 | 1,358,308 |
+| Base, cold reader | 18,351,283 | 0 |
+| Base, restarted reader retaining chunks | 1,028 | 18,350,045 |
+| Edited revision, reader retaining base chunks | 16,896,812 | 1,358,308 |
 
 These final counters include shared active downloads. Before that change, a previous run of the same generated fixture downloaded 36,700,750 bytes cold and 33,791,724 after the edit: background and demand workers fetched the large nodes twice. The new runs roughly halve those batch payloads. The isolated wire test pins the mechanism exactly: two readers of one 3,145,728-byte node went from 6,291,456 transferred bytes and two split requests to 3,145,728 bytes and one split request.
 
-These are aggregate proxy counters, not unique logical-output sizes, and sequential reads can still repeat work. They exclude inline outputs, action metadata, and recipe metadata. Fresh fixture paths can change compressed output sizes slightly. The unchanged restore is not a cross-revision benchmark. The edited run's modest chunk similarity reinforces why each output needs measuring; the large standalone-module benchmark is not representative of every Swift action. The final cold, restarted, and edited restores took 2.730, 2.415, and 2.518 seconds respectively, single loopback observations with no demonstrated build-speed improvement.
+These are aggregate proxy counters, not unique logical-output sizes, and sequential reads can still repeat work. They exclude inline outputs, action metadata, and recipe metadata. Fresh fixture paths can change compressed output sizes slightly. The unchanged restore is not a cross-revision benchmark. The edited run's modest chunk similarity reinforces why each output needs measuring; the large standalone-module benchmark is not representative of every Swift action. The latest cold, restarted, and edited restores took 4.118, 3.296, and 4.524 seconds respectively, single loopback observations with no demonstrated build-speed improvement.
 
 A fresh 16,000-struct debug integration build exceeded the harness's five-minute limit during its initial compilation. The 4,000-struct integration fixture retains chunk-eligible objects/modules and completes reliably; the larger corpus remains useful for standalone transfer measurements. Kura's 906 unit tests and strict Clippy check passed. The plugin's normal tests passed; an additional unsuppressed Clippy invocation stopped at two pre-existing raw-pointer safety diagnostics in `llcas_get_plugin_version`. With only that existing lint allowed on the command line, the inventory example check passed. No lint suppression was added to source.
