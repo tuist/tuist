@@ -3087,6 +3087,23 @@ clickhouse:
         # A directory on the stateful node's XFS `/data`, which is the
         # filesystem the `stateful-worker` class carves for exactly this.
         path: /data/clickhouse
+        # The node holding that directory, as `kubernetes.io/hostname`.
+        # Required whenever the managed workload is enabled, and the chart
+        # refuses to render without it.
+        #
+        # This used to bind on the pool label instead, which is safe only
+        # while the pool has exactly one node. With two, one volume and a
+        # pool-wide affinity let the scheduler place the pod on the node that
+        # does not hold the data: ClickHouse then starts on an empty
+        # directory under a replica identity Keeper already knows.
+        #
+        # There is no stable per-host label to use instead. These nodes carry
+        # only `kubernetes.io/hostname`, which CAPI generates, so replacing a
+        # box means editing this. That is the right cost: reinstalling a Robot
+        # host wipes `/data`, so a replacement is already a manual
+        # re-bootstrap of that replica, and a stale name here leaves the claim
+        # Pending rather than quietly binding somewhere empty.
+        nodeName: ""
     keeper:
       # One member is not a quorum and cannot tolerate a loss. It is the right
       # shape for staging, whose job is to exercise the replicated engines and
