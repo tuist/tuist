@@ -48,6 +48,59 @@ function fixture() {
   };
 }
 
+function surface(left, width, rulerTop = 0) {
+  const line = { style: {} };
+  const label = { style: {}, offsetWidth: 80 };
+  return {
+    canvas: { getBoundingClientRect: () => ({ left, width }) },
+    ruler: { offsetTop: rulerTop },
+    cursor: { hidden: true, querySelector: (selector) => (selector.includes("cursor-line") ? line : label) },
+    selection: { hidden: true, style: {}, querySelector: () => label },
+    line,
+    label,
+  };
+}
+
+test("metric and step cursors share a time across different plot widths and column origins", () => {
+  const view = fixture();
+  view.surfaces = [surface(50, 1024, 82), surface(50, 424), surface(500, 524)];
+  view.cursorSource = view.surfaces[2].canvas;
+  view.cursorX = 512 + 500 * 0.25;
+  let reading;
+  view.updateMetricValues = (time) => (reading = time);
+  view.updateCursor();
+  assert.equal(reading, 102_500);
+  assert.deepEqual(
+    view.surfaces.map((s) => s.line.style.left),
+    ["262px", "112px", "137px"],
+  );
+  assert.equal(new Set(view.surfaces.map((s) => s.label.textContent)).size, 1);
+  assert.equal(view.surfaces[0].label.style.top, "87px");
+  assert.equal(view.surfaces[1].label.style.top, "5px");
+  view.hideCursor();
+  assert.ok(view.surfaces.every((s) => s.cursor.hidden));
+  assert.equal(reading, null);
+});
+
+test("drag focus highlights the same interval on every independently sized plot", () => {
+  const view = fixture();
+  view.surfaces = [surface(50, 1024, 82), surface(50, 424), surface(500, 524)];
+  view.updateMetricValues = () => {};
+  view.previewFocus({ left: 0.25, width: 0.5, span: 5000 });
+  assert.deepEqual(
+    view.surfaces.map((s) => s.selection.style.width),
+    ["500px", "200px", "250px"],
+  );
+  assert.deepEqual(
+    view.surfaces.map((s) => s.selection.style.left),
+    ["262px", "112px", "137px"],
+  );
+  assert.equal(view.surfaces[0].selection.style.top, "82px");
+  view.previewFocus(null);
+  assert.ok(view.surfaces.every((s) => s.selection.hidden));
+  assert.equal(view.focusing, false);
+});
+
 test("a burst of cached zoom events performs one layout and paint, with no range requests", (t) => {
   const frames = [];
   globalThis.requestAnimationFrame = (callback) => {

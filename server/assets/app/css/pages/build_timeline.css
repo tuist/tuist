@@ -108,6 +108,9 @@
     align-items: stretch;
     min-width: 0;
   }
+  & [data-part="timeline-content"] {
+    position: relative;
+  }
   & [data-part="timeline-chart"] {
     position: relative;
     flex: 1;
@@ -122,11 +125,9 @@
     display: block;
   }
   & [data-part="machine-metrics"] {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--noora-spacing-4);
-    background: var(--noora-surface-background-secondary);
-    padding-block: var(--noora-spacing-4);
   }
   & [data-part="metric-track"] {
     cursor: crosshair;
@@ -134,6 +135,12 @@
     background: var(--noora-surface-background-primary);
     padding-bottom: var(--noora-spacing-4);
     overflow: hidden;
+  }
+  & [data-part="metric-plot"] {
+    position: relative;
+    outline: none;
+    touch-action: pan-y;
+    user-select: none;
   }
   & [data-part="metric-heading"] {
     display: flex;
@@ -171,7 +178,8 @@
     touch-action: pan-y;
     user-select: none;
   }
-  & [data-part="time-cursor"] {
+  & [data-part="time-cursor"],
+  & [data-part="metric-cursor"] {
     position: absolute;
     z-index: 1;
     inset: 0;
@@ -192,7 +200,8 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  & [data-part="focus-selection"] {
+  & [data-part="focus-selection"],
+  & [data-part="metric-selection"] {
     position: absolute;
     top: 0;
     bottom: 0;
@@ -260,6 +269,13 @@
     outline: none;
   }
 
+  & [data-part="inspector-divider"],
+  & [data-part="inspector"] {
+    align-self: flex-start;
+    margin-top: calc(var(--timeline-header-height) + 32px);
+    height: var(--timeline-viewport-height);
+  }
+
   & [data-part="inspector-divider"] {
     position: relative;
     flex: 0 0 24px;
@@ -288,7 +304,6 @@
     box-sizing: border-box;
     padding: var(--noora-spacing-5) 0;
     min-width: 0;
-    max-height: calc(var(--timeline-viewport-height) + var(--timeline-header-height) + 52px);
     overflow-y: auto;
     & [data-detail="title"] {
       display: block;
@@ -339,6 +354,9 @@
     }
   }
   @media (max-width: 640px) {
+    & [data-part="machine-metrics"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
     & [data-part="workspace"] {
       overflow-x: auto;
     }

@@ -67,38 +67,47 @@ defmodule TuistWeb.Components.BuildTimeline do
         </.card_section>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content" hidden>
+          <div data-part="machine-metrics" hidden>
+            <div
+              :for={
+                {key, label, unit} <- [
+                  {"cpu", "CPU", "%"},
+                  {"memory", dgettext("dashboard_builds", "Memory"), "GB"},
+                  {"network", dgettext("dashboard_builds", "Network"), "MiB/s"},
+                  {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"}
+                ]
+              }
+              data-part="metric-track"
+              data-metric={key}
+            >
+              <div data-part="metric-heading">
+                <span>{label}</span>
+                <span :if={key in ["network", "disk"]} data-part="metric-series">
+                  <span data-series="primary">{if key == "network",
+                    do: dgettext("dashboard_builds", "In"),
+                    else: dgettext("dashboard_builds", "Read")}</span>
+                  <span data-series="secondary">{if key == "network",
+                    do: dgettext("dashboard_builds", "Out"),
+                    else: dgettext("dashboard_builds", "Write")}</span>
+                </span>
+                <output data-metric-value={key}>{unit}</output>
+              </div>
+              <div data-part="metric-plot" tabindex="0">
+                <canvas data-metric-ruler={key} aria-hidden="true"></canvas>
+                <canvas data-metric-canvas={key} role="img" aria-label={label}></canvas>
+                <div data-part="metric-cursor" aria-hidden="true" hidden>
+                  <div data-part="cursor-line"></div>
+                  <span data-part="cursor-time"></span>
+                </div>
+                <div data-part="metric-selection" hidden>
+                  <span data-part="focus-duration"></span>
+                </div>
+              </div>
+            </div>
+          </div>
           <div data-part="workspace">
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">
-                <canvas data-part="ruler" aria-hidden="true"></canvas>
-                <div data-part="machine-metrics" hidden>
-                  <div
-                    :for={
-                      {key, label, unit} <- [
-                        {"cpu", "CPU", "%"},
-                        {"memory", dgettext("dashboard_builds", "Memory"), "GB"},
-                        {"network", dgettext("dashboard_builds", "Network"), "MiB/s"},
-                        {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"}
-                      ]
-                    }
-                    data-part="metric-track"
-                    data-metric={key}
-                  >
-                    <div data-part="metric-heading">
-                      <span>{label}</span>
-                      <span :if={key in ["network", "disk"]} data-part="metric-series">
-                        <span data-series="primary">{if key == "network",
-                          do: dgettext("dashboard_builds", "In"),
-                          else: dgettext("dashboard_builds", "Read")}</span>
-                        <span data-series="secondary">{if key == "network",
-                          do: dgettext("dashboard_builds", "Out"),
-                          else: dgettext("dashboard_builds", "Write")}</span>
-                      </span>
-                      <output data-metric-value={key}>{unit}</output>
-                    </div>
-                    <canvas data-metric-canvas={key} role="img" aria-label={label}></canvas>
-                  </div>
-                </div>
                 <div data-part="build-controls">
                   <div data-part="toolbar">
                     <.text_input
@@ -161,7 +170,6 @@ defmodule TuistWeb.Components.BuildTimeline do
                   <span data-part="focus-duration"></span>
                 </div>
               </div>
-              <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
             </div>
             <div
               data-part="inspector-divider"
@@ -206,6 +214,7 @@ defmodule TuistWeb.Components.BuildTimeline do
               </div>
             </aside>
           </div>
+          <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
           <p data-part="no-matches" hidden>
             {dgettext("dashboard_builds", "No steps in this time range match your filters.")}
           </p>

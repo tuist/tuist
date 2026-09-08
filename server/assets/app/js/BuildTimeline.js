@@ -49,7 +49,6 @@ export default {
       write: this.el.dataset.metricWrite,
     });
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
-    this.part("ruler").hidden = !this.metrics.samples.length;
     this.events = normalizeEvents(timeline.events);
     this.search = "";
     this.target = "";
@@ -89,6 +88,22 @@ export default {
     this.control = (name) => this.el.querySelector(`[data-control="${name}"]`);
     this.scrollport = this.part("scrollport");
     this.chart = this.part("chart");
+    this.surfaces = [
+      {
+        element: this.part("focus-region"),
+        canvas: this.chart,
+        ruler: this.part("step-ruler"),
+        cursor: this.part("time-cursor"),
+        selection: this.part("focus-selection"),
+      },
+      ...Array.from(this.el.querySelectorAll('[data-part="metric-plot"]'), (element) => ({
+        element,
+        canvas: element.querySelector("[data-metric-canvas]"),
+        ruler: element.querySelector("[data-metric-ruler]"),
+        cursor: element.querySelector('[data-part="metric-cursor"]'),
+        selection: element.querySelector('[data-part="metric-selection"]'),
+      })),
+    ];
     this.resizeInspector = bindInspectorResize(this.part("inspector-divider"), {
       availableWidth: () => this.part("workspace").clientWidth,
       setWidth: (width) => this.el.style.setProperty("--timeline-inspector-width", `${width}px`),
@@ -105,26 +120,18 @@ export default {
       this.part("timeline-chart").appendChild(track);
       return { axis, track, ...bindScrollIndicator(this.scrollport, track, thumb, axis) };
     });
-    this.cancelFocus = bindDragFocus(this.part("focus-region"), {
-      geometry: () => {
-        const rect = this.chart.getBoundingClientRect();
-        return { ...this.range, left: rect.left + 12, width: rect.width - 24 };
-      },
-      preview: (range) => {
-        const selection = this.part("focus-selection");
-        selection.hidden = !range;
-        this.focusing = !!range;
-        if (!range) return;
-        this.part("focus-duration").style.top = `${this.activeRulerTop() + 5}px`;
-        this.hideTooltip();
-        this.hideCursor();
-        selection.style.left = `${12 + (this.scrollport.clientWidth - 24) * range.left}px`;
-        selection.style.width = `${(this.scrollport.clientWidth - 24) * range.width}px`;
-        this.part("focus-duration").textContent = timeLabel(range.span);
-      },
-      focus: (range) => this.setRange(range.start, range.span),
-      signal: this.abort.signal,
-    });
+    const cancelFocus = this.surfaces.map((surface) =>
+      bindDragFocus(surface.element, {
+        geometry: () => {
+          const rect = surface.canvas.getBoundingClientRect();
+          return { ...this.range, left: rect.left + 12, width: rect.width - 24 };
+        },
+        preview: (range) => this.previewFocus(range),
+        focus: (range) => this.setRange(range.start, range.span),
+        signal: this.abort.signal,
+      }),
+    );
+    this.cancelFocus = () => cancelFocus.forEach((cancel) => cancel());
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
     this.el.querySelector('[data-stat="tasks"]').textContent = (
       timeline.total_count ?? this.events.length
@@ -140,15 +147,17 @@ export default {
       "input",
       debounce(() => this.filter(), 150, this.abort.signal),
     );
-    bindPinchZoom(
-      this.part("timeline-chart"),
-      (factor, event) => {
-        const rect = this.chart.getBoundingClientRect();
-        const anchor = (event.clientX - rect.left - 12) / Math.max(1, rect.width - 24);
-        this.zoom(factor, Math.max(0, Math.min(1, anchor)));
-      },
-      this.abort.signal,
-    );
+    for (const surface of this.surfaces) {
+      bindPinchZoom(
+        surface.element,
+        (factor, event) => {
+          const rect = surface.canvas.getBoundingClientRect();
+          const anchor = (event.clientX - rect.left - 12) / Math.max(1, rect.width - 24);
+          this.zoom(factor, Math.max(0, Math.min(1, anchor)));
+        },
+        this.abort.signal,
+      );
+    }
     on(
       this.part("machine-metrics"),
       "wheel",
@@ -202,14 +211,16 @@ export default {
       on(canvas, "pointermove", (e) => this.hoverMetric(e));
       on(canvas, "pointerleave", () => this.hideTooltip());
     }
-    on(this.part("focus-region"), "keydown", (e) => this.keydown(e));
-    on(this.part("focus-region"), "pointermove", (e) => {
-      if (e.pointerType === "touch" || this.focusing) return;
-      this.cursorX = e.clientX;
-      this.cursorY = e.clientY;
-      this.updateCursor();
-    });
-    on(this.part("focus-region"), "pointerleave", () => this.hideCursor());
+    for (const surface of this.surfaces) {
+      on(surface.element, "keydown", (e) => this.keydown(e));
+      on(surface.element, "pointermove", (e) => {
+        if (e.pointerType === "touch" || this.focusing) return;
+        this.cursorX = e.clientX;
+        this.cursorSource = surface.canvas;
+        this.updateCursor();
+      });
+      on(surface.element, "pointerleave", () => this.hideCursor());
+    }
     const resize = () => {
       this.resizeInspector();
       this.relayout(false);
@@ -320,10 +331,7 @@ export default {
     const availableHeight = 600;
     this.scrollport.style.height = `${availableHeight}px`;
     this.el.style.setProperty("--timeline-viewport-height", `${availableHeight}px`);
-    this.el.style.setProperty(
-      "--timeline-header-height",
-      `${this.part("machine-metrics").offsetHeight + this.part("build-controls").offsetHeight + this.part("ruler").offsetHeight}px`,
-    );
+    this.el.style.setProperty("--timeline-header-height", `${this.part("build-controls").offsetHeight}px`);
     this.part("tracks").style.height = `${availableHeight}px`;
     const geometry = scrollGeometry(this.scrollport.clientWidth, this.range, this.duration);
     this.part("tracks").style.width = `${geometry.width}px`;
@@ -353,29 +361,46 @@ export default {
 
   hideCursor() {
     this.cursorX = null;
-    this.part("time-cursor").hidden = true;
+    for (const surface of this.surfaces) surface.cursor.hidden = true;
     this.updateMetricValues(null);
   },
 
-  activeRulerTop() {
-    const ruler = this.part("step-ruler");
-    return this.part("ruler").hidden || this.cursorY >= ruler.getBoundingClientRect().top ? ruler.offsetTop : 0;
+  updateCursor() {
+    if (this.cursorX == null || this.focusing) return;
+    const rect = this.cursorSource.getBoundingClientRect();
+    const time = cursorTime(this.cursorX - rect.left, rect.width, this.range);
+    const fraction = (time - this.range.start) / this.range.span;
+    for (const surface of this.surfaces) {
+      const width = surface.canvas.getBoundingClientRect().width;
+      const x = 12 + fraction * (width - 24);
+      surface.cursor.hidden = false;
+      const line = surface.cursor.querySelector('[data-part="cursor-line"]');
+      line.style.left = `${x}px`;
+      line.style.top = `${surface.ruler.offsetTop + 28}px`;
+      const label = surface.cursor.querySelector('[data-part="cursor-time"]');
+      label.style.top = `${surface.ruler.offsetTop + 5}px`;
+      label.textContent = cursorTimeLabel(time);
+      label.style.left = `${Math.max(0, Math.min(width - label.offsetWidth, x - label.offsetWidth / 2))}px`;
+    }
+    this.updateMetricValues(time);
   },
 
-  updateCursor() {
-    const cursor = this.part("time-cursor");
-    const rect = this.chart.getBoundingClientRect();
-    const position = this.cursorX - rect.left;
-    cursor.hidden = this.cursorX == null || this.focusing || position < 0 || position > rect.width;
-    if (cursor.hidden) return;
-    const x = Math.max(12, Math.min(rect.width - 12, position));
-    this.part("cursor-line").style.left = `${x}px`;
-    const label = this.part("cursor-time");
-    label.style.top = `${this.activeRulerTop() + 5}px`;
-    const time = cursorTime(x, rect.width, this.range);
-    label.textContent = cursorTimeLabel(time);
-    this.updateMetricValues(time);
-    label.style.left = `${Math.max(0, Math.min(rect.width - label.offsetWidth, x - label.offsetWidth / 2))}px`;
+  previewFocus(range) {
+    this.focusing = !!range;
+    if (range) {
+      this.hideTooltip();
+      this.hideCursor();
+    }
+    for (const surface of this.surfaces) {
+      surface.selection.hidden = !range;
+      if (!range) continue;
+      const width = surface.canvas.getBoundingClientRect().width - 24;
+      surface.selection.style.top = `${surface.ruler.offsetTop}px`;
+      surface.selection.style.left = `${12 + width * range.left}px`;
+      surface.selection.style.width = `${width * range.width}px`;
+      const label = surface.selection.querySelector('[data-part="focus-duration"]');
+      label.textContent = timeLabel(range.span);
+    }
   },
 
   hover(pointer) {
@@ -410,7 +435,7 @@ export default {
 
   positionTooltip(pointer) {
     const tooltip = this.part("tooltip");
-    const rect = this.part("timeline-chart").getBoundingClientRect();
+    const rect = this.part("timeline-content").getBoundingClientRect();
     tooltip.style.left = `${Math.max(8, Math.min(pointer.clientX - rect.left + 12, rect.width - tooltip.offsetWidth - 8))}px`;
     tooltip.style.top = `${Math.max(33, pointer.clientY - rect.top - tooltip.offsetHeight - 12)}px`;
   },
@@ -435,8 +460,7 @@ export default {
     });
   },
 
-  context(canvas, height) {
-    const width = this.scrollport.clientWidth;
+  context(canvas, height, width = this.scrollport.clientWidth) {
     const dpr = window.devicePixelRatio || 1;
     if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
     if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
@@ -503,7 +527,7 @@ export default {
     this.drawMetrics(colors);
     ctx.strokeStyle = colors.border;
     ctx.globalAlpha = 0.45;
-    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 100)));
+    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 140)));
     for (let i = 0; i <= tickCount; i++) {
       const px = inset + (i / tickCount) * plotWidth;
       ctx.beginPath();
@@ -556,9 +580,11 @@ export default {
       const lane = event.lane;
       (this.rectsByLane[lane] ||= []).push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
     }
-    const cursorLabel = this.part("cursor-time");
-    cursorLabel.style.backgroundColor = colors.accent;
-    cursorLabel.style.color = this.barTextColor(colors.accent);
+    for (const surface of this.surfaces) {
+      const cursorLabel = surface.cursor.querySelector('[data-part="cursor-time"]');
+      cursorLabel.style.backgroundColor = colors.accent;
+      cursorLabel.style.color = this.barTextColor(colors.accent);
+    }
     this.updateCursor();
     this.part("range").textContent =
       `${timeLabel(this.range.start)} – ${timeLabel(this.range.start + this.range.span)}`;
@@ -595,7 +621,8 @@ export default {
     if (!this.metrics?.samples.length) return;
     for (const track of this.metrics.tracks) {
       const canvas = this.el.querySelector(`[data-metric-canvas="${track.key}"]`);
-      const { ctx, width } = this.context(canvas, 120);
+      const { ctx, width } = this.context(canvas, 120, canvas.parentElement.clientWidth);
+      this.drawRulerCanvas(canvas.parentElement.querySelector("[data-metric-ruler]"), 12, width - 24, colors, width);
       this.metrics.draw(ctx, width, 120, track, this.range, colors);
     }
     this.updateMetricValues(null);
@@ -613,18 +640,15 @@ export default {
   },
 
   drawRuler(labelWidth, plotWidth, colors) {
-    for (const part of ["ruler", "step-ruler"]) {
-      const canvas = this.part(part);
-      if (!canvas.hidden) this.drawRulerCanvas(canvas, labelWidth, plotWidth, colors);
-    }
+    this.drawRulerCanvas(this.part("step-ruler"), labelWidth, plotWidth, colors);
   },
 
-  drawRulerCanvas(canvas, labelWidth, plotWidth, colors) {
-    const { ctx, width } = this.context(canvas, 32);
+  drawRulerCanvas(canvas, labelWidth, plotWidth, colors, canvasWidth) {
+    const { ctx, width } = this.context(canvas, 32, canvasWidth);
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, 32);
     ctx.fillStyle = colors.muted;
-    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 100)));
+    const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 140)));
     for (let i = 0; i <= tickCount; i++) {
       ctx.textAlign = i === tickCount ? "right" : "left";
       ctx.fillText(
