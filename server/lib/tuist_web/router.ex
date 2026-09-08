@@ -742,6 +742,8 @@ defmodule TuistWeb.Router do
         scope "/xcode" do
           scope "/builds" do
             get "/", BuildsController, :index
+            get "/:build_id/steps", BuildStepsController, :index
+            get "/:build_id/steps/:step_id", BuildStepsController, :show
             get "/:build_id/targets", BuildTargetsController, :index
             get "/:build_id/files", BuildFilesController, :index
             get "/:build_id/issues", BuildIssuesController, :index

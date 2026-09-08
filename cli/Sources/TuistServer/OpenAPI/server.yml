@@ -934,6 +934,63 @@ components:
       type: integer
       x-struct:
       x-validate:
+    XcodeBuildStepDetail:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        log:
+          type: string
+          x-struct:
+          x-validate:
+        log_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+        - log
+        - log_truncated
+      title: XcodeBuildStepDetail
+      type: object
+      x-struct:
+      x-validate:
     PreviewArtifactUpload:
       description: The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
       properties:
@@ -5236,6 +5293,53 @@ components:
       type: string
       x-struct:
       x-validate:
+    XcodeBuildStep:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+      title: XcodeBuildStep
+      type: object
+      x-struct:
+      x-validate:
     Account:
       properties:
         handle:
@@ -5254,6 +5358,77 @@ components:
       title: Account
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Account
+      x-validate:
+    XcodeBuildStepsList:
+      properties:
+        availability:
+          enum:
+            - available
+            - processing
+            - unavailable
+          type: string
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        steps:
+          items:
+            properties:
+              category:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: number
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                type: string
+                x-struct:
+                x-validate:
+              start_ms:
+                type: number
+                x-struct:
+                x-validate:
+              status:
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - title
+              - project
+              - target
+              - category
+              - start_ms
+              - duration_ms
+              - status
+            title: XcodeBuildStep
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - steps
+        - pagination_metadata
+        - availability
+      title: XcodeBuildStepsList
+      type: object
+      x-struct:
       x-validate:
     ModuleCacheTargetsPage:
       default: 1
@@ -9631,6 +9806,254 @@ paths:
       summary: Create a new test run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps:
+    get:
+      callbacks: {}
+      description: Steps are retained for 90 days. Times are milliseconds from build start. Step IDs are decimal strings preserving UInt64 precision. Unavailable means steps were not recorded or have expired. Time filters select overlapping steps; end_ms is exclusive.
+      operationId: listXcodeBuildSteps
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Case-insensitive title, project, or target search.
+          in: query
+          name: search
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: project
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: target
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact recorded category, such as swiftCompilation.
+          in: query
+          name: category
+          required: false
+          schema:
+            maxLength: 128
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: Duration descending or start time ascending; ties use step ID ascending.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: duration_ms
+            enum:
+              - duration_ms
+              - start_ms
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  availability:
+                    enum:
+                      - available
+                      - processing
+                      - unavailable
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  steps:
+                    items:
+                      properties:
+                        category:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        start_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        status:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - title
+                        - project
+                        - target
+                        - category
+                        - start_ms
+                        - duration_ms
+                        - status
+                      title: XcodeBuildStep
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - steps
+                  - pagination_metadata
+                  - availability
+                title: XcodeBuildStepsList
+                type: object
+                x-struct:
+                x-validate:
+          description: Recorded steps
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List recorded Xcode build steps without logs.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/builds/{build_id}:
     get:
       callbacks: {}
@@ -12025,6 +12448,150 @@ paths:
       summary: Updates an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}:
+    get:
+      callbacks: {}
+      description: Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
+      operationId: getXcodeBuildStep
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: The decimal string ID returned by listXcodeBuildSteps.
+          in: path
+          name: step_id
+          required: true
+          schema:
+            pattern: ^[0-9]{1,20}$
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  category:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  project:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  start_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  title:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - title
+                  - project
+                  - target
+                  - category
+                  - start_ms
+                  - duration_ms
+                  - status
+                  - log
+                  - log_truncated
+                title: XcodeBuildStepDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Step details and log
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get one recorded Xcode build step and its log.
+      tags:
+        - Builds
   /api/auth/oidc/token:
     post:
       callbacks: {}

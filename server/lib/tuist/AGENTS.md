@@ -4,6 +4,7 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Responsibilities
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
+- `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
