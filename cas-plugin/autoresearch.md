@@ -272,8 +272,135 @@ size. Retain exact module and compressed-node identity checks, resource limits,
 malformed-input tests, and fresh compiler-consumer checks. Production negotiation,
 authorization, action validity, and transfer encodings are out of scope.
 
+### Results, 2026-09-08
+
+The six-run segment is complete. An initial one-mebibyte grouped probe preceded
+the logged confirmation. The grouped codec is confined to the offline example.
+There are no production client, server, or compiler-setting changes in this pass.
+
+| Candidate | Selected bytes | Decision |
+| --- | ---: | --- |
+| Previous monolithic prefix patch, expanded corpus | 10,195,001 | Baseline |
+| Four-mebibyte pages, prefix patches | 2,205,669 | Discard against preliminary one-mebibyte probe |
+| One-mebibyte pages, prefix patches | 1,783,604 | Confirmed research candidate |
+| Also allow bytewise differences | 1,538,335 | Keep for research |
+| Also compress group descriptors separately | 1,324,969 | Keep for research |
+| Reduce pages to 256 kibibytes | 1,243,833 | Keep for research |
+
+The initial one-mebibyte probe also selected exactly 1,783,604 bytes. Between
+that probe and its logged confirmation, preparation/output buffers were
+preallocated and the target prepared buffer was released before reconstruction.
+These changes preserved bytes, but did not materially improve process memory.
+The helper initially declined the log because group counters were new secondary
+metrics; the later confirmation supplies the durable entry. No failed correctness
+run was retained. An early mutation test was corrected to allow harmless changes
+to unused metadata only when the accepted output still equals the exact target.
+
+| Output | Whole compressed node | Previous monolithic patch | Final grouped patch | Reduction from whole |
+| --- | ---: | ---: | ---: | ---: |
+| ProjectDescription public declaration | 588,354 | 200,083 | 158,211 | 73.1% |
+| ProjectDescription enum change | 583,767 | 92,071 | 50,307 | 91.4% |
+| ProjectDescription hashing change | 583,785 | 208,557 | 169,102 | 71.0% |
+| Foundation precompiled header | 9,130,230 | 6,495,827 | 776,089 | 91.5% |
+| Actual 4,000-struct Xcode Swift module | 6,177,960 | 3,198,463 | 90,124 | 98.5% |
+
+Patch columns include actual serialized metadata and 192 estimated outer-envelope
+bytes. The changed whole outputs total 17,064,096 bytes. Grouped patches total
+1,243,833, a 92.7% reduction from whole and 87.8% below the previous monolithic
+patches on this same corpus. The body-only pair was already identical and costs
+zero without any patch; its 583,922-byte whole size is included in cold_bytes
+but excluded from these changed-output totals. The three small modules improve
+from 500,711 to 377,620 bytes. These selected local pairs are not a customer
+distribution, and the generated module's single-property rename is especially
+favorable once field groups isolate the change.
+
+### Why the groups help
+
+The [bitcode container](https://llvm.org/docs/BitCodeFormat.html) exposes block,
+record, and operand boundaries. We preserve their original values and spelling,
+then compare the same field kind between revisions. These are container identities,
+not stable declaration identities, and no Swift reference is renumbered. Layout,
+raw byte payloads, and individual numeric columns have separate group identities.
+Large groups are split into fixed-size pages. A page chooses an exact base copy,
+a bounded prefix patch, a literal, or compressed bytewise differences.
+
+The [Zstandard window documentation](https://github.com/facebook/zstd/blob/v1.5.7/programs/zstd.1.md)
+explains why a bounded comparison can help: the monolithic prepared files exceed
+the old matching window. Grouping brings the corresponding base page back into
+reach. Fixed pages still lose some matches around insertions; they are not a
+semantic equivalence algorithm or a replacement for content-defined boundaries.
+
+Bytewise subtraction follows the observation in
+[Colin Percival's binary-patching paper](https://www.daemonology.net/papers/bsdiff.pdf)
+that changed references can have sparse, repetitive differences without long
+exact matches. This experiment does not implement that paper's suffix matching:
+it only tries aligned equal-size pages and keeps a difference when it beats the
+prefix patch or literal. Wrapping byte arithmetic is exactly inverted.
+
+Repeated group descriptors were another avoidable cost. Compressing that index
+separately dropped metadata from 237,544 to 24,178 bytes at one-mebibyte pages.
+The final smaller-page candidate has 8,912 groups and 25,990 metadata bytes.
+Its exact-copy mode reuses 213,065,780 **prepared** bytes; that figure must not be
+reported as downloaded bytes saved because preparation expands the output.
+
+### Costs, correctness, and next work
+
+Confirmation reproduced all patch sizes. Fresh-base receiver work, including
+preparation, patch verification/decoding, inverse transformation, and compressed
+node verification, was about 116–117 milliseconds for each small module,
+908 milliseconds for the header, and 1,617 milliseconds for the large Swift
+module. This is more processing than monolithic patches. Disk, network, base
+discovery, authorization, and prepared-base persistence remain unmeasured.
+
+Process peak memory was 1,821,573,120 bytes in the final search run and
+1,810,710,528 in confirmation. A live `vmmap -summary` diagnostic during the
+previous candidate showed about 453 mebibytes allocated, plus 783 mebibytes of
+resident empty large-allocation regions and 126 mebibytes of resident empty small
+regions. This snapshot is evidence of allocator retention, not an isolated
+decoder peak or a memory fix. The bounded page size does not bound the current
+whole prepared files, and the candidate still fails the 512-mebibyte promotion
+budget. It is retained only as offline evidence for a better transfer format.
+
+All five changed outputs reconstructed exactly, including compressed-node bytes
+and digest with nonempty synthetic references. Exported results passed four
+fresh-cache Swift consumer type-checks and the Objective-C header consumer check.
+The example now has eight focused tests, covering the original parser plus new
+groups, exact copies, changed pages, modular byte differences, incorrect bases,
+truncation, mutations, trailing bytes, duplicate groups, and envelope bounds.
+The three chunk-boundary tests, three chunking-example tests, 109 library tests,
+and ten negotiation/backpressure tests also passed. Two live-Kura chunk tests
+were explicitly ignored in this pass because no local Kura was running. This is
+not a new end-to-end network test of grouped patches, which have no network path.
+
+Next work, before considering a production codec:
+
+1. Prepare compact or spooled field streams and reuse bounded scratch buffers.
+   Measure live allocations, retained memory, and receiver-only peak separately.
+   An isolated worker could also contain parser failure and allocator retention,
+   but its overhead and peak must be measured rather than assumed away.
+2. Profile hashing separately. Source inspection found that our current
+   [hash implementation selects software on Apple silicon unless its assembly
+   feature is enabled](https://github.com/RustCrypto/hashes/blob/sha2-v0.10.9/sha2/src/sha256.rs).
+   The [accelerated backend checks processor support at runtime](https://github.com/RustCrypto/hashes/blob/sha2-v0.10.9/sha2/src/sha256/aarch64.rs).
+   Benchmark an accelerated build and verify both supported architectures before
+   changing a shipping dependency. No acceleration is enabled by this experiment.
+3. Test insertion/deletion, multiple edits, different build modes, toolchain
+   revisions, and unrelated bases. A transfer selection policy must include
+   processing cost and fallback, not choose solely from patch size.
+4. Keep base authorization, digest-pinned identities, missing-base fallback,
+   chain prevention, concurrency limits, and separate capability negotiation as
+   required production work. The offline envelope validates the prepared base,
+   but does not perform remote authorization or discover a suitable local base.
+
+This optimizes transfer reuse, not compiler invalidation. A changed action must
+still have been compiled somewhere before its exact output can be reconstructed.
+
 To repeat with available artifact pairs, run `./autoresearch.swift.sh` with a
-manifest containing the three edits and a body-only pair. Set
+manifest containing the three edits, the body-only pair, the large Xcode module,
+and the Foundation header. Use the checked-in grouped configuration, or set
+`group_bytes` to zero and `residual` to false for the monolithic baseline. The
+historical temporary artifacts are not bundled; regenerated artifacts establish
+a new corpus rather than reproducing these exact byte counts. Set
 `SWIFT_PATCH_RESTORED_DIR` to an existing empty temporary directory to export
 verified modules/headers; existing files are never overwritten. For a Swift
 consumer, place each exported file under its original module name and run

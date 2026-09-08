@@ -327,6 +327,35 @@ mod tests {
     }
 
     #[test]
+    fn rejects_oversized_envelopes_and_duplicate_groups() {
+        let base = prepared(&vec![11; 4096], 7);
+        let target = prepared(&vec![19; 4096], 7);
+        let patch = encode(&base, &target, 1024, 3, true).unwrap().bytes;
+        for (offset, value) in [
+            (76, MAX_PREPARED + 1),
+            (80, 8 * 1024 * 1024 + 1),
+            (84, MAX_GROUPS + 1),
+            (88, MAX_PREPARED),
+        ] {
+            let mut changed = patch.clone();
+            changed[offset..offset + 4].copy_from_slice(&(value as u32).to_le_bytes());
+            assert!(decode(&base, &changed).is_err());
+        }
+        let metadata_size = u32::from_le_bytes(patch[88..92].try_into().unwrap()) as usize;
+        let mut metadata =
+            zstd::bulk::decompress(&patch[92..92 + metadata_size], MAX_GROUPS * DESCRIPTOR_SIZE)
+                .unwrap();
+        metadata.copy_within(0..20, DESCRIPTOR_SIZE);
+        let compressed = zstd::bulk::compress(&metadata, 3).unwrap();
+        let mut changed = patch[..88].to_vec();
+        changed.extend((compressed.len() as u32).to_le_bytes());
+        changed.extend(compressed);
+        changed.extend(&patch[92 + metadata_size..]);
+        assert_eq!(decode(&base, &changed).unwrap_err(), "duplicate group");
+        assert!(encode(&base[..base.len() - 1], &target, 1024, 3, true).is_err());
+    }
+
+    #[test]
     fn rejects_wrong_bases_truncation_and_trailing_bytes() {
         let base = prepared(&vec![11; 4096], 7);
         let target = prepared(&vec![19; 4096], 7);
