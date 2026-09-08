@@ -188,6 +188,10 @@ export default {
     on(this.chart, "dblclick", (e) => this.focusStep(this.hit(e)));
     on(this.chart, "mousemove", (e) => this.hover(e));
     on(this.chart, "mouseleave", () => this.hideTooltip());
+    for (const canvas of this.el.querySelectorAll("[data-metric-canvas]")) {
+      on(canvas, "pointermove", (e) => this.hoverMetric(e));
+      on(canvas, "pointerleave", () => this.hideTooltip());
+    }
     on(this.part("focus-region"), "keydown", (e) => this.keydown(e));
     on(this.part("focus-region"), "pointermove", (e) => {
       if (e.pointerType === "touch" || this.focusing) return;
@@ -367,6 +371,28 @@ export default {
     tooltip.querySelector("strong").textContent = event.title;
     tooltip.querySelector("span").textContent =
       `${[event.project, event.target].filter(Boolean).join(" / ")} · ${timeLabel(event.duration_ms)}`;
+    this.positionTooltip(pointer);
+  },
+
+  hoverMetric(pointer) {
+    this.hideTooltip();
+    if (this.focusing || pointer.pointerType === "touch") return;
+    const canvas = pointer.currentTarget;
+    const track = this.metrics.tracks.find((track) => track.key === canvas.dataset.metricCanvas);
+    const rect = canvas.getBoundingClientRect();
+    const time = cursorTime(pointer.clientX - rect.left, rect.width, this.range);
+    const sample = this.metrics.sampleAt(time);
+    if (!sample || !track.fields.some((field) => Number.isFinite(sample[field]))) return;
+    const title = canvas.closest("[data-metric]").querySelector('[data-part="metric-heading"] > span').textContent;
+    const tooltip = this.part("tooltip");
+    tooltip.querySelector("strong").textContent = `${title} · ${cursorTimeLabel(sample.offset_ms)}`;
+    tooltip.querySelector("span").textContent = this.metrics.label(track, sample.offset_ms);
+    tooltip.hidden = false;
+    this.positionTooltip(pointer);
+  },
+
+  positionTooltip(pointer) {
+    const tooltip = this.part("tooltip");
     const rect = this.part("timeline-chart").getBoundingClientRect();
     tooltip.style.left = `${Math.max(8, Math.min(pointer.clientX - rect.left + 12, rect.width - tooltip.offsetWidth - 8))}px`;
     tooltip.style.top = `${Math.max(33, pointer.clientY - rect.top - tooltip.offsetHeight - 12)}px`;
