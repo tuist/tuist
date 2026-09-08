@@ -2,7 +2,7 @@
 //! listeners, membership views set by hand, the coordinator opening the
 //! links the roles ask for. Covers A-9, A-10, A-14 and the shape of B-1.
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use tokio::net::TcpListener;
 
@@ -43,7 +43,7 @@ impl Node {
     /// What the membership loop would have stored: the other nodes' status.
     fn see(&self, peers: &[&Node]) {
         let views: Vec<PeerView> = peers.iter().map(|peer| peer.view()).collect();
-        self.state().peer_views.store(Arc::new(views));
+        self.state().apply_peer_views(views);
         self.state().sync.evaluate(self.state());
     }
 

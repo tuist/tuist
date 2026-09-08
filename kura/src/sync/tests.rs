@@ -663,3 +663,56 @@ async fn status_advertises_traffic_state_pulling_and_incarnation() {
     assert!(context.state.set_replication_pull(false));
     assert!(!context.state.replication_pull());
 }
+
+// D-20: a pulling peer that stops answering stays off the push targets
+// until it comes back saying otherwise.
+#[tokio::test]
+async fn a_pulling_peer_stays_off_push_while_unreachable() {
+    let context = test_context(|config| {
+        config.replication_pull = true;
+        config.peers = vec!["http://sibling:7443".into(), "http://old:7443".into()];
+    })
+    .await;
+    let state = &context.state;
+    let view = |url: &str, pulling: bool| crate::sync::roles::PeerView {
+        url: url.into(),
+        region: "local".into(),
+        serving: true,
+        draining: false,
+        pulling,
+    };
+    state.apply_peer_views(vec![
+        view("http://sibling:7443", true),
+        view("http://old:7443", false),
+    ]);
+    let targets = state.rebuild_replication_targets().await;
+    assert_eq!(
+        *targets,
+        vec!["http://old:7443".to_string()],
+        "the pulling sibling is not pushed to"
+    );
+
+    // The sibling stops answering: it leaves the view but keeps its flag.
+    state.apply_peer_views(vec![view("http://old:7443", false)]);
+    let targets = state.rebuild_replication_targets().await;
+    assert_eq!(
+        *targets,
+        vec!["http://old:7443".to_string()],
+        "still not pushed to while unreachable"
+    );
+
+    // It comes back rolled back to a binary that does not pull.
+    state.apply_peer_views(vec![
+        view("http://sibling:7443", false),
+        view("http://old:7443", false),
+    ]);
+    let mut targets = (*state.rebuild_replication_targets().await).clone();
+    targets.sort();
+    assert_eq!(
+        targets,
+        vec![
+            "http://old:7443".to_string(),
+            "http://sibling:7443".to_string()
+        ]
+    );
+}

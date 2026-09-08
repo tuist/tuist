@@ -77,10 +77,22 @@ cd kura && mise exec -- shellspec spec/e2e/discovery_spec.sh spec/e2e/backfill_s
 
 ## Ring C — k01 clusters (tens of minutes per setup)
 
-Clusters are created with `~/.config/tuist/k01/mvm create k0N [--nodes n]` and
-deployed with `CLUSTER=k0N bash ~/.config/tuist/k01/deploy.sh`. The setup
-manifests live under `~/.config/tuist/k01/replication/` (checked into that
-harness repo) and are applied by `deploy.sh` through `KURA_INSTANCE_MANIFESTS`.
+Clusters are created with `~/.config/tuist/k01/mvm create k0N` and the
+server-backed setups deployed with `CLUSTER=k0N mise x -- bash
+~/.config/tuist/k01/deploy.sh` (run from the repo root so `helm` resolves).
+The lab scripts live under `~/.config/tuist/k01/replication/` (the harness
+repo):
+
+| Script | Purpose |
+| --- | --- |
+| `serverless.sh apply k0N <tag-us> [<tag-eu>] [pull]` | the serverless 2 × 2 mesh (`kura-mesh` namespace), image tags from the host registry; `wipe` removes it |
+| `regions.sh flip k0N true\|false` / `add k0N eu ap` | flip `KURA_REPLICATION_PULL` on the deployed instances; add two-replica regions |
+| `mint-jwt.sh k0N` | an HS512 token the deployed nodes accept for `tuist/kura` writes |
+| `sync-bench.sh` | the burst + convergence + cAdvisor/du deltas table (`KURA_BENCH_TOKEN` for authenticated nodes) |
+| `rollout-check.sh` | C-5/C-6: roll an instance to a new image while writing, watch the gateway role |
+| `rebuild-check.sh` | C-8: recreate a node on an empty volume, watch the `410 incarnation` re-bootstrap |
+| `stall-check.sh` | SIGSTOP a node, burst elsewhere, compare outbox growth and catch-up time |
+| `remote-selfhosted.sh` | C-3: a self-hosted node in another cluster enrolling with the server (see the implementation log for why the lab cannot complete enrollment) |
 
 | # | Setup | What it exercises | Pass criterion |
 | --- | --- | --- | --- |

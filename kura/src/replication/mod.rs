@@ -228,7 +228,7 @@ async fn membership_task_loop(state: SharedState) {
         state.note_discovered_only_peers(discovered_only).await;
         views.sort_by(|a, b| a.url.cmp(&b.url));
         views.dedup_by(|a, b| a.url == b.url);
-        state.peer_views.store(Arc::new(views));
+        state.apply_peer_views(views);
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
             .await;

@@ -100,6 +100,11 @@ pub struct AppState {
     /// What every reachable peer's `/_internal/status` last said, refreshed
     /// each membership tick; the role rule's input.
     pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
+    /// Peers whose last status said they pull, kept across their absence
+    /// from the view (implementation decision D-20): an unreachable pulling
+    /// peer must not be pushed to again just because it stopped answering.
+    /// In memory, like the discovered-only history.
+    pub pulling_peers: ArcSwap<BTreeSet<String>>,
     /// Roles the control plane published beside the peer list.
     pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
     /// The pull links (design §3, §4), driven by the membership loop.
@@ -502,6 +507,22 @@ impl AppState {
     /// The peers a write enqueues one outbox message for. A shared snapshot:
     /// exact as of the last input change, which every input mutation
     /// follows with `rebuild_replication_targets`.
+    /// Stores what the membership loop saw and folds each peer's pull flag
+    /// into the sticky set: a peer that answered decides its own entry, a
+    /// peer that did not answer keeps its last one.
+    pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
+        let mut pulling: BTreeSet<String> = (**self.pulling_peers.load()).clone();
+        for view in &views {
+            if view.pulling {
+                pulling.insert(view.url.clone());
+            } else {
+                pulling.remove(&view.url);
+            }
+        }
+        self.pulling_peers.store(Arc::new(pulling));
+        self.peer_views.store(Arc::new(views));
+    }
+
     pub fn replication_pull(&self) -> bool {
         self.replication_pull
             .load(std::sync::atomic::Ordering::Acquire)
@@ -529,10 +550,8 @@ impl AppState {
         // The per-peer rule of the flip (design §5.2): a peer that pulls is
         // no longer pushed to.
         if self.replication_pull() {
-            for view in self.peer_views.load().iter() {
-                if view.pulling {
-                    targets.remove(&view.url);
-                }
+            for peer in self.pulling_peers.load().iter() {
+                targets.remove(peer);
             }
         }
         let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());

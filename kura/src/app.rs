@@ -254,6 +254,7 @@ async fn run_with_config(
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
         replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
         published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
         sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });

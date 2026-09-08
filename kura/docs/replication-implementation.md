@@ -264,6 +264,76 @@ on every node. A 2,000-write burst of 4 KiB values on the non-gateway
 remote gateway after 2.8 s and on the remote non-gateway after 5.0 s, with
 no sampled miss.
 
+**C-2 / C-4 / C-6 — self-hosted server on k02 with three regions × two
+replicas plus a self-hosted node (branch image, pull flipped by env).** The
+controller published `status.peerRoles` for every instance (primary
+ordinal 1, gateway ordinal 0 — the complement); the nodes derived one
+gateway per region (`tuist-kura-0`, `tuist-kura-eu-0`, `tuist-kura-ap-0`),
+the gateway clique (each gateway holds a region link to the other two), and
+replica links among every same-region pair, the `local` region running as a
+three-node group (two managed replicas and the self-hosted node). Feeds on
+everywhere, every link settled in the forward phase. The server did not
+publish roles for these instances: this deploy applies its `KuraInstance`s
+out of band, so the server has no managed-region rows to read them from
+(the published-roles path is covered by the server's unit tests and the
+runtime's `published_roles_override_the_local_rule` test).
+
+A 500-write burst of 4 KiB values from the self-hosted node `tuist-kura-sh-0`
+(region `local`, non-gateway) converged with no sampled miss on every node:
+the local replicas within 0.13 s and 2.4 s, region `eu` within 4.9 s and
+7.1 s, region `ap` within 9.6 s and 11.9 s — readers are checked one after
+another, so each figure is an upper bound that includes the previous
+reader's wait. Outbox 0 on all seven nodes; 1–7 MB of peer traffic per node
+for a 2 MB burst; +10 MB on disk per node (the burst plus RocksDB overhead
+on nearly empty stores).
+
+**C-5 / C-6 — rollout of the two-replica `local` instance on k02 to a new
+image while writing.** The controller rolled ordinal 1 then ordinal 0. The
+gateway role stayed on `tuist-kura-0` while ordinal 1 rolled, moved to
+`tuist-kura-1` while ordinal 0 was terminating, and returned to
+`tuist-kura-0` once it was serving again — the four-move pattern §2.1
+budgets for, here two moves because the standby rolled first. A 600-write
+burst from the self-hosted node during the roll converged on both replicas
+(0.12 s / 2.4 s after the burst) with no sampled miss.
+
+The drain gate itself, on the drain-fixed binary: a `SIGTERM` sent to the
+standby `tuist-kura-1` in place (its sibling live and caught up) exited the
+process 3 s later with `sibling cursor reached the head before exit`, and
+the restarted container was serving again 30 s after the signal with both
+of its replica links forward and settled — the "normally nothing" case of
+§3.5, as observed. (The controller's own rolls recreate the pod, so their
+departing containers' logs are not retained; the e2e drain scenario B-4
+covers the lagging-sibling case with timings.)
+
+**C-3 — a self-hosted node in a second cluster enrolling with the k02
+server: not reproducible in this lab.** Enrollment answers
+`503 ca_unavailable` because the self-hosted deploy has no provisioned
+region whose peer CA the server could sign with (`Mesh.read_account_peer_ca`
+walks `kura_servers`, which the out-of-band deploy never creates). The
+scenario is the hosted provisioning path itself, exercised in production
+by every enrolled self-hosted node; what this branch adds to it —
+`peer_roles` and `replication_pull` in the heartbeat — is covered by the
+controller tests in `server/test/tuist_web/controllers/internal/kura_mesh_controller_test.exs`
+and by the runtime's heartbeat decoder.
+
+**C-7 — mixed versions on k04: region `us` on the branch image with pull
+on, region `eu` on the `main` image.** The `us` nodes derived their roles
+(one gateway, one replica link each, no region link — the `eu` nodes do
+not advertise pulling, so they stay push targets), the `eu` nodes ran
+unchanged. A 1,000-write burst from `kura-us-1` reached `kura-us-0` in
+0.13 s, `kura-eu-0` in 2.7 s and `kura-eu-1` in 5.0 s; the reverse burst
+from `kura-eu-1` reached `kura-eu-0` in 0.12 s, `kura-us-0` in 2.4 s and
+`kura-us-1` in 4.9 s; no sampled miss either way, outbox empty on the
+branch nodes after both bursts. This is the ship/flip compatibility the
+migration plan (§5.2) rests on.
+
+**C-8 — volume rebuild on k04 (branch image).** Deleting `kura-us-1` with
+its volume brought it back with a new incarnation
+(`db6441c870006b1e` → `667aeb3259e0e794`); its sibling `kura-us-0`
+recorded exactly one `kura_sync_forward_fell_behind_total{reason="incarnation"}`
+and re-bootstrapped, and the rebuilt node's own replica link was forward and
+settled with `/ready` answering 200 five seconds after the pod was Ready.
+
 ### 3.2 `main` vs branch, same cluster, same burst
 
 Serverless mesh on k04, 2 regions × 2 nodes, one VM (6 vCPU / 12 GB), writer
@@ -316,6 +386,23 @@ building images, which is why that burst took 105 s instead of 75 s):
   a slow or absent peer, which ring B's fall-off scenario (B-3) and the
   10k-writes-while-stopped scenario (B-2) cover.
 
+**Stalled peer, both images (k04, 2 × 2, the `eu` gateway's process
+frozen with `SIGSTOP` for the whole burst, 1,500 × 4 KiB writes on
+`kura-us-1`).** On `main` the writer's outbox held 1,500 messages for the
+frozen peer at the end of the burst (one per write — L2's coupling), the
+other three nodes converged as usual, and after `SIGCONT` the frozen node
+took 45 s to catch up while the writer drained its queue to it one message
+at a time (476 still queued when the last key arrived). On the branch the
+frozen gateway's sibling `kura-eu-1` took the `eu` gateway role within a
+tick and converged through its own region link during the stall
+(overlap over gaps, §2.4), and the frozen node caught up 1.5 s after
+`SIGCONT` by resuming its region read from its watermark. The same run
+found that a pulling peer which drops out of the membership view was
+being pushed to again while unreachable (955 queued rows on the branch
+writer, pruned rather than delivered once the peer returned pulling);
+fixed by remembering a peer's last advertised pull flag across its absence
+(D-20) — the writer's outbox then stays empty through the stall.
+
 ### 3.3 Ring B (docker compose)
 
 `spec/e2e/sync_spec.sh` at the drain-gate fix commit: 10 examples covering
@@ -328,5 +415,19 @@ the internal listener's shutdown and by shortening long-polls to 250 ms
 while draining (the drain wakes them, the sibling re-asks at once with its
 new cursor). The pre-existing suites (`discovery_spec.sh`,
 `backfill_spec.sh`) pass on the branch: 6 examples, 0 failures, 1 skip
-(the opt-in multi-GiB capacity check).
+(the opt-in multi-GiB capacity check). After the fix, the drain-gate example
+passes standalone with the images rebuilt from the fixed tree (`1 example,
+0 failures`; the departing node exits 2.2 s after the paused sibling
+resumes, with the "sibling cursor reached the head" line and no timeout),
+and the full suite passes: `10 examples, 0 failures` in 139 s.
+
+**D-20 — A peer's pull flag is remembered while it is unreachable.** The
+push targets are rebuilt from the membership view, and a peer that stops
+answering its status probe leaves the view — which read as "not pulling"
+and put it back on push, queueing an outbox row per write for as long as it
+was down. The stalled-peer run made this visible. A node now keeps the set
+of peers that last advertised pulling (in memory, like the discovered-only
+history) and keeps them off the push targets until they come back saying
+otherwise; a rolled-back peer that returns with `pulling: false` is pushed
+to again from its next tick.
 
