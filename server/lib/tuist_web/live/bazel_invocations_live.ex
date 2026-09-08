@@ -38,7 +38,7 @@ defmodule TuistWeb.BazelInvocationsLive do
 
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     page = parse_page(params["page"])
-    sort_by = params["invocations-sort-by"] || "finished-at"
+    sort_by = params["invocations-sort-by"] || "ran-at"
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
@@ -80,41 +80,55 @@ defmodule TuistWeb.BazelInvocationsLive do
     commands = socket.assigns.bazel_invocation_commands
     has_any_invocations = Enum.any?(invocations) || Bazel.invocations_present?(project.id, commands)
 
-    {:noreply,
-     socket
-     |> assign(:uri, uri)
-     |> assign(:invocations, invocations)
-     |> assign(:current_page, meta.current_page)
-     |> assign(:total_pages, meta.total_pages)
-     |> assign(:invocations_sort_by, sort_by)
-     |> assign(:invocations_sort_order, sort_order)
-     |> assign(:analytics_preset, analytics_preset)
-     |> assign(:analytics_period, analytics_period)
-     |> assign(:analytics_granularity, time_series_granularity(analytics_period))
-     |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
-     |> assign(:analytics_environment, analytics_environment)
-     |> assign(:analytics_environment_label, environment_label(analytics_environment))
-     |> assign(:analytics_selected_widget, analytics_selected_widget)
-     |> assign(:has_any_invocations, has_any_invocations)
-     |> assign(:selected_duration_type, params["duration-type"] || "avg")
-     |> assign(:active_filters, active_filters)
-     |> assign_async([:invocation_summary, :invocation_analytics], fn ->
-       {:ok,
-        %{
-          invocation_summary:
-            invocation_summary_with_trends(
-              project.id,
-              analytics_period,
-              commands,
-              analytics_environment
-            ),
-          invocation_analytics:
-            Bazel.invocation_analytics(
-              project.id,
-              analytics_opts
-            )
-        }}
-     end)}
+    socket =
+      socket
+      |> assign(:uri, uri)
+      |> assign(:invocations, invocations)
+      |> assign(:current_page, meta.current_page)
+      |> assign(:total_pages, meta.total_pages)
+      |> assign(:invocations_sort_by, sort_by)
+      |> assign(:invocations_sort_order, sort_order)
+      |> assign(:analytics_preset, analytics_preset)
+      |> assign(:analytics_period, analytics_period)
+      |> assign(:analytics_granularity, time_series_granularity(analytics_period))
+      |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, environment_label(analytics_environment))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:has_any_invocations, has_any_invocations)
+      |> assign(:selected_duration_type, params["duration-type"] || "avg")
+      |> assign(:active_filters, active_filters)
+      |> assign_async([:invocation_summary, :invocation_analytics], fn ->
+        {:ok,
+         %{
+           invocation_summary:
+             invocation_summary_with_trends(
+               project.id,
+               analytics_period,
+               commands,
+               analytics_environment
+             ),
+           invocation_analytics:
+             Bazel.invocation_analytics(
+               project.id,
+               analytics_opts
+             )
+         }}
+      end)
+
+    socket =
+      if socket.assigns.bazel_show_analytics and socket.assigns.bazel_resource_kind == :builds do
+        assign_async(socket, :configuration_insights_analytics, fn ->
+          {:ok,
+           %{
+             configuration_insights_analytics: Bazel.build_duration_analytics_by_version(project.id, analytics_opts)
+           }}
+        end)
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -377,6 +391,88 @@ defmodule TuistWeb.BazelInvocationsLive do
           </:image>
         </.empty_card_section>
       </.card>
+
+      <.card
+        :if={@bazel_show_analytics && @bazel_resource_kind == :builds}
+        title={dgettext("dashboard_builds", "Configuration Insights")}
+        icon="device_laptop"
+        data-part="configuration-insights-card"
+      >
+        <:actions>
+          <.dropdown
+            id="bazel-configuration-insights-type-dropdown"
+            label={dgettext("dashboard_projects", "Bazel version")}
+            secondary_text={dgettext("dashboard_builds", "Type:")}
+          >
+            <.dropdown_item
+              value="bazel-version"
+              label={dgettext("dashboard_projects", "Bazel version")}
+              patch={"?#{@uri.query}"}
+              data-selected
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+        </:actions>
+        <.card_section :if={!@configuration_insights_analytics.ok?}>
+          <div data-part="configuration-insights-chart-skeleton">
+            <.skeleton_legend />
+            <.skeleton_chart />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            @configuration_insights_analytics.ok? &&
+              not Enum.empty?(@configuration_insights_analytics.result)
+          }
+          data-part="configuration-insights-card-chart-section"
+        >
+          <.legend title={dgettext("dashboard_builds", "Build duration")} style="secondary" />
+          <.chart
+            id="bazel-configuration-insights-chart"
+            type="line"
+            style={"height: #{configuration_insights_chart_height(@configuration_insights_analytics.result)}px"}
+            extra_options={
+              configuration_insights_chart_options(@configuration_insights_analytics.result)
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data: Enum.map(@configuration_insights_analytics.result, & &1.value),
+                name: dgettext("dashboard_builds", "Build duration"),
+                type: "bar",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            bar_width={8}
+            bar_radius={2}
+            x_axis_min={0}
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={
+            @configuration_insights_analytics.ok? &&
+              Enum.empty?(@configuration_insights_analytics.result)
+          }
+          title={dgettext("dashboard_builds", "No data yet")}
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_horizontal_bar_chart_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_horizontal_bar_chart_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </.card>
       <.card
         title={@bazel_resource}
         icon="subtask"
@@ -384,6 +480,34 @@ defmodule TuistWeb.BazelInvocationsLive do
       >
         <.card_section data-part="bazel-invocations-table-section">
           <div data-part="filters">
+            <.dropdown
+              :if={!@bazel_show_analytics}
+              id="bazel-invocations-sort-by"
+              label={
+                case @invocations_sort_by do
+                  "duration" -> dgettext("dashboard_builds", "Duration")
+                  _ -> dgettext("dashboard_builds", "Ran at")
+                end
+              }
+              secondary_text={dgettext("dashboard_builds", "Sort by:")}
+            >
+              <.dropdown_item
+                value="duration"
+                label={dgettext("dashboard_builds", "Duration")}
+                patch={column_patch_sort(assigns, "duration")}
+                data-selected={@invocations_sort_by == "duration"}
+              >
+                <:right_icon :if={@invocations_sort_by == "duration"}><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="ran-at"
+                label={dgettext("dashboard_builds", "Ran at")}
+                patch={column_patch_sort(assigns, "ran-at")}
+                data-selected={@invocations_sort_by == "ran-at"}
+              >
+                <:right_icon :if={@invocations_sort_by == "ran-at"}><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
             <.filter_dropdown
               id="bazel-invocations-filter-dropdown"
               label={dgettext("dashboard_projects", "Filter")}
@@ -453,9 +577,9 @@ defmodule TuistWeb.BazelInvocationsLive do
               </:col>
               <:col
                 :let={invocation}
-                label={dgettext("dashboard_projects", "Finished")}
-                patch={column_patch_sort(assigns, "finished-at")}
-                sort_order={@invocations_sort_by == "finished-at" && @invocations_sort_order}
+                label={dgettext("dashboard_projects", "Ran at")}
+                patch={column_patch_sort(assigns, "ran-at")}
+                sort_order={@invocations_sort_by == "ran-at" && @invocations_sort_order}
               >
                 <.text_cell sublabel={DateFormatter.from_now(invocation.finished_at)} />
               </:col>
@@ -663,6 +787,32 @@ defmodule TuistWeb.BazelInvocationsLive do
       chart_series(analytics.dates, analytics.p90_duration_values, "var:noora-chart-p90", "p90"),
       chart_series(analytics.dates, analytics.median_duration_values, "var:noora-chart-p50", "p50")
     ]
+  end
+
+  defp configuration_insights_chart_height(analytics), do: max(Enum.count(analytics) * 28, 28)
+
+  defp configuration_insights_chart_options(analytics) do
+    %{
+      grid: %{width: "98%", left: "50", height: "100%", top: "0%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "value",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: "fn:formatMilliseconds"
+        }
+      },
+      yAxis: %{
+        offset: 40,
+        splitNumber: 4,
+        type: "category",
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"},
+        data: Enum.map(analytics, & &1.category)
+      },
+      legend: %{show: false},
+      tooltip: %{valueFormat: "fn:formatMilliseconds"}
+    }
   end
 
   defp chart_series(dates, values, color, name) do

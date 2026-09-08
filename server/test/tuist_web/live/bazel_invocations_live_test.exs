@@ -42,6 +42,43 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  test "aligns the Bazel overview analytics, builds, and tests with the other build systems", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    Bazel.create_invocations([invocation_attributes(project, "overview-build", "build", finished_at)])
+    ReapiCache.create_cache_events([cache_event_attributes(project, "overview-build")])
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: project.account_id,
+        build_system: "bazel",
+        bazel_invocation_id: "overview-test",
+        scheme: "//App:App",
+        ran_at: finished_at
+      )
+
+    path =
+      ~p"/#{organization.account.name}/#{project.name}?analytics-date-range=custom&analytics-start-date=2026-01-01T00%3A00%3A00Z&analytics-end-date=2027-01-01T00%3A00%3A00Z&builds-date-range=custom&builds-start-date=2026-01-01T00%3A00%3A00Z&builds-end-date=2027-01-01T00%3A00%3A00Z"
+
+    {:ok, live_view, _html} = live(conn, path)
+    render_async(live_view, @render_async_timeout)
+
+    assert has_element?(live_view, "#bazel-action-cache-hit-rate", "Cache hit rate")
+    assert has_element?(live_view, "#bazel-average-build-time", "Average build time")
+    assert has_element?(live_view, "#bazel-average-test-run-duration", "Avg. test run duration")
+    assert has_element?(live_view, "[data-part='builds-card']", "Builds")
+    assert has_element?(live_view, "#bazel-recent-builds-chart")
+    assert has_element?(live_view, "[data-part='tests-card']", "Tests")
+    assert has_element?(live_view, "#bazel-recent-test-runs-chart")
+
+    assert render(live_view) =~
+             "/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+  end
+
   test "renders completed invocations and correlated cache totals", %{
     conn: conn,
     organization: organization,
@@ -73,6 +110,9 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-invocations-table", "Uploaded")
     assert has_element?(live_view, "#bazel-invocations-table", "6.1 KB")
     refute has_element?(live_view, "#bazel-invocations-filter-dropdown", "Command")
+    assert has_element?(live_view, "[data-part='configuration-insights-card']", "Bazel version")
+    assert has_element?(live_view, "#bazel-configuration-insights-chart")
+    assert render(live_view) =~ "8.1.0"
 
     assert has_element?(live_view, ".tuist-widget-link[data-selected] #bazel-invocation-duration")
 
@@ -144,8 +184,13 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "[data-part='bazel-invocations-card']", "Build Runs")
     assert has_element?(live_view, "#bazel-invocations-table", "//App:App")
     refute has_element?(live_view, "[data-part='bazel-invocation-analytics-card']")
+    assert has_element?(live_view, "#bazel-invocations-sort-by")
 
-    assert render(live_view) =~ ~s(data-label="Environment")
+    assert has_element?(
+             live_view,
+             "#bazel-invocations-sort-by-label-portal",
+             "Ran at"
+           )
   end
 
   test "shows only build invocations on the Bazel builds page", %{
@@ -313,17 +358,6 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert length(cache_timeline.events) == 1
     assert cache_timeline.truncated?
 
-    Bazel.create_invocation_logs([
-      %{
-        invocation_id: "BUILD-INVOCATION",
-        sequence_number: 1,
-        stream: "stdout",
-        message: "Build complete\n",
-        project_id: project.id,
-        observed_at: finished_at
-      }
-    ])
-
     {:ok, live_view, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/invocations/BUILD-INVOCATION")
 
@@ -342,39 +376,16 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "[data-part='build-details-section']", "Repository")
     assert has_element?(live_view, "[data-part='build-details-section']", "main")
     assert has_element?(live_view, "[data-part='build-details-section']", "1d7b1f4f6053")
-    assert has_element?(live_view, "#bazel-invocation", "Critical path")
-    assert has_element?(live_view, "#bazel-invocation", "Timeline")
-    assert has_element?(live_view, "#bazel-build-timeline", "")
-    assert render(live_view) =~ "&quot;value&quot;:[1,1000,3000]"
-    assert render(live_view) =~ "&quot;durationLabel&quot;:&quot;Duration&quot;"
-    assert render(live_view) =~ "&quot;startLabel&quot;:&quot;Started after&quot;"
-    assert has_element?(live_view, "[data-part='critical-path-section']", "Minimum completion time")
-    assert has_element?(live_view, "[data-part='critical-path-section']", "Compiling Sources/App/main.swift")
-
-    assert has_element?(
-             live_view,
-             "a[data-part='source-file'][href='https://github.com/tuist/bazel-telemetry-demo/blob/1d7b1f4f6053e2ebc5363f531f6c9f04ab860e6f/Sources/App/main.swift']"
-           )
-
-    assert has_element?(live_view, "[data-part='critical-path-timeline'][role='img']")
-    assert has_element?(live_view, "[data-part='critical-path-timeline'] [data-tone='information']")
-
-    assert has_element?(live_view, "[data-part='critical-path-action'][data-tone='information'][data-highlighted]")
-
     assert has_element?(live_view, "[data-part='tabs']", "Overview")
-    assert has_element?(live_view, "[data-part='tabs']", "Bazel cache")
-    assert has_element?(live_view, "[data-part='tabs']", "Command")
-    assert has_element?(live_view, "[data-part='tabs']", "Logs")
-    assert has_element?(live_view, "[data-part='actions']", "Download logs")
-
-    render_patch(
-      live_view,
-      ~p"/#{organization.account.name}/#{project.name}/builds/invocations/BUILD-INVOCATION?tab=command"
-    )
-
+    assert has_element?(live_view, "[data-part='tabs']", "Bazel Cache")
+    refute has_element?(live_view, "[data-part='tabs']", "Command")
+    refute has_element?(live_view, "[data-part='tabs']", "Logs")
+    refute has_element?(live_view, "#bazel-invocation", "Timeline")
+    refute has_element?(live_view, "#bazel-invocation", "Critical path")
+    refute has_element?(live_view, "[data-part='actions']", "Download logs")
     assert has_element?(live_view, "#bazel-command-configuration", "bazel build //App:App")
-    assert has_element?(live_view, "#bazel-command-configuration", "Bazel version")
     assert has_element?(live_view, "#bazel-requested-command-copy")
+    assert has_element?(live_view, "[data-part='back-button']", "Build Runs")
 
     render_patch(
       live_view,
@@ -446,14 +457,6 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     |> render_change(%{"search" => "no-match"})
 
     assert has_element?(live_view, "#bazel-invocation-cache-events-table", "No matching cache requests")
-
-    render_patch(
-      live_view,
-      ~p"/#{organization.account.name}/#{project.name}/builds/invocations/BUILD-INVOCATION?tab=logs"
-    )
-
-    assert has_element?(live_view, "[data-part='log-output']", "Build complete")
-    assert has_element?(live_view, "[data-part='back-button']", "Build Runs")
   end
 
   test "uses the standard empty state when an invocation has no cache requests", %{
@@ -481,49 +484,6 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
 
     refute has_element?(live_view, "#bazel-invocation-cache-search")
     refute has_element?(live_view, "#bazel-invocation-cache-filter-dropdown")
-  end
-
-  test "loads invocation logs progressively without pagination", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-
-    Bazel.create_invocations([
-      invocation_attributes(project, "LOGGED-INVOCATION", "test", finished_at)
-    ])
-
-    Bazel.create_invocation_logs(
-      Enum.map(1..40, fn sequence_number ->
-        %{
-          invocation_id: "LOGGED-INVOCATION",
-          sequence_number: sequence_number,
-          stream: "stdout",
-          message: "log #{sequence_number}\n",
-          project_id: project.id,
-          observed_at: finished_at
-        }
-      end)
-    )
-
-    {:ok, live_view, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/builds/invocations/LOGGED-INVOCATION?tab=logs"
-      )
-
-    refute has_element?(live_view, "[data-part='log-output']", "log 20")
-    assert has_element?(live_view, "[data-part='log-output']", "log 21")
-    assert has_element?(live_view, "[data-part='log-output']", "log 40")
-    assert has_element?(live_view, "#bazel-load-older-logs")
-    refute has_element?(live_view, ".noora-pagination-group")
-
-    live_view |> element("#bazel-load-older-logs") |> render_click()
-
-    assert has_element?(live_view, "[data-part='log-output']", "log 1")
-    assert has_element?(live_view, "[data-part='log-output']", "log 40")
-    refute has_element?(live_view, "#bazel-load-older-logs")
   end
 
   test "paginates invocation cache requests", %{
@@ -624,35 +584,6 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-invocation-cache-events-table", "DelayedAction")
   end
 
-  test "does not advertise invocation logs outside the bounded observation window", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    Bazel.create_invocations([invocation_attributes(project, "SKEWED-LOG-INVOCATION", "build", finished_at)])
-
-    Bazel.create_invocation_logs([
-      %{
-        invocation_id: "SKEWED-LOG-INVOCATION",
-        sequence_number: 1,
-        stream: "stdout",
-        message: "outside the invocation window",
-        project_id: project.id,
-        observed_at: NaiveDateTime.add(finished_at, -2, :day)
-      }
-    ])
-
-    {:ok, live_view, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/builds/invocations/SKEWED-LOG-INVOCATION?tab=logs"
-      )
-
-    refute has_element?(live_view, "[data-part='actions']", "Download logs")
-    assert has_element?(live_view, "[data-part='empty-logs']")
-  end
-
   test "renders Bazel cache analytics and recent invocations", %{
     conn: conn,
     organization: organization,
@@ -681,14 +612,16 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(
              live_view,
              "a[data-part='item'][href='/#{organization.account.name}/#{project.name}/bazel-cache']",
-             "Bazel cache"
+             "Bazel Cache"
            )
 
     assert has_element?(live_view, "#bazel-cache")
     assert has_element?(live_view, "#bazel-cache-hit-rate", "100.0%")
     assert has_element?(live_view, "#bazel-cache-invocations-table", "build")
     assert has_element?(live_view, "#bazel-cache-invocations-table", "//App:App")
-    assert has_element?(live_view, "[data-part='bazel-cache-invocations-card']", "Recent invocations")
+    assert has_element?(live_view, "[data-part='bazel-cache-invocations-card']", "Recent Invocations")
+    assert has_element?(live_view, "#bazel-cache-invocations-table", "Ran by")
+    assert has_element?(live_view, "#bazel-cache-invocations-table", "Ran at")
     assert has_element?(live_view, "#bazel-cache-invocations-hit-rate-chart")
     refute has_element?(live_view, "[data-part='bazel-cache-activity-card']")
     refute has_element?(live_view, "#bazel-cache-events-table")
@@ -877,7 +810,9 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
         project_id: project.id,
         account_id: project.account_id,
         build_system: "bazel",
-        bazel_invocation_id: "invocation-1"
+        bazel_invocation_id: "invocation-1",
+        scheme: "//App:App",
+        ran_at: NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :second) |> NaiveDateTime.truncate(:second)
       )
 
     Bazel.create_invocation_logs([
@@ -895,6 +830,12 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     finished_at = ~N[2026-09-04 12:00:01]
     Bazel.create_invocations([invocation_attributes(project, "invocation-1", "test", finished_at)])
 
+    {:ok, test_runs_live_view, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+    assert has_element?(test_runs_live_view, "#test-runs-table", "Invocation")
+    assert has_element?(test_runs_live_view, "#test-runs-table", "bazel test //App:App")
+
     {:ok, live_view, _html} =
       live(
         conn,
@@ -907,7 +848,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(
              live_view,
              "a[href='/#{organization.account.name}/#{project.name}/builds/invocations/invocation-1']",
-             "Bazel invocation"
+             "Build: bazel test //App:App"
            )
 
     refute has_element?(live_view, "[data-part=metadata]", "Mac device")

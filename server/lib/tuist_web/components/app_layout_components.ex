@@ -51,7 +51,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            )
+            ) or
+              String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
+              )
           }
         />
       </.sidebar_group>
@@ -139,7 +143,7 @@ defmodule TuistWeb.AppLayoutComponents do
       </.sidebar_group>
       <.sidebar_item
         :if={Project.bazel_project?(@selected_project)}
-        label={dgettext("dashboard", "Bazel cache")}
+        label={dgettext("dashboard", "Bazel Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"}
         selected={

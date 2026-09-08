@@ -7,6 +7,7 @@ defmodule TuistWeb.BazelCacheLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Bazel
   alias Tuist.ReapiCache
@@ -170,7 +171,10 @@ defmodule TuistWeb.BazelCacheLive do
             }
             selected_type={@selected_hit_rate_type}
             event_name="select_hit_rate_type"
-            trend_value={if @cache_summary.ok?, do: @cache_summary.result.hit_rate_trend}
+            trend_value={
+              if @cache_summary.ok?,
+                do: hit_rate_trend(@cache_summary.result.hit_rate_trends, @selected_hit_rate_type)
+            }
             trend_label={@analytics_trend_label}
             empty={@cache_summary.ok? && @cache_summary.result.hit_rate_metrics.sample_count == 0}
             phx_click="select_widget"
@@ -208,7 +212,7 @@ defmodule TuistWeb.BazelCacheLive do
                 selected_type={@selected_transfer_type}
                 value="combined"
                 event_name="select_transfer_type"
-                label={dgettext("dashboard_projects", "Remote cache transfer")}
+                label={dgettext("dashboard_projects", "Cache transfer")}
                 metric={
                   if @cache_summary.ok?,
                     do: ByteFormatter.format_bytes(@cache_summary.result.transfer_bytes)
@@ -267,7 +271,7 @@ defmodule TuistWeb.BazelCacheLive do
                 selected_type={@selected_latency_type}
                 value="combined"
                 event_name="select_latency_type"
-                label={dgettext("dashboard_projects", "Remote cache latency")}
+                label={dgettext("dashboard_projects", "Cache latency")}
                 metric={if @cache_summary.ok?, do: format_duration(@cache_summary.result.latency_ms)}
               />
               <.split_dropdown_item
@@ -321,7 +325,7 @@ defmodule TuistWeb.BazelCacheLive do
                 selected_type={@selected_throughput_type}
                 value="combined"
                 event_name="select_throughput_type"
-                label={dgettext("dashboard_projects", "Remote cache throughput")}
+                label={dgettext("dashboard_projects", "Cache throughput")}
                 metric={
                   if @cache_summary.ok?,
                     do: format_throughput(@cache_summary.result.throughput_bytes_per_second)
@@ -402,7 +406,7 @@ defmodule TuistWeb.BazelCacheLive do
       </.card>
 
       <.card
-        title={dgettext("dashboard_projects", "Recent invocations")}
+        title={dgettext("dashboard_projects", "Recent Invocations")}
         icon="dashboard"
         data-part="bazel-cache-invocations-card"
       >
@@ -480,6 +484,9 @@ defmodule TuistWeb.BazelCacheLive do
               <:col :let={invocation} label={dgettext("dashboard_projects", "Command")}>
                 <.text_and_description_cell label={invocation.command} />
               </:col>
+              <:col :let={invocation} label={dgettext("dashboard_projects", "Ran by")}>
+                <.run_ran_by_badge_cell run={invocation} />
+              </:col>
               <:col :let={invocation} label={dgettext("dashboard_projects", "Hit rate")}>
                 <.text_cell label={"#{invocation.cache.hit_rate}%"} />
               </:col>
@@ -495,7 +502,7 @@ defmodule TuistWeb.BazelCacheLive do
                   icon="history"
                 />
               </:col>
-              <:col :let={invocation} label={dgettext("dashboard_projects", "Finished")}>
+              <:col :let={invocation} label={dgettext("dashboard_projects", "Ran at")}>
                 <.text_cell sublabel={DateFormatter.from_now(invocation.finished_at)} />
               </:col>
             </.table>
@@ -537,7 +544,12 @@ defmodule TuistWeb.BazelCacheLive do
 
     Map.merge(summary, %{
       hit_rate_metrics: hit_rate_metrics,
-      hit_rate_trend: trend(previous_hit_rate_metrics.avg, hit_rate_metrics.avg),
+      hit_rate_trends: %{
+        avg: trend(previous_hit_rate_metrics.avg, hit_rate_metrics.avg),
+        p99: trend(previous_hit_rate_metrics.p99, hit_rate_metrics.p99),
+        p90: trend(previous_hit_rate_metrics.p90, hit_rate_metrics.p90),
+        p50: trend(previous_hit_rate_metrics.p50, hit_rate_metrics.p50)
+      },
       transfer_trend: trend(previous_summary.transfer_bytes, summary.transfer_bytes),
       latency_trend: trend(previous_summary.latency_ms, summary.latency_ms),
       throughput_trend: trend(previous_summary.throughput_bytes_per_second, summary.throughput_bytes_per_second)
@@ -706,15 +718,20 @@ defmodule TuistWeb.BazelCacheLive do
     |> Map.new(fn {type, value} -> {type, "#{value}%"} end)
   end
 
-  defp transfer_title("downloads"), do: dgettext("dashboard_projects", "Remote cache downloads")
-  defp transfer_title("uploads"), do: dgettext("dashboard_projects", "Remote cache uploads")
-  defp transfer_title(_), do: dgettext("dashboard_projects", "Remote cache transfer")
+  defp hit_rate_trend(trends, "p99"), do: trends.p99
+  defp hit_rate_trend(trends, "p90"), do: trends.p90
+  defp hit_rate_trend(trends, "p50"), do: trends.p50
+  defp hit_rate_trend(trends, _type), do: trends.avg
+
+  defp transfer_title("downloads"), do: dgettext("dashboard_projects", "Cache downloads")
+  defp transfer_title("uploads"), do: dgettext("dashboard_projects", "Cache uploads")
+  defp transfer_title(_), do: dgettext("dashboard_projects", "Cache transfer")
   defp latency_title("read"), do: dgettext("dashboard_projects", "Read latency")
   defp latency_title("write"), do: dgettext("dashboard_projects", "Write latency")
-  defp latency_title(_), do: dgettext("dashboard_projects", "Remote cache latency")
-  defp throughput_title("downloads"), do: dgettext("dashboard_projects", "Remote cache download throughput")
-  defp throughput_title("uploads"), do: dgettext("dashboard_projects", "Remote cache upload throughput")
-  defp throughput_title(_), do: dgettext("dashboard_projects", "Remote cache throughput")
+  defp latency_title(_), do: dgettext("dashboard_projects", "Cache latency")
+  defp throughput_title("downloads"), do: dgettext("dashboard_projects", "Cache download throughput")
+  defp throughput_title("uploads"), do: dgettext("dashboard_projects", "Cache upload throughput")
+  defp throughput_title(_), do: dgettext("dashboard_projects", "Cache throughput")
 
   defp selected_hit_rate_type(type) when type in ["avg", "p99", "p90", "p50"], do: type
   defp selected_hit_rate_type(_type), do: "avg"

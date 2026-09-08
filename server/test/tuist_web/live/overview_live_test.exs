@@ -169,15 +169,15 @@ defmodule TuistWeb.OverviewLiveTest do
       %{conn: conn, project: selected_project, organization: organization}
     end
 
-    test "renders Bazel analytics and invocations instead of Xcode analytics", %{
+    test "renders Bazel analytics, builds, and tests instead of Xcode analytics", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       params = %{
         "analytics-date-range" => "custom",
-        "analytics-start-date" => "2000-01-01T00:00:00Z",
-        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
         "builds-date-range" => "custom",
         "builds-start-date" => "2000-01-01T00:00:00Z",
         "builds-end-date" => "2100-01-01T00:00:00Z"
@@ -191,11 +191,15 @@ defmodule TuistWeb.OverviewLiveTest do
       assert has_element?(lv, "[data-part=analytics-card]", "Analytics")
       assert has_element?(lv, "[data-part=analytics-content]")
       assert has_element?(lv, "#bazel-overview-analytics-environment-dropdown")
-      assert has_element?(lv, "[data-part=invocations-card]", "Invocations")
+      assert has_element?(lv, "#bazel-action-cache-hit-rate")
+      assert has_element?(lv, "#bazel-average-build-time")
+      assert has_element?(lv, "#bazel-average-test-run-duration")
+      assert has_element?(lv, "[data-part=builds-card]", "Builds")
+      assert has_element?(lv, "[data-part=tests-card]", "Tests")
       assert has_element?(lv, "#bazel-overview-builds-environment-dropdown")
-      assert has_element?(lv, "[data-part=invocations-card]", "No invocations yet")
-      refute has_element?(lv, "#bazel-recent-invocations-chart")
-      refute has_element?(lv, "#bazel-average-invocation-duration-chart")
+      assert has_element?(lv, "[data-part=builds-card]", "No builds yet")
+      refute has_element?(lv, "#bazel-recent-builds-chart")
+      refute has_element?(lv, "#bazel-recent-test-runs-chart")
       refute has_element?(lv, "[data-part=bazel-remote-cache]")
     end
 
@@ -253,8 +257,8 @@ defmodule TuistWeb.OverviewLiveTest do
       params = %{
         "analytics-environment" => "ci",
         "analytics-date-range" => "custom",
-        "analytics-start-date" => "2000-01-01T00:00:00Z",
-        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
         "builds-environment" => "ci",
         "builds-date-range" => "custom",
         "builds-start-date" => "2000-01-01T00:00:00Z",
@@ -269,7 +273,6 @@ defmodule TuistWeb.OverviewLiveTest do
       assert html =~ "ci-overview-invocation"
       refute html =~ "local-overview-invocation"
       assert has_element?(lv, "#bazel-action-cache-hit-rate", "100.0%")
-      assert has_element?(lv, "#bazel-action-cache-lookups", "1")
     end
 
     test "applies the invocation date range to both overview charts", %{
@@ -305,10 +308,9 @@ defmodule TuistWeb.OverviewLiveTest do
       {:ok, lv, _html} = live(conn, path)
       render_async(lv, @render_async_timeout)
 
-      assert has_element?(lv, "[data-part=invocations-card]", "No invocations in the selected period")
-      refute has_element?(lv, "#bazel-recent-invocations-chart")
-      refute has_element?(lv, "#bazel-average-invocation-duration-chart")
-      refute has_element?(lv, "[data-part=invocations-card]", "Get started")
+      assert has_element?(lv, "[data-part=builds-card]", "No builds in the selected period")
+      refute has_element?(lv, "#bazel-recent-builds-chart")
+      refute has_element?(lv, "[data-part=builds-card]", "Get started")
     end
 
     test "distinguishes an empty cache period from a project without cache observations", %{
@@ -361,7 +363,7 @@ defmodule TuistWeb.OverviewLiveTest do
       assert has_element?(lv, "a", "Project Settings")
     end
 
-    test "renders remote action-cache statistics", %{
+    test "renders Bazel overview analytics", %{
       conn: conn,
       organization: organization,
       project: project
@@ -437,8 +439,8 @@ defmodule TuistWeb.OverviewLiveTest do
 
       params = %{
         "analytics-date-range" => "custom",
-        "analytics-start-date" => "2000-01-01T00:00:00Z",
-        "analytics-end-date" => "2100-01-01T00:00:00Z",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
         "builds-date-range" => "custom",
         "builds-start-date" => "2000-01-01T00:00:00Z",
         "builds-end-date" => "2100-01-01T00:00:00Z"
@@ -449,12 +451,10 @@ defmodule TuistWeb.OverviewLiveTest do
       render_async(lv, @render_async_timeout)
 
       assert has_element?(lv, "#bazel-action-cache-hit-rate", "50.0%")
-      assert has_element?(lv, "#bazel-action-cache-lookups", "2")
-      assert has_element?(lv, "#bazel-cache-downloads", "2.0 KB")
-      assert has_element?(lv, "#bazel-cache-uploads", "1.0 KB")
+      assert has_element?(lv, "#bazel-average-build-time", "5.0s")
+      assert has_element?(lv, "#bazel-average-test-run-duration")
       assert has_element?(lv, "#bazel-cache-hit-rate-chart")
-      assert has_element?(lv, "#bazel-recent-invocations-chart")
-      assert has_element?(lv, "#bazel-average-invocation-duration-chart")
+      assert has_element?(lv, "#bazel-recent-builds-chart")
     end
 
     test "renders a zero-percent action-cache hit-rate series when lookups exist", %{

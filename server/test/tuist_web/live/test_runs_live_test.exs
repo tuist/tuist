@@ -57,7 +57,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert has_element?(lv, "[data-part='test-runs-table']")
     end
 
-    test "lists Bazel targets using the shared test runs page", %{
+    test "lists Bazel invocations using the shared test runs page", %{
       conn: conn,
       organization: organization
     } do
@@ -75,8 +75,8 @@ defmodule TuistWeb.TestRunsLiveTest do
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
-      assert has_element?(lv, "#test-runs-table", "Targets")
-      assert has_element?(lv, "#test-runs-table", "//app:unit_tests")
+      assert has_element?(lv, "#test-runs-table", "Invocation")
+      assert has_element?(lv, "#test-runs-table", "bazel test //app:unit_tests")
     end
 
     test "handles cursor from another page with different sort fields", %{

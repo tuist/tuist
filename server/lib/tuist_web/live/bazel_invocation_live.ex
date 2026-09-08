@@ -21,8 +21,6 @@ defmodule TuistWeb.BazelInvocationLive do
   alias TuistWeb.Utilities.Query
 
   @cache_page_size 20
-  @logs_page_size 20
-  @repository_path_regex ~r/(?<![A-Za-z0-9_.\/-])(?!(?:external|bazel-out|bazel-bin|bazel-testlogs|bazel-genfiles)\/)((?:[A-Za-z0-9][A-Za-z0-9_.-]*\/)*(?:[A-Za-z0-9][A-Za-z0-9_.-]*\.[A-Za-z0-9][A-Za-z0-9_.+-]*|BUILD(?:\.bazel)?|WORKSPACE(?:\.bazel)?|MODULE\.bazel))(?![A-Za-z0-9_.\/-])/
 
   def mount(
         %{"invocation_id" => invocation_id},
@@ -39,19 +37,7 @@ defmodule TuistWeb.BazelInvocationLive do
          socket
          |> assign(:selected_project, project)
          |> assign(:invocation, invocation)
-         |> assign(
-           :has_logs,
-           Bazel.invocation_logs_present?(
-             project.id,
-             invocation_id,
-             Bazel.invocation_log_query_options(invocation)
-           )
-         )
          |> assign(:selected_tab, "overview")
-         |> assign(:logs, [])
-         |> assign(:log_output, "")
-         |> assign(:logs_oldest_sequence_number, nil)
-         |> assign(:logs_have_older, false)
          |> assign(:available_filters, cache_filters("actions"))
          |> assign(:cache_events, [])
          |> assign(:cache_detail_metrics, ReapiCache.empty_invocation_detail_metrics())
@@ -62,7 +48,6 @@ defmodule TuistWeb.BazelInvocationLive do
          |> assign(:cache_total_pages, 0)
          |> assign(:cache_sort_by, "observed")
          |> assign(:cache_sort_order, "desc")
-         |> assign(:critical_path_expanded, false)
          |> assign(:bazel_back_label, socket.assigns[:bazel_back_label] || dgettext("dashboard_projects", "Invocations"))
          |> assign(:bazel_back_path, socket.assigns[:bazel_back_path] || "invocations")
          |> assign(:bazel_detail_path, socket.assigns[:bazel_detail_path] || "invocations")
@@ -83,13 +68,6 @@ defmodule TuistWeb.BazelInvocationLive do
     project = socket.assigns.selected_project
     invocation = socket.assigns.invocation
 
-    {logs, logs_have_older} =
-      if selected_tab == "logs" do
-        load_log_tail(project.id, invocation, nil)
-      else
-        {[], false}
-      end
-
     {cache_events, cache_detail_metrics, cache_meta, active_cache_filters, available_filters, cache_sort_by,
      cache_sort_order, selected_cache_view} =
       if selected_tab == "cache" do
@@ -102,10 +80,6 @@ defmodule TuistWeb.BazelInvocationLive do
     {:noreply,
      socket
      |> assign(:selected_tab, selected_tab)
-     |> assign(:logs, logs)
-     |> assign(:log_output, Enum.map_join(logs, "", & &1.message))
-     |> assign(:logs_oldest_sequence_number, oldest_log_sequence_number(logs))
-     |> assign(:logs_have_older, logs_have_older)
      |> assign(:uri, URI.new!(uri))
      |> assign(:cache_events, cache_events)
      |> assign(:cache_detail_metrics, cache_detail_metrics)
@@ -145,25 +119,6 @@ defmodule TuistWeb.BazelInvocationLive do
     |> then(&{:noreply, &1})
   end
 
-  def handle_event("load_older_logs", _params, %{assigns: %{logs_have_older: false}} = socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event("load_older_logs", _params, socket) do
-    %{selected_project: project, invocation: invocation, logs_oldest_sequence_number: before_sequence_number} =
-      socket.assigns
-
-    {older_logs, logs_have_older} = load_log_tail(project.id, invocation, before_sequence_number)
-    logs = older_logs ++ socket.assigns.logs
-
-    {:noreply,
-     socket
-     |> assign(:logs, logs)
-     |> assign(:log_output, Enum.map_join(logs, "", & &1.message))
-     |> assign(:logs_oldest_sequence_number, oldest_log_sequence_number(logs))
-     |> assign(:logs_have_older, logs_have_older)}
-  end
-
   def handle_event("search_cache_requests", %{"search" => search}, socket) do
     query =
       socket.assigns.uri.query
@@ -171,10 +126,6 @@ defmodule TuistWeb.BazelInvocationLive do
       |> Query.put("page", "1")
 
     {:noreply, push_patch(socket, to: "#{detail_path(socket.assigns)}?#{query}")}
-  end
-
-  def handle_event("toggle_critical_path", _params, socket) do
-    {:noreply, update(socket, :critical_path_expanded, &(not &1))}
   end
 
   def render(assigns) do
@@ -199,23 +150,7 @@ defmodule TuistWeb.BazelInvocationLive do
               <div data-part="icon"><.alert_circle /></div>
             </div>
             <h1 data-part="label">{invocation_title(@invocation)}</h1>
-            <.badge
-              label={"bazel " <> @invocation.command}
-              color="information"
-              style="light-fill"
-              size="large"
-            />
           </div>
-        </div>
-        <div :if={@has_logs} data-part="actions">
-          <.button
-            label={dgettext("dashboard_projects", "Download logs")}
-            href={download_path(assigns)}
-            variant="secondary"
-            size="medium"
-          >
-            <:icon_left><.download /></:icon_left>
-          </.button>
         </div>
       </div>
       <.tab_menu_horizontal data-part="tabs">
@@ -225,19 +160,9 @@ defmodule TuistWeb.BazelInvocationLive do
           selected={@selected_tab == "overview"}
         />
         <.tab_menu_horizontal_item
-          label={dgettext("dashboard_projects", "Bazel cache")}
+          label={dgettext("dashboard_projects", "Bazel Cache")}
           patch={tab_path(assigns, "cache")}
           selected={@selected_tab == "cache"}
-        />
-        <.tab_menu_horizontal_item
-          label={dgettext("dashboard_projects", "Command")}
-          patch={tab_path(assigns, "command")}
-          selected={@selected_tab == "command"}
-        />
-        <.tab_menu_horizontal_item
-          label={dgettext("dashboard_projects", "Logs")}
-          patch={tab_path(assigns, "logs")}
-          selected={@selected_tab == "logs"}
         />
       </.tab_menu_horizontal>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">
@@ -358,15 +283,6 @@ defmodule TuistWeb.BazelInvocationLive do
             </div>
           </.card_section>
         </.card>
-        <.build_timeline :if={build_timeline_present?(@invocation)} invocation={@invocation} />
-        <.critical_path
-          :if={critical_path_present?(@invocation)}
-          invocation={@invocation}
-          project={@selected_project}
-          expanded={@critical_path_expanded}
-        />
-      </div>
-      <div :if={@selected_tab == "command"} data-part="tab-panel">
         <.command_configuration invocation={@invocation} />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
@@ -391,73 +307,7 @@ defmodule TuistWeb.BazelInvocationLive do
           search_id="bazel-invocation-cache-search"
         />
       </div>
-      <div :if={@selected_tab == "logs"} data-part="tab-panel">
-        <.logs_card
-          log_output={@log_output}
-          has_logs={@has_logs}
-          has_older={@logs_have_older}
-        />
-      </div>
     </div>
-    """
-  end
-
-  attr :invocation, :map, required: true
-
-  def build_timeline(assigns) do
-    ~H"""
-    <.card title={dgettext("dashboard_projects", "Timeline")} icon="chart_bar_popular">
-      <.card_section data-part="build-timeline-section">
-        <div data-part="build-timeline-header">
-          <div
-            data-part="legend"
-            role="list"
-            aria-label={dgettext("dashboard_projects", "Build timeline categories")}
-          >
-            <span
-              :for={category <- timeline_categories(@invocation)}
-              data-category={category}
-              role="listitem"
-            >
-              {timeline_category_label(category)}
-            </span>
-          </div>
-        </div>
-        <.chart
-          id="bazel-build-timeline"
-          type="custom"
-          series={build_timeline_series(@invocation)}
-          show_legend={false}
-          grid_lines
-          extra_options={build_timeline_chart_options(@invocation)}
-          style={"--timeline-height: #{build_timeline_height(@invocation)}"}
-        />
-      </.card_section>
-    </.card>
-    """
-  end
-
-  attr :log_output, :string, required: true
-  attr :has_logs, :boolean, required: true
-  attr :has_older, :boolean, required: true
-
-  def logs_card(assigns) do
-    ~H"""
-    <.card title={dgettext("dashboard_projects", "Logs")} icon="file_text">
-      <.card_section data-part="logs-section">
-        <pre :if={@has_logs} data-part="log-output"><code>{@log_output}</code></pre>
-        <span :if={not @has_logs} data-part="empty-logs">
-          {dgettext("dashboard_projects", "No logs were captured for this invocation.")}
-        </span>
-        <.button
-          :if={@has_older}
-          id="bazel-load-older-logs"
-          label={dgettext("dashboard_projects", "Load older logs")}
-          variant="secondary"
-          phx-click="load_older_logs"
-        />
-      </.card_section>
-    </.card>
     """
   end
 
@@ -818,141 +668,6 @@ defmodule TuistWeb.BazelInvocationLive do
     """
   end
 
-  attr :invocation, :map, required: true
-  attr :project, :map, required: true
-
-  attr :expanded, :boolean, required: true
-
-  def critical_path(assigns) do
-    unstyled_actions = critical_path_actions(assigns.invocation)
-
-    longest_action =
-      case unstyled_actions do
-        [] -> nil
-        actions -> Enum.max_by(actions, & &1.duration_ms)
-      end
-
-    actions =
-      unstyled_actions
-      |> Enum.with_index(1)
-      |> Enum.map(fn {action, index} ->
-        description = critical_path_display_description(action.description)
-        {description_prefix, source_path, description_suffix} = critical_path_description_parts(description)
-
-        action
-        |> Map.put(:tone, critical_path_action_tone(action, longest_action, index))
-        |> Map.put(:display_description, description)
-        |> Map.put(:description_prefix, description_prefix)
-        |> Map.put(:source_path, source_path)
-        |> Map.put(:description_suffix, description_suffix)
-      end)
-
-    longest_action =
-      case actions do
-        [] -> nil
-        actions -> Enum.max_by(actions, & &1.duration_ms)
-      end
-
-    displayed_actions = if assigns.expanded, do: actions, else: Enum.take(actions, 5)
-
-    total_duration_ms =
-      case Map.get(assigns.invocation, :critical_path_duration_ms, 0) do
-        duration_ms when duration_ms > 0 -> duration_ms
-        _ -> Enum.sum(Enum.map(actions, & &1.duration_ms))
-      end
-
-    assigns =
-      assigns
-      |> assign(:actions, actions)
-      |> assign(:displayed_actions, displayed_actions)
-      |> assign(:longest_action, longest_action)
-      |> assign(:total_duration_ms, total_duration_ms)
-
-    ~H"""
-    <.card title={dgettext("dashboard_projects", "Critical path")} icon="git_branch">
-      <.card_section data-part="critical-path-section">
-        <div data-part="critical-path-summary" data-actions-reported={to_string(@actions != [])}>
-          <div data-part="critical-path-metric">
-            <span data-part="title">{dgettext("dashboard_projects", "Minimum completion time")}</span>
-            <strong>{DateFormatter.format_duration_from_milliseconds(@total_duration_ms)}</strong>
-          </div>
-          <div :if={@actions != []} data-part="critical-path-metric">
-            <span data-part="title">{dgettext("dashboard_projects", "Actions on path")}</span>
-            <strong>{length(@actions)}</strong>
-          </div>
-        </div>
-        <div :if={@actions != []} data-part="critical-path-breakdown">
-          <div data-part="critical-path-breakdown-header">
-            <span>{dgettext("dashboard_projects", "Path breakdown")}</span>
-            <span>{dgettext("dashboard_projects", "In execution order")}</span>
-          </div>
-          <div
-            data-part="critical-path-timeline"
-            role="img"
-            aria-label={critical_path_timeline_label(@actions)}
-          >
-            <span
-              :for={action <- @actions}
-              data-highlighted={action == @longest_action}
-              data-tone={action.tone}
-              style={"--action-weight: #{critical_path_timeline_weight(action.duration_ms)}"}
-              title={"#{action.display_description} · #{DateFormatter.format_duration_from_milliseconds(action.duration_ms)}"}
-            ></span>
-          </div>
-        </div>
-        <div :if={@actions == []} data-part="critical-path-empty">
-          <span data-part="title">{dgettext("dashboard_projects", "Action breakdown unavailable")}</span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_projects",
-              "Bazel reported the total critical path, but not its actions."
-            )}
-          </span>
-        </div>
-        <ol data-part="critical-path-actions">
-          <li
-            :for={{action, index} <- Enum.with_index(@displayed_actions, 1)}
-            data-part="critical-path-action"
-            data-highlighted={action == @longest_action}
-            data-tone={action.tone}
-          >
-            <span data-part="critical-path-action-index">{index}</span>
-            <span data-part="critical-path-action-description" title={action.description}>
-              {action.description_prefix}<.source_file_link
-                :if={action.source_path}
-                project={@project}
-                path={action.source_path}
-                commit_sha={@invocation.git_commit_sha}
-                branch={@invocation.git_branch}
-                fallback_branch={@project.default_branch}
-                data-part="source-file"
-              />{action.description_suffix}
-            </span>
-            <span data-part="critical-path-action-share">
-              {critical_path_duration_share(action.duration_ms, @total_duration_ms)}
-            </span>
-            <span data-part="critical-path-action-duration">
-              {DateFormatter.format_duration_from_milliseconds(action.duration_ms)}
-            </span>
-          </li>
-        </ol>
-        <.button
-          :if={length(@actions) > 5}
-          label={
-            if @expanded,
-              do: dgettext("dashboard_projects", "Show fewer actions"),
-              else:
-                dgettext("dashboard_projects", "Show all %{count} actions", count: length(@actions))
-          }
-          phx-click="toggle_critical_path"
-          variant="secondary"
-          size="small"
-        />
-      </.card_section>
-    </.card>
-    """
-  end
-
   def command_configuration(assigns) do
     assigns = assign(assigns, :command, requested_command(assigns.invocation))
 
@@ -975,15 +690,6 @@ defmodule TuistWeb.BazelInvocationLive do
               </.neutral_button>
             </div>
           </div>
-          <div :if={@invocation.bazel_version != ""} data-part="configuration-grid">
-            <div :if={@invocation.bazel_version != ""} data-part="configuration">
-              <span data-part="title">{dgettext("dashboard_projects", "Bazel version")}</span>
-              <code data-part="value">{@invocation.bazel_version}</code>
-            </div>
-          </div>
-          <span :if={@invocation.bazel_version == ""} data-part="empty">
-            {dgettext("dashboard_projects", "No configuration details reported")}
-          </span>
         </div>
       </.card_section>
     </.card>
@@ -1046,164 +752,6 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_text_flop_filters("", _selected_cache_view), do: []
   defp cache_text_flop_filters(search, "content-objects"), do: [%{field: :action_digest, op: :=~, value: search}]
   defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_mnemonic, op: :=~, value: search}]
-
-  defp critical_path_present?(invocation),
-    do: critical_path_actions(invocation) != [] or Map.get(invocation, :critical_path_duration_ms, 0) > 0
-
-  defp build_timeline_present?(invocation), do: Map.get(invocation, :build_timeline_span_descriptions, []) != []
-
-  defp build_timeline_series(invocation) do
-    [
-      %{
-        type: "custom",
-        name: dgettext("dashboard_projects", "Build activity"),
-        renderItem: "fn:rangeBar",
-        encode: %{x: [1, 2], y: 0},
-        data:
-          invocation
-          |> build_timeline_spans()
-          |> Enum.map(fn span ->
-            %{
-              value: [span.lane, span.start_ms, span.start_ms + span.duration_ms],
-              name: timeline_span_description(span.description),
-              durationLabel: dgettext("dashboard_projects", "Duration"),
-              startLabel: dgettext("dashboard_projects", "Started after"),
-              itemStyle: %{color: timeline_category_color(span.category)}
-            }
-          end)
-      }
-    ]
-  end
-
-  defp build_timeline_chart_options(invocation) do
-    %{
-      animation: false,
-      grid: %{top: 8, right: 16, bottom: 28, left: 32, containLabel: true},
-      tooltip: %{trigger: "item", formatter: "fn:rangeBarTooltip"},
-      xAxis: %{
-        type: "value",
-        min: 0,
-        max: max(Map.get(invocation, :build_timeline_duration_ms, 0), 1),
-        splitNumber: 5,
-        axisLabel: %{formatter: "fn:formatMilliseconds"}
-      },
-      yAxis: %{
-        type: "category",
-        data: build_timeline_lanes(invocation),
-        inverse: true,
-        axisLabel: %{fontSize: 11},
-        splitLine: %{show: true}
-      },
-      dataZoom: [%{type: "inside", xAxisIndex: 0, zoomOnMouseWheel: true, moveOnMouseMove: true}]
-    }
-  end
-
-  defp build_timeline_spans(invocation) do
-    [
-      Map.get(invocation, :build_timeline_span_lanes, []),
-      Map.get(invocation, :build_timeline_span_start_ms, []),
-      Map.get(invocation, :build_timeline_span_durations_ms, []),
-      Map.get(invocation, :build_timeline_span_categories, []),
-      Map.get(invocation, :build_timeline_span_descriptions, [])
-    ]
-    |> Enum.zip()
-    |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
-      %{lane: lane, start_ms: start_ms, duration_ms: duration_ms, category: category, description: description}
-    end)
-  end
-
-  defp build_timeline_lanes(invocation), do: Map.get(invocation, :build_timeline_lanes, [])
-
-  defp build_timeline_height(invocation) do
-    lane_count = length(build_timeline_lanes(invocation))
-    "#{max(8, 3 + lane_count * 2)}rem"
-  end
-
-  defp timeline_categories(invocation) do
-    invocation
-    |> build_timeline_spans()
-    |> Enum.map(& &1.category)
-    |> Enum.uniq()
-    |> Enum.sort_by(&timeline_category_order/1)
-  end
-
-  defp timeline_category_order("critical_path"), do: 0
-  defp timeline_category_order("execution"), do: 1
-  defp timeline_category_order("analysis"), do: 2
-  defp timeline_category_order("loading"), do: 3
-  defp timeline_category_order("setup"), do: 4
-  defp timeline_category_order(_), do: 5
-
-  defp timeline_category_label("critical_path"), do: dgettext("dashboard_projects", "Critical path")
-  defp timeline_category_label("execution"), do: dgettext("dashboard_projects", "Execution")
-  defp timeline_category_label("analysis"), do: dgettext("dashboard_projects", "Analysis")
-  defp timeline_category_label("loading"), do: dgettext("dashboard_projects", "Loading")
-  defp timeline_category_label("setup"), do: dgettext("dashboard_projects", "Setup")
-  defp timeline_category_label(_), do: dgettext("dashboard_projects", "Other")
-
-  defp timeline_category_color("critical_path"), do: "var:noora-chart-primary"
-  defp timeline_category_color("execution"), do: "var:noora-chart-secondary"
-  defp timeline_category_color("analysis"), do: "var:noora-chart-tertiary"
-  defp timeline_category_color("loading"), do: "var:noora-chart-p50"
-  defp timeline_category_color("setup"), do: "var:noora-chart-quaternary"
-  defp timeline_category_color(_), do: "var:noora-chart-quaternary"
-
-  defp timeline_span_description("loading_and_analysis"), do: dgettext("dashboard_projects", "Loading and analysis")
-  defp timeline_span_description(description), do: description
-
-  defp critical_path_actions(invocation) do
-    invocation
-    |> Map.get(:critical_path_action_descriptions, [])
-    |> Enum.zip(Map.get(invocation, :critical_path_action_durations_ms, []))
-    |> Enum.map(fn {description, duration_ms} -> %{description: description, duration_ms: duration_ms} end)
-  end
-
-  defp critical_path_display_description("action '" <> description), do: String.trim_trailing(description, "'")
-
-  defp critical_path_display_description(description), do: description
-
-  defp critical_path_description_parts(description) do
-    case Regex.run(@repository_path_regex, description) do
-      [source_path | _captures] ->
-        {start, length} = :binary.match(description, source_path)
-
-        {
-          binary_part(description, 0, start),
-          source_path,
-          binary_part(description, start + length, byte_size(description) - start - length)
-        }
-
-      _ ->
-        {description, nil, ""}
-    end
-  end
-
-  defp critical_path_duration_share(_duration_ms, 0), do: "0%"
-
-  defp critical_path_duration_share(duration_ms, total_duration_ms) do
-    share = duration_ms / total_duration_ms * 100
-
-    if share > 0 and share < 1, do: "<1%", else: "#{round(share)}%"
-  end
-
-  defp critical_path_timeline_weight(duration_ms), do: max(duration_ms, 1)
-
-  defp critical_path_timeline_label(actions) do
-    action_summary =
-      Enum.map_join(actions, ", ", fn action ->
-        "#{action.display_description}: #{DateFormatter.format_duration_from_milliseconds(action.duration_ms)}"
-      end)
-
-    dgettext(
-      "dashboard_projects",
-      "Critical path duration distribution: %{actions}",
-      actions: action_summary
-    )
-  end
-
-  defp critical_path_action_tone(action, longest_action, _index) when action == longest_action, do: "information"
-
-  defp critical_path_action_tone(_action, _longest_action, _index), do: "neutral"
 
   defp cache_requests_empty_state?(cache_events, cache_filter, active_cache_filters) do
     Enum.empty?(cache_events) and cache_filter == "" and Enum.empty?(active_cache_filters)
@@ -1392,23 +940,6 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp cache_page_patch(path, uri, page), do: "#{path}?#{Query.put(uri.query, "page", to_string(page))}"
 
-  defp load_log_tail(project_id, invocation, before_sequence_number) do
-    logs =
-      Bazel.list_invocation_log_tail(
-        project_id,
-        invocation.invocation_id,
-        before_sequence_number,
-        @logs_page_size + 1,
-        Bazel.invocation_log_query_options(invocation)
-      )
-
-    has_older = length(logs) > @logs_page_size
-    {if(has_older, do: Enum.drop(logs, 1), else: logs), has_older}
-  end
-
-  defp oldest_log_sequence_number([]), do: nil
-  defp oldest_log_sequence_number([log | _logs]), do: log.sequence_number
-
   defp invocation_result_label(%{status: "success"}), do: dgettext("dashboard_builds", "Passed")
 
   defp invocation_result_label(%{command: "build", exit_code: 1}),
@@ -1461,7 +992,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp requested_command(invocation), do: Enum.join(["bazel", invocation.command | invocation.target_patterns], " ")
 
-  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "command", "cache", "logs"], do: tab
+  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache"], do: tab
   defp selected_tab(_params), do: "overview"
 
   defp remote_cache_used?(invocation) do
@@ -1475,14 +1006,6 @@ defmodule TuistWeb.BazelInvocationLive do
       "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/#{assigns.bazel_detail_path}/#{assigns.invocation.invocation_id}"
 
   defp cache_path(socket, params), do: "#{detail_path(socket.assigns)}?#{URI.encode_query(params)}"
-
-  defp download_path(%{bazel_detail_path: "builds/invocations"} = assigns) do
-    ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/builds/invocations/#{assigns.invocation.invocation_id}/logs/download"
-  end
-
-  defp download_path(assigns) do
-    ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/invocations/#{assigns.invocation.invocation_id}/logs/download"
-  end
 
   defp url?(value) when is_binary(value) do
     case URI.parse(value) do

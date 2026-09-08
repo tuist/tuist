@@ -597,6 +597,19 @@ defmodule Tuist.Bazel do
     }
   end
 
+  def build_duration_analytics_by_version(project_id, opts \\ []) do
+    project_id
+    |> invocation_query(Keyword.put(opts, :commands, ["build"]))
+    |> where([invocation], invocation.bazel_version != "")
+    |> group_by([invocation], invocation.bazel_version)
+    |> order_by([invocation], desc: avg(invocation.duration_ms))
+    |> select([invocation], %{
+      category: invocation.bazel_version,
+      value: coalesce(avg(invocation.duration_ms), 0)
+    })
+    |> ClickHouseRepo.all()
+  end
+
   def recent_invocations(project_id, limit \\ 30)
 
   def recent_invocations(project_id, limit) when is_integer(limit) do

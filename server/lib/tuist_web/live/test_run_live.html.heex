@@ -101,7 +101,11 @@
         navigate={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
         }
-        label={dgettext("dashboard_projects", "Bazel invocation")}
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name: test_run_label(@selected_project, @run.scheme)
+          )
+        }
         size="large"
         underline
       >

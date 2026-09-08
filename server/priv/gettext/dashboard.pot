@@ -59,24 +59,24 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:461
+#: lib/tuist_web/components/app_layout_components.ex:465
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:47
-#: lib/tuist_web/components/app_layout_components.ex:234
+#: lib/tuist_web/components/app_layout_components.ex:238
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:34
-#: lib/tuist_web/components/app_layout_components.ex:221
+#: lib/tuist_web/components/app_layout_components.ex:225
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:358
+#: lib/tuist_web/components/app_layout_components.ex:362
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -89,7 +89,7 @@ msgstr ""
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:172
+#: lib/tuist_web/components/app_layout_components.ex:176
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr ""
@@ -105,7 +105,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:580
+#: lib/tuist_web/components/app_layout_components.ex:584
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -117,12 +117,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:599
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:573
+#: lib/tuist_web/components/app_layout_components.ex:577
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -138,13 +138,13 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:603
+#: lib/tuist_web/components/app_layout_components.ex:607
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:507
+#: lib/tuist_web/components/app_layout_components.ex:511
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr ""
@@ -160,8 +160,8 @@ msgstr ""
 msgid "Invalid installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:422
-#: lib/tuist_web/components/app_layout_components.ex:567
+#: lib/tuist_web/components/app_layout_components.ex:426
+#: lib/tuist_web/components/app_layout_components.ex:571
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -171,7 +171,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:561
+#: lib/tuist_web/components/app_layout_components.ex:565
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -181,18 +181,18 @@ msgstr ""
 msgid "Log out"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:440
+#: lib/tuist_web/components/app_layout_components.ex:444
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:155
+#: lib/tuist_web/components/app_layout_components.ex:159
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
-#: lib/tuist_web/live/bazel_cache_live.ex:793
+#: lib/tuist_web/live/bazel_cache_live.ex:810
 #: lib/tuist_web/live/xcode_cache_live.html.heex:242
 #: lib/tuist_web/live/xcode_cache_live.html.heex:259
 #: lib/tuist_web/live/xcode_cache_live.html.heex:276
@@ -258,17 +258,17 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:346
+#: lib/tuist_web/components/app_layout_components.ex:350
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:429
+#: lib/tuist_web/components/app_layout_components.ex:433
 #, elixir-autogen, elixir-format
 msgid "Profiles"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:397
+#: lib/tuist_web/components/app_layout_components.ex:401
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -278,12 +278,12 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:474
+#: lib/tuist_web/components/app_layout_components.ex:478
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:370
+#: lib/tuist_web/components/app_layout_components.ex:374
 #, elixir-autogen, elixir-format
 msgid "Project Settings"
 msgstr ""
@@ -303,7 +303,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:587
+#: lib/tuist_web/components/app_layout_components.ex:591
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -313,20 +313,20 @@ msgstr ""
 msgid "Switch to your preferred theme"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:89
-#: lib/tuist_web/components/app_layout_components.ex:287
+#: lib/tuist_web/components/app_layout_components.ex:93
+#: lib/tuist_web/components/app_layout_components.ex:291
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:74
-#: lib/tuist_web/components/app_layout_components.ex:272
+#: lib/tuist_web/components/app_layout_components.ex:78
+#: lib/tuist_web/components/app_layout_components.ex:276
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:61
-#: lib/tuist_web/components/app_layout_components.ex:259
+#: lib/tuist_web/components/app_layout_components.ex:65
+#: lib/tuist_web/components/app_layout_components.ex:263
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr ""
@@ -389,8 +389,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:627
-#: lib/tuist_web/components/app_layout_components.ex:670
+#: lib/tuist_web/components/app_layout_components.ex:631
+#: lib/tuist_web/components/app_layout_components.ex:674
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -415,7 +415,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:211
+#: lib/tuist_web/components/app_layout_components.ex:215
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr ""
@@ -457,8 +457,8 @@ msgstr ""
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:105
-#: lib/tuist_web/components/app_layout_components.ex:302
+#: lib/tuist_web/components/app_layout_components.ex:109
+#: lib/tuist_web/components/app_layout_components.ex:306
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr ""
@@ -478,18 +478,18 @@ msgstr ""
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:117
-#: lib/tuist_web/components/app_layout_components.ex:313
+#: lib/tuist_web/components/app_layout_components.ex:121
+#: lib/tuist_web/components/app_layout_components.ex:317
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:184
+#: lib/tuist_web/components/app_layout_components.ex:188
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:337
+#: lib/tuist_web/components/app_layout_components.ex:341
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
@@ -499,9 +499,9 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:454
-#: lib/tuist_web/components/app_layout_components.ex:530
-#: lib/tuist_web/live/bazel_cache_live.ex:23
+#: lib/tuist_web/components/app_layout_components.ex:458
+#: lib/tuist_web/components/app_layout_components.ex:534
+#: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Cache"
@@ -528,8 +528,8 @@ msgstr ""
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:129
-#: lib/tuist_web/components/app_layout_components.ex:324
+#: lib/tuist_web/components/app_layout_components.ex:133
+#: lib/tuist_web/components/app_layout_components.ex:328
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr ""
@@ -634,7 +634,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:543
+#: lib/tuist_web/components/app_layout_components.ex:547
 #: lib/tuist_web/live/ops_accounts_live.ex:18
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -642,7 +642,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:516
+#: lib/tuist_web/components/app_layout_components.ex:520
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr ""
@@ -917,7 +917,7 @@ msgstr ""
 msgid "Japan"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:536
+#: lib/tuist_web/components/app_layout_components.ex:540
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -1329,22 +1329,22 @@ msgstr ""
 msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:495
+#: lib/tuist_web/components/app_layout_components.ex:499
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:408
+#: lib/tuist_web/components/app_layout_components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:447
+#: lib/tuist_web/components/app_layout_components.ex:451
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:416
+#: lib/tuist_web/components/app_layout_components.ex:420
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr ""
@@ -1437,7 +1437,7 @@ msgstr ""
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:555
+#: lib/tuist_web/components/app_layout_components.ex:559
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1818,17 +1818,17 @@ msgstr ""
 msgid "Write lag (bytes)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:467
+#: lib/tuist_web/components/app_layout_components.ex:471
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:651
+#: lib/tuist_web/components/app_layout_components.ex:655
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:501
+#: lib/tuist_web/components/app_layout_components.ex:505
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr ""
@@ -2660,12 +2660,12 @@ msgstr ""
 msgid "Temporarily unavailable."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:198
+#: lib/tuist_web/components/app_layout_components.ex:202
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:245
+#: lib/tuist_web/components/app_layout_components.ex:249
 #, elixir-autogen, elixir-format
 msgid "Tasks"
 msgstr ""
@@ -2697,7 +2697,7 @@ msgstr[1] ""
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:142
+#: lib/tuist_web/components/app_layout_components.ex:146
 #, elixir-autogen, elixir-format
-msgid "Bazel cache"
+msgid "Bazel Cache"
 msgstr ""

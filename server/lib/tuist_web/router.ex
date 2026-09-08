@@ -1271,7 +1271,6 @@ defmodule TuistWeb.Router do
       live "/bazel-cache", BazelCacheLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
-      get "/invocations/:invocation_id/logs/download", BazelInvocationLogsController, :download
       live "/invocations/:invocation_id", BazelBuildInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
@@ -1281,7 +1280,6 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
-      get "/builds/invocations/:invocation_id/logs/download", BazelInvocationLogsController, :download
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
