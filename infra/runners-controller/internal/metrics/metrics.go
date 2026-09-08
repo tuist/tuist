@@ -12,6 +12,7 @@
 package metrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,6 +25,7 @@ const (
 	reasonLabel          = "reason"
 	fleetSelectorLabel   = "fleet_selector"
 	operatingSystemLabel = "operating_system"
+	shapeLabel           = "shape"
 )
 
 var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
@@ -188,6 +190,18 @@ var (
 		Help: "Concurrent Linux Kata sandbox starts a runner fleet allows: the per-node budget times its healthy node count. Compare with the sum of tuist_runners_pool_pending_provisioning_pods to see how much of the ceiling is in use.",
 	}, []string{fleetSelectorLabel, operatingSystemLabel})
 
+	// fleetShapeSeatsFree answers "could a job of this shape start right
+	// now", which no other series here can. fleetProvisioningCeiling is
+	// a concurrent-start budget, not a placement budget, and the
+	// allocator's own seat cap deliberately ignores occupancy. Free
+	// seats is the one that goes to zero while the fleet still reports
+	// memory available, because the memory is in pieces too small to
+	// seat the shape.
+	fleetShapeSeatsFree = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_shape_seats_free",
+		Help: "Additional Pods of a shape the fleet could seat right now: per healthy node, allocatable minus what its Pods already reserve, divided by the shape's placement footprint, summed. Zero means no single host has room, however much memory the fleet has free in total.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel, shapeLabel})
+
 	podStartTimeoutsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "tuist_runners_pool_pod_start_timeouts_total",
 		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
@@ -199,8 +213,22 @@ var (
 	}, []string{poolLabel})
 )
 
+// publishedFleetShapes remembers which shape rungs each fleet last
+// published, so SetFleetShapeSeatsFree can drop the ones that have
+// since left the catalog. GaugeVec has no "delete everything but these"
+// primitive and the reconcilers run concurrently, hence the lock.
+type fleetShapeKey struct {
+	fleetSelector   string
+	operatingSystem string
+}
+
+var (
+	fleetShapesMu        sync.Mutex
+	publishedFleetShapes = map[fleetShapeKey]map[string]struct{}{}
+)
+
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, podStartTimeoutsTotal, stuckTerminationsTotal)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, occupiedRunners, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, fleetProvisioningCeiling, fleetShapeSeatsFree, podStartTimeoutsTotal, stuckTerminationsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -264,6 +292,40 @@ func RecordFleetProvisioningCeiling(fleetSelector, operatingSystem string, ceili
 		ceiling = 0
 	}
 	fleetProvisioningCeiling.WithLabelValues(fleetSelector, operatingSystem).Set(float64(ceiling))
+}
+
+// SetFleetShapeSeatsFree replaces one fleet's free-seat series with
+// `seats`, keyed by the advertised `<vcpus>vcpu-<gb>gb` rung. The rung
+// rather than the placement footprint the arithmetic runs on: it is
+// what the customer's runner profile names and what the pool is called,
+// so an alert on this series can say which shape stopped fitting.
+//
+// Zero is the alertable value, so a shape still in the catalog is
+// published as zero rather than skipped: the series has to drain the
+// moment the fleet fills instead of holding its last non-zero sample.
+// A shape that has LEFT the catalog is deleted for the same reason in
+// reverse: a retired rung left holding a stale reading claims seats on
+// a fleet that no longer offers it.
+func SetFleetShapeSeatsFree(fleetSelector, operatingSystem string, seats map[string]int) {
+	fleetShapesMu.Lock()
+	defer fleetShapesMu.Unlock()
+
+	fleet := fleetShapeKey{fleetSelector: fleetSelector, operatingSystem: operatingSystem}
+	for shape := range publishedFleetShapes[fleet] {
+		if _, ok := seats[shape]; !ok {
+			fleetShapeSeatsFree.DeleteLabelValues(fleetSelector, operatingSystem, shape)
+		}
+	}
+
+	published := make(map[string]struct{}, len(seats))
+	for shape, free := range seats {
+		if free < 0 {
+			free = 0
+		}
+		fleetShapeSeatsFree.WithLabelValues(fleetSelector, operatingSystem, shape).Set(float64(free))
+		published[shape] = struct{}{}
+	}
+	publishedFleetShapes[fleet] = published
 }
 
 func RecordPodStartTimeout(pool, reason string) {
