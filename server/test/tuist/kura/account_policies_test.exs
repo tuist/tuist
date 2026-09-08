@@ -388,6 +388,9 @@ defmodule Tuist.Kura.AccountPoliciesTest do
             refute service_region == "ap-southeast",
                    "region=#{region} plan=#{plan} derived to ap-southeast"
 
+            refute service_region == "sa-west",
+                   "region=#{region} plan=#{plan} derived to sa-west"
+
           {:error, _reason} ->
             :ok
         end

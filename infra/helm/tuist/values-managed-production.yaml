@@ -355,7 +355,7 @@ kuraController:
 # and its traffic is node-local runner reads that must not be shaped.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -819,6 +819,42 @@ dediboxFleet:
   sshExternalSecret:
     enabled: true
     item: DEDIBOX_FLEET_SSH
+
+# Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
+# all have no presence there, which is what put a fourth provider in the fleet.
+vultrFleet:
+  externalSecrets:
+    item: VULTR_API
+
+vultrFleets:
+  # South America West (Santiago). DISABLED until the region is switched on:
+  # an enabled fleet whose box the controller cannot adopt sits at MD 0/1 and
+  # wedges `helm --wait` for every production deploy, not just this region.
+  # Turning it on is: confirm the box carries the adoptTag and has been through
+  # `mise run baremetal:prep-vultr`, flip this to true, then add sa-west to
+  # TUIST_KURA_AVAILABLE_REGIONS once the node reports Ready.
+  sa-west:
+    enabled: false
+    replicas: 1
+    nodePool: kura-sa-west
+    machine:
+      # The env boundary. One Vultr account holds every env's boxes, and
+      # region+plan repeat across envs.
+      adoptTag: tuist-kura-vultr-production
+      region: scl
+      # Exact, not a prefix: the SSD variant of this plan has the same core count
+      # and a cache adopting it would be a silent downgrade to SATA-class disks.
+      plan: vbm-6c-32gb-amd
+      # Ubuntu 24.04 LTS x64. Recorded rather than requested: the reinstall
+      # endpoint takes no OS argument and reimages whatever the box carries.
+      osID: 2284
+      # The plan meters a 10 TB/month transfer quota, so the quota rather than
+      # the 25 Gbit/s the NIC links at is what binds. Provisional until the
+      # region serves enough traffic to measure.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
 
 # Shared OVH config holder. The singular ovhFleet stays disabled in production
 # (it is the ca-east validation fleet); production's OVH regions are the us-east /
