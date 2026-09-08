@@ -18,14 +18,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   JavaScript rather than a script from a CDN, so the page loads no third-party
   origin and the Content Security Policy stays on `'self'`. Web vitals feed the
   LCP alerts documented in `infra/helm/k8s-monitoring/alerts.md`.
-  `shared/js/browser-automation.mjs` excludes browsers reporting
-  `navigator.webdriver`, Meta's explicit external-agent user agent, and the
-  exact Linux crawler fingerprint observed in production (user agent, language,
-  and viewport). These clients never initialize Faro. This is a telemetry
-  heuristic, not comprehensive bot detection: the fingerprint can change and
-  an ordinary browser matching it will also be excluded. Run its regression
-  tests with `node --test assets/shared/js/browser-automation.test.mjs` from
-  `server/`; the server workflow runs them alongside asset checks.
+  Browsers reporting `navigator.webdriver` are not instrumented at all, so
+  crawlers and headless test runners neither emit web vitals nor page views.
 
 ## Related Context
 
