@@ -657,6 +657,10 @@ func (in *RackHostStatus) DeepCopyInto(out *RackHostStatus) {
 		in, out := &in.LastPowerActionTime, &out.LastPowerActionTime
 		*out = (*in).DeepCopy()
 	}
+	if in.QuarantinedAt != nil {
+		in, out := &in.QuarantinedAt, &out.QuarantinedAt
+		*out = (*in).DeepCopy()
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make(v1beta1.Conditions, len(*in))

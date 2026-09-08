@@ -705,6 +705,7 @@ func (r *StaticAppleSiliconMachineReconciler) quarantineHost(ctx context.Context
 	}
 	fresh.Status.Quarantined = true
 	fresh.Status.QuarantineReason = reason
+	fresh.Status.QuarantinedAt = &metav1.Time{Time: time.Now()}
 	fresh.Status.ClaimedBy = ""
 	fresh.Status.ClaimedAt = nil
 	if err := r.Status().Update(ctx, fresh); err != nil {

@@ -393,12 +393,28 @@ that box, and it is worth catching before the reboot is needed rather than at
 the moment it cannot be done. `capt_rackhost_claimed` summed per pool is the
 rack's utilisation; free == 0 is what a scale-up will fail to satisfy.
 
-**Clear a quarantine** once the host is fixed:
+**A quarantine expires on its own** after `--rackhost-quarantine-retry-after`
+(default 30m), and the host returns to the pool with a `QuarantineExpired`
+event. That is the normal path, and it is not a convenience: clearing one by
+hand needs write access to `rackhosts/status`, which the operator's ClusterRole
+has and a human reaching the cluster through the kubectl gateway does NOT, so
+without the expiry a quarantined box is capacity nobody on call can recover. It
+is usually the right answer too, since most exhaustions are a verdict on the
+config being pushed rather than on the hardware, and the fix ships in the next
+operator image.
+
+If you do hold the permission, releasing one early is:
 
 ```bash
 kubectl patch rackhost <name> --subresource=status --type=merge \
-  -p '{"status":{"quarantined":false,"quarantineReason":""}}'
+  -p '{"status":{"quarantined":false,"quarantineReason":"","quarantinedAt":null}}'
 ```
+
+A host that keeps re-quarantining is a real fault: read `status.quarantineReason`
+and the machine's `BootstrapFailed` events, and set `spec.unclaimable: true` to
+take it out of the pool for good while you work on it. A negative
+`--rackhost-quarantine-retry-after` disables the expiry fleet-wide, which only
+makes sense in a cluster where somebody can actually write that status.
 
 **Take a box out of the pool** without deleting its inventory record (bench
 work, an RMA) by setting `spec.unclaimable: true`. It stops the next claim; it

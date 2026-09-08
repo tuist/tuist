@@ -279,6 +279,11 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackHostQuarantineRetryAfter time.Duration
+	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
+		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
+			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
+			"which strands the host unless something can write rackhosts/status.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -603,11 +608,12 @@ func main() {
 	// an env to have inventory that nothing acts on.
 	powerRegistry := power.NewRegistry()
 	if err := (&macos.RackHostReconciler{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		Recorder:         mgr.GetEventRecorderFor("rackhost-controller"),
-		Power:            powerRegistry,
-		SecretsNamespace: secretsNamespace,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Power:                powerRegistry,
+		SecretsNamespace:     secretsNamespace,
+		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackHostReconciler")
 		os.Exit(1)

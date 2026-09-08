@@ -196,6 +196,25 @@ type RackHostStatus struct {
 	// +optional
 	QuarantineReason string `json:"quarantineReason,omitempty"`
 
+	// QuarantinedAt is when the quarantine was applied, and it is what lets the
+	// quarantine expire.
+	//
+	// An expiry is not a convenience. Clearing this field needs write access to
+	// rackhosts/status, which the operator's own ClusterRole has and a human
+	// reaching the cluster through the kubectl gateway does not, so a quarantine
+	// with no expiry is a physical box removed from the pool that nobody present
+	// can put back. It is also usually wrong to keep: most exhaustions are a
+	// verdict on the CONFIG that was being pushed, not on the hardware, and the
+	// fix ships in the next operator image while the host stays excluded from
+	// the fleet it was meant to rejoin.
+	//
+	// The shape is deliberately the same as the drift loop's terminal-failure
+	// cooldown (see HostAgentStatus.LastUpdateFailureTime): a persistently bad
+	// host still costs one bootstrap budget per interval rather than one per
+	// reconcile, so the ladder keeps doing its job.
+	// +optional
+	QuarantinedAt *metav1.Time `json:"quarantinedAt,omitempty"`
+
 	// Conditions are CAPI-style condition entries (PowerReachable).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`

@@ -407,3 +407,97 @@ func (d *credentialRecordingDriver) Set(_ context.Context, o power.Outlet, _ boo
 	d.username, d.password = o.Username, o.Password
 	return nil
 }
+
+// --- quarantine expiry ------------------------------------------------------
+
+// A quarantine that never expires is a physical box removed from the pool that
+// nobody present can put back: clearing it needs write access to
+// rackhosts/status, which the operator's ClusterRole has and a human reaching
+// the cluster through the kubectl gateway does not. Discovered the hard way on
+// 2026-09-09, when the BER1 prototype quarantined itself over a bootstrap bug
+// and the patch to release it came back Forbidden.
+func TestQuarantineExpiresAfterTheCooldown(t *testing.T) {
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantineReason = "bootstrap failed 8 times"
+		h.Status.QuarantinedAt = &metav1.Time{Time: time.Now().Add(-31 * time.Minute)}
+	})
+	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
+
+	reconcileHost(t, r, "mini-01")
+
+	got := readHost(t, r, "mini-01")
+	if got.Status.Quarantined {
+		t.Fatal("still quarantined past the cooldown; the host is stranded out of the pool")
+	}
+	if got.Status.QuarantineReason != "" || got.Status.QuarantinedAt != nil {
+		t.Fatalf("quarantine bookkeeping survived the release: %+v", got.Status)
+	}
+}
+
+// Inside the window it must hold, or the ladder degrades to retrying a broken
+// host on every reconcile instead of once per interval.
+func TestQuarantineHoldsInsideTheCooldown(t *testing.T) {
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantinedAt = &metav1.Time{Time: time.Now().Add(-2 * time.Minute)}
+	})
+	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
+
+	reconcileHost(t, r, "mini-01")
+
+	if !readHost(t, r, "mini-01").Status.Quarantined {
+		t.Fatal("quarantine lifted early; a broken host would be retried every reconcile")
+	}
+}
+
+// A host quarantined before the timestamp field existed carries none. Releasing
+// those on sight is the point: the field was added because there was no other
+// way to get them back.
+func TestQuarantineWithoutATimestampIsReleased(t *testing.T) {
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantineReason = "quarantined by an older operator"
+	})
+	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
+
+	reconcileHost(t, r, "mini-01")
+
+	if readHost(t, r, "mini-01").Status.Quarantined {
+		t.Fatal("a timestampless quarantine stayed forever, which is exactly the state this field exists to end")
+	}
+}
+
+// An operator who has another way to clear quarantines can opt out of the
+// expiry entirely.
+func TestNegativeCooldownMakesQuarantinePermanent(t *testing.T) {
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantinedAt = &metav1.Time{Time: time.Now().Add(-99 * time.Hour)}
+	})
+	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
+	r.QuarantineRetryAfter = -1
+
+	reconcileHost(t, r, "mini-01")
+
+	if !readHost(t, r, "mini-01").Status.Quarantined {
+		t.Fatal("expiry ran despite being disabled")
+	}
+}
+
+// An expired quarantine must actually let a machine claim the host again;
+// clearing the flag is only half of it.
+func TestExpiredQuarantineMakesTheHostClaimableAgain(t *testing.T) {
+	host := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Status.Quarantined = true
+		h.Status.QuarantinedAt = &metav1.Time{Time: time.Now().Add(-31 * time.Minute)}
+	})
+	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host)
+	reconcileHost(t, r, "mini-01")
+
+	released := readHost(t, r, "mini-01")
+	candidates, _ := selectClaimableHosts([]infrav1.RackHost{*released}, testPool, "ber1-0")
+	if len(candidates) != 1 {
+		t.Fatalf("released host is still not claimable: %d candidates", len(candidates))
+	}
+}

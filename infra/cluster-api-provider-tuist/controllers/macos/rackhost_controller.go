@@ -51,6 +51,17 @@ const (
 	// cycle was meant to clear.
 	defaultPowerCycleSettle = 10 * time.Second
 
+	// defaultQuarantineRetryAfter is how long a host stays out of the claim pool
+	// after the machine controller gave up bootstrapping it.
+	//
+	// Matches the drift loop's terminal-failure cooldown, and for the same
+	// reason: most exhaustions are a verdict on the config being pushed rather
+	// than on the hardware, and the fix arrives in a later operator image. A
+	// quarantine that never expires would keep a healthy box out of the fleet
+	// until someone with write access to rackhosts/status intervened, which
+	// through the kubectl gateway is nobody.
+	defaultQuarantineRetryAfter = 30 * time.Minute
+
 	// powerPollInterval is how often a host's outlet is read when nothing else
 	// wakes the reconciler. Outlet state changes only when we change it or when
 	// someone unplugs something, so this is a liveness check on the PDU path
@@ -108,6 +119,49 @@ type RackHostReconciler struct {
 	// without ten seconds of real sleep per case, and so a future PDU whose
 	// hardware wants a different interval has somewhere to say so.
 	PowerCycleSettle time.Duration
+
+	// QuarantineRetryAfter is how long a quarantine holds before the host is
+	// returned to the pool. Zero means defaultQuarantineRetryAfter; negative
+	// disables the expiry, which makes a quarantine permanent and should only
+	// be chosen by an operator who has another way to clear one.
+	QuarantineRetryAfter time.Duration
+}
+
+func (r *RackHostReconciler) quarantineRetryAfter() time.Duration {
+	if r.QuarantineRetryAfter != 0 {
+		return r.QuarantineRetryAfter
+	}
+	return defaultQuarantineRetryAfter
+}
+
+// expireQuarantine returns a host to the pool once its quarantine has aged out.
+// Reports whether it cleared one.
+//
+// A host quarantined before QuarantinedAt existed carries no timestamp. Those
+// are released on sight rather than stranded forever: the field was added
+// precisely because there was no other way to release them.
+func (r *RackHostReconciler) expireQuarantine(ctx context.Context, host *infrav1.RackHost) bool {
+	if !host.Status.Quarantined {
+		return false
+	}
+	retryAfter := r.quarantineRetryAfter()
+	if retryAfter < 0 {
+		return false
+	}
+	if at := host.Status.QuarantinedAt; at != nil && time.Since(at.Time) < retryAfter {
+		return false
+	}
+
+	reason := host.Status.QuarantineReason
+	r.Recorder.Eventf(host, corev1.EventTypeNormal, "QuarantineExpired",
+		"Returning to pool %q after %s out of it. It was quarantined for: %s",
+		host.Spec.Pool, retryAfter, reason)
+	log.FromContext(ctx).Info("quarantine expired; host returned to the pool",
+		"host", host.Name, "wasQuarantinedFor", reason)
+	host.Status.Quarantined = false
+	host.Status.QuarantineReason = ""
+	host.Status.QuarantinedAt = nil
+	return true
 }
 
 func (r *RackHostReconciler) powerCycleSettle() time.Duration {
@@ -163,6 +217,12 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		logger.Error(releaseErr, "check for an orphaned claim; will retry")
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	} else if released {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// Return an aged-out quarantine to the pool before anything else, so a host
+	// that is due spends no extra reconcile excluded.
+	if r.expireQuarantine(ctx, host) {
 		return ctrl.Result{Requeue: true}, nil
 	}
 
