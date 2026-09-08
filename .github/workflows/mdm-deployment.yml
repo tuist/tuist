@@ -4,8 +4,11 @@ name: MDM Deployment
 #
 # There is one MDM instance and it owns every Mac we own, whatever
 # cluster that Mac ends up serving — the MDM manages a host before it
-# joins anything. The cluster named below is where the server is hosted,
-# not an environment tier, and there is no per-cluster MDM.
+# joins anything. There is no per-cluster MDM.
+#
+# It runs in the production cluster, in its own namespace, alongside
+# tuist-ops: this is the plane that provisions the fleet, so it does not
+# belong in the cluster we treat as disposable.
 #
 # The `ref` input exists so a branch can be deployed WITHOUT
 # merging it: the workflow definition is taken from the ref this workflow
@@ -99,7 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
-      name: server-k8s-staging
+      name: server-k8s-production
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -117,8 +120,8 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-staging" \
-            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          op document get "kubeconfig: tuist-production" \
+            --vault "tuist-k8s-production" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         run: |
