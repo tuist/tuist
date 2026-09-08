@@ -297,8 +297,14 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    # The client gives up on a query after this long. ClickHouse's own limit
+    # below is shorter so a slow read fails with TIMEOUT_EXCEEDED (159), which
+    # the server records in query_log and the app can tell from a dropped
+    # connection.
+    timeout: to_timeout(second: 20),
     settings: [
       readonly: 1,
+      max_execution_time: 15,
       max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
       # Per-query memory ceiling so one heavy read fails on its own with a
       # `(for query)` error (retryable) rather than driving the process to its

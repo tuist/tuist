@@ -122,12 +122,39 @@ const tooltipFormatters = {
 
 export default {
   mounted() {
-    this.render();
-    this.colorSchemeListener = () => this.render();
+    this.renderReady =
+      this.el.dataset.lazy !== "true" ||
+      typeof IntersectionObserver === "undefined";
+    this.colorSchemeListener = () => {
+      if (this.renderReady) this.render();
+    };
+    this.resizeListener = () => this.chart?.resize();
     window.addEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
     );
+    window.addEventListener("resize", this.resizeListener);
+    window.addEventListener("phx:resize", this.resizeListener);
+
+    if (this.renderReady) {
+      this.render();
+    } else {
+      this.visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          if (
+            this.visibilityObserver &&
+            entries.some((entry) => entry.isIntersecting)
+          ) {
+            this.visibilityObserver.disconnect();
+            this.visibilityObserver = null;
+            this.renderReady = true;
+            this.render();
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      this.visibilityObserver.observe(this.el);
+    }
   },
   render({ animate = true } = {}) {
     if (this.chart) this.chart.dispose();
@@ -170,22 +197,19 @@ export default {
         chartDom.style.cursor = "default";
       });
     }
-
-    this.resizeListener = () => {
-      this.chart.resize();
-    };
-    window.addEventListener("resize", this.resizeListener);
-    window.addEventListener("phx:resize", this.resizeListener);
   },
   updated() {
     // Re-render fully to update theme (including tooltip formatter), but skip
     // the entry animation so LiveView patches don't visibly re-animate charts.
-    this.render({ animate: false });
+    if (this.renderReady) this.render({ animate: false });
   },
   destroyed() {
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = null;
+    this.renderReady = false;
     const chartDom = this.el.querySelector("[data-part='chart']");
     if (chartDom) chartDom.__nooraChart = null;
-    this.chart.dispose();
+    this.chart?.dispose();
     window.removeEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,

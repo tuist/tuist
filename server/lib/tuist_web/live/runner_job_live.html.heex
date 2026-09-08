@@ -11,7 +11,11 @@
 
   <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
-  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <%!-- `repository` holds a pipeline slug on the Buildkite lane, so the
+        GitHub deep link it builds would point at a repository that does
+        not exist. --%>
+  <% github_url = if @buildkite_job, do: nil, else: TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% buildkite_url = TuistWeb.RunnerJobLive.buildkite_build_url(@buildkite_job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
 
   <div data-part="header">
@@ -43,6 +47,17 @@
         label={dgettext("dashboard_runners", "GitHub")}
       >
         <:icon_left><.brand_github /></:icon_left>
+      </.button>
+      <.button
+        :if={buildkite_url}
+        href={buildkite_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "Buildkite")}
+      >
+        <:icon_right><.external_link /></:icon_right>
       </.button>
     </div>
   </div>
@@ -379,6 +394,7 @@
     </.card>
 
     <.card
+      :if={is_nil(@buildkite_job)}
       title={dgettext("dashboard_runners", "Steps")}
       icon="apps"
       data-part="steps-card"

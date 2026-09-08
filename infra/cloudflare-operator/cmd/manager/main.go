@@ -102,6 +102,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := (&controllers.CloudflareCustomRuleReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareCustomRuleReconciler")
+		os.Exit(1)
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "set up health check")
 		os.Exit(1)

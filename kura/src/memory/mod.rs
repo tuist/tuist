@@ -30,7 +30,7 @@ use pools::MemoryPools;
 use pressure::transition;
 use reservation::{
     AdmissionClass, DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT, FOREGROUND_ADMISSION_TIMEOUT,
-    ForegroundWaiter, ResponseStreamWaiter,
+    ForegroundWaiter, ResponseStreamWaiter, TransientElasticity,
 };
 
 /// Coordinates deterministic admission for memory that Kura allocates on behalf of a request.
@@ -200,7 +200,10 @@ impl MemoryController {
             pools.foreground_response_streaming_bytes(),
             pools.degraded_response_stream_slots(),
         );
-        metrics.update_transient_memory_capacity(pools.transient_capacity_bytes() as u64);
+        metrics.update_transient_memory_capacity(
+            pools.transient_capacity_bytes() as u64,
+            pools.elastic_transient_capacity_bytes() as u64,
+        );
         Self {
             inner: Arc::new(MemoryControllerInner {
                 runtime_limit_bytes,
@@ -411,6 +414,23 @@ impl MemoryController {
 
     pub fn transient_reserved_bytes(&self) -> u64 {
         self.inner.pools.transient_reserved_bytes() as u64
+    }
+
+    pub fn elastic_transient_capacity_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_capacity_bytes() as u64
+    }
+
+    pub fn elastic_transient_reserved_bytes(&self) -> u64 {
+        self.inner.pools.elastic_transient_reserved_bytes() as u64
+    }
+
+    /// Everything a borrowing foreground caller may hold: the floor-derived
+    /// pool plus the ceiling headroom above it. Callers that size a window
+    /// against the budget have to use this, or they clamp themselves to the
+    /// floor and never reach the pool at all.
+    pub fn foreground_transient_capacity_bytes(&self) -> u64 {
+        self.transient_capacity_bytes()
+            .saturating_add(self.elastic_transient_capacity_bytes())
     }
 
     pub fn snapshot_cache_target_bytes(&self, capacity_bytes: usize) -> usize {
@@ -624,6 +644,26 @@ impl MemoryController {
         }
         self.try_reserve_transient(requested_bytes, AdmissionClass::Foreground)
             .map(ForegroundMemoryReservation::new)
+    }
+
+    /// A foreground reservation that may draw on ceiling headroom above the
+    /// floor-derived pool while pressure is normal.
+    ///
+    /// For the callers whose only alternative is to refuse the write outright.
+    /// `reserve_foreground_memory` waits instead, so it stays on the floor.
+    pub(crate) fn try_reserve_elastic_foreground_memory(
+        &self,
+        requested_bytes: u64,
+    ) -> Result<ForegroundMemoryReservation, ()> {
+        if requested_bytes > 0 && self.inner.foreground_waiters.load(Ordering::Acquire) > 0 {
+            return Err(());
+        }
+        self.try_reserve_transient_with(
+            requested_bytes,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowCeilingHeadroom,
+        )
+        .map(ForegroundMemoryReservation::new)
     }
 
     pub(crate) async fn reserve_foreground_memory(
@@ -958,11 +998,7 @@ impl MemoryController {
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(TransientElasticity::Fixed));
         }
         if requested_bytes > self.transient_capacity_bytes() {
             return Err(());
@@ -975,10 +1011,22 @@ impl MemoryController {
                 return Ok(TransientMemoryReservation {
                     controller: self.clone(),
                     permit: Some(permit),
+                    elastic_permit: None,
+                    elasticity: TransientElasticity::Fixed,
                     bytes: requested_bytes,
                 });
             }
             drop(permit);
+        }
+    }
+
+    fn empty_transient(&self, elasticity: TransientElasticity) -> TransientMemoryReservation {
+        TransientMemoryReservation {
+            controller: self.clone(),
+            permit: None,
+            elastic_permit: None,
+            elasticity,
+            bytes: 0,
         }
     }
 
@@ -987,25 +1035,52 @@ impl MemoryController {
         requested_bytes: u64,
         class: AdmissionClass,
     ) -> Result<TransientMemoryReservation, ()> {
+        self.try_reserve_transient_with(requested_bytes, class, TransientElasticity::Fixed)
+    }
+
+    fn try_reserve_transient_with(
+        &self,
+        requested_bytes: u64,
+        class: AdmissionClass,
+        elasticity: TransientElasticity,
+    ) -> Result<TransientMemoryReservation, ()> {
         if requested_bytes == 0 {
-            return Ok(TransientMemoryReservation {
-                controller: self.clone(),
-                permit: None,
-                bytes: 0,
-            });
+            return Ok(self.empty_transient(elasticity));
         }
-        if !self.allow_transient_admission(class)
-            || requested_bytes > self.transient_capacity_bytes()
-        {
+        let borrows = elasticity == TransientElasticity::MayBorrowCeilingHeadroom;
+        let capacity_bytes = if borrows {
+            self.foreground_transient_capacity_bytes()
+        } else {
+            self.transient_capacity_bytes()
+        };
+        if !self.allow_transient_admission(class) || requested_bytes > capacity_bytes {
             return Err(());
         }
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let permit = self.inner.pools.try_acquire_transient(permits)?;
-        Ok(TransientMemoryReservation {
-            controller: self.clone(),
-            permit: Some(permit),
-            bytes: requested_bytes,
-        })
+        let mut reservation = self.empty_transient(elasticity);
+        match self.inner.pools.try_acquire_transient(permits) {
+            Ok(permit) => reservation.permit = Some(permit),
+            Err(()) if borrows => {
+                reservation.elastic_permit = Some(self.try_acquire_elastic_transient(permits)?)
+            }
+            Err(()) => return Err(()),
+        }
+        reservation.bytes = requested_bytes;
+        Ok(reservation)
+    }
+
+    pub(super) fn try_acquire_elastic_transient(
+        &self,
+        permits: u32,
+    ) -> Result<tokio::sync::OwnedSemaphorePermit, ()> {
+        if self.pressure() != MemoryPressure::Normal {
+            return Err(());
+        }
+        let permit = self.inner.pools.try_acquire_elastic_transient(permits)?;
+        self.inner
+            .metrics
+            .record_memory_action("transient_ceiling_headroom_borrowed");
+        Ok(permit)
     }
 
     fn allow_transient_admission(&self, class: AdmissionClass) -> bool {
@@ -1391,6 +1466,101 @@ mod tests {
             Some(runtime_limit * 4),
         );
         assert_eq!(generous.transient_capacity_bytes(), ceiling_headroom as u64);
+    }
+
+    /// A controller whose floor-derived budget is a fraction of its ceiling
+    /// headroom, which is the shape every governed instance has in production.
+    fn elastic_controller(forced: Option<MemoryPressure>) -> (MemoryController, u64, u64) {
+        let runtime_limit = 4 * 1024 * 1024 * 1024_u64;
+        let soft_limit = runtime_limit * 60 / 100;
+        let hard_limit = runtime_limit * 85 / 100;
+        let anon_budget = 192 * 1024 * 1024_u64;
+        let controller = MemoryController::with_runtime_limit_and_forced(
+            Metrics::new("us-west".into(), "tenant".into()),
+            runtime_limit,
+            soft_limit,
+            hard_limit,
+            forced,
+            Some(anon_budget),
+        );
+        (controller, anon_budget, hard_limit - soft_limit)
+    }
+
+    #[test]
+    fn the_elastic_pool_is_exactly_the_headroom_the_floor_clamp_discards() {
+        let (controller, anon_budget, ceiling_headroom) = elastic_controller(None);
+
+        assert_eq!(controller.transient_capacity_bytes(), anon_budget);
+        assert_eq!(
+            controller.elastic_transient_capacity_bytes(),
+            ceiling_headroom - anon_budget
+        );
+        // Borrowing can never take anonymous admission past what a node with no
+        // published floor would already have granted.
+        assert_eq!(
+            controller.foreground_transient_capacity_bytes(),
+            ceiling_headroom
+        );
+    }
+
+    #[test]
+    fn a_decode_reservation_borrows_ceiling_headroom_once_the_floor_pool_is_full() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        // The floor-derived pool is empty, so a fixed reservation is refused
+        // exactly as it is today.
+        assert!(controller.try_reserve_foreground_memory(1024).is_err());
+
+        let mut elastic = controller
+            .try_reserve_elastic_foreground_memory(0)
+            .expect("a zero-byte reservation always admits");
+        assert!(elastic.try_resize(64 * 1024 * 1024).is_ok());
+        assert_eq!(
+            controller.elastic_transient_reserved_bytes(),
+            64 * 1024 * 1024
+        );
+
+        // Shrinking returns borrowed ceiling memory before the protected floor
+        // allocation, so a node stops borrowing as soon as it stops needing to.
+        assert!(elastic.try_resize(0).is_ok());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn borrowing_stops_above_normal_pressure() {
+        let (controller, anon_budget, _) = elastic_controller(Some(MemoryPressure::Constrained));
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut elastic = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+
+        // Constrained is where anonymous growth above the floor stops being
+        // something the kernel can resolve by reclaiming, so the borrow closes.
+        assert!(elastic.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    #[test]
+    fn a_fixed_reservation_never_reaches_the_elastic_pool() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget)
+            .unwrap();
+        let mut fixed = controller.try_reserve_foreground_memory(0).unwrap();
+
+        assert!(fixed.try_resize(1024).is_err());
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert!(held.try_resize(0).is_ok());
     }
 
     #[test]

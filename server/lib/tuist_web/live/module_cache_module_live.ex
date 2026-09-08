@@ -4,6 +4,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.Skeleton
 
   alias Tuist.Builds.Analytics

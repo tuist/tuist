@@ -16,6 +16,10 @@ This directory contains the core business logic and domain modules for the serve
 
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
+- `Processor.XCActivityLogParser` runs the MuonTrap executable through
+  `System.cmd` in a timed task, collecting the parser's inherited stderr without
+  MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
+  while retaining process cleanup when the task times out or its caller dies.
 
 ## Related Context (Downlinks)
 
@@ -63,3 +67,5 @@ This directory contains the core business logic and domain modules for the serve
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
+
+- Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).

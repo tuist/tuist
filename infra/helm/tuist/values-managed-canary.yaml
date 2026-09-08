@@ -206,17 +206,6 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
-    - name: TUIST_KURA_AIR_REGION
-      # Air is funded on the ca-east OVH validation box, as on staging.
-      # Without this the default names us-east, which this environment does not
-      # serve, so every Air account resolved into a region the lifecycle loop
-      # never iterates and no instance was ever provisioned.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget, matching staging, so
-      # traffic-driven placement is observable rather than collapsing onto a
-      # single funded region.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -261,36 +250,65 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
+  # The in-cluster ClickHouse (spec #73). On: both AX42-1 are installed and
+  # Ready in the `clickhouse` pool, each with `/data` as XFS on its 2x512 GB
+  # mirror.
   #
-  # Turning it on is step 2 of the rollout plan in the pull request, and the
-  # steps after it are `shadowWrites.enabled`, then `migration` with the
-  # backfill in the background, then the read flag. Each is its own deploy, and
-  # each has a gate.
+  # This is step 2 of the rollout plan, and it brings the server up empty and
+  # nothing more. The steps after it are the schema clone, then
+  # `shadowWrites.enabled`, then `migration` with the backfill in the
+  # background, then the read flag. Each is its own deploy, and each has a
+  # gate.
   managed:
-    enabled: false
+    enabled: true
     # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
     # mirror, so this is sized for the environment's own data. What canary is
     # for is the shape production will run — a second replica and a
     # three-member quorum, neither of which staging exercises.
     #
-    # Both are still 1 here, because two replicas need a volume per replica and
-    # a database initialised on each of them, and neither exists yet. Raise
-    # them together once they do.
-    #
-    # The volume per replica is what gates `enabled: true` above, not just this
-    # count: the pool is two nodes and the local PersistentVolume binds on the
-    # pool label rather than a node name, so even one pod can be scheduled onto
-    # the node that does not hold the data.
+    # Both are still 1. Two replicas need a database initialised on each of
+    # them, which the init Job does not do: it reaches whichever pod the
+    # Service picks. The volume half is solved, by `nodeName` below, so raising
+    # these is now gated on the init alone.
     replicas: 1
     persistence:
       size: 200Gi
+      localVolume:
+        # The pool has two nodes, so this names which one holds the data. See
+        # the `nodeName` comment in values.yaml for why it is a hostname and
+        # not the pool label. The second box is joined, tainted and idle until
+        # the two-replica work lands.
+        nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
     keeper:
       replicas: 1
     backup:
       enabled: true
+    # One step of the migration, run as a Job by the chart. The sequence is
+    # advanced by changing `task` and deploying, so each step is a reviewed
+    # change in the release history rather than a command typed at a database.
+    #
+    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
+    # deploy that first introduced the workload, this one has somewhere to
+    # clone to. The Job is a post-upgrade hook, so it runs once the release is
+    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
+    # the destination from already exists.
+    #
+    # Gate: table, view and migration-version counts match the source. Engines
+    # need no assertion, because `database_replicated_allow_only_replicated_engine`
+    # makes the destination reject a non-replicated table, so creation
+    # succeeding is the proof.
+    #
+    # Being a post-upgrade hook, this re-runs on every deploy while it is
+    # enabled. That is harmless for the clone, which creates what is missing
+    # and leaves the rest, but the step after it is not: advance `task` rather
+    # than leaving this armed once the gate is met.
+    #
+    # `cutoff` stays unset. It belongs to the backfill, two steps later, and is
+    # read off the completed rollout of the deploy that turns dual writes on.
+    migration:
+      enabled: true
+      name: schema-clone
+      task: Tuist.Release.clone_clickhouse_schema
 
   poolSize: "30"
   bufferPoolSize: "30"

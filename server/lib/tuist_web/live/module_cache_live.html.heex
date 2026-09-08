@@ -107,12 +107,24 @@
       </:actions>
     </.date_picker>
   </div>
+  <% analytics_failed =
+    Enum.any?(
+      [
+        @hit_rate_analytics,
+        @hit_rate_p99,
+        @hit_rate_p90,
+        @hit_rate_p50,
+        @analytics_chart_data,
+        @cache_hit_rate_chart
+      ],
+      & &1.failed
+    ) %>
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
   >
-    <div data-part="widgets">
+    <div :if={!analytics_failed} data-part="widgets">
       <.percentile_dropdown_widget
         loading={
           !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
@@ -254,15 +266,17 @@
       />
     </div>
     <.card_section :if={
-      (@analytics_selected_widget == "cache_hit_rate" and
-         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-            !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?)
+      !analytics_failed and
+        ((@analytics_selected_widget == "cache_hit_rate" and
+            (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
+               !@hit_rate_p50.ok?)) or
+           (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?))
     }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
+    <.error_card_section :if={analytics_failed} data-part="analytics-error" />
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
         @analytics_chart_data.ok? and
@@ -353,7 +367,10 @@
         uri={@uri}
       />
       <div
-        :if={@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?}
+        :if={
+          (@cache_hit_rate_chart.loading || !@cache_hit_rate_chart.ok?) and
+            !@cache_hit_rate_chart.failed
+        }
         data-part="analytics-chart"
       >
         <.skeleton_chart />
@@ -535,13 +552,20 @@
         <:icon_right><.arrow_right /></:icon_right>
       </.button>
     </:actions>
-    <.card_section :if={!@module_invalidations.ok?} data-part="module-invalidation-skeleton">
+    <.card_section
+      :if={!@module_invalidations.ok? and !@module_invalidations.failed}
+      data-part="module-invalidation-skeleton"
+    >
       <.skeleton_box width="100%" height="44px" border_radius="8px" />
       <.skeleton_box width="100%" height="44px" border_radius="8px" />
       <.skeleton_box width="100%" height="44px" border_radius="8px" />
       <.skeleton_box width="100%" height="44px" border_radius="8px" />
       <.skeleton_box width="100%" height="44px" border_radius="8px" />
     </.card_section>
+    <.error_card_section
+      :if={@module_invalidations.failed}
+      data-part="module-invalidation-error"
+    />
     <div
       :if={@module_invalidations.ok? && not Enum.empty?(@module_invalidations.result)}
       data-part="widgets"
@@ -626,7 +650,7 @@
     </div>
   </.card>
   <.card title={dgettext("dashboard_cache", "Recent Runs")} icon="schema" data-part="recent-runs">
-    <.card_section :if={!@runs.ok?} data-part="recent-runs-section">
+    <.card_section :if={!@runs.ok? and !@runs.failed} data-part="recent-runs-section">
       <div data-part="recent-runs-skeleton" class="flex flex-col gap-4">
         <.skeleton_box width="100%" height="180px" border_radius="12px" />
         <.skeleton_box width="100%" height="44px" border_radius="12px" />
@@ -634,6 +658,7 @@
         <.skeleton_box width="100%" height="44px" border_radius="12px" />
       </div>
     </.card_section>
+    <.error_card_section :if={@runs.failed} data-part="recent-runs-error" />
     <.card_section
       :if={@runs.ok? && not Enum.empty?(@runs.result)}
       data-part="recent-runs-section"

@@ -144,25 +144,7 @@
     </.card_section>
     <.card_section :if={@kura_placement_proposal}>
       <p data-part="kura-placement-proposal-summary">
-        {case @kura_placement_proposal.kind do
-          :relocate ->
-            dgettext(
-              "dashboard",
-              "Placement proposes moving this account from %{from} to %{to}.",
-              from: @kura_placement_proposal.from_region,
-              to: @kura_placement_proposal.to_region
-            )
-
-          :expand ->
-            dgettext("dashboard", "Placement proposes also serving this account from %{to}.",
-              to: @kura_placement_proposal.to_region
-            )
-
-          :retire ->
-            dgettext("dashboard", "Placement proposes giving up %{from} for this account.",
-              from: @kura_placement_proposal.from_region
-            )
-        end}
+        {placement_proposal_summary(@kura_placement_proposal)}
       </p>
       <p data-part="kura-placement-proposal-evidence">
         {placement_history_reason(@kura_placement_proposal)}

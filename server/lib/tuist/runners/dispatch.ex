@@ -521,7 +521,14 @@ defmodule Tuist.Runners.Dispatch do
          :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
       {:ok, account.id}
     else
-      {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
+      {:error, reason}
+      when reason in [
+             :no_account,
+             :runners_disabled,
+             :no_matching_pool,
+             :no_pools,
+             :ambiguous_pool
+           ] ->
         {:ignored, reason}
 
       {:error, reason} ->

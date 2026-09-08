@@ -3368,6 +3368,19 @@ gradle_seed_data =
     task_count = Enum.random(15..50)
     selected_tasks = Enum.take_random(gradle_task_paths, task_count)
 
+    requested_task =
+      Enum.min_by(selected_tasks, fn task ->
+        priority =
+          cond do
+            String.ends_with?(task, [":assembleDebug", ":assembleRelease"]) -> 0
+            String.ends_with?(task, ":lintDebug") -> 1
+            String.contains?(task, ":compile") -> 2
+            true -> 3
+          end
+
+        {priority, task}
+      end)
+
     # Determine outcome distribution for cacheable tasks
     cacheable_ratio = Enum.random(40..80) / 100
     cacheable_count = trunc(task_count * cacheable_ratio)
@@ -3450,6 +3463,7 @@ gradle_seed_data =
       git_commit_sha: SeedHelpers.random_hex(40),
       git_ref: "4.138.1-#{Enum.random(1..200)}-g#{SeedHelpers.random_hex(10)}",
       root_project_name: Enum.random(root_project_names),
+      requested_tasks: [requested_task],
       tasks_local_hit_count: task_counts.local_hit,
       tasks_remote_hit_count: task_counts.remote_hit,
       tasks_up_to_date_count: task_counts.up_to_date,

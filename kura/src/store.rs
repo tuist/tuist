@@ -53,6 +53,7 @@ use crate::{
     memory::{MemoryController, MmapRegion},
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
+    reapi::chunking::{canonical_blob_key, is_recipe_key, recipe_referenced_blob_keys},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
@@ -66,10 +67,10 @@ use crate::{
         action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
         artifact_storage_id_in, backfill_index_key, backfill_index_prefix_upper_bound,
         backfill_index_value, backfill_meta_key, backfill_wm_key, backfill_wm_prefix_upper_bound,
-        decode_backfill_index_row, decode_backfill_watermark_value, drop_staging_cache_range,
-        encode_backfill_watermark_value, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
-        try_path_size_bytes,
+        chunk_recipe_ref_key, chunk_recipe_ref_prefix, decode_backfill_index_row,
+        decode_backfill_watermark_value, drop_staging_cache_range, encode_backfill_watermark_value,
+        module_key, namespace_artifact_index_key, now_ms, segment_artifact_index_key,
+        segment_artifact_index_prefix, segment_path, temp_file_path, try_path_size_bytes,
     },
 };
 
@@ -107,8 +108,14 @@ const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // the one-time migration into an unbounded RocksDB and page-cache burst.
 const ACTION_CACHE_BLOB_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1;
 const ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH: usize = 1_024;
+const CHUNK_RECIPE_REFS_BACKFILL_MANIFESTS_PER_STEP: usize = 1_024;
 
 pub struct ActionCacheBlobRefsBackfillStep {
+    pub rows: usize,
+    pub complete: bool,
+}
+
+pub struct ChunkRecipeRefsBackfillStep {
     pub rows: usize,
     pub complete: bool,
 }
@@ -1017,9 +1024,11 @@ struct EvictionCommitLog {
 #[derive(Default)]
 struct CascadeProgress {
     seen: HashSet<String>,
+    seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
     total: usize,
+    recipe_total: usize,
 }
 
 impl CascadeProgress {
@@ -2989,6 +2998,26 @@ impl Store {
                 bytes,
             );
         }
+        if manifest.producer == ArtifactProducer::Reapi && is_recipe_key(&manifest.key) {
+            if existing.is_some()
+                && let Some(previous_bytes) = self.inline_bytes(&artifact_id)?
+            {
+                self.stage_chunk_recipe_refs_delete(
+                    batch,
+                    &manifest.namespace_id,
+                    &artifact_id,
+                    &manifest.key,
+                    &previous_bytes,
+                );
+            }
+            self.stage_chunk_recipe_refs_put(
+                batch,
+                &manifest.namespace_id,
+                &artifact_id,
+                &manifest.key,
+                bytes,
+            );
+        }
         self.stage_backfill_index_update(batch, existing, &manifest);
         *bulk_outbox += self.append_artifact_replication_messages(
             batch,
@@ -4045,15 +4074,26 @@ impl Store {
                     // ahead of the blob leave, at worst, a blob with no
                     // referrers — which this eviction removes moments later,
                     // and which a crash in between leaves for the re-run.
-                    if cascade_active && manifest.producer == ArtifactProducer::Reapi {
-                        self.stage_action_cache_cascade_for_blob(
+                    if manifest.producer == ArtifactProducer::Reapi {
+                        self.stage_chunk_recipe_cascade_for_chunk(
                             &mut batch,
-                            &artifact_id,
+                            &manifest,
+                            cascade_active,
                             &mut cascade,
                             &mut removed_artifact_ids,
                             &mut scanned_rows,
                         )
                         .await?;
+                        if cascade_active {
+                            self.stage_action_cache_cascade_for_blob(
+                                &mut batch,
+                                &artifact_id,
+                                &mut cascade,
+                                &mut removed_artifact_ids,
+                                &mut scanned_rows,
+                            )
+                            .await?;
+                        }
                     }
                     // The blob's own rows go last, so they can only land in a
                     // chunk committed after every entry referencing it is gone.
@@ -4086,6 +4126,11 @@ impl Store {
                     cascaded_entries = cascade.total,
                     "cascaded action-cache entries stranded by segment eviction"
                 );
+            }
+            if cascade.recipe_total > 0 {
+                self.io
+                    .metrics()
+                    .record_reapi_chunking_event("recipe_removal", "chunk_evicted");
             }
         }
         self.remove_segment_handle(segment_id).await;
@@ -4175,6 +4220,7 @@ impl Store {
         cascade.pending_namespaces.clear();
         // Dedup is per-chunk; see `CascadeProgress`.
         cascade.seen.clear();
+        cascade.seen_recipes.clear();
         Ok(())
     }
 
@@ -4282,6 +4328,124 @@ impl Store {
             }
         }
         Ok(())
+    }
+
+    async fn stage_chunk_recipe_cascade_for_chunk(
+        &self,
+        batch: &mut WriteBatch,
+        chunk_manifest: &ArtifactManifest,
+        cascade_action_cache: bool,
+        cascade: &mut CascadeProgress,
+        removed_artifact_ids: &mut Vec<String>,
+        scanned_rows: &mut usize,
+    ) -> Result<(), String> {
+        let chunk_artifact_id = &chunk_manifest.artifact_id;
+        let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        for item in iter {
+            let (ref_key, _) =
+                item.map_err(|error| format!("failed to iterate chunk recipe refs: {error}"))?;
+            if !ref_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            yield_scanned_row(scanned_rows).await;
+            let recipe_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                .map_err(|error| format!("invalid chunk recipe ref key: {error}"))?
+                .to_owned();
+            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+            if cascade.seen_recipes.contains(&recipe_id) {
+                continue;
+            }
+            let Some(recipe_manifest) = self.manifest_from_db(&recipe_id)? else {
+                continue;
+            };
+            if recipe_manifest.producer != ArtifactProducer::Reapi
+                || !is_recipe_key(&recipe_manifest.key)
+            {
+                continue;
+            }
+            let Some(recipe_bytes) = self.inline_bytes(&recipe_id)? else {
+                continue;
+            };
+            if !self
+                .chunk_recipe_blob_ids(
+                    &recipe_manifest.namespace_id,
+                    &recipe_manifest.key,
+                    &recipe_bytes,
+                )
+                .iter()
+                .any(|id| id == chunk_artifact_id)
+            {
+                continue;
+            }
+
+            if cascade_action_cache && let Some(blob_key) = canonical_blob_key(&recipe_manifest.key)
+            {
+                let blob_id = artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    &recipe_manifest.namespace_id,
+                    &blob_key,
+                );
+                let canonical_blob_survives =
+                    self.manifest_from_db(&blob_id)?.is_some_and(|manifest| {
+                        manifest.segment_id.as_deref() != chunk_manifest.segment_id.as_deref()
+                    });
+                // Action results reference the logical digest, not the recipe
+                // representation. Removing the recipe cannot strand them when
+                // the complete blob remains on another segment.
+                if !canonical_blob_survives {
+                    self.stage_action_cache_cascade_for_blob(
+                        batch,
+                        &blob_id,
+                        cascade,
+                        removed_artifact_ids,
+                        scanned_rows,
+                    )
+                    .await?;
+                }
+            }
+            self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
+            cascade.seen_recipes.insert(recipe_id.clone());
+            cascade.recipe_total += 1;
+            removed_artifact_ids.push(recipe_id);
+            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                self.commit_eviction_chunk(std::mem::take(batch), removed_artifact_ids, cascade)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn stage_chunk_recipe_delete(
+        &self,
+        batch: &mut WriteBatch,
+        manifest: &ArtifactManifest,
+        recipe_bytes: &[u8],
+    ) {
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_MANIFESTS),
+            manifest.artifact_id.as_bytes(),
+        );
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            manifest.artifact_id.as_bytes(),
+        );
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id).as_bytes(),
+        );
+        self.stage_chunk_recipe_refs_delete(
+            batch,
+            &manifest.namespace_id,
+            &manifest.artifact_id,
+            &manifest.key,
+            recipe_bytes,
+        );
+        self.stage_backfill_index_delete(batch, manifest);
     }
 
     /// Stage the full removal of a single action-cache entry into `batch`: its
@@ -4691,12 +4855,39 @@ impl Store {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
+        self.persist_inline_artifact_from_bytes_at_version_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            now_ms(),
+            replication_targets,
+            branch,
+            trunk,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn persist_inline_artifact_from_bytes_at_version_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        version_ms: u64,
+        replication_targets: &[String],
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms,
             replication_targets,
             branch,
             trunk,
@@ -5285,6 +5476,18 @@ impl Store {
                             &action_result_bytes,
                         );
                     }
+                }
+                if manifest.producer == ArtifactProducer::Reapi
+                    && is_recipe_key(&manifest.key)
+                    && let Some(recipe_bytes) = self.inline_bytes(&artifact_id)?
+                {
+                    self.stage_chunk_recipe_refs_delete(
+                        &mut batch,
+                        namespace_id,
+                        &artifact_id,
+                        &manifest.key,
+                        &recipe_bytes,
+                    );
                 }
                 // Covers the `version_ms == 0` purge branch too: every removed
                 // manifest — whatever its version — loses its index row here.
@@ -5996,6 +6199,18 @@ impl Store {
                     );
                 }
             }
+            if manifest.producer == ArtifactProducer::Reapi
+                && is_recipe_key(&manifest.key)
+                && let Some(recipe_bytes) = self.inline_bytes(&manifest.artifact_id)?
+            {
+                self.stage_chunk_recipe_refs_delete(
+                    &mut batch,
+                    &manifest.namespace_id,
+                    &manifest.artifact_id,
+                    &manifest.key,
+                    &recipe_bytes,
+                );
+            }
             if let Some(segment_id) = &manifest.segment_id {
                 batch.delete_cf(
                     self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
@@ -6010,8 +6225,11 @@ impl Store {
         Ok(())
     }
 
-    /// Walks the manifest keyspace and deletes REAPI action-cache entries
-    /// whose `version_ms` predates `cutoff_ms`, up to `max_deletes` per call
+    /// Walks the manifest keyspace and deletes action-cache records, plus
+    /// unreadable chunk recipes, whose `version_ms` predates `cutoff_ms`, up
+    /// to `max_deletes` per call. A readable recipe stays for as long as all
+    /// of its chunks do; chunk eviction is what bounds it and cascades the
+    /// reverse rows.
     /// (the remainder ages out on later sweeps, which smooths the first sweep
     /// after this ships over a store that never expired anything). Entries
     /// are append-only otherwise — every source change publishes new keys and
@@ -6029,8 +6247,22 @@ impl Store {
         loop {
             let page = self.manifests_page(after.as_deref(), SCAN_PAGE)?;
             for manifest in page.manifests {
+                let stale_lifecycle_record = if manifest.key.starts_with("action_cache/") {
+                    true
+                } else if is_recipe_key(&manifest.key) {
+                    match self.inline_bytes(&manifest.artifact_id)? {
+                        Some(bytes) => !self.chunk_recipe_has_all_chunks(
+                            &manifest.namespace_id,
+                            &manifest.key,
+                            &bytes,
+                        )?,
+                        None => true,
+                    }
+                } else {
+                    false
+                };
                 if manifest.producer == ArtifactProducer::Reapi
-                    && manifest.key.starts_with("action_cache/")
+                    && stale_lifecycle_record
                     && manifest.version_ms < cutoff_ms
                 {
                     expired.push(manifest);
@@ -6048,8 +6280,17 @@ impl Store {
             }
         }
         let count = expired.len();
+        let expired_recipes = expired
+            .iter()
+            .filter(|manifest| is_recipe_key(&manifest.key))
+            .count();
         for chunk in expired.chunks(1024) {
             self.delete_artifact_metadata(chunk)?;
+        }
+        if expired_recipes > 0 {
+            self.io
+                .metrics()
+                .record_reapi_chunking_event("recipe_removal", "stranded_expiry");
         }
         Ok(count)
     }
@@ -6396,6 +6637,82 @@ impl Store {
         }
     }
 
+    fn chunk_recipe_blob_ids(
+        &self,
+        namespace_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) -> Vec<String> {
+        recipe_referenced_blob_keys(recipe_key, recipe_bytes)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|blob_key| {
+                artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    &self.tenant_id,
+                    namespace_id,
+                    &blob_key,
+                )
+            })
+            .collect()
+    }
+
+    fn chunk_recipe_has_all_chunks(
+        &self,
+        namespace_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) -> Result<bool, String> {
+        let Some(chunk_keys) = recipe_referenced_blob_keys(recipe_key, recipe_bytes) else {
+            return Ok(false);
+        };
+        for chunk_key in chunk_keys {
+            let chunk_id = artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &self.tenant_id,
+                namespace_id,
+                &chunk_key,
+            );
+            if self.manifest_from_db(&chunk_id)?.is_none() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn stage_chunk_recipe_refs_put(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        recipe_artifact_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) {
+        for chunk_id in self.chunk_recipe_blob_ids(namespace_id, recipe_key, recipe_bytes) {
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                chunk_recipe_ref_key(&chunk_id, recipe_artifact_id).as_bytes(),
+                [],
+            );
+        }
+    }
+
+    fn stage_chunk_recipe_refs_delete(
+        &self,
+        batch: &mut WriteBatch,
+        namespace_id: &str,
+        recipe_artifact_id: &str,
+        recipe_key: &str,
+        recipe_bytes: &[u8],
+    ) {
+        for chunk_id in self.chunk_recipe_blob_ids(namespace_id, recipe_key, recipe_bytes) {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                chunk_recipe_ref_key(&chunk_id, recipe_artifact_id).as_bytes(),
+            );
+        }
+    }
+
     fn action_cache_blob_refs_marker_key() -> &'static str {
         "action_cache_blob_refs/backfilled"
     }
@@ -6535,6 +6852,82 @@ impl Store {
                 .store(true, Ordering::Release);
         }
         Ok(ActionCacheBlobRefsBackfillStep { rows, complete })
+    }
+
+    pub fn backfill_chunk_recipe_refs_step(&self) -> Result<ChunkRecipeRefsBackfillStep, String> {
+        const MARKER: &str = "chunk_recipe_refs/backfilled_v1";
+        const CURSOR: &str = "chunk_recipe_refs/cursor_v1";
+        if self
+            .db
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), MARKER.as_bytes())
+            .map_err(|error| format!("failed to read chunk recipe refs marker: {error}"))?
+            .is_some()
+        {
+            return Ok(ChunkRecipeRefsBackfillStep {
+                rows: 0,
+                complete: true,
+            });
+        }
+        let after = self
+            .db
+            .get_cf(self.cf(ROCKSDB_CF_KEY_VALUE), CURSOR.as_bytes())
+            .map_err(|error| format!("failed to read chunk recipe refs cursor: {error}"))?
+            .map(|cursor| {
+                String::from_utf8(cursor.to_vec())
+                    .map_err(|error| format!("invalid chunk recipe refs cursor: {error}"))
+            })
+            .transpose()?;
+        let page = self.manifests_page(
+            after.as_deref(),
+            CHUNK_RECIPE_REFS_BACKFILL_MANIFESTS_PER_STEP,
+        )?;
+        let mut rows = 0;
+        let mut pending = 0;
+        let mut batch = WriteBatch::default();
+        for manifest in &page.manifests {
+            if manifest.producer != ArtifactProducer::Reapi || !is_recipe_key(&manifest.key) {
+                continue;
+            }
+            let Some(bytes) = self.inline_bytes(&manifest.artifact_id)? else {
+                continue;
+            };
+            for chunk_id in
+                self.chunk_recipe_blob_ids(&manifest.namespace_id, &manifest.key, &bytes)
+            {
+                batch.put_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    chunk_recipe_ref_key(&chunk_id, &manifest.artifact_id).as_bytes(),
+                    [],
+                );
+                rows += 1;
+                pending += 1;
+                if pending == ACTION_CACHE_BLOB_REFS_BACKFILL_ROWS_PER_BATCH {
+                    self.write_batch_sync(
+                        std::mem::take(&mut batch),
+                        "chunk recipe refs backfill batch",
+                    )?;
+                    pending = 0;
+                }
+            }
+        }
+        if pending > 0 {
+            self.write_batch_sync(batch, "chunk recipe refs backfill batch")?;
+        }
+
+        let complete = page.next_after.is_none();
+        let mut progress = WriteBatch::default();
+        if complete {
+            progress.put_cf(self.cf(ROCKSDB_CF_KEY_VALUE), MARKER.as_bytes(), []);
+            progress.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), CURSOR.as_bytes());
+        } else if let Some(cursor) = page.manifests.last() {
+            progress.put_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                CURSOR.as_bytes(),
+                cursor.artifact_id.as_bytes(),
+            );
+        }
+        self.write_batch_sync(progress, "chunk recipe refs backfill progress")?;
+        Ok(ChunkRecipeRefsBackfillStep { rows, complete })
     }
 
     #[cfg(test)]
@@ -8769,7 +9162,15 @@ pub(crate) fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
 /// as `SegmentArtifact`: the kind distinguishes "body is inline bytes" from
 /// "body is file-backed", which is what the transfer path cares about.
 pub(crate) fn backfill_record_kind(manifest: &ArtifactManifest) -> BackfillRecordKind {
-    if manifest.inline {
+    // A recipe is physically inline but is only useful when every referenced
+    // chunk made the same age-bounded catch-up pass. Classifying it with the
+    // capacity-sensitive records makes a capacity-completed pass skip the
+    // recipe instead of applying metadata whose chunks it deliberately
+    // declined. The apply path recognizes recipe keys and still stores their
+    // small body inline.
+    if manifest.producer == ArtifactProducer::Reapi && is_recipe_key(&manifest.key) {
+        BackfillRecordKind::SegmentArtifact
+    } else if manifest.inline {
         BackfillRecordKind::InlineArtifact
     } else {
         BackfillRecordKind::SegmentArtifact
@@ -9021,7 +9422,8 @@ fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactMan
 mod tests {
     use super::*;
     use bazel_remote_apis::build::bazel::remote::execution::v2::{
-        ActionResult as ReapiActionResult, Digest as ReapiDigest, OutputFile as ReapiOutputFile,
+        self as reapi, ActionResult as ReapiActionResult, Digest as ReapiDigest,
+        OutputFile as ReapiOutputFile,
     };
     use tempfile::TempDir;
 
@@ -9033,6 +9435,7 @@ mod tests {
         io::IoController,
         memory::MemoryController,
         metrics::Metrics,
+        reapi::chunking::{ChunkedBlobRecipe, recipe_key},
         replication::operation::ReplicationOperation,
         segment::{reference::SegmentReference, state::SegmentState},
     };
@@ -9955,6 +10358,7 @@ mod tests {
                 chunk_bytes: 1024 * 1024,
             },
             action_cache_eviction_cascade_enabled: true,
+            reapi_blob_chunking_enabled: true,
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -14912,6 +15316,420 @@ mod tests {
             entry_ids.push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 entry id"));
         }
         entry_ids
+    }
+
+    async fn persist_chunk_recipe(
+        store: &Store,
+        namespace_id: &str,
+        blob_digest: &ReapiDigest,
+        chunk_digests: Vec<ReapiDigest>,
+    ) -> ArtifactManifest {
+        let recipe = ChunkedBlobRecipe::new(
+            blob_digest,
+            chunk_digests,
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("valid chunk recipe");
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                namespace_id,
+                &key,
+                "application/x-protobuf",
+                &recipe.encode(),
+            )
+            .await
+            .expect("failed to persist chunk recipe")
+    }
+
+    fn chunk_ref_recipe_ids(store: &Store, chunk_artifact_id: &str) -> Vec<String> {
+        let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
+        let iter = store.db.iterator_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut recipe_ids = Vec::new();
+        for item in iter {
+            let (key, _) = item.expect("failed to iterate chunk refs");
+            if !key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            recipe_ids
+                .push(String::from_utf8(key[prefix.len()..].to_vec()).expect("utf8 recipe id"));
+        }
+        recipe_ids
+    }
+
+    #[tokio::test]
+    async fn chunk_recipe_refs_are_recorded_and_removed_with_the_recipe() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_a_digest = reapi_digest(0xa1, 5);
+        let chunk_b_digest = reapi_digest(0xb2, 7);
+        let chunk_a = persist_reapi_blob(&store, "acme", &chunk_a_digest, b"hello").await;
+        let chunk_b = persist_reapi_blob(&store, "acme", &chunk_b_digest, b"goodbye").await;
+        let blob_digest = reapi_digest(0xcc, 12);
+        let recipe = persist_chunk_recipe(
+            &store,
+            "acme",
+            &blob_digest,
+            vec![chunk_a_digest, chunk_b_digest],
+        )
+        .await;
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk_a.artifact_id),
+            vec![recipe.artifact_id.clone()]
+        );
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk_b.artifact_id),
+            vec![recipe.artifact_id.clone()]
+        );
+
+        store
+            .delete_artifact_metadata(&[recipe])
+            .expect("failed to delete recipe metadata");
+        assert!(chunk_ref_recipe_ids(&store, &chunk_a.artifact_id).is_empty());
+        assert!(chunk_ref_recipe_ids(&store, &chunk_b.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn replacing_a_replicated_recipe_moves_its_reverse_refs_atomically() {
+        let (_temp_dir, _config, store) = temp_store();
+        let old_chunk_digest = reapi_digest(0xa1, 5);
+        let new_chunk_digest = reapi_digest(0xb2, 5);
+        let old_chunk = persist_reapi_blob(&store, "acme", &old_chunk_digest, b"hello").await;
+        let new_chunk = persist_reapi_blob(&store, "acme", &new_chunk_digest, b"world").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        let old_recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![old_chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("old recipe should be valid");
+        let new_recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![new_chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("new recipe should be valid");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &old_recipe.encode(),
+                1,
+                None,
+                None,
+            )
+            .await
+            .expect("old recipe should apply");
+        let recipe_id = chunk_ref_recipe_ids(&store, &old_chunk.artifact_id)
+            .into_iter()
+            .next()
+            .expect("old reverse ref should exist");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &new_recipe.encode(),
+                2,
+                None,
+                None,
+            )
+            .await
+            .expect("new recipe should replace the old one");
+
+        assert!(chunk_ref_recipe_ids(&store, &old_chunk.artifact_id).is_empty());
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &new_chunk.artifact_id),
+            vec![recipe_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn chunk_recipe_backfill_reconstructs_refs_created_by_an_older_node() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let mut wipe = WriteBatch::default();
+        wipe.delete_cf(
+            store.cf(ROCKSDB_CF_KEY_VALUE),
+            chunk_recipe_ref_key(&chunk.artifact_id, &recipe.artifact_id).as_bytes(),
+        );
+        store.db.write(wipe).expect("failed to wipe chunk ref");
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+
+        loop {
+            let step = store
+                .backfill_chunk_recipe_refs_step()
+                .expect("chunk recipe backfill failed");
+            if step.complete {
+                break;
+            }
+        }
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk.artifact_id),
+            vec![recipe.artifact_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn expiry_keeps_readable_recipes_and_reaps_stranded_ones() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = ChunkedBlobRecipe::new(
+            &blob_digest,
+            vec![chunk_digest],
+            reapi::chunking_function::Value::Unknown as i32,
+        )
+        .expect("recipe should be valid");
+        let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "acme",
+                &key,
+                "application/x-protobuf",
+                &recipe.encode(),
+                1_000,
+                None,
+                None,
+            )
+            .await
+            .expect("recipe should persist");
+        assert_eq!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).len(), 1);
+
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("expiry sweep should succeed"),
+            0,
+            "age alone must not turn a stable composite hit into a miss"
+        );
+        assert!(
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "acme", &key)
+                .unwrap()
+                .is_some()
+        );
+        store
+            .db
+            .delete_cf(store.cf(ROCKSDB_CF_MANIFESTS), chunk.artifact_id.as_bytes())
+            .expect("failed to simulate a stranded recipe");
+
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("stranded recipe sweep should succeed"),
+            1
+        );
+        assert!(
+            store
+                .manifest_for_key(ArtifactProducer::Reapi, "acme", &key)
+                .unwrap()
+                .is_none()
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_chunk_removes_its_recipes_and_logical_action_entries() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(store.manifest(&action.artifact_id).unwrap().is_none());
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_chunk_keeps_action_entries_when_the_canonical_blob_survives() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        let chunk_segment = seal_active_segment(&store).await;
+        let canonical_blob = persist_reapi_blob(&store, "acme", &blob_digest, b"hello").await;
+        assert_ne!(
+            canonical_blob.segment_id.as_deref(),
+            Some(chunk_segment.as_str()),
+            "the canonical representation must live outside the evicted segment"
+        );
+
+        store
+            .evict_segment(&chunk_segment)
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .manifest(&canonical_blob.artifact_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            store.manifest(&action.artifact_id).unwrap().is_some(),
+            "the action result remains valid through the canonical blob"
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn evicting_a_shared_chunk_removes_every_dependent_recipe() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let first_recipe = persist_chunk_recipe(
+            &store,
+            "acme",
+            &reapi_digest(0xb1, 5),
+            vec![chunk_digest.clone()],
+        )
+        .await;
+        let second_recipe =
+            persist_chunk_recipe(&store, "acme", &reapi_digest(0xb2, 5), vec![chunk_digest]).await;
+        let chunk = persist_reapi_blob(&store, "acme", &reapi_digest(0xa1, 5), b"hello").await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict shared chunk segment");
+
+        assert!(store.manifest(&first_recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .manifest(&second_recipe.artifact_id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn concurrent_recipe_replication_and_high_fanout_eviction_stay_consistent() {
+        let (_temp_dir, _config, store) = temp_store();
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let started = Instant::now();
+        let recipes = (0_u8..128).map(|index| {
+            let store = &store;
+            let chunk_digest = chunk_digest.clone();
+            let blob_digest = reapi_digest(index, 5);
+            let key = recipe_key(&format!("{}/{}", blob_digest.hash, blob_digest.size_bytes));
+            let recipe_id =
+                artifact_storage_id(ArtifactProducer::Reapi, &store.tenant_id, "acme", &key);
+            let bytes = ChunkedBlobRecipe::new(
+                &blob_digest,
+                vec![chunk_digest],
+                reapi::chunking_function::Value::Unknown as i32,
+            )
+            .expect("recipe should be valid")
+            .encode();
+            async move {
+                store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "acme",
+                        &key,
+                        "application/x-protobuf",
+                        &bytes,
+                        10_000 + u64::from(index),
+                        None,
+                        None,
+                    )
+                    .await
+                    .expect("concurrent recipe apply should succeed");
+                recipe_id
+            }
+        });
+        let recipe_ids = futures_util::future::join_all(recipes).await;
+
+        assert_eq!(
+            chunk_ref_recipe_ids(&store, &chunk.artifact_id).len(),
+            recipe_ids.len(),
+            "every concurrent apply must commit its reverse reference"
+        );
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("high-fanout cascade should complete");
+
+        for recipe_id in recipe_ids {
+            assert!(
+                store.manifest(&recipe_id).unwrap().is_none(),
+                "no dependent recipe may survive its shared chunk"
+            );
+        }
+        assert!(chunk_ref_recipe_ids(&store, &chunk.artifact_id).is_empty());
+        println!("CHUNKING_STRESS_NS={}", started.elapsed().as_nanos());
+    }
+
+    #[tokio::test]
+    async fn recipe_eviction_cleanup_does_not_depend_on_action_cache_cascade() {
+        let (_temp_dir, _config, store) =
+            temp_store_with(|config| config.action_cache_eviction_cascade_enabled = false);
+        let chunk_digest = reapi_digest(0xa1, 5);
+        let chunk = persist_reapi_blob(&store, "acme", &chunk_digest, b"hello").await;
+        let blob_digest = reapi_digest(0xcc, 5);
+        let recipe = persist_chunk_recipe(&store, "acme", &blob_digest, vec![chunk_digest]).await;
+        let action = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xdd,
+            &action_result_referencing(&[&blob_digest]),
+            1,
+        )
+        .await;
+
+        store
+            .evict_segment(chunk.segment_id.as_deref().expect("segment-backed"))
+            .await
+            .expect("failed to evict chunk segment");
+
+        assert!(store.manifest(&recipe.artifact_id).unwrap().is_none());
+        assert!(
+            store.manifest(&action.artifact_id).unwrap().is_some(),
+            "the independent action-cache cascade flag still controls action deletion"
+        );
     }
 
     #[tokio::test]

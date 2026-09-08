@@ -61,8 +61,20 @@ defmodule TuistWeb.UserRegistrationLive do
             </div>
           </div>
           <div data-part="image" data-oauth-enabled={oauth_configured?()}>
-            <img data-theme="light" src={~p"/app/images/signup-light.png"} decoding="async" />
-            <img data-theme="dark" src={~p"/app/images/signup-dark.png"} decoding="async" />
+            <img
+              data-theme="light"
+              src={~p"/app/images/signup-light.webp"}
+              width="658"
+              height="434"
+              decoding="async"
+            />
+            <img
+              data-theme="dark"
+              src={~p"/app/images/signup-dark.webp"}
+              width="658"
+              height="434"
+              decoding="async"
+            />
           </div>
         </div>
         <div data-part="frame">

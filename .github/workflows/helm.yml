@@ -58,7 +58,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   # Helm is pinned here for the generic lint and render jobs. The K3s
   # smoke job uses the infra mise tool pins instead.
@@ -73,9 +72,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -124,9 +122,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
@@ -225,9 +222,8 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "false"
       - name: Install smoke test tools
         run: mise -C infra install helm kubectl k3d

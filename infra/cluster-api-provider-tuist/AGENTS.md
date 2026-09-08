@@ -24,6 +24,13 @@ Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
 designed in `docs/scaleway-elastic-metal-support.md`; the sections below
 detail the Apple Silicon kind.
 
+A fifth kind for Vultr is designed but not built, in
+`docs/vultr-baremetal-support.md`. It is the only provider whose API cannot be
+given a partitioning plan, so its box is converted after install by
+`baremetal:prep-vultr` rather than installed into the right layout, and that
+pushes a conversion stage into the release-then-reinstall lifecycle the other
+Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
+
 ## CRDs
 
 | Kind | Purpose |
@@ -335,11 +342,31 @@ property; only `OVHDedicatedMachine` carries a bootstrap-time capability today.
 A repair that cannot complete must stay loud rather than retry quietly. The
 `KataRuntimeReady` condition is marked False the moment the gap is observed,
 before any SSH, and the `capt_node_kata_runtime_ready` gauge (0 = requested but
-missing) is what the **Runner Box Missing Kata Runtime** rule alerts on
+missing or unverified) is what the **Runner Box Missing Kata Runtime** rule alerts on
 (Grafana Cloud, Alerts folder, `Runners` group, `for: 20m`, routed to Slack like
 its siblings). `Machine.Status.Ready` is deliberately left alone: the node is a
 healthy Kubernetes node, and failing it would make CAPI churn a box that needs a
 two-minute in-place fix.
+
+Kata's virtio-fs configuration backs guest RAM with files in `/dev/shm`. The
+Linux default tmpfs ceiling is half of host RAM, below the runner node's
+allocatable memory: concurrent guests can exhaust it while the host still has
+free RAM, causing QEMU `kvm run failed Bad address` failures. The shared-memory
+setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
+`MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
+result. This changes a ceiling; it does not preallocate memory.
+
+Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
+and the Ready-path repair installs and runs the same service on existing OVH
+Kata hosts without restarting containerd, kubelet, or guests. Only a successful
+repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
+and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
+invalidates that proof; it is not continuous detection of manual mount changes
+within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
+repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
+runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
+in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+(checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
 rather than checked in: managed clusters run no Prometheus Operator, so there is
@@ -663,6 +690,25 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-dedibox` / `baremetal:mark-ovh` (those
    are also the tasks to re-name a box).
+
+   **Vultr is a conversion, not an install.** Its API exposes no partitioning
+   control and its installer offers only RAID 1 across both disks (one
+   filesystem spanning the pair) or no RAID, so neither option yields the
+   mirrored root plus separate XFS `/data` the OVH and Dedibox installs lay
+   down. Order the box as RAID 1 with the fleet key attached, then convert it in
+   place, which splits the mirror and hands the freed disk to `/data`:
+   ```bash
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-vultr 64.176.17.88
+   ```
+   The root keeps running on the remaining leg, so there is no reinstall, no
+   reboot and no bootloader change; the cost is that the root is no longer
+   mirrored. `/data` is what the cluster gates on rather than the mirror:
+   `tuist.kuraVolumeQuotaProgram` leaves every cache volume unbounded without an
+   XFS `/data` carrying project quotas, and the self-join refuses a box that
+   cannot enforce. It lands on the disk that does not hold the ESP, so losing
+   the data disk leaves a box that still boots. The task waits on any in-flight
+   array rebuild, is a no-op on an already-converted box, and prints the four
+   gates at the end.
 3. **Declare the fleet at `replicas: 1`** in `values-managed-<env>.yaml` and
    deploy. The controller claims the marked box and self-joins it in ~2-5 min.
    `replicas` here is the **box** count (one per region today); a region's

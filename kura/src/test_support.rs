@@ -67,6 +67,7 @@ where
             chunk_bytes: 1024 * 1024,
         },
         action_cache_eviction_cascade_enabled: true,
+        reapi_blob_chunking_enabled: true,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,

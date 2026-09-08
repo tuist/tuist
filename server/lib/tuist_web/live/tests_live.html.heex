@@ -3,7 +3,7 @@
     <.dropdown
       id="tests-analytics-scheme-dropdown"
       label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
-      secondary_text={dgettext("dashboard_tests", "Scheme:")}
+      secondary_text={"#{scheme_label(@selected_project)}:"}
     >
       <:search>
         <input
@@ -264,7 +264,7 @@
         chart_type={@duration_chart_type}
         chart_type_event="select_duration_chart_type"
         group_by_options={[
-          %{value: "scheme", label: dgettext("dashboard_tests", "Scheme")},
+          %{value: "scheme", label: scheme_label(@selected_project)},
           %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
         ]}
         selected_group_by={@duration_scatter_group_by}
@@ -637,7 +637,7 @@
   </.card>
 
   <.card
-    :if={!Tuist.Projects.Project.gradle_project?(@selected_project)}
+    :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
     title={dgettext("dashboard_tests", "Selective Testing")}
     icon="subtask"
     data-part="selective-testing"

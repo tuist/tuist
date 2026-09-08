@@ -86,6 +86,10 @@ defmodule Noora.Chart do
 
   The optional `name`, `durationLabel`, and `startLabel` values are rendered in the
   tooltip exactly as supplied, allowing callers to localize them.
+
+  Pass `data-lazy="true"` to defer chart initialization until the container is
+  within 200px of the viewport. Offscreen updates are read on first render, so
+  pages with multiple charts can prioritize their visible content.
   """
   use Phoenix.Component
 

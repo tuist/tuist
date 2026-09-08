@@ -72,9 +72,10 @@ defmodule Tuist.Gradle do
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
+      tasks_cache_hit_count: task_counts.cache_hit,
       duration_ms: attrs.duration_ms,
-      gradle_version: Map.get(attrs, :gradle_version) || "",
-      java_version: Map.get(attrs, :java_version) || "",
+      gradle_version: value_or(attrs, :gradle_version, ""),
+      java_version: value_or(attrs, :java_version, ""),
       is_ci: Map.get(attrs, :is_ci, false),
       status: attrs.status,
       git_branch: Map.get(attrs, :git_branch) || "",
@@ -103,7 +104,17 @@ defmodule Tuist.Gradle do
   defp compute_task_counts(tasks) do
     Enum.reduce(
       tasks,
-      %{local_hit: 0, remote_hit: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0},
+      %{
+        cache_hit: 0,
+        local_hit: 0,
+        remote_hit: 0,
+        up_to_date: 0,
+        executed: 0,
+        failed: 0,
+        skipped: 0,
+        no_source: 0,
+        cacheable: 0
+      },
       fn task, acc ->
         outcome = to_string(task.outcome)
         cacheable = Map.get(task, :cacheable, false)
@@ -111,7 +122,9 @@ defmodule Tuist.Gradle do
         acc
         |> Map.update!(String.to_existing_atom(outcome), &(&1 + 1))
         |> then(fn acc ->
-          if cacheable && outcome != "up_to_date", do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
+          if cacheable && outcome in ["executed", "local_hit", "remote_hit", "cache_hit"],
+            do: Map.update!(acc, :cacheable, &(&1 + 1)),
+            else: acc
         end)
       end
     )
@@ -140,11 +153,20 @@ defmodule Tuist.Gradle do
   defp create_tasks(build_id, project_id, tasks, now) do
     task_entries =
       Enum.map(tasks, fn task ->
+        execution = Map.get(task, :execution) || %{}
+        build_path = value_or(execution, :build_path, "")
+
         %{
+          build_path: build_path,
+          cacheability: value_or(execution, :cacheability, ""),
+          incremental: Map.get(execution, :incremental),
+          remote_cache_lookup_outcome: Map.get(execution, :remote_cache_lookup_outcome) || "unknown",
+          remote_cache_download_duration_ms: Map.get(execution, :remote_cache_download_duration_ms),
+          remote_cache_upload_duration_ms: Map.get(execution, :remote_cache_upload_duration_ms),
           id: UUIDv7.generate(),
           gradle_build_id: build_id,
           task_path: task.task_path,
-          task_type: Map.get(task, :task_type) || "",
+          task_type: Map.get(execution, :task_type) || Map.get(task, :task_type) || "",
           outcome: task.outcome,
           cacheable: Map.get(task, :cacheable, false),
           duration_ms: Map.get(task, :duration_ms, 0),
@@ -159,6 +181,20 @@ defmodule Tuist.Gradle do
       end)
 
     Enum.each(task_entries, &Task.Buffer.insert/1)
+  end
+
+  defp value_or(map, key, default), do: Map.get(map, key) || default
+
+  def task_execution_data(task) do
+    Map.take(task, [
+      :build_path,
+      :task_type,
+      :cacheability,
+      :incremental,
+      :remote_cache_lookup_outcome,
+      :remote_cache_download_duration_ms,
+      :remote_cache_upload_duration_ms
+    ])
   end
 
   defp create_configuration_operations(build_id, project_id, operations, now) do
@@ -285,6 +321,25 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
+  Fetches an individual task execution scoped to its project and build.
+  """
+  def get_task(project_id, build_id, task_id) do
+    with {:ok, build_id} <- Ecto.UUID.cast(build_id),
+         {:ok, task_id} <- Ecto.UUID.cast(task_id),
+         %Task{} = task <-
+           ClickHouseRepo.one(
+             from(t in Task,
+               where: t.project_id == ^project_id and t.gradle_build_id == ^build_id and t.id == ^task_id,
+               limit: 1
+             )
+           ) do
+      {:ok, task}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists tasks for a specific Gradle build.
   """
   def list_tasks(build_id) do
@@ -368,52 +423,45 @@ defmodule Tuist.Gradle do
   Used for cache summary widgets (download/upload bytes, throughput).
   """
   def task_cache_aggregates(build_id) do
-    query =
+    ClickHouseRepo.one(
       from(t in Task,
-        where: t.gradle_build_id == ^build_id and t.cacheable == true,
+        where: t.gradle_build_id == ^build_id,
         select: %{
-          cache_download_bytes:
-            coalesce(
-              sum(fragment("if(? = 'remote_hit', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)),
-              0
+          cache_download_bytes: fragment("sumIf(ifNull(?, 0), ? = 'remote_hit')", t.cache_artifact_size, t.outcome),
+          cache_upload_bytes: fragment("sumIf(ifNull(?, 0), ? = true)", t.cache_artifact_size, t.remote_cache_stored),
+          timed_download_bytes:
+            fragment(
+              "sumIf(ifNull(?, 0), ? = 'remote_hit' AND ? > 0)",
+              t.cache_artifact_size,
+              t.outcome,
+              t.remote_cache_download_duration_ms
             ),
-          cache_upload_bytes:
-            coalesce(
-              sum(fragment("if(? = 'executed', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)),
-              0
+          timed_upload_bytes:
+            fragment(
+              "sumIf(ifNull(?, 0), ? = true AND ? > 0)",
+              t.cache_artifact_size,
+              t.remote_cache_stored,
+              t.remote_cache_upload_duration_ms
             ),
           download_duration_ms:
-            coalesce(
-              sum(
-                fragment(
-                  "if(? = 'remote_hit' AND ? IS NOT NULL, ?, 0)",
-                  t.outcome,
-                  t.cache_artifact_size,
-                  t.duration_ms
-                )
-              ),
-              0
+            fragment(
+              "sumIf(ifNull(?, 0), ? = 'remote_hit' AND isNotNull(?) AND ? > 0)",
+              t.remote_cache_download_duration_ms,
+              t.outcome,
+              t.cache_artifact_size,
+              t.remote_cache_download_duration_ms
             ),
           upload_duration_ms:
-            coalesce(
-              sum(
-                fragment(
-                  "if(? = 'executed' AND ? IS NOT NULL, ?, 0)",
-                  t.outcome,
-                  t.cache_artifact_size,
-                  t.duration_ms
-                )
-              ),
-              0
-            ),
-          confirmed_remote_cache_miss_count: coalesce(sum(fragment("if(? = true, 1, 0)", t.remote_cache_miss)), 0),
-          confirmed_remote_cache_miss_duration_ms:
-            coalesce(sum(fragment("if(? = true, ?, 0)", t.remote_cache_miss, t.duration_ms)), 0),
-          remote_cache_entries_stored_count: coalesce(sum(fragment("if(? = true, 1, 0)", t.remote_cache_stored)), 0)
+            fragment(
+              "sumIf(ifNull(?, 0), ? = true AND isNotNull(?) AND ? > 0)",
+              t.remote_cache_upload_duration_ms,
+              t.remote_cache_stored,
+              t.cache_artifact_size,
+              t.remote_cache_upload_duration_ms
+            )
         }
       )
-
-    ClickHouseRepo.one(query)
+    )
   end
 
   @doc """
@@ -464,7 +512,10 @@ defmodule Tuist.Gradle do
   cache hits or executed.
   """
   def cache_hit_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
+    from_cache =
+      (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0) +
+        (Map.get(build, :tasks_cache_hit_count) || 0)
+
     total = build.cacheable_tasks_count || 0
 
     if total > 0 do

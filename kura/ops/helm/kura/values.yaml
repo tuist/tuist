@@ -137,6 +137,13 @@ config:
     # additionally gated on the node's one-time reverse-map backfill completing,
     # and the serve-side presence gates stay on regardless as the backstop.
     evictionCascadeEnabled: true
+  reapi:
+    # Advertise SplitBlob and SpliceBlob with Fast content-defined chunking
+    # 2020 parameters. Reads
+    # of recipes already on disk remain enabled when this rollout flag is off.
+    # Pin this to false during the reader-first phase of an existing fleet's
+    # rolling upgrade, then remove the override after every node is recipe-aware.
+    blobChunkingEnabled: true
   backfill:
     # Share of the age-ordered segment ring (counted from the newest) whose
     # boundary segment's seal-time age stat bounds how far back a backfill

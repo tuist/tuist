@@ -87,7 +87,10 @@ export default {
       files: ["noora/css/**/*.css"],
       rules: {
         ...sharedRules,
-        "csstools/value-no-unknown-custom-properties": [true, { importFrom: [...nooraTokens, runtimeProperties] }],
+        "csstools/value-no-unknown-custom-properties": [
+          true,
+          { importFrom: [...nooraTokens, runtimeProperties] },
+        ],
       },
     },
     {

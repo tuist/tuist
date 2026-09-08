@@ -13,9 +13,6 @@ description: |
   binary means adding it here, once.
 
 inputs:
-  mise-version:
-    description: Version of mise to install (pass the workflow's MISE_VERSION)
-    required: true
   github-token:
     description: GitHub token for mise (falls back to MISE_GITHUB_TOKEN)
     required: false
@@ -41,7 +38,6 @@ runs:
     # rather than pinned here (single source of truth, as cli-build-publish does).
     - uses: ./.github/actions/mise-install
       with:
-        version: ${{ inputs.mise-version }}
         install: rust
         cache: "false"
         working-directory: cas-plugin

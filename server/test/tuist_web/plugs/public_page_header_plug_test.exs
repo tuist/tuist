@@ -1,5 +1,6 @@
 defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
   alias Tuist.Repo
@@ -32,6 +33,31 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+    end
+
+    test "allows indexing for a public project on the hosted production site", %{conn: conn} do
+      stub(Tuist.Environment, :prod?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      project =
+        [visibility: :public]
+        |> ProjectsFixtures.project_fixture()
+        |> Repo.preload(:account)
+
+      conn = %{
+        conn
+        | path_params: %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name
+          }
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "noindex, nofollow")
+        |> PublicPageHeaderPlug.mark_public_project_page([])
+
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
     end
 
     test "does not set the header when the project is private", %{conn: conn} do
@@ -87,6 +113,18 @@ defmodule TuistWeb.Plugs.PublicPageHeaderPlugTest do
       conn = PublicPageHeaderPlug.mark_public_project_page(conn, [])
 
       assert Plug.Conn.get_resp_header(conn, @header) == []
+    end
+  end
+
+  describe "mark_public_marketing_page/2" do
+    test "marks a marketing response as public without changing its indexing policy", %{conn: conn} do
+      conn =
+        conn
+        |> Plug.Conn.put_resp_header("x-robots-tag", "index, follow")
+        |> PublicPageHeaderPlug.mark_public_marketing_page([])
+
+      assert Plug.Conn.get_resp_header(conn, @header) == ["1"]
+      assert Plug.Conn.get_resp_header(conn, "x-robots-tag") == ["index, follow"]
     end
   end
 
