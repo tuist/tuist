@@ -12,11 +12,11 @@ defmodule TuistWeb.Components.BuildTimeline do
 
   def build_timeline(assigns) do
     assigns =
-      assign(assigns, :has_metrics, Enum.any?(Map.get(assigns.timeline, :machine_metrics, []), &is_number(&1.offset_ms)))
+      assign(assigns, :has_metrics, Map.get(assigns.timeline, :has_metrics, false))
 
     ~H"""
     <.card
-      :if={@timeline.events == [] and not @has_metrics}
+      :if={@timeline.total_count == 0 and not @has_metrics}
       title={dgettext("dashboard_builds", "Build Timeline")}
       icon="timeline_event"
     >
@@ -34,7 +34,7 @@ defmodule TuistWeb.Components.BuildTimeline do
       </.card_section>
     </.card>
     <div
-      :if={@timeline.events != [] or @has_metrics}
+      :if={@timeline.total_count > 0 or @has_metrics}
       id="build-timeline"
       class="tuist-build-timeline"
       phx-hook="BuildTimeline"

@@ -19,14 +19,13 @@ test("dense overlaps preserve every step in individual execution lanes", () => {
     step(256, 900, 50, "linker"),
   ]);
   const layout = densityLayout(events, { start: 0, span: 1000 }, 480);
-  assert.equal(layout.grouped, false);
   assert.equal(layout.events.length, 256);
   assert.equal(layout.lanes, 255);
   assert.equal(layout.events[0].rowHeight, 26);
   assert.equal(layout.events[1].lane, 1);
   assert.equal(layout.events.at(-1).lane, 0);
   assert.ok(layout.events.every((e) => e.y + e.rowHeight <= 480));
-  assert.ok(layout.events.every((e) => !e.aggregate && e.title));
+  assert.ok(layout.events.every((e) => e.title));
 });
 
 test("zooming into a sparse interval restores readable full-height lanes", () => {

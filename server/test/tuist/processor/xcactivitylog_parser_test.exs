@@ -99,6 +99,29 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
     assert leftover_output_files() == before
   end
 
+  test "parse telemetry completes before consumption and excludes ingestion errors" do
+    install_parser(~S|printf '{"status":"success"}' > "$4"|)
+    handler = "parse-boundary-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach_many(
+      handler,
+      [[:tuist, :processor, :build, :parse, :stop], [:tuist, :processor, :build, :parse, :exception]],
+      fn event, _, metadata, owner -> send(owner, {event, metadata}) end,
+      self()
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    assert_raise RuntimeError, "ingest failed", fn ->
+      XCActivityLogParser.parse("log", "cas", "metadata", false, fn _ ->
+        assert_received {[:tuist, :processor, :build, :parse, :stop], %{status: :ok}}
+        raise "ingest failed"
+      end)
+    end
+
+    refute_received {[:tuist, :processor, :build, :parse, :exception], _}
+  end
+
   defp leftover_output_files do
     [System.tmp_dir!(), "xcactivitylog_*.json*"] |> Path.join() |> Path.wildcard() |> Enum.sort()
   end

@@ -13,6 +13,8 @@ defmodule Tuist.Processor.BuildProcessor do
   same BEAM as the rest of the server.
   """
 
+  alias Tuist.Processor.XCActivityLogParser
+
   @apple_reference_date_offset 978_307_200
 
   def process_build(build_zip_path, xcode_cache_upload_enabled, consume) do
@@ -35,31 +37,31 @@ defmodule Tuist.Processor.BuildProcessor do
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
 
-    :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
-      result =
-        Tuist.Processor.XCActivityLogParser.parse(
-          xcactivitylog_path,
-          cas_analytics_db_path,
-          legacy_cas_metadata_path,
-          xcode_cache_upload_enabled,
-          fn parsed_data ->
-            machine_metrics =
-              read_machine_metrics(
-                Path.join(temp_dir, "machine_metrics.jsonl"),
-                parsed_data["time_started_recording"],
-                parsed_data["time_stopped_recording"]
-              )
+    XCActivityLogParser.parse(
+      xcactivitylog_path,
+      cas_analytics_db_path,
+      legacy_cas_metadata_path,
+      xcode_cache_upload_enabled,
+      fn parsed_data ->
+        machine_metrics =
+          read_machine_metrics(
+            Path.join(temp_dir, "machine_metrics.jsonl"),
+            parsed_data["time_started_recording"],
+            parsed_data["time_stopped_recording"]
+          )
 
+        :telemetry.span([:tuist, :processor, :build, :ingest], %{}, fn ->
+          result =
             parsed_data
             |> Map.drop(["time_started_recording", "time_stopped_recording"])
             |> Map.put("machine_metrics", machine_metrics)
             |> consume.()
-          end
-        )
 
-      status = if match?({:ok, _}, result), do: :ok, else: :error
-      {result, %{status: status}}
-    end)
+          status = if match?({:ok, _}, result), do: :ok, else: :error
+          {result, %{status: status}}
+        end)
+      end
+    )
   end
 
   defp make_temp_dir do

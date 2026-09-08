@@ -24,7 +24,7 @@ defmodule Tuist.BuildsTest do
       {:ok, build} = RunsFixtures.build_fixture(build_steps: [event, event])
       {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | title: "Other.swift"}])
 
-      assert %{events: [stored], truncated: false} = Builds.build_timeline(build.id)
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
       assert stored.title == "Compile App.swift"
       assert_in_delta stored.start_ms, 100.25, 0.001
       assert_in_delta stored.duration_ms, 200.5, 0.001
@@ -47,13 +47,13 @@ defmodule Tuist.BuildsTest do
         end
 
       {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
-      assert %{events: events, grouped: false, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert %{events: events, total_count: 50_001} = Builds.build_timeline(build.id)
       assert length(events) == 50_001
       refute Enum.any?(events, &Map.has_key?(&1, :aggregate))
       assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
     end
 
-    test "range and search find late steps and keyboard navigation stays in the build and target" do
+    test "range and search find late steps and keyboard navigation stays in the build and search" do
       steps =
         Stream.map(1..1600, fn id ->
           %{
@@ -75,7 +75,7 @@ defmodule Tuist.BuildsTest do
           build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
         )
 
-      assert %{grouped: false, total_count: 1600, events: events} = Builds.build_timeline(build.id)
+      assert %{total_count: 1600, events: events} = Builds.build_timeline(build.id)
       assert length(events) == 1600
       assert Enum.any?(events, &(&1.start_ms > 15_000))
 
@@ -84,8 +84,8 @@ defmodule Tuist.BuildsTest do
 
       assert Enum.any?(buffered, &(&1.event_id == 1600))
       assert %{events: [%{event_id: 1600}], total_count: 1} = Builds.build_timeline(build.id, search: "COMPILE 1600")
-      assert %{events: []} = Builds.build_timeline(build.id, target: "App", project: "Wrong")
-      assert [%{project: "Workspace", target: "App"}] = Builds.build_timeline_targets(build.id)
+      assert %{events: []} = Builds.build_timeline(build.id, search: "Wrong")
+      assert 1 == Builds.build_timeline_target_count(build.id)
       assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
       assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
       assert nil == Timeline.neighbor(build.id, 1600, "next", [])
@@ -157,7 +157,7 @@ defmodule Tuist.BuildsTest do
 
     test "old builds have no manufactured timeline" do
       {:ok, build} = RunsFixtures.build_fixture()
-      assert %{events: [], total_count: 0, grouped: false} = Builds.build_timeline(build.id)
+      assert %{events: [], total_count: 0} = Builds.build_timeline(build.id)
     end
   end
 

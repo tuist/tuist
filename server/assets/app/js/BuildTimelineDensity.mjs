@@ -17,5 +17,5 @@ export function densityLayout(events, range, height) {
     event.y = rows[event.lane].y;
     event.rowHeight = rows[event.lane].height;
   }
-  return { ...layout, rows, height, grouped: false };
+  return { ...layout, rows, height };
 }

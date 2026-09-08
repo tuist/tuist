@@ -141,15 +141,8 @@ defmodule Tuist.Builds do
 
       {:ok, build_map} = Build.Buffer.insert(build_map)
 
-      # Per-table writes go through Bufferable Buffers (async cast).
-      # Previously these were synchronous IngestRepo.insert_all/3 calls fanned
-      # out via Task.await_many; under ClickHouse pressure the await_many would
-      # blow the worker's wall-time budget and orphan in-flight builds, which
-      # made ProcessBuildWorker the dominant source of stuck "executing" rows
-      # in Oban. Routing through buffers makes create_build/1 effectively
-      # non-blocking on ClickHouse health, at the cost of losing in-memory
-      # rows on hard pod kill — acceptable since the existing Build.Buffer
-      # write above already had that property.
+      # Summary tables share ingestion buffers. Log-heavy steps stream through
+      # bounded per-worker writes so one build cannot monopolize a global buffer.
       create_build_issues(build_map, Map.get(attrs, :issues, []))
       create_build_files(build_map, Map.get(attrs, :files, []))
       create_build_targets(build_map, Map.get(attrs, :targets, []))
@@ -204,11 +197,8 @@ defmodule Tuist.Builds do
     inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
 
     steps
-    |> Stream.chunk_every(100)
-    |> Enum.each(fn batch ->
-      entries = Enum.map(batch, &build_step_entry(build.id, inserted_at, &1))
-      Step.Buffer.insert_all(entries)
-    end)
+    |> Stream.map(&build_step_entry(build.id, inserted_at, &1))
+    |> Step.insert_all()
   end
 
   defp build_step_entry(build_run_id, inserted_at, step) do
@@ -232,7 +222,7 @@ defmodule Tuist.Builds do
     Timeline.load(build_run_id, opts)
   end
 
-  def build_timeline_targets(build_run_id), do: Timeline.targets(build_run_id)
+  def build_timeline_target_count(build_run_id), do: Timeline.target_count(build_run_id)
 
   def neighbor_build_step(build_run_id, event_id, direction, opts),
     do: Timeline.neighbor(build_run_id, event_id, direction, opts)

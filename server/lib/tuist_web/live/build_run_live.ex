@@ -242,10 +242,14 @@ defmodule TuistWeb.BuildRunLive do
       run =
         run
         |> Tuist.Repo.preload([:ran_by_account, project: [vcs_connection: :github_app_installation]])
-        |> Tuist.ClickHouseRepo.preload([:issues])
+        |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
       {:noreply,
-       socket |> assign(:run, run) |> assign_build_data(run) |> assign_timeline(socket.assigns.selected_tab, true)}
+       socket
+       |> assign(:run, run)
+       |> assign(:machine_metrics, run.machine_metrics)
+       |> assign_build_data(run)
+       |> assign_timeline(socket.assigns.selected_tab, true)}
     else
       {:noreply, socket}
     end
@@ -365,6 +369,9 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
   end
 
+  defp timeline_summary(%{ok?: true, result: timeline}), do: Map.take(timeline, [:total_count, :duration])
+  defp timeline_summary(_timeline), do: nil
+
   defp assign_timeline(socket, tab, force \\ false)
 
   defp assign_timeline(socket, "timeline", force) do
@@ -398,7 +405,8 @@ defmodule TuistWeb.BuildRunLive do
              timeline:
                run_id
                |> Builds.build_timeline(duration: run_duration)
-               |> Map.put(:targets, Builds.build_timeline_targets(run_id))
+               |> Map.put(:target_count, Builds.build_timeline_target_count(run_id))
+               |> Map.put(:has_metrics, Enum.any?(metrics, &is_number(&1.offset_ms)))
                |> Map.put(:machine_metrics, metrics)
            }}
         end,
@@ -409,13 +417,14 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp assign_timeline(socket, _tab, _force), do: socket
+  defp assign_timeline(socket, _tab, _force), do: assign(socket, :timeline_run_id, nil)
 
   @impl true
   def handle_event("load-timeline", %{"version" => version}, socket) do
     case socket.assigns do
-      %{timeline_version: ^version, timeline: %{ok?: true, result: timeline}} ->
-        {:reply, %{timeline: timeline}, socket}
+      %{timeline_version: ^version, timeline: %{ok?: true, result: %{events: _} = timeline}} ->
+        summary = Map.take(timeline, [:total_count, :duration, :has_metrics])
+        {:reply, %{timeline: timeline}, assign(socket, :timeline, AsyncResult.ok(summary))}
 
       _ ->
         {:reply, %{error: true}, socket}
@@ -424,19 +433,12 @@ defmodule TuistWeb.BuildRunLive do
 
   def handle_event(
         "load-timeline-step",
-        %{
-          "request_id" => request_id,
-          "event_id" => event_id,
-          "direction" => direction,
-          "search" => search,
-          "target" => target,
-          "project" => project
-        },
+        %{"request_id" => request_id, "event_id" => event_id, "direction" => direction, "search" => search},
         socket
       )
       when is_integer(request_id) and
              (is_nil(event_id) or (is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991)) and
-             direction in ["next", "previous", "last"] and is_binary(search) and is_binary(target) and is_binary(project) do
+             direction in ["next", "previous", "last"] and is_binary(search) do
     run_id = socket.assigns.run.id
 
     {:noreply,
@@ -444,7 +446,7 @@ defmodule TuistWeb.BuildRunLive do
      |> cancel_async(:timeline_step)
      |> assign(:timeline_step_request, request_id)
      |> start_async(:timeline_step, fn ->
-       Builds.neighbor_build_step(run_id, event_id, direction, search: search, target: target, project: project)
+       Builds.neighbor_build_step(run_id, event_id, direction, search: search)
      end)}
   end
 
@@ -452,42 +454,24 @@ defmodule TuistWeb.BuildRunLive do
 
   def handle_event(
         "load-timeline-range",
-        %{
-          "version" => version,
-          "request_id" => request_id,
-          "start" => start,
-          "span" => span,
-          "search" => search,
-          "target" => target,
-          "project" => project
-        } = params,
-        socket
+        %{"version" => version, "request_id" => request_id, "start" => start, "span" => span, "search" => search},
+        %{assigns: %{timeline_version: version}} = socket
       )
       when is_integer(request_id) and is_number(start) and start >= 0 and start <= 9_007_199_254_740_991 and
-             is_number(span) and span > 0 and span <= 9_007_199_254_740_991 and is_binary(search) and is_binary(target) and
-             is_binary(project) do
-    if version == socket.assigns.timeline_version do
-      run_id = socket.assigns.run.id
+             is_number(span) and span > 0 and span <= 9_007_199_254_740_991 and is_binary(search) do
+    run_id = socket.assigns.run.id
 
-      summary =
-        case socket.assigns.timeline do
-          %{ok?: true, result: timeline} -> Map.take(timeline, [:total_count, :duration])
-          _ -> nil
-        end
+    summary = timeline_summary(socket.assigns.timeline)
 
-      opts = [search: search, target: target, project: project, summary: summary]
-      opts = if params["reset"] == true, do: opts, else: Keyword.merge(opts, start: start, span: span)
+    opts = [search: search, summary: summary, start: start, span: span]
 
-      {:noreply,
-       socket
-       |> cancel_async(:timeline_range)
-       |> assign(:timeline_range_request, request_id)
-       |> start_async(:timeline_range, fn ->
-         Builds.build_timeline(run_id, opts)
-       end)}
-    else
-      {:reply, %{error: true}, socket}
-    end
+    {:noreply,
+     socket
+     |> cancel_async(:timeline_range)
+     |> assign(:timeline_range_request, request_id)
+     |> start_async(:timeline_range, fn ->
+       Builds.build_timeline(run_id, opts)
+     end)}
   end
 
   def handle_event("load-timeline-range", _params, socket), do: {:reply, %{error: true}, socket}

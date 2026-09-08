@@ -33,6 +33,7 @@ function fixture() {
     maxSpan: 900_000,
     duration: 900_000,
     filtered: [],
+    allEvents: [],
     cancelFocus() {},
     hideTooltip() {},
     chart: {
@@ -233,7 +234,7 @@ test("filter changes reject old in-flight data", () => {
     timeline: { events: [{ event_id: 99 }], loaded_range: { start: 0, span: 900_000 } },
   });
   assert.equal(view.cache.events.length, 0);
-  assert.equal(view.resetRange, true);
+  assert.ok(view.cache.contains({ start: 0, span: view.duration }));
 });
 
 test("wide zoom retains headroom after prefetch rather than reloading on every small scroll", () => {
@@ -280,4 +281,57 @@ test("full-build metadata remains cached when zooming in and returning to maximu
   view.keydown({ key: "Home", preventDefault() {} });
   assert.deepEqual(view.range, { start: 0, span: 900_000 });
   assert.equal(view.chart.getAttribute("aria-busy"), "false");
+});
+
+test("search reuses initial metadata without network requests and preserves the visible range", () => {
+  const view = fixture();
+  view.allEvents = [
+    { event_id: 1, title: "Compile A.swift", target: "App", project: "Workspace", start_ms: 0, end: 1 },
+    { event_id: 2, title: "Link", target: "Core", project: "Frameworks", start_ms: 800_000, end: 800_001 },
+  ];
+  view.select = () => {};
+  view.scheduleDraw = () => {};
+  view.requestRange = () => assert.fail("search must not download metadata again");
+  const range = { ...view.range };
+  for (const [query, ids] of [
+    ["A", [1, 2]],
+    ["CORE", [2]],
+    ["nothing", []],
+    ["", [1, 2]],
+  ]) {
+    view.control = () => ({ value: query });
+    view.filter();
+    assert.deepEqual(
+      view.events.map((e) => e.event_id),
+      ids,
+    );
+    assert.deepEqual(view.range, range);
+    view.setRange(0, view.duration);
+    view.range = { ...range };
+  }
+});
+
+test("initialization failure cleans up and hides partially mounted content", async () => {
+  const parts = new Map(
+    ["timeline-content", "summary", "payload-loading", "payload-error"].map((p) => [p, { hidden: false }]),
+  );
+  let cleaned = false;
+  const view = {
+    ...hook,
+    el: { dataset: { version: "1" }, querySelector: (s) => parts.get(s.match(/"(.*?)"/)[1]) },
+    pushEvent: () => Promise.resolve({ timeline: { events: [] } }),
+    initialize() {
+      throw new Error("binding failed");
+    },
+    destroyed() {
+      cleaned = true;
+      this.abort.abort();
+    },
+  };
+  view.mounted();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(cleaned, true);
+  assert.equal(parts.get("timeline-content").hidden, true);
+  assert.equal(parts.get("summary").hidden, true);
+  assert.equal(parts.get("payload-error").hidden, false);
 });

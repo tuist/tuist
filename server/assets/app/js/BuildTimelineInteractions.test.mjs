@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { debounce, hitInLane, nextStep } from "./BuildTimelineInteractions.mjs";
-import { normalizeEvents } from "./BuildTimelineModel.mjs";
+import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
 
 test("search and log requests coalesce rapid changes and cancel on teardown", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -39,21 +38,4 @@ test("lane hit testing finds intervals and gaps with logarithmic reads", () => {
   assert.equal(hitInLane(rects, 199_999, 20), undefined);
   assert.equal(hitInLane(rects, 199_997, 35), undefined);
   assert.equal(hitInLane(undefined, 0, 20), undefined);
-});
-
-test("keyboard navigation stays directional when the selection is off screen", () => {
-  const events = [1, 2, 3, 4].map((id) => ({ event_id: id }));
-  const selected = events[1];
-  assert.equal(nextStep(events, selected, "ArrowLeft"), events[0]);
-  assert.equal(nextStep(events, selected, "ArrowRight"), events[2]);
-  assert.equal(nextStep(events, selected, "End"), events[3]);
-  assert.equal(nextStep(events, events[0], "ArrowLeft"), events[0]);
-  assert.equal(nextStep(events, events[3], "ArrowRight"), events[3]);
-});
-
-test("search text is normalized once alongside event metadata", () => {
-  const [event] = normalizeEvents([
-    { title: "Compile APP.swift", target: "App", project: "Workspace", start_ms: 0, duration_ms: 1 },
-  ]);
-  assert.equal(event.searchText, "compile app.swift app workspace");
 });

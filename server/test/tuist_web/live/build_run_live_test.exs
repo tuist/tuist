@@ -58,14 +58,17 @@ defmodule TuistWeb.BuildRunLiveTest do
     timeline = Tuist.Builds.build_timeline(build.id)
 
     socket = %Phoenix.LiveView.Socket{
-      assigns: %{timeline_version: version, timeline: Phoenix.LiveView.AsyncResult.ok(timeline)}
+      assigns: %{__changed__: %{}, timeline_version: version, timeline: Phoenix.LiveView.AsyncResult.ok(timeline)}
     }
 
-    assert {:reply, %{timeline: ^timeline}, ^socket} =
+    assert {:reply, %{timeline: ^timeline}, trimmed_socket} =
              TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version}, socket)
 
     assert {:reply, %{error: true}, ^socket} =
              TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version - 1}, socket)
+
+    assert trimmed_socket.assigns.timeline.result == Map.take(timeline, [:total_count, :duration])
+    refute Map.has_key?(trimmed_socket.assigns.timeline.result, :events)
 
     refute Map.has_key?(hd(timeline.events), :log)
 
@@ -75,8 +78,6 @@ defmodule TuistWeb.BuildRunLiveTest do
       start: 90,
       span: 300,
       search: "App",
-      target: "App",
-      project: "Workspace",
       build_run_id: Ecto.UUID.generate()
     })
 
@@ -87,9 +88,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       request_id: 22,
       event_id: nil,
       direction: "last",
-      search: "",
-      target: "",
-      project: ""
+      search: ""
     })
 
     render_async(lv)
@@ -116,6 +115,53 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     render_async(lv)
     assert has_element?(lv, "#build-timeline[data-version='#{version}']")
+  end
+
+  @tag :capture_log
+  test "completion refresh loads new machine metrics and reopening reloads released metadata", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, status: "processing")
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "#build-timeline")
+
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      offset_ms: 250.0,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, _} =
+      RunsFixtures.build_fixture(
+        id: build.id,
+        project_id: project.id,
+        inserted_at: build.inserted_at,
+        machine_metrics: [metric]
+      )
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    assert String.to_integer(reopened) > String.to_integer(version)
+    render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
+    assert has_element?(lv, "#build-timeline")
   end
 
   test "log loading stays asynchronous and superseded requests do not update the inspector", %{

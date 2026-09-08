@@ -11,8 +11,6 @@ defmodule Tuist.Builds.Timeline do
 
   def load(build_id, opts \\ []) do
     search = opts |> Keyword.get(:search, "") |> String.slice(0, 512)
-    target = Keyword.get(opts, :target, "")
-    project = Keyword.get(opts, :project, "")
     base = from(e in Step, hints: ["FINAL"], where: e.build_run_id == ^build_id)
 
     summary = Keyword.get(opts, :summary)
@@ -23,25 +21,9 @@ defmodule Tuist.Builds.Timeline do
         _ -> ClickHouseRepo.one(from(e in base, select: {count(), max(fragment("? + ?", e.start_ms, e.duration_ms))}))
       end
 
-    base = if target == "", do: base, else: from(e in base, where: e.target == ^target and e.project == ^project)
+    base = search_query(base, search)
 
-    base =
-      if search == "" do
-        base
-      else
-        from(e in base,
-          where:
-            fragment(
-              "positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0",
-              e.title,
-              e.target,
-              e.project,
-              ^search
-            )
-        )
-      end
-
-    total = if search == "" and target == "", do: total, else: ClickHouseRepo.one(from(e in base, select: count()))
+    total = if search == "", do: total, else: ClickHouseRepo.one(from(e in base, select: count()))
     duration = max(duration || 0, Keyword.get(opts, :duration, 1))
     span = min(max(Keyword.get(opts, :span, duration), 1), duration)
     start = min(max(Keyword.get(opts, :start, 0), 0), max(duration - span, 0))
@@ -59,8 +41,6 @@ defmodule Tuist.Builds.Timeline do
 
     %{
       events: events,
-      grouped: false,
-      truncated: false,
       total_count: total,
       duration: duration,
       range: %{start: start, span: span},
@@ -69,39 +49,39 @@ defmodule Tuist.Builds.Timeline do
     }
   end
 
-  def targets(build_id) do
-    ClickHouseRepo.all(
+  def target_count(build_id) do
+    ClickHouseRepo.one(
       from(e in Step,
         hints: ["FINAL"],
         where: e.build_run_id == ^build_id and e.target != "",
-        distinct: true,
-        order_by: [asc: e.project, asc: e.target],
-        select: map(e, [:project, :target])
+        select: fragment("uniqExact((?, ?))", e.project, e.target)
       )
     )
   end
 
+  defp search_query(query, ""), do: query
+
+  defp search_query(query, search) do
+    from(e in query,
+      where:
+        fragment("positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0", e.title, e.target, e.project, ^search)
+    )
+  end
+
+  defp current_step(query, event_id) when is_integer(event_id) do
+    ClickHouseRepo.one(from(e in query, where: e.event_id == ^event_id, select: map(e, [:event_id, :start_ms]), limit: 1))
+  end
+
+  defp current_step(_query, _event_id), do: nil
+
   def neighbor(build_id, event_id, direction, opts) do
     query = from(e in Step, hints: ["FINAL"], where: e.build_run_id == ^build_id)
 
-    current =
-      if is_integer(event_id),
-        do:
-          ClickHouseRepo.one(
-            from(e in query, where: e.event_id == ^event_id, select: map(e, [:event_id, :start_ms]), limit: 1)
-          )
+    current = current_step(query, event_id)
 
     search = opts |> Keyword.get(:search, "") |> String.slice(0, 512)
 
-    query =
-      from(e in query,
-        where:
-          fragment("positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0", e.title, e.target, e.project, ^search)
-      )
-
-    target = Keyword.get(opts, :target, "")
-    project = Keyword.get(opts, :project, "")
-    query = if target == "", do: query, else: from(e in query, where: e.target == ^target and e.project == ^project)
+    query = search_query(query, search)
 
     query =
       case {direction, current} do

@@ -1,5 +1,6 @@
 .tuist-build-timeline {
   --timeline-header-height: 0px;
+  --timeline-viewport-height: 600px;
   --timeline-fill-compile: light-dark(var(--noora-purple-100), var(--noora-purple-300));
   --timeline-fill-link: light-dark(var(--noora-blue-100), var(--noora-blue-300));
   --timeline-fill-script: light-dark(var(--noora-green-100), var(--noora-green-300));
@@ -247,6 +248,10 @@
       margin-top: var(--noora-spacing-3);
       color: var(--noora-surface-label-secondary);
     }
+  }
+  & [data-part="scrollport"],
+  & [data-part="tracks"] {
+    height: var(--timeline-viewport-height);
   }
   & [data-part="scrollport"] {
     position: relative;

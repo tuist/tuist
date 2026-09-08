@@ -44,23 +44,30 @@ defmodule Tuist.Processor.XCActivityLogParser do
     steps_path = output_path <> ".steps.jsonl"
 
     try do
-      with {:ok, executable} <- executable_path(),
-           :ok <-
-             run(executable, [
-               xcactivitylog_path,
-               cas_analytics_db_path,
-               legacy_cas_metadata_path,
-               output_path,
-               steps_path
-             ]),
-           {:ok, json} <- File.read(output_path),
-           {:ok, parsed} <- JSON.decode(json) do
+      result =
+        :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
+          result =
+            parse_data(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, output_path, steps_path)
+
+          status = if match?({:ok, _}, result), do: :ok, else: :error
+          {result, %{status: status}}
+        end)
+
+      with {:ok, parsed} <- result do
         steps = steps_path |> File.stream!() |> Stream.map(&JSON.decode!/1)
         consume.(Map.put(parsed, "build_steps", steps))
       end
     after
       File.rm(output_path)
       File.rm(steps_path)
+    end
+  end
+
+  defp parse_data(log, cas, metadata, output, steps) do
+    with {:ok, executable} <- executable_path(),
+         :ok <- run(executable, [log, cas, metadata, output, steps]),
+         {:ok, json} <- File.read(output) do
+      JSON.decode(json)
     end
   end
 

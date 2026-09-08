@@ -36,6 +36,9 @@ export default {
       })
       .catch(() => {
         if (signal.aborted) return;
+        this.destroyed();
+        this.part("timeline-content").hidden = true;
+        this.part("summary").hidden = true;
         this.part("payload-loading").hidden = true;
         this.part("payload-error").hidden = false;
       });
@@ -51,8 +54,7 @@ export default {
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
     this.events = normalizeEvents(timeline.events);
     this.search = "";
-    this.target = "";
-    this.project = "";
+    this.allEvents = this.events;
     this.duration = this.events.reduce(
       (end, event) => Math.max(end, event.end),
       Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
@@ -64,7 +66,6 @@ export default {
     this.cache = new TimelineCache();
     this.cache.add(timeline.loaded_range || this.range, this.events);
     this.rangeInFlight = false;
-    this.resetRange = false;
     this.logRequest = ++nextLogRequest;
     this.palette = null;
     this.part("payload-loading").hidden = true;
@@ -136,7 +137,7 @@ export default {
     this.el.querySelector('[data-stat="tasks"]').textContent = (
       timeline.total_count ?? this.events.length
     ).toLocaleString();
-    this.el.querySelector('[data-stat="targets"]').textContent = (timeline.targets || []).length;
+    this.el.querySelector('[data-stat="targets"]').textContent = timeline.target_count ?? 0;
     on(
       this.control("search"),
       "input",
@@ -256,14 +257,18 @@ export default {
   filter() {
     this.search = this.control("search").value;
     this.select(null);
-    this.range = { ...this.initialRange };
     this.prefetch = new TimelinePrefetch();
     this.cache = new TimelineCache();
     this.rangeRequest = ++nextRangeRequest;
     this.rangeInFlight = false;
-    this.resetRange = true;
-    this.events = [];
-    this.filtered = [];
+    const search = this.search.toLowerCase().slice(0, 512);
+    this.events = search
+      ? this.allEvents.filter((event) =>
+          `${event.title} ${event.target} ${event.project}`.toLowerCase().includes(search),
+        )
+      : this.allEvents;
+    this.filtered = this.events;
+    this.cache.add({ start: 0, span: this.duration }, this.events);
     this.relayout();
   },
 
@@ -286,11 +291,8 @@ export default {
     this.pushEvent("load-timeline-range", {
       version: Number(this.payload),
       request_id: request,
-      ...(this.resetRange ? this.range : this.prefetch.plan(this.range, this.duration).request),
-      reset: !!this.resetRange,
+      ...this.prefetch.plan(this.range, this.duration).request,
       search: this.search,
-      target: this.target,
-      project: this.project,
     })
       .then((reply) => {
         if (reply?.error) this.receiveRange({ request_id: request, error: true });
@@ -306,11 +308,6 @@ export default {
       this.relayout(false);
       return;
     }
-    if (this.resetRange) {
-      this.range = timeline.range;
-      this.initialRange = { ...this.range };
-      this.resetRange = false;
-    }
     this.cache.add(timeline.loaded_range || timeline.range, normalizeEvents(timeline.events));
     this.events = this.cache.events;
     this.filtered = this.events;
@@ -319,11 +316,7 @@ export default {
   },
 
   syncScroll() {
-    const availableHeight = 600;
-    this.scrollport.style.height = `${availableHeight}px`;
-    this.el.style.setProperty("--timeline-viewport-height", `${availableHeight}px`);
     this.el.style.setProperty("--timeline-header-height", `${this.part("build-controls").offsetHeight}px`);
-    this.part("tracks").style.height = `${availableHeight}px`;
     const geometry = scrollGeometry(this.scrollport.clientWidth, this.range, this.duration);
     this.part("tracks").style.width = `${geometry.width}px`;
     const overflow = this.scrollport.scrollWidth - this.scrollport.clientWidth;
@@ -342,7 +335,7 @@ export default {
 
   focusStep(event) {
     if (!event) return;
-    if (!event.aggregate) this.select(event);
+    this.select(event);
     this.setRange(event.start_ms - event.duration_ms * 0.1, event.duration_ms * 1.2);
   },
 
@@ -541,7 +534,7 @@ export default {
       ctx.roundRect(left, top, barWidth, barHeight, Math.min(3, barHeight / 2));
       ctx.fill();
       ctx.globalAlpha = 1;
-      if (!event.aggregate && barWidth > 50 && barHeight >= 18) {
+      if (barWidth > 50 && barHeight >= 18) {
         ctx.fillStyle = colors.labels[kind];
         this.text(
           ctx,
@@ -642,10 +635,6 @@ export default {
   },
 
   select(event) {
-    if (event?.aggregate) {
-      this.focusStep(event);
-      return;
-    }
     this.navigationRequest = ++nextNavigationRequest;
     this.selected = event;
     const logRequest = (this.logRequest = ++nextLogRequest);
@@ -733,8 +722,6 @@ export default {
       event_id: this.selected?.event_id ?? null,
       direction: event.key === "End" ? "last" : event.key === "ArrowLeft" ? "previous" : "next",
       search: this.search,
-      target: this.target,
-      project: this.project,
     });
   },
 };
