@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, legacy Swift CAS daemon and Gradle traffic on the same HTTP route families in Prometheus, and shows the Xcode compilation cache (REAPI over gRPC) as a Kura-only rate, since the legacy cache service has no REAPI endpoint to compare against. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
+    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle traffic between the two backends in Prometheus, counting both of Kura's transports on the Xcode lane since the compilation cache runs on REAPI over gRPC as well as the older HTTP cache routes. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
       "panel-10": {
@@ -1483,7 +1483,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range])))",
+                        "expr": "sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) / (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range])))",
                         "format": "time_series",
                         "instant": true,
                         "legendFormat": "Module",
@@ -1507,10 +1507,10 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__range])))",
+                        "expr": "sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*|/build.bazel.*|/google.bytestream.*\"}[$__range])) / (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*|/build.bazel.*|/google.bytestream.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__range])))",
                         "format": "time_series",
                         "instant": true,
-                        "legendFormat": "Legacy CAS daemon",
+                        "legendFormat": "Xcode",
                         "queryType": "instant",
                         "range": false
                       },
@@ -1531,7 +1531,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) / (sum(increase(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__range])))",
+                        "expr": "sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) / (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__range])))",
                         "format": "time_series",
                         "instant": true,
                         "legendFormat": "Gradle",
@@ -1548,7 +1548,7 @@
               "transformations": []
             }
           },
-          "description": "Share of `/api/cache/*` requests served by production Kura nodes rather than the production legacy cache service, per lane, over the selected range. Lanes are the HTTP route families both backends expose: module cache (`/api/cache/module/*`), the legacy per-project Swift CAS daemon (`/api/cache/cas/*` and `/api/cache/keyvalue*`), Gradle (`/api/cache/gradle/*`). The Xcode compilation cache is not here: it speaks REAPI over gRPC, the legacy cache service has no REAPI endpoint, so there is no share to compute. Its volume is on the REAPI rate panel instead.",
+          "description": "Share of requests served by production Kura nodes rather than the production legacy cache service, per lane, over the selected range: module cache (`/api/cache/module/*`), Xcode compilation cache, Gradle (`/api/cache/gradle/*`). The Xcode lane counts both of Kura's transports, REAPI over gRPC plus the older `/api/cache/(cas|keyvalue).*` HTTP routes, against the legacy service's HTTP routes. Kura arms read `kura_public_request_latency_seconds_count`, the only Kura series that covers both transports: `kura_http_requests_total_total` is HTTP-only and carries no REAPI routes at all. REAPI batches many blobs into one request, so this request ratio reads lower than the byte ratio on the bytes panel.",
           "id": 40,
           "links": [],
           "title": "Kura share per cache lane",
@@ -1633,7 +1633,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval])))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) / (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval])))",
                         "instant": false,
                         "legendFormat": "Module",
                         "queryType": "range",
@@ -1656,9 +1656,9 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*|/build.bazel.*|/google.bytestream.*\"}[$__rate_interval])) / (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*|/build.bazel.*|/google.bytestream.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval])))",
                         "instant": false,
-                        "legendFormat": "Legacy CAS daemon",
+                        "legendFormat": "Xcode",
                         "queryType": "range",
                         "range": true
                       },
@@ -1679,7 +1679,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) / (sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__rate_interval])))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) / (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/gradle.*\"}[$__rate_interval])))",
                         "instant": false,
                         "legendFormat": "Gradle",
                         "queryType": "range",
@@ -1695,7 +1695,7 @@
               "transformations": []
             }
           },
-          "description": "Kura requests over Kura + legacy requests on each lane's HTTP route family, from Prometheus. The Xcode compilation cache is absent for the same reason as on the summary panel: it is REAPI over gRPC and Kura-only, so it has no share. Gaps mean neither backend saw traffic on that lane in the interval.",
+          "description": "Kura requests over Kura + legacy requests on each lane, from Prometheus. The Xcode lane counts Kura's REAPI gRPC routes alongside its `/api/cache/(cas|keyvalue).*` HTTP routes, since the compilation cache runs on both. Gaps mean neither backend saw traffic on that lane in the interval. REAPI batches many blobs into one request, so this request ratio reads lower than the byte ratio on the bytes panel.",
           "id": 41,
           "links": [],
           "title": "Kura share per cache lane over time",
@@ -1774,7 +1774,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Legacy CAS daemon"
+                      "options": "Xcode"
                     },
                     "properties": [
                       {
@@ -1840,7 +1840,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval]))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "Kura",
                         "queryType": "range",
@@ -1879,7 +1879,7 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on `/api/cache/module.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "description": "Requests per second on `/api/cache/module.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name)). Kura arms read `kura_public_request_latency_seconds_count`, the only Kura series that covers both transports: `kura_http_requests_total_total` is HTTP-only and carries no REAPI routes at all.",
           "id": 42,
           "links": [],
           "title": "Module lane request rate by backend",
@@ -2007,7 +2007,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*\"}[$__rate_interval]))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/(cas|keyvalue).*|/build.bazel.*|/google.bytestream.*\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "Kura",
                         "queryType": "range",
@@ -2046,10 +2046,10 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on `/api/cache/(cas|keyvalue).*`: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name). This is the legacy per-project Swift CAS daemon lane (`ArtifactProducer::Xcode`, mapped in `kura/src/accelerated_file_serving.rs`), not the Xcode compilation cache. The compilation cache runs on REAPI over gRPC and has its own panel. The daemon lane is winding down, so a low Kura share here says nothing about Xcode adoption.",
+          "description": "Requests per second for the Xcode compilation cache. Kura serves it over two transports and both are counted here: the REAPI gRPC routes (the cas-plugin lane) and the older `/api/cache/(cas|keyvalue).*` HTTP routes. The legacy cache service has no REAPI endpoint, so its arm is the HTTP routes alone (canary and staging excluded by instance name). Kura arms read `kura_public_request_latency_seconds_count`, the only Kura series that covers both transports: `kura_http_requests_total_total` is HTTP-only and carries no REAPI routes at all. REAPI batches many blobs into one request, so this request ratio reads lower than the byte ratio on the bytes panel.",
           "id": 43,
           "links": [],
-          "title": "Legacy CAS daemon lane request rate by backend",
+          "title": "Xcode cache request rate by backend",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2174,7 +2174,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(rate(kura_http_requests_total_total{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval]))",
+                        "expr": "sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/gradle.*\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "Kura",
                         "queryType": "range",
@@ -2213,7 +2213,7 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on `/api/cache/gradle.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name).",
+          "description": "Requests per second on `/api/cache/gradle.*` routes: production Kura nodes versus production legacy cache service instances (canary and staging excluded by instance name)). Kura arms read `kura_public_request_latency_seconds_count`, the only Kura series that covers both transports: `kura_http_requests_total_total` is HTTP-only and carries no REAPI routes at all.",
           "id": 44,
           "links": [],
           "title": "Gradle lane request rate by backend",
@@ -2813,10 +2813,10 @@
               "transformations": []
             }
           },
-          "description": "Requests per second on the REAPI gRPC routes, broken out by method: ActionCache, ContentAddressableStorage, ByteStream and Capabilities. This is the lane the Xcode compilation cache runs on (the cas-plugin), shared with any Bazel client pointed at Kura; Kura records both under `ArtifactProducer::Reapi`, so they are not separable here. Kura-only, so this is a raw rate rather than a share: the legacy cache service has no REAPI endpoint. Sourced from `kura_public_request_latency_seconds_count` because `kura_http_requests_total_total` is HTTP-only and carries none of these routes; `_count` rather than `_bucket` because the adaptive-metrics drop rules in `infra/helm/k8s-monitoring/values.yaml` are anchored on `_bucket`. Build event streaming (`/google.devtools.build.v1.PublishBuildEvent/*`) is excluded because it is not cache traffic.",
+          "description": "The gRPC half of the Xcode cache lane, broken out by method: ActionCache, ContentAddressableStorage, ByteStream and Capabilities. Shown per method rather than as a share because the legacy cache service has no REAPI endpoint to compare against. `_count` rather than `_bucket` because the adaptive-metrics drop rules in `infra/helm/k8s-monitoring/values.yaml` are anchored on `_bucket`. Build event streaming (`/google.devtools.build.v1.PublishBuildEvent/*`) is excluded because it is not cache traffic.",
           "id": 47,
           "links": [],
-          "title": "REAPI lane request rate (Xcode compilation cache)",
+          "title": "Xcode cache REAPI methods on Kura",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
