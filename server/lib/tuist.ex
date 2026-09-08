@@ -109,6 +109,8 @@ defmodule Tuist do
       Tests.Analytics,
       Tests.XcresultProcessing,
       Tests.Workers.ProcessXcresultWorker,
+      Tests.StressNewTests,
+      Tests.TestRunStressCandidate,
       Shards,
       Shards.Analytics,
       Shards.ShardPlan,

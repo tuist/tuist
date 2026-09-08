@@ -27,6 +27,12 @@ defmodule TuistWeb.API.Schemas.Tests.TestCaseRepetition do
       duration: %Schema{
         type: :integer,
         description: "The duration of this repetition in milliseconds."
+      },
+      source: %Schema{
+        type: :string,
+        description:
+          "Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.",
+        enum: ["run", "stress"]
       }
     },
     required: [:repetition_number, :name, :status]
