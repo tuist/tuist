@@ -1023,13 +1023,44 @@ impl Remote {
                     local.insert(chunk.hash.clone(), bytes);
                 } else { missing.push(chunk.clone()); }
             }
-            let downloaded = batch_read_retrying(&self.pressure_backoff_until_ms, &missing, false, |pending| self.batch_read_once(pending))?;
-            for chunk in &missing {
-                if let Some(bytes) = downloaded.get(&chunk.hash).filter(|bytes| blob_digest(bytes) == *chunk) {
-                    cache.put(chunk, bytes);
+            let mut expected: std::collections::HashSet<_> = missing
+                .iter()
+                .map(|chunk| (chunk.hash.clone(), chunk.size_bytes))
+                .collect();
+            let mut rejected = None;
+            for (digest, code, bytes) in self.batch_read_once(&missing)? {
+                let digest = digest.ok_or("chunk response omitted a digest")?;
+                if !expected.remove(&(digest.hash.clone(), digest.size_bytes)) {
+                    return Err("chunk response repeated or returned an unrequested digest".into());
+                }
+                if code == 0 {
+                    if blob_digest(&bytes) == digest {
+                        cache.put(&digest, &bytes);
+                        local.insert(digest.hash, bytes);
+                    }
+                } else if code == tonic::Code::PermissionDenied as i32
+                    || code == tonic::Code::Unauthenticated as i32
+                    || !(0..=16).contains(&code)
+                {
+                    return Err(format!("chunk read rejected with status {code}"));
+                } else if code != tonic::Code::NotFound as i32
+                    && rejected.is_none_or(retryable_blob_status)
+                {
+                    rejected = Some(code);
                 }
             }
-            local.extend(downloaded);
+            if !expected.is_empty() {
+                return Err("chunk response omitted requested digests".into());
+            }
+            // Keep one retry budget at the parent blob level. Verified chunks
+            // survive retries in the local cache, but a pressure decline must
+            // never trigger a larger whole-blob request to the same server.
+            // Terminal per-blob failures also stay per-blob: other independent
+            // outputs in the same batch can still be restored successfully.
+            if let Some(code) = rejected {
+                outcomes.push((Some(blob.clone()), code, Vec::new()));
+                continue;
+            }
             let mut assembled = Vec::new();
             for chunk in &chunks {
                 let Some(bytes) = local.get(&chunk.hash).filter(|bytes| blob_digest(bytes) == *chunk) else { break; };

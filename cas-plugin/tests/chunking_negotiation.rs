@@ -6,6 +6,7 @@ use api::{
 };
 use bazel_remote_apis::build::bazel::remote::execution::v2 as api;
 use bazel_remote_apis::google::rpc::Status as BlobStatus;
+use prost::Message;
 use std::{
     collections::HashMap,
     net::TcpListener,
@@ -31,6 +32,13 @@ enum Mode {
     CorruptDownload,
     MissingDownload,
     SlowDownload,
+    DeclinedDownload(i32),
+    RecoveringDownload,
+    UnrequestedDownload,
+    WrongSizeDownload,
+    OmittedDigestDownload,
+    OmittedResponseDownload,
+    TerminalDownload,
 }
 
 #[derive(Default)]
@@ -40,6 +48,8 @@ struct Calls {
     splice: usize,
     split: usize,
     reads: usize,
+    whole_reads: usize,
+    read_digests: Vec<api::Digest>,
     read_bytes: usize,
     blobs: HashMap<String, Vec<u8>>,
 }
@@ -142,6 +152,13 @@ impl ContentAddressableStorage for Server {
                 | Mode::CorruptDownload
                 | Mode::MissingDownload
                 | Mode::SlowDownload
+                | Mode::DeclinedDownload(_)
+                | Mode::RecoveringDownload
+                | Mode::UnrequestedDownload
+                | Mode::WrongSizeDownload
+                | Mode::OmittedDigestDownload
+                | Mode::OmittedResponseDownload
+                | Mode::TerminalDownload
         ) {
             return Err(Status::unimplemented("mixed-version server"));
         }
@@ -176,6 +193,9 @@ impl ContentAddressableStorage for Server {
         }
         let mut calls = self.calls.lock().unwrap();
         calls.reads += 1;
+        if matches!(self.mode, Mode::OmittedResponseDownload) {
+            return Ok(Response::new(api::BatchReadBlobsResponse::default()));
+        }
         Ok(Response::new(api::BatchReadBlobsResponse {
             responses: request
                 .into_inner()
@@ -184,7 +204,30 @@ impl ContentAddressableStorage for Server {
                 .map(|digest| {
                     let mut bytes = calls.blobs[&digest.hash].clone();
                     let mut code = 0;
+                    calls.read_digests.push(digest.clone());
+                    if digest.size_bytes > 1024 * 1024 {
+                        calls.whole_reads += 1;
+                    }
                     if digest.size_bytes <= 1024 * 1024 {
+                        if matches!(self.mode, Mode::TerminalDownload) && bytes[0] <= 2 {
+                            code = if bytes[0] == 1 {
+                                tonic::Code::Internal as i32
+                            } else {
+                                tonic::Code::ResourceExhausted as i32
+                            };
+                            bytes.clear();
+                        }
+                        if matches!(self.mode, Mode::RecoveringDownload)
+                            && calls.reads == 1
+                            && bytes[0] == 1
+                        {
+                            bytes.clear();
+                            code = tonic::Code::ResourceExhausted as i32;
+                        }
+                        if let Mode::DeclinedDownload(status) = self.mode {
+                            bytes.clear();
+                            code = status;
+                        }
                         if matches!(self.mode, Mode::CorruptDownload) {
                             bytes.fill(0);
                         }
@@ -194,8 +237,17 @@ impl ContentAddressableStorage for Server {
                         }
                     }
                     calls.read_bytes += bytes.len();
+                    let digest = match self.mode {
+                        Mode::UnrequestedDownload => Some(blob_digest(b"unrequested")),
+                        Mode::WrongSizeDownload => Some(api::Digest {
+                            size_bytes: digest.size_bytes + 1,
+                            ..digest
+                        }),
+                        Mode::OmittedDigestDownload => None,
+                        _ => Some(digest),
+                    };
                     api::batch_read_blobs_response::Response {
-                        digest: Some(digest),
+                        digest,
                         data: bytes,
                         status: Some(BlobStatus {
                             code,
@@ -219,6 +271,120 @@ impl ContentAddressableStorage for Server {
     ) -> Result<Response<Self::GetTreeStream>, Status> {
         Err(Status::unimplemented("unused"))
     }
+}
+
+#[test]
+fn declined_chunks_do_not_trigger_whole_blob_downloads() {
+    for code in [
+        tonic::Code::ResourceExhausted,
+        tonic::Code::Unavailable,
+        tonic::Code::PermissionDenied,
+        tonic::Code::Unauthenticated,
+    ] {
+        let status = code as i32;
+        let (remote, calls, _stop) = server(Mode::DeclinedDownload(status));
+        let directory = std::env::temp_dir().join(format!(
+            "chunk-declined-{}-{status}",
+            std::process::id()
+        ));
+        remote.enable_chunk_cache(directory.clone(), "tenant/project");
+        let bytes = vec![7; 3 * 1024 * 1024];
+        let digest = blob_digest(&bytes);
+        calls.lock().unwrap().blobs.insert(digest.hash.clone(), bytes);
+        for attempt in 0..2 {
+            let result = remote.batch_read(std::slice::from_ref(&digest));
+            let observed = calls.lock().unwrap();
+            assert_eq!(observed.whole_reads, 0, "status {status}");
+            if matches!(code, tonic::Code::ResourceExhausted | tonic::Code::Unavailable) {
+                assert!(result.unwrap().is_empty());
+                assert_eq!(observed.reads, 3 + attempt);
+            } else {
+                assert!(result.is_err());
+                assert_eq!(observed.reads, 1 + attempt);
+            }
+        }
+        if directory.exists() {
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+}
+
+#[test]
+fn chunk_retries_keep_verified_pieces_and_reject_unrequested_responses() {
+    for (index, mode) in [
+        Mode::RecoveringDownload,
+        Mode::UnrequestedDownload,
+        Mode::WrongSizeDownload,
+        Mode::OmittedDigestDownload,
+        Mode::OmittedResponseDownload,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (remote, calls, _stop) = server(mode);
+        let directory = std::env::temp_dir().join(format!(
+            "chunk-response-{}-{index}",
+            std::process::id()
+        ));
+        remote.enable_chunk_cache(directory.clone(), "tenant/project");
+        let bytes: Vec<u8> = (0..3).flat_map(|n| vec![n; 1024 * 1024]).collect();
+        let digest = blob_digest(&bytes);
+        calls.lock().unwrap().blobs.insert(digest.hash.clone(), bytes.clone());
+        let result = remote.batch_read(std::slice::from_ref(&digest));
+        let observed = calls.lock().unwrap();
+        assert_eq!(observed.whole_reads, 0);
+        if matches!(mode, Mode::RecoveringDownload) {
+            assert_eq!(result.unwrap()[&digest.hash], bytes);
+            assert_eq!(observed.reads, 2);
+            assert_eq!(observed.read_digests.len(), 4);
+            assert_eq!(observed.read_digests[3], blob_digest(&vec![1; 1024 * 1024]));
+        } else {
+            assert!(result.is_err());
+            assert_eq!(observed.reads, 1);
+        }
+        if directory.exists() {
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+}
+
+#[test]
+fn terminal_chunk_failures_preserve_other_blobs_without_retry_or_fallback() {
+    let (remote, calls, _stop) = server(Mode::TerminalDownload);
+    let directory = std::env::temp_dir().join(format!(
+        "chunk-terminal-{}", std::process::id()
+    ));
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    let bad: Vec<u8> = (1..=3).flat_map(|n| vec![n; 1024 * 1024]).collect();
+    let good = vec![4; 3 * 1024 * 1024];
+    let bad_digest = blob_digest(&bad);
+    let good_digest = blob_digest(&good);
+    calls.lock().unwrap().blobs.extend([
+        (bad_digest.hash.clone(), bad),
+        (good_digest.hash.clone(), good.clone()),
+    ]);
+    let result = remote.batch_read(&[bad_digest.clone(), good_digest.clone()]).unwrap();
+    assert!(!result.contains_key(&bad_digest.hash));
+    assert_eq!(result[&good_digest.hash], good);
+    let observed = calls.lock().unwrap();
+    assert_eq!(observed.whole_reads, 0);
+    assert_eq!(observed.reads, 2, "terminal errors must not retry pressure-only siblings");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn maximum_chunk_descriptors_fit_the_response_limit() {
+    let recipe = api::SplitBlobResponse {
+        chunk_digests: vec![api::Digest {
+            hash: "f".repeat(64),
+            size_bytes: 2 * 1024 * 1024,
+        }; 16_384],
+        chunking_function: api::chunking_function::Value::FastCdc2020 as i32,
+    };
+    // This overestimates a valid recipe: at the count limit, most chunks
+    // must be smaller to respect the logical blob's total-size bound.
+    assert!(recipe.encoded_len() < 2 * 1024 * 1024);
+    println!("maximum recipe encoded bytes={}", recipe.encoded_len());
 }
 
 #[test]

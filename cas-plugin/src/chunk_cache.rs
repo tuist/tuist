@@ -93,6 +93,22 @@ impl ChunkCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slot_selection_hashes_untrusted_digest_strings_before_indexing() {
+        let cache = ChunkCache::new(PathBuf::from("unused"), "endpoint/project".into());
+        for hash in ["", "x", "../../../outside", "not-hex", "💥"] {
+            let paths = cache.paths(&Digest { hash: hash.into(), size_bytes: 1 });
+            for (way, path) in paths.into_iter().enumerate() {
+                assert_eq!(path.parent(), Some(std::path::Path::new("unused")));
+                let name = path.file_name().unwrap().to_str().unwrap();
+                let (bucket, slot) = name.split_once('-').unwrap();
+                assert!(u8::from_str_radix(bucket, 16).unwrap() < 128);
+                assert_eq!(slot, way.to_string());
+            }
+        }
+    }
+
     #[test]
     fn persists_and_rejects_corrupt_or_oversized_slots() {
         let path = std::env::temp_dir().join(format!(
