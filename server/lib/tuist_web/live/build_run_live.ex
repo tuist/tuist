@@ -369,6 +369,7 @@ defmodule TuistWeb.BuildRunLive do
 
   defp assign_timeline(socket, "timeline", force) do
     run_id = socket.assigns.run.id
+    run_duration = socket.assigns.run.duration
 
     metrics =
       Enum.map(
@@ -396,7 +397,7 @@ defmodule TuistWeb.BuildRunLive do
            %{
              timeline:
                run_id
-               |> Builds.build_timeline()
+               |> Builds.build_timeline(duration: run_duration)
                |> Map.put(:targets, Builds.build_timeline_targets(run_id))
                |> Map.put(:machine_metrics, metrics)
            }}

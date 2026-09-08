@@ -30,7 +30,7 @@ function fixture() {
     cache,
     prefetch: new TimelinePrefetch(),
     abort: new AbortController(),
-    maxSpan: 120_000,
+    maxSpan: 900_000,
     duration: 900_000,
     filtered: [],
     cancelFocus() {},
@@ -76,11 +76,11 @@ test("zoom out clamps around its anchor and requests missing neighboring data", 
   let queries = 0;
   view.requestRange = () => queries++;
   view.zoom(100);
-  assert.equal(view.range.span, 120_000);
-  assert.equal(view.range.start, 45_000);
-  assert.equal(queries, 0);
-  view.setRange(850_000, 30_000);
+  assert.equal(view.range.span, 900_000);
+  assert.equal(view.range.start, 0);
   assert.equal(queries, 1);
+  view.setRange(850_000, 30_000);
+  assert.equal(queries, 2);
   assert.equal(view.chart.getAttribute("aria-busy"), "true");
 });
 
@@ -211,4 +211,20 @@ test("fast scrolling shifts the actual preload request ahead before visible data
   assert.equal(requests.length, 1);
   assert.equal(requests[0].start, 345_000);
   assert.equal(requests[0].start - 60_000, view.range.start);
+});
+
+test("full-build metadata remains cached when zooming in and returning to maximum zoom or Home", () => {
+  const view = fixture();
+  view.range = view.initialRange = { start: 0, span: view.duration };
+  view.cache.add(view.range, []);
+  view.scheduleDraw = () => {};
+  view.requestRange = () => assert.fail("full-build metadata is already cached");
+  view.zoom(0.01);
+  assert.equal(view.range.span, 9000);
+  view.zoom(1000);
+  assert.deepEqual(view.range, { start: 0, span: 900_000 });
+  view.setRange(800_000, 5000);
+  view.keydown({ key: "Home", preventDefault() {} });
+  assert.deepEqual(view.range, { start: 0, span: 900_000 });
+  assert.equal(view.chart.getAttribute("aria-busy"), "false");
 });

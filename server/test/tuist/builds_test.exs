@@ -92,7 +92,7 @@ defmodule Tuist.BuildsTest do
       assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
     end
 
-    test "opens at meaningful work with readable zoom and buffers neighboring steps" do
+    test "opens with the entire build visible and still buffers zoomed-in windows" do
       steps =
         for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
           %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
@@ -101,14 +101,15 @@ defmodule Tuist.BuildsTest do
       {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
 
       assert %{
-               range: %{start: 100_000.0, span: 10_000},
-               max_span: 120_000,
-               loaded_range: %{start: 40_000.0, span: 130_000.0},
+               range: %{start: 0, span: 901_000.0},
+               max_span: 901_000.0,
+               loaded_range: %{start: 0, span: 901_000.0},
                events: events
              } = Builds.build_timeline(build.id)
 
-      assert Enum.map(events, & &1.event_id) == [2, 3]
-      assert %{range: %{span: 120_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 900_000)
+      assert Enum.map(events, & &1.event_id) == [1, 2, 3, 4]
+      assert %{range: %{start: 0, span: 901_000.0}} = Builds.build_timeline(build.id, span: 2_000_000)
+      assert %{range: %{span: 10_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 10_000)
       assert Enum.map(late, & &1.event_id) == [4]
     end
 

@@ -7,7 +7,6 @@ defmodule Tuist.Builds.Timeline do
   alias Tuist.Builds.Step
   alias Tuist.ClickHouseRepo
 
-  @max_span 120_000
   @buffer 60_000
 
   def load(build_id, opts \\ []) do
@@ -43,22 +42,9 @@ defmodule Tuist.Builds.Timeline do
       end
 
     total = if search == "" and target == "", do: total, else: ClickHouseRepo.one(from(e in base, select: count()))
-    duration = max(duration || 0, 1)
-
-    initial_start =
-      if Keyword.has_key?(opts, :start) do
-        Keyword.fetch!(opts, :start)
-      else
-        meaningful = from(e in base, where: e.duration_ms >= ^250.0, select: {count(), min(e.start_ms)})
-
-        case ClickHouseRepo.one(meaningful) do
-          {0, _} -> ClickHouseRepo.one(from(e in base, select: min(e.start_ms))) || 0
-          {_, first} -> first
-        end
-      end
-
-    span = min(max(Keyword.get(opts, :span, 10_000), 1), min(duration, @max_span))
-    start = min(max(initial_start, 0), max(duration - span, 0))
+    duration = max(duration || 0, Keyword.get(opts, :duration, 1))
+    span = min(max(Keyword.get(opts, :span, duration), 1), duration)
+    start = min(max(Keyword.get(opts, :start, 0), 0), max(duration - span, 0))
     loaded_start = max(0, start - @buffer)
     finish = min(duration, start + span + @buffer)
     scoped = from(e in base, where: e.start_ms < ^finish and fragment("? + ?", e.start_ms, e.duration_ms) > ^loaded_start)
@@ -79,7 +65,7 @@ defmodule Tuist.Builds.Timeline do
       duration: duration,
       range: %{start: start, span: span},
       loaded_range: %{start: loaded_start, span: finish - loaded_start},
-      max_span: min(duration, @max_span)
+      max_span: duration
     }
   end
 

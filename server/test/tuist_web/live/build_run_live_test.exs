@@ -219,7 +219,7 @@ defmodule TuistWeb.BuildRunLiveTest do
 
   test "timeline query failures use the shared error panel", %{conn: conn, organization: organization, project: project} do
     {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
-    stub(Tuist.Builds, :build_timeline, fn _ -> raise "query failed" end)
+    stub(Tuist.Builds, :build_timeline, fn _, _ -> raise "query failed" end)
 
     {:ok, lv, _} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")

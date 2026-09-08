@@ -102,21 +102,20 @@ export class TimelineMetrics {
     ctx.beginPath();
     ctx.rect(inset, 0, plotWidth, height);
     ctx.clip();
-    ctx.strokeStyle = colors.border;
-    ctx.globalAlpha = 0.45;
-    const ticks = Math.max(2, Math.min(8, Math.floor(plotWidth / 100)));
-    for (let i = 0; i <= ticks; i++) {
-      const px = inset + (i / ticks) * plotWidth;
+    ctx.strokeStyle = colors.grid;
+    ctx.globalAlpha = 1;
+    for (let i = 0; i <= 4; i++) {
+      const py = y((track.max * i) / 4);
       ctx.beginPath();
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, height);
+      ctx.moveTo(inset, py);
+      ctx.lineTo(width - inset, py);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
     const samples = this.visible(range);
     track.fields.forEach((field, index) => {
       ctx.strokeStyle = ctx.fillStyle = index ? colors.metricSecondary : colors.metricPrimary;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
       let previous;
       for (const sample of samples) {
         if (!Number.isFinite(sample[field])) {
@@ -128,23 +127,16 @@ export class TimelineMetrics {
         if (previous && sample.offset_ms - previous.offset_ms <= this.maxGap) {
           const prevX = x(previous.offset_ms),
             prevY = y(previous[field]);
-          ctx.globalAlpha = 0.12;
-          ctx.beginPath();
-          ctx.moveTo(prevX, height);
-          ctx.lineTo(prevX, prevY);
-          ctx.lineTo(px, py);
-          ctx.lineTo(px, height);
-          ctx.closePath();
-          ctx.fill();
-          ctx.globalAlpha = 1;
           ctx.beginPath();
           ctx.moveTo(prevX, prevY);
           ctx.lineTo(px, py);
           ctx.stroke();
         }
-        ctx.beginPath();
-        ctx.arc(px, py, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        if (samples.length < plotWidth / 8) {
+          ctx.beginPath();
+          ctx.arc(px, py, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
         previous = sample;
       }
     });

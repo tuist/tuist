@@ -57,13 +57,8 @@ export default {
       (end, event) => Math.max(end, event.end),
       Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
     );
-    this.maxSpan = timeline.max_span || Math.min(this.duration, 120_000);
-    this.range = timeline.range || { start: 0, span: Math.min(this.duration, 10_000) };
-    if (timeline.total_count === 0 && this.metrics.samples.length) {
-      this.maxSpan = Math.min(this.duration, 120_000);
-      this.range = { start: 0, span: Math.min(this.duration, 10_000) };
-      timeline.loaded_range = { start: 0, span: this.duration };
-    }
+    this.maxSpan = this.duration;
+    this.range = { start: 0, span: this.duration };
     this.initialRange = { ...this.range };
     this.prefetch = new TimelinePrefetch();
     this.cache = new TimelineCache();
@@ -296,11 +291,6 @@ export default {
     }
     if (this.resetRange) {
       this.range = timeline.range;
-      if (timeline.total_count === 0 && this.metrics.samples.length) {
-        this.maxSpan = Math.min(this.duration, 120_000);
-        this.range = { start: 0, span: Math.min(this.duration, 10_000) };
-        timeline.loaded_range = { start: 0, span: this.duration };
-      }
       this.initialRange = { ...this.range };
       this.resetRange = false;
     }
@@ -443,11 +433,12 @@ export default {
         ]),
       ),
       accent: color("--noora-chart-primary"),
-      metricPrimary: color("--noora-chart-secondary"),
-      metricSecondary: color("--noora-chart-tertiary"),
+      metricPrimary: color("--noora-chart-primary"),
+      metricSecondary: color("--noora-chart-secondary"),
       text: color("--noora-surface-label-primary"),
       muted: color("--noora-surface-label-secondary"),
       border: color("--noora-surface-border-primary"),
+      grid: color("--noora-chart-lines"),
       background: color("--noora-surface-background-primary"),
       secondary: color("--noora-surface-background-secondary"),
     };
@@ -561,8 +552,8 @@ export default {
     if (!this.metrics?.samples.length) return;
     for (const track of this.metrics.tracks) {
       const canvas = this.el.querySelector(`[data-metric-canvas="${track.key}"]`);
-      const { ctx, width } = this.context(canvas, 36);
-      this.metrics.draw(ctx, width, 36, track, this.range, colors);
+      const { ctx, width } = this.context(canvas, 88);
+      this.metrics.draw(ctx, width, 88, track, this.range, colors);
     }
     this.updateMetricValues(null);
   },

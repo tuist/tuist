@@ -106,16 +106,27 @@
   & canvas {
     display: block;
   }
+  & [data-part="machine-metrics"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    background: var(--noora-surface-background-secondary);
+    padding-block: var(--noora-spacing-4);
+  }
   & [data-part="metric-track"] {
     cursor: crosshair;
-    border-bottom: 1px solid var(--noora-surface-border-primary);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    padding-bottom: var(--noora-spacing-4);
+    overflow: hidden;
   }
   & [data-part="metric-heading"] {
     display: flex;
     gap: var(--noora-spacing-4);
-    padding: 3px 12px 0;
+    padding: var(--noora-spacing-5) 12px var(--noora-spacing-4);
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     font-variant-numeric: tabular-nums;
     & output {
       margin-left: auto;
@@ -127,10 +138,10 @@
     display: flex;
     gap: var(--noora-spacing-4);
     & [data-series="primary"] {
-      color: var(--noora-chart-secondary);
+      color: var(--noora-chart-primary);
     }
     & [data-series="secondary"] {
-      color: var(--noora-chart-tertiary);
+      color: var(--noora-chart-secondary);
     }
   }
   & [data-part="ruler"] {
