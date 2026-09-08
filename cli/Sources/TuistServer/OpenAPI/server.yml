@@ -6068,13 +6068,6 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
       x-validate:
-    BuildCASOutputsIndexIncludeTotals:
-      default: false
-      description: Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.
-      title: BuildCASOutputsIndexIncludeTotals
-      type: boolean
-      x-struct:
-      x-validate:
     AppBuild:
       properties:
         binary_id:
@@ -13861,17 +13854,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
-          in: query
-          name: include_totals
-          required: false
-          schema:
-            default: false
-            description: Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.
-            title: BuildCASOutputsIndexIncludeTotals
-            type: boolean
-            x-struct:
-            x-validate:
       responses:
         '200':
           content:
@@ -13990,7 +13972,7 @@ paths:
                   pagination_metadata:
                     $ref: '#/components/schemas/PaginationMetadata'
                   totals:
-                    description: The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.
+                    description: The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                     properties:
                       download_bytes:
                         description: The number of bytes downloaded.

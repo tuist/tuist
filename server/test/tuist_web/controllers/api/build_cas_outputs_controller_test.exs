@@ -20,6 +20,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       stub(Builds, :list_cas_outputs, fn _attrs ->
         {[],
@@ -52,6 +53,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       stub(Builds, :list_cas_outputs, fn _attrs ->
         {[
@@ -94,6 +96,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       expect(Builds, :list_cas_outputs, fn attrs ->
         assert %{field: :operation, op: :==, value: "upload"} in attrs.filters
@@ -134,6 +137,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       expect(Builds, :list_cas_outputs, fn attrs ->
         assert %{field: :type, op: :==, value: "swift"} in attrs.filters
@@ -174,6 +178,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       expect(Builds, :list_cas_outputs, fn attrs ->
         assert attrs.page == 2
@@ -214,24 +219,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       assert response["pagination_metadata"]["total_pages"] == 2
     end
 
-    test "omits totals unless they are requested", %{conn: conn, user: user, project: project} do
-      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
-
-      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
-      stub(Builds, :list_cas_outputs, fn _attrs -> {[], empty_meta()} end)
-      reject(&Builds.cas_output_metrics/1)
-
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs")
-
-      response = json_response(conn, 200)
-      refute Map.has_key?(response, "totals")
-    end
-
-    test "returns totals for the whole build run when they are requested", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
+    test "returns totals for the whole build run", %{conn: conn, user: user, project: project} do
       {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
@@ -245,7 +233,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?include_totals=true"
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs"
         )
 
       assert %{
@@ -290,7 +278,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?operation=upload&include_totals=true"
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?operation=upload"
         )
 
       response = json_response(conn, 200)
@@ -327,7 +315,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?type=swift&include_totals=true"
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?type=swift"
         )
 
       assert json_response(conn, 200)["totals"] == %{
@@ -355,7 +343,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
         for page <- [1, 5, 10] do
           conn
           |> get(
-            "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?page=#{page}&page_size=10&include_totals=true"
+            "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?page=#{page}&page_size=10"
           )
           |> json_response(200)
           |> Map.get("totals")
@@ -385,6 +373,7 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       {:ok, build} = RunsFixtures.build_fixture(project_id: other_project.id, user_id: user.account.id)
 
       stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> metrics() end)
 
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs")
 
@@ -411,6 +400,10 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       total_count: 0,
       total_pages: 0
     }
+  end
+
+  defp metrics do
+    metrics(download_count: 0, upload_count: 0, download_bytes: 0, upload_bytes: 0)
   end
 
   defp metrics(attrs) do

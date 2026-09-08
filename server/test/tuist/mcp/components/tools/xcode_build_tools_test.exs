@@ -403,6 +403,8 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
+
       result = ListXcodeBuildCASOutputs.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
@@ -411,5 +413,57 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert hd(result["outputs"])["node_id"] == "node-1"
       assert hd(result["outputs"])["size"] == 1024
     end
+
+    test "returns the totals for the whole build run when the outputs are filtered to one operation" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      expect(Builds, :list_cas_outputs, fn attrs ->
+        assert %{field: :operation, op: :==, value: "upload"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      expect(Builds, :cas_output_metrics, fn "build-1" ->
+        cas_output_metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      result =
+        ListXcodeBuildCASOutputs.call(conn_with_subject(), %{
+          "build_run_id" => "build-1",
+          "operation" => "upload"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+
+      assert JSON.decode!(text)["totals"] == %{
+               "download_count" => 90,
+               "upload_count" => 10,
+               "download_bytes" => 9000,
+               "upload_bytes" => 1000
+             }
+    end
+  end
+
+  defp cas_output_metrics(attrs \\ []) do
+    %{
+      download_count: Keyword.get(attrs, :download_count, 0),
+      upload_count: Keyword.get(attrs, :upload_count, 0),
+      download_bytes: Keyword.get(attrs, :download_bytes, 0),
+      upload_bytes: Keyword.get(attrs, :upload_bytes, 0),
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
   end
 end

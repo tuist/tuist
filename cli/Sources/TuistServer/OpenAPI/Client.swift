@@ -7069,13 +7069,6 @@ public struct Client: APIProtocol {
                     name: "page",
                     value: input.query.page
                 )
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "include_totals",
-                    value: input.query.include_totals
-                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept

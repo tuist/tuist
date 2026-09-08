@@ -11172,10 +11172,6 @@ public enum Components {
                 case status
             }
         }
-        /// Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.
-        ///
-        /// - Remark: Generated from `#/components/schemas/BuildCASOutputsIndexIncludeTotals`.
-        public typealias BuildCASOutputsIndexIncludeTotals = Swift.Bool
         /// - Remark: Generated from `#/components/schemas/AppBuild`.
         public struct AppBuild: Codable, Hashable, Sendable {
             /// The Mach-O UUID of the build's main binary.
@@ -33229,10 +33225,6 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/query/page`.
                 public var page: Swift.Int?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/query/include_totals`.
-                public var include_totals: Swift.Bool?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -33240,19 +33232,16 @@ public enum Operations {
                 ///   - _type: Filter by CAS output type.
                 ///   - page_size:
                 ///   - page:
-                ///   - include_totals:
                 public init(
                     operation: Operations.listBuildCASOutputs.Input.Query.operationPayload? = nil,
                     _type: Operations.listBuildCASOutputs.Input.Query._typePayload? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil,
-                    include_totals: Swift.Bool? = nil
+                    page: Swift.Int? = nil
                 ) {
                     self.operation = operation
                     self._type = _type
                     self.page_size = page_size
                     self.page = page
-                    self.include_totals = include_totals
                 }
             }
             public var query: Operations.listBuildCASOutputs.Input.Query
@@ -33429,7 +33418,7 @@ public enum Operations {
                         public var outputs: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.outputsPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/pagination_metadata`.
                         public var pagination_metadata: Components.Schemas.PaginationMetadata
-                        /// The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.
+                        /// The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals`.
                         public struct totalsPayload: Codable, Hashable, Sendable {
@@ -33474,7 +33463,7 @@ public enum Operations {
                                 case upload_count
                             }
                         }
-                        /// The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.
+                        /// The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals`.
                         public var totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload?
@@ -33483,7 +33472,7 @@ public enum Operations {
                         /// - Parameters:
                         ///   - outputs:
                         ///   - pagination_metadata:
-                        ///   - totals: The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.
+                        ///   - totals: The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                         public init(
                             outputs: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.outputsPayload,
                             pagination_metadata: Components.Schemas.PaginationMetadata,
