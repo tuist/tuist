@@ -105,6 +105,15 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 - [x] T8.1 main vs branch comparison (memory, disk, CPU, network) per setup.
 - [x] T8.2 Draft PR.
 
+### Phase 9 — follow-ups from review (design §11)
+
+- [ ] T9.1 Hard upload limits as explicit config: per-peer bodies slot count,
+      per-node peer-serving aggregate; `rejected_busy` and the limiter's
+      effective rate on the dashboard row (§11.1).
+- [ ] T9.2 Runner-region reachability: keep pushing to a pulling peer that has
+      no route back, with a ring-A test; must land before any account with a
+      self-hosted node and a runner region flips (§11.2).
+
 ---
 
 ## 2. Design decisions made during implementation

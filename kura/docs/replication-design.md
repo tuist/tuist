@@ -1162,6 +1162,49 @@ alert. A bypass would put topology decisions in two places at once. §2.2.
 
 ---
 
+**GossipSub (libp2p pubsub) as the inter-region forward link.** Proposed in
+review as a sparse alternative to the gateway clique. Transport is not the
+objection: a spike showed a libp2p PeerId derives identically from the
+enrolled P-256 certificate on both sides, and that a third ALPN value on the
+7443 mTLS listener demuxes cleanly with old binaries failing over to HTTP in
+under a millisecond. It is rejected on semantics. GossipSub is a live event
+stream with about five seconds of memory (a message cache of five heartbeats),
+no position, no durable state and no queue, so a delivery can never advance
+the region watermark without violating INV-1 and INV-2; either the ascending
+listing keeps running to move the watermark (and gossip only adds bytes,
+since the long-poll already wakes on commit) or the watermark moves only on
+backward passes, and every gap longer than the cache, plus a timer for silent
+loss, costs an unfiltered backward pass against every remote gateway from a
+watermark as old as the last pass. Deletes ride the same stream, so a missed
+tombstone leaves a namespace servable until the next pass. A subscription
+dies with its connections, so a gateway flip either keeps both replicas
+subscribed permanently or re-bootstraps on every move. At the mesh degree of
+six every gateway is in every other gateway's mesh, so it floods exactly as
+the clique does until the region count exceeds about five. It brings around
+190 crates with a second crypto stack, connections outside the listener's
+drain accounting, and a PeerId that changes on every certificate rotation
+unless enrollment stops regenerating the key; and the listing has to stay as
+the fallback for every pair because self-hosted meshes upgrade on their own
+schedule. Its one genuine advantage, symmetric connections, covers the
+runner-region case in §11.2; that case is handled there without it. §4.1,
+§4.2, §4.7.
+
+**Multi-source (multi-holder) body fetch between regions.** Proposed with
+GossipSub, as a way to spread a busy origin's upload. The gateway is the
+standby, so the only resource it can saturate is its egress class; when it
+does, the other gateways receive `503` with `Retry-After` or a slow stream,
+back off and retry, and nothing is lost because the record stays in the
+listing and the watermark does not move past it. Convergence slows, which
+inter-region best effort permits. Fetching the same bytes from another region
+moves the egress to that region's bill and leaves total WAN bytes at
+`(R-1) x S`; with at most `R-1` downloaders per record the swarm case never
+arises, a downed gateway is covered by its sibling taking the role, and the
+multi-gigabyte tail is a resume-by-range problem on the same source. The lever
+for a region whose class caps its convergence is the class or the writer's
+placement, not more sources. §11.1, §11.3.
+
+---
+
 ## 10. Parameters
 
 Every value the design depends on, with its default and the rule that chose
@@ -1184,3 +1227,74 @@ to re-check when a measurement disagrees.
 | Drain wait (§3.5) | termination grace period − margin | The wait is normally zero; the bound is the pod's, not a new one. |
 | Clock skew alert (§4.6) | above the buffer | Inside a region the drain overlap depends on it; between regions it only decides last-writer-wins, as today. |
 | Serve-side gate age (§3.3) | the strand grace window | Older entries are covered by the cascade; the existing constant, not a new one. |
+
+---
+
+## 11. Deferred extensions and open items
+
+Additive steps on the same plane. None changes the endpoints, the identity, or
+the migration rule; each is gated on a trigger stated with it.
+
+### 11.1 Hard upload limits, made explicit
+
+Most of the serving-side protection exists: one bodies request in flight per
+peer identity, answered `503 peer_busy` with `Retry-After` and counted as
+`rejected_busy`; response streams charged to the background memory budget and
+shed with `503` under pressure; the adaptive bandwidth ceiling shared across
+peer uploads, ingests and fetches; the per-tenant HTB egress classes below the
+process. What is implicit becomes configuration: the per-peer bodies slot
+count and a per-node aggregate on peer-serving concurrency. Rejection stays
+the behaviour, never a queue, so a receiver can back off or skip. The
+`rejected_busy` rate and the limiter's effective rate join the pull
+replication dashboard row, so concentration on one gateway is measured
+rather than argued. Status: to land with the pull replication branch.
+
+### 11.2 Co-located instances that other nodes cannot dial (placeholder)
+
+The runner-cache region publishes no public peer host, so an enrolled
+self-hosted node never lists it as a peer and cannot dial it, while the
+runner node dials the self-hosted node from its static peer list. Today push
+covers that leg. After the flip the runner node sees the self-hosted peer
+advertise `pulling`, stops pushing to it and opens a region link *from* it,
+and nothing pulls the other way: the runner region's writes reach that
+self-hosted node only through backward passes from other managed gateways.
+Decision pending; the candidate is a push exception, keep pushing to a
+pulling peer that has no route back, driven by a server signal (a region
+without a public peer host) or a heartbeat field, with a ring-A test. It must
+land before any account with both a self-hosted node and a runner region
+flips. Giving the runner region a public peer host is the alternative and
+removes the exception.
+
+### 11.3 A Plumtree-shaped tree, if the clique or egress spread ever matters
+
+Trigger: more than about five regions in one mesh, or one origin's gateway
+sustained near its egress class. The shape is Plumtree's eager/lazy split
+(Leitão, Pereira, Rodrigues, 2007), composed with this design rather than
+replacing it:
+
+- **Lazy links stay as they are.** Every gateway keeps reading each origin's
+  listing ascending from its watermark. Descriptors are about 100 bytes; this
+  is what advances the watermark and what keeps tombstones and recovery
+  complete. The watermark, the backward pass and the roles do not change.
+- **Eager links carry bodies.** A gateway fetches bodies from one parent that
+  already holds them instead of from the origin: a non-origin gateway serves
+  its listing filtered by `origin_region`, bounded by its own watermark for
+  that origin, so it never lists an entry it has not consumed contiguously.
+  The origin's egress becomes its number of eager children times `S` rather
+  than `(R-1) x S`; total WAN bytes are unchanged.
+- **The tree tunes itself.** A child that keeps seeing a record on the
+  origin's listing before its parent holds it promotes the origin (or another
+  gateway) to eager and demotes the parent; a parent that only delivers what
+  the child already has is demoted. A parent that answers `Absent` for a
+  record it declined falls back to the origin for that body, so capacity
+  decisions stay local (INV-9).
+- **Optionally, lazy links go through the parent too**, bounded the same way,
+  which cuts a gateway's connections from `R-1` to the tree degree at the
+  cost of one hop of latency on descriptors. That is the lever if the clique
+  itself ever hurts.
+
+Cost when it is needed: one query parameter on the existing listing, a
+per-link mode on the puller, and the promote/demote rule. Same port, same CA,
+same capability-negotiated migration. It delivers one copy per node, which is
+what the bandwidth argument wants; a gossip mesh delivers about its degree in
+copies by design.
