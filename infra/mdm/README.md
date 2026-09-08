@@ -243,9 +243,11 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
 
    ```bash
    curl -u "depserver:$NANODEP_API_KEY" -X PUT \
-     -d "{\"profile_uuid\": \"$PROFILE_UUID\"}" \
-     "http://mdm-dep.taild6d7bb.ts.net:9001/v1/assigner/tuist"
+     "http://mdm-dep.taild6d7bb.ts.net:9001/v1/assigner/tuist?profile_uuid=$PROFILE_UUID"
    ```
+
+   The profile UUID is a query parameter, not a JSON body; a body is
+   rejected with a bare `400 Bad Request` that names nothing.
 
    (`auto_advance_setup` requires Ethernet, which the fleet always has;
    on macOS 15.4+ the "Set Up as New or Restore" pane cannot be hidden,
