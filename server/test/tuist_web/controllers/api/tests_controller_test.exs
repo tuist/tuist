@@ -405,6 +405,60 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "accepts a skipped repetition, which the Gradle plugin reports for an aborted rerun", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        [module] = attrs.test_modules
+        [test_case] = module.test_cases
+        assert Enum.map(test_case.repetitions, & &1.status) == ["success", "skipped"]
+
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 3000,
+            macos_version: "",
+            xcode_version: "",
+            is_ci: true,
+            build_system: "gradle",
+            status: "success",
+            scheme: "my-android-app",
+            test_modules: [
+              %{
+                name: ":app",
+                status: "success",
+                duration: 3000,
+                test_suites: [%{name: "com.example.LoginTest", status: "success", duration: 2000}],
+                test_cases: [
+                  %{
+                    name: "testLogin",
+                    test_suite_name: "com.example.LoginTest",
+                    status: "success",
+                    duration: 1500,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "success", duration: 700},
+                      %{repetition_number: 2, name: "Stress 1", status: "skipped", duration: 800, source: "stress"}
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        )
+
+      assert %{"type" => "test"} = json_response(conn, 200)
+    end
+
     test "creates a test run without macos_version (not required)", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 

@@ -83,7 +83,7 @@ defmodule TuistWeb.API.Schemas.Tests.StressNewTestsResult do
                   repetition_number: %Schema{type: :integer, description: "The 1-based position of this repetition."},
                   status: %Schema{
                     type: :string,
-                    enum: ["success", "failure"],
+                    enum: ["success", "failure", "skipped"],
                     description: "The result of this repetition."
                   },
                   duration: %Schema{type: :integer, description: "Duration of this repetition in milliseconds."},

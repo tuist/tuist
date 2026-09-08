@@ -349,7 +349,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp append_stress(test_case, stress_repetitions) do
-    own = test_case["repetitions"] || []
+    own = own_repetitions(test_case)
     offset = length(own)
 
     numbered =
@@ -363,6 +363,27 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       end)
 
     own ++ numbered
+  end
+
+  # A test case the run did not retry reports no repetitions, so the execution the gate
+  # reacted to would be missing and a candidate that failed every rerun would read as
+  # uniformly failed rather than flaky.
+  defp own_repetitions(test_case) do
+    case test_case["repetitions"] || [] do
+      [] ->
+        [
+          %{
+            "repetition_number" => 1,
+            "name" => "First Run",
+            "status" => test_case["status"] || "success",
+            "duration" => test_case["duration"] || 0,
+            "source" => "run"
+          }
+        ]
+
+      repetitions ->
+        repetitions
+    end
   end
 
   # A rerun's failure is kept on the test case, where every other execution's

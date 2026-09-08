@@ -787,7 +787,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+                passingTargetNames: await passingTargetNames(
+                    resultBundlePath: resultBundlePath,
+                    blockedBy: stressResult
+                ),
                 cacheStorage: hashUploadStorage
             )
         }
@@ -949,7 +952,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
-            passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+            passingTargetNames: await passingTargetNames(
+                resultBundlePath: resultBundlePath,
+                blockedBy: stressResult
+            ),
             cacheStorage: hashUploadStorage
         )
 
@@ -1229,6 +1235,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         guard !cacheableItems.isEmpty else { return }
         try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+    }
+
+    /// The modules that passed, minus any the gate is failing the run over.
+    ///
+    /// A candidate passed the first pass by construction, so its module is in the passing set
+    /// however the reruns went. Banking its hash would let a re-run of the blocked job skip the
+    /// module, report no test cases for it, and exit green with no change to the branch.
+    private func passingTargetNames(
+        resultBundlePath: AbsolutePath?,
+        blockedBy stressResult: StressNewTestsResult?
+    ) async -> Set<String> {
+        let passing = await passingTargetNames(resultBundlePath: resultBundlePath)
+        guard let stressResult, stressResult.blocks else { return passing }
+        return passing.subtracting(stressResult.blockingCandidates.map(\.identifier.target))
     }
 
     private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
@@ -2215,6 +2235,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    /// The gate writes its bundles into a directory of its own. Nothing reads them once the run
+    /// has been reported, in either processing mode.
+    private func removeStressResultBundles(_ stressNewTests: StressNewTestsResult?) async {
+        guard let directory = stressNewTests?.resultBundlePaths.first?.parentDirectory else { return }
+        try? await fileSystem.remove(directory)
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -2238,7 +2265,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             switch mode {
             case .local:
-                guard let testSummary else { return }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
@@ -2250,7 +2277,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     stressNewTests: stressNewTests?.serverPayload
                 )
             case .remote:
-                guard let resultBundlePath else { return }
+                guard let resultBundlePath else { break }
                 let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
@@ -2269,11 +2296,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
             case .off:
-                return
+                break
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+
+        await removeStressResultBundles(stressNewTests)
     }
 
     private func destination(

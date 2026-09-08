@@ -218,9 +218,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       expect(Tuist.Tests, :create_test, fn attrs ->
         [first, second] = hd(attrs.test_modules)["test_cases"]
 
+        # The first pass leads, so a candidate that failed every rerun still reads as flaky.
         assert Enum.map(first["repetitions"], &{&1["repetition_number"], &1["status"], &1["source"]}) == [
-                 {1, "success", "stress"},
-                 {2, "failure", "stress"}
+                 {1, "success", "run"},
+                 {2, "success", "stress"},
+                 {3, "failure", "stress"}
                ]
 
         # The rerun's failure lives on the test case, where every other failure does.
@@ -234,6 +236,42 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       args =
         job_args(test_run_id, account.id, project.id, extra: %{"stress_storage_key" => "tuist/tests/stress.zip"})
 
+      assert :ok == ProcessXcresultWorker.perform(oban_job(args))
+    end
+
+    test "keeps the first pass's execution so a candidate that failed every rerun reads as flaky", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      main =
+        put_in(parsed_data(), ["test_modules", Access.at(0), "test_cases"], [
+          %{
+            "name" => "testExample",
+            "test_suite_name" => "FirstTests",
+            "status" => "success",
+            "duration" => 1,
+            "failures" => []
+          }
+        ])
+
+      expect_stress_parse(
+        main,
+        stress_parsed("AppModuleTests", "FirstTests", "testExample", ["failure", "failure"])
+      )
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        [test_case] = hd(attrs.test_modules)["test_cases"]
+        statuses = Enum.map(test_case["repetitions"], & &1["status"])
+
+        assert statuses == ["success", "failure", "failure"]
+        assert "success" in statuses and "failure" in statuses
+
+        {:ok, %{id: test_run_id}}
+      end)
+
+      args = job_args(test_run_id, account.id, project.id, extra: %{"stress_storage_key" => "tuist/tests/stress.zip"})
       assert :ok == ProcessXcresultWorker.perform(oban_job(args))
     end
 

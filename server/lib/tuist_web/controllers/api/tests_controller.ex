@@ -431,7 +431,7 @@ defmodule TuistWeb.API.TestsController do
                              status: %Schema{
                                type: :string,
                                description: "The status of this repetition attempt.",
-                               enum: ["success", "failure"]
+                               enum: ["success", "failure", "skipped"]
                              },
                              duration: %Schema{
                                type: :integer,

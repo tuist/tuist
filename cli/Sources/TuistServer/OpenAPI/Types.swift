@@ -3475,6 +3475,7 @@ public enum Components {
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case skipped = "skipped"
                         }
                         /// The status of this repetition attempt.
                         ///
@@ -6326,6 +6327,7 @@ public enum Components {
                     @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case success = "success"
                         case failure = "failure"
+                        case skipped = "skipped"
                     }
                     /// The result of this repetition.
                     ///
@@ -20406,6 +20408,7 @@ public enum Operations {
                                 @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case success = "success"
                                     case failure = "failure"
+                                    case skipped = "skipped"
                                 }
                                 /// The status of this repetition attempt.
                                 ///

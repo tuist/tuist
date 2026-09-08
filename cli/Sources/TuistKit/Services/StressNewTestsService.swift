@@ -462,9 +462,6 @@ public struct StressNewTestsService: StressNewTestsServicing {
         } else {
             return ([:], nil)
         }
-        if resultBundleDirectory == nil {
-            defer { Task { try? await fileSystem.remove(directory) } }
-        }
         let resultBundlePath = directory.appending(component: "stress-\(repetitions)-\(batch).xcresult")
 
         var passError: Error?

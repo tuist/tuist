@@ -513,6 +513,13 @@ extension XcodeBuildTestCommandService {
         return identifiers
     }
 
+    /// The gate writes its bundles into a directory of its own. Nothing reads them once the run
+    /// has been reported, in either processing mode.
+    private func removeStressResultBundles(_ stressNewTests: StressNewTestsResult?) async {
+        guard let directory = stressNewTests?.resultBundlePaths.first?.parentDirectory else { return }
+        try? await fileSystem.remove(directory)
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -534,7 +541,7 @@ extension XcodeBuildTestCommandService {
         do {
             switch mode {
             case .local:
-                guard let testSummary else { return }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
@@ -546,7 +553,7 @@ extension XcodeBuildTestCommandService {
                     stressNewTests: stressNewTests?.serverPayload
                 )
             case .remote:
-                guard let resultBundlePath else { return }
+                guard let resultBundlePath else { break }
                 let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
@@ -565,11 +572,13 @@ extension XcodeBuildTestCommandService {
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
             case .off:
-                return
+                break
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+
+        await removeStressResultBundles(stressNewTests)
     }
 
     /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions

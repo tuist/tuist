@@ -421,6 +421,7 @@ components:
                             enum:
                               - success
                               - failure
+                              - skipped
                             type: string
                             x-struct:
                             x-validate:
@@ -2404,6 +2405,7 @@ components:
                       enum:
                         - success
                         - failure
+                        - skipped
                       type: string
                       x-struct:
                       x-validate:
@@ -9864,6 +9866,7 @@ paths:
                                     enum:
                                       - success
                                       - failure
+                                      - skipped
                                     type: string
                                     x-struct:
                                     x-validate:

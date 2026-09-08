@@ -1,11 +1,13 @@
 defmodule Tuist.Tests.TestRunStressCandidate do
   @moduledoc """
   One test case the stress gate examined for a test run: the identity the run
-  reported, how many repetitions the project's curve priced it at, how many
+  reported, how many repetitions the repetition curve priced it at, how many
   failed, and the outcome the gate assigned. Stored in ClickHouse beside the
-  `Tuist.Tests.Test` it belongs to via `test_run_id`, apart from
-  `test_case_run_repetitions`, so the flakiness aggregates, auto-marking and
-  alerts never read a solicited repetition as an organic one.
+  `Tuist.Tests.Test` it belongs to via `test_run_id`.
+
+  The repetitions themselves are not here. They are executions of the test case
+  like any other and live in `test_case_run_repetitions` tagged `stress`, which
+  is what lets a test case the gate found flaky read as flaky everywhere.
   """
   use Ecto.Schema
 
