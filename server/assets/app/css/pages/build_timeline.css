@@ -106,6 +106,7 @@
   & [data-part="timeline-chart"],
   & [data-part="metric-track"] {
     box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-1);
   }
   & [data-part="timeline-chart"] {
     position: relative;
