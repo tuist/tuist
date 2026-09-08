@@ -19,6 +19,32 @@ its peer. Both links pull, and both long-poll.
 
 ---
 
+## 0. The problem this replaces
+
+Replication today is **direct mail with per-target durable queues**. A write
+enqueues one outbox row *per peer* inside the same synchronous RocksDB batch as
+the manifest commit; a background worker drains those rows and pushes each to
+its peer. Two lanes give inline artifacts strict priority over segment-backed
+bodies; receivers apply and never forward; catch-up is a separate walker,
+edge-triggered on membership changes and bounded by a recency horizon. The
+full mechanism and the analysis are in
+[`replication-scaling.md`](replication-scaling.md); the six limits it
+identifies are what this design has to remove.
+
+| | Limit | Why it is structural | Removed by |
+| --- | --- | --- | --- |
+| **L1** | **Fan-out lands on the hottest node.** Egress from the write-receiving node is `(N-1) x S`, and the cheap loopback copies share one pipeline with the expensive WAN ones. | The node under bursty client load is the node doing all the replication work. | Pull, so each receiver paces itself (§3, §4); the gateway topology, so bytes cross a region boundary once (§2). |
+| **L2** | **Write availability is coupled to the slowest peer.** One depth cap shared by all targets, reserved `N-1` at a time; an unreachable peer's backlog consumes the budget healthy peers need, and client writes get `429`. | A queue bounded for safety cannot also be the convergence mechanism — Cassandra's hinted-handoff lesson. | A feed that drops oldest instead of blocking (§3.1, INV-8); no per-target queue at all. |
+| **L3** | **Commit-path cost.** `N-1` extra puts in a synchronous batch per write, plus `N-1` later deletes, for data that is pure routing state. | It scales with mesh size on the critical path of every write. | One feed row per commit regardless of peer count, trimmed in batches (§3.1, §8). |
+| **L4** | **Blind pushes.** The sender does not know what the receiver has or whether it will keep it; content addressing goes unexploited and bytes ship before the receiver's admission runs. | Push cannot ask; only a puller knows what it lacks. | Descriptor pages with receiver-side admission before bytes move (§3.1, §4.1). |
+| **L5** | **No continuous anti-entropy.** Messages are dropped for targets that left the view, a rejoining peer re-walks only to the horizon, the walker is edge-triggered. | Convergence depends on a queue never losing anything and on membership events firing at the right times. | Continuous forward sync on both links (§3.1, §4.1), backward sync on every membership change (§4.1). |
+| **L6** | **Priority is two-valued and global.** Two lanes, one inflight budget, one bandwidth limiter, no per-peer isolation. | A far peer's multi-gigabyte backlog occupies the slots the local sibling — whose convergence rollouts depend on — needs. | Two links with separate guarantees and separate mechanisms (§1); the limiter stops at the region boundary (§4.8). |
+
+The design's own test is the table's last column: every limit maps to a
+section, and a section that removed none of them would not be in the document.
+
+---
+
 ## 1. Requirements
 
 The two links have different jobs, and conflating them is what made earlier
@@ -78,7 +104,9 @@ already exists:
 complement rule needs no tie-break because of it. A third replica would share
 the same host, so it multiplies storage cost without adding failure
 independence; read scaling does not motivate one either, since a single primary
-serves. If that ever changes, the tie-break is lowest ordinal among the eligible.
+serves. If that ever changes, the tie-break is lowest ordinal among the
+eligible, and the feed (§3.1) trims below the *lowest* consumer cursor rather
+than the single one.
 
 The Ready-and-non-draining qualifier is load-bearing. A bare complement rule
 hands the gateway to the pod on its way out the moment the primary drains and
@@ -164,7 +192,11 @@ Rules the server holds to:
   transiently while the holder restarts, or while a rollout suspension is in
   force (§2.1.1).
 - Prefer overlap to a gap when moving it: two gateways for a transition window
-  cost one duplicate fetch and self-correct; zero stalls the region.
+  cost one duplicate fetch and self-correct; zero stalls the region. The window
+  is **two heartbeat periods** — long enough for every node to have fetched the
+  new list — and while it lasts, remote gateways pull from both of the region's
+  published gateways and the pair inside the region both pull cross-region.
+  The second listing shows records already present; bodies are fetched once.
 - Never designate a pod that is about to be drained; the role would evaporate
   seconds later.
 
@@ -183,7 +215,14 @@ cross-region path is broken. A single stale pair is the path between two
 regions, and moving either role cannot fix a path: it raises an alert and
 leaves the topology alone. After any re-designation the region is left alone
 for **15 minutes**, so a failure the new gateway shares with the old one
-cannot flap the role. That keeps the decision with the authority, which is why
+cannot flap the role.
+
+Two shapes make the node-versus-path distinction unavailable, and the rule
+says what happens in each. With **one remote region**, a stale pair is also
+"every region", so the server re-designates — at worst once per cooldown, with
+the alert firing throughout. A **region of one** has nowhere to move the role
+to; the alert fires and nothing else happens. That keeps the decision with the
+authority, which is why
 nodes need no bypass rule of their own: a node only ever talks to the peers
 its role says it talks to, and a stuck path is fixed by moving the role rather
 than by routing around it.
@@ -209,7 +248,10 @@ Two shapes, and they degrade differently.
 handling. They fetch the same peer list over the mesh heartbeat and read their
 role from it exactly as a managed pod does. The controller is absent, so the
 server resolves roles from what it can see (registered endpoints, their reported
-`traffic_state`, their liveness) rather than from a `KuraInstance` status.
+`traffic_state`, their liveness) rather than from a `KuraInstance` status. There
+is no primary designation to take the complement of, so the rule is the one the
+serverless mode uses: the gateway is the lowest node URL among the region's
+Ready, non-draining members.
 
 **Fully self-hosted meshes with no server** have no authority at all, so each
 instance acts as its own, from the same inputs every node already has:
@@ -260,18 +302,33 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
 - **`seq`** comes from a persisted per-node counter, monotonic across restarts
   and independent of any wall clock. The row is written in the same batch as
   the change it describes, so a crash cannot separate them.
+- **A position is `(incarnation, seq)`.** The incarnation is a random id the
+  node mints once, the first time it creates its store, and persists in it
+  (`sync/fwd/meta/incarnation`). It identifies *that copy of the data*, not
+  the node: a restart on the same volume keeps it, a pod recreated on an empty
+  volume gets a new one. Every forward response echoes it and the puller
+  stores it beside its cursor, the way a Kafka consumer keeps the cluster id
+  with its offset. Without it `seq` is ambiguous — a rebuilt store restarts
+  the counter at zero, so a sibling holding an old, higher cursor would sit
+  above the new head and long-poll forever, never falling off the feed. It is
+  not the `generation` in `/ready`, which is per-process cluster state.
 - **Written for what the sibling does not have.** A client write and a
-  region-sync apply each produce a row. A change pulled *from the sibling*
-  never does — its only consumer already has it, and without this rule the two
-  replicas would echo every record back and forth forever. Nor does an apply
-  that changed nothing (last-writer-wins kept the local record).
+  region-sync apply each produce a row. A change that *arrived from the
+  sibling* — by either sync direction, or by an old-version sibling's push
+  during migration — never does: its only consumer already has it, and without
+  this rule the two replicas would echo every record back and forth forever.
+  Nor does an apply that changed nothing (last-writer-wins kept the local
+  record).
 - **Always maintained.** A region of one has no consumer and its feed simply
   churns at the cap. Switching the feed off without a sibling would save that
   churn but reopen a race the moment one appears — the sibling snapshots the
   head before the source starts writing rows — so it stays on.
 - **Trimmed from below.** Every request carries the sibling's cursor, and the
   source deletes rows at or below it in a batched trim — with one consumer per
-  direction, that position is a single number.
+  direction, that position is a single number. Trims are range deletes and
+  the floor is kept as an explicit meta value, not found by iterating: a feed
+  that churns at its cap would otherwise leave a wall of point tombstones for
+  every seek to the floor to climb.
 - **Capped from above, dropping oldest.** If the sibling is absent or slow the
   feed reaches its cap and the oldest rows go, exactly as the segment ring drops
   its oldest content. **Writes are never blocked** — which is the whole failure
@@ -289,8 +346,9 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   receiver applies its own admission before bytes move. The extra round trip
   is sub-millisecond on loopback.
 
-The endpoint is `GET /_internal/sync/forward?after={seq}&wait=30s`, and its
-contract is three cases:
+The endpoint is `GET /_internal/sync/forward?after={seq}&wait=30s`, under the
+same peer authentication as every other `/_internal/*` route, and its contract
+is four cases:
 
 - **`after` at or above the floor** — returns `{entries, next, head}`,
   blocking up to `wait` when nothing is above the cursor, so a sibling
@@ -300,6 +358,17 @@ contract is three cases:
   the snapshot a bootstrapping sibling takes before its backward pass.
 - **`after` below the floor** — `410 Gone` with `{floor, head}`. The rows
   between were dropped; the sibling has fallen off the feed.
+- **`after` from another incarnation** — the same `410`. The cursor names a
+  store that no longer exists.
+
+Every response, the bare `{head}` included, carries the region watermark map
+of §4.3 in its envelope, so a cold node has the region's position before it
+does anything else.
+
+The puller **advances its cursor only when every entry of a page is applied or
+resolved** — resolved meaning the body came back `Absent` because the source
+evicted it in between, which is legal. A page that fails part-way is retried
+whole; re-applying is idempotent under last-writer-wins.
 
 A sibling with no cursor (cold, restarted without one) and a sibling that
 receives `410` do the same thing: **snapshot `head`, run the horizon-bounded
@@ -380,8 +449,10 @@ loss of that storage class, not something this design introduces.
 
 `/ready` latches when the replica bootstrap settles: the backward pass against
 the sibling completed and the forward cursor is within one page of the
-sibling's head. Without a sibling it settles immediately, and the existing
-ring-fullness latch is kept as the cold-but-useful escape it is today.
+sibling's head. Without a sibling it settles immediately; with a sibling that
+cannot be reached it settles when the pass exhausts the failure budget the
+backfill already has, ready-but-cold exactly as today; and the existing
+ring-fullness latch is kept as the cold-but-useful escape it is.
 
 Region sync never gates readiness, and neither does the gateway role. Both are
 best-effort by requirement, a region of one has nothing to wait for, and a
@@ -469,6 +540,10 @@ sank earlier cursor-inheritance schemes — but here anything the gateway acquir
 below the watermark reaches its sibling over the sibling link regardless. That
 link is the delivery path; the cross-region one is not. The strict intra-region
 guarantee is exactly what licenses the loose inter-region sharing.
+
+Entries are never dropped: a region that leaves the peer list keeps its
+watermark, so a return — or a transient disappearance — resumes rather than
+restarts, and the cost is a few dozen bytes per region a mesh has ever seen.
 
 Max is the right merge because a watermark is a monotone claim about the
 *region's* coverage, and the replicas converge, so a claim by either is a claim
@@ -610,13 +685,17 @@ last-writer-wins absorbs.
   `region` field Phase 0 published: same-region pairs use the feed, every other
   pair uses the `version_ms` reads with a region-keyed watermark — pulling from
   both of a remote region's replicas advances the same watermark, which is
-  sound because they are lossless siblings. A mixed mesh is correct throughout,
-  merely redundant.
+  sound because they are lossless siblings. A node that starts pulling from a
+  peer bootstraps as §3.1 describes — snapshot, backward pass, forward — so the
+  moment the pusher stops is covered by the pass. A mixed mesh is correct
+  throughout, merely redundant.
 - **Phase 2 — narrow the topology.** Once every peer in a mesh advertises the
   capability *and* the server is publishing roles, a node stops exchanging with
   peers its role says it should not talk to. Before that, keep the all-to-all
   exchange: it is correct, just wasteful.
 - **Phase 3 — remove the outbox.** Only when no supported peer still needs it.
+  The code goes; `ROCKSDB_CF_OUTBOX` stays, empty, for the same reason no CF is
+  ever added — a binary that expects it must still open the store.
 
 Each phase is a config flag, and reverting the flag restores the previous
 behaviour, because push and pull can coexist on the same link.
@@ -667,9 +746,10 @@ Counters scrape with a doubled suffix (`foo_total` is served as
   loopback this should be approximately never, so it is an alert, not a gauge to
   watch.
 
-- `kura_sync_forward_fell_behind_total` — the puller's side of the same event:
-  a `410` received. One per drop event is expected; a climb during recovery
-  means the cap is smaller than the sizing rule requires.
+- `kura_sync_forward_fell_behind_total{reason="floor|incarnation"}` — the
+  puller's side of the same event: a `410` received. One per drop event is
+  expected; a climb during recovery means the cap is smaller than the sizing
+  rule requires. `incarnation` names a sibling rebuilt on an empty volume.
 - `kura_sync_forward_drain_timeout_total` — a departing node exited before the
   sibling reached its head (§3.5). Recent writes lagged for the restart.
 
@@ -728,8 +808,9 @@ than transiently while the holder restarts or while a rollout suspension is in
 force. Two gateways during a transition cost one duplicate transfer and
 self-correct; zero cuts the region off.
 
-**INV-4 — a node talks only to the peers its role names.** Non-gateways never
-open a cross-region link. A stuck cross-region path is fixed by re-designation
+**INV-4 — a node talks only to the peers its role names.** In force from
+Phase 2 (§5.2); before it, all-to-all is the correct mixed-mesh behaviour.
+Non-gateways never open a cross-region link. A stuck cross-region path is fixed by re-designation
 (§2.2), not by routing around it — the exception being the serverless
 self-hosted mode, where the node derives its own role because there is no
 authority.
@@ -888,6 +969,7 @@ to re-check when a measurement disagrees.
 | Long-poll wait (§3.1, §4.1) | 30 s | Well inside the 300 s connection recycling; bounds how long a cleanly idle link goes without a proof of life. |
 | Retry backoff after a failed read (§4.1) | 250 ms → 5 s | The backfill's existing constants. |
 | Cut-off threshold (§2.2) | 5 min, every remote region | Ten consecutive failed long-polls; short enough to matter, long enough that a slow transfer is not a failure. |
+| Overlap window on a role move (§2.2) | 2 heartbeat periods | Long enough for every node to have fetched the new list; costs one duplicate listing. |
 | Re-designation cooldown (§2.2) | 15 min | Long enough that a failure the new gateway shares with the old cannot flap the role faster than someone can look. |
 | Suspension expiry (§2.1.1) | 30 min | A rollout longer than this is already abnormal; restoring early is safe because the designation rules still apply. |
 | Concurrent suspensions (§2.1.1) | 1 per mesh | Guarantees cross-region sync never pauses mesh-wide; a second rolling region absorbs the churn instead. |
