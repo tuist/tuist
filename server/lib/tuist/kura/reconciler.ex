@@ -343,6 +343,7 @@ defmodule Tuist.Kura.Reconciler do
         activate_and_mark_succeeded(deployment, server)
 
       {:ok, _other_image_tag} ->
+        refresh_private_endpoint(server)
         apply_deployment(deployment, server)
 
       {:error, :not_found} ->
@@ -394,9 +395,9 @@ defmodule Tuist.Kura.Reconciler do
             :ok
           end
 
-        {:error, reason} when reason in [:node_port_endpoint_not_ready, :private_endpoint_not_ready] ->
+        {:error, :private_endpoint_not_ready} ->
           # The controller has not yet observed the private entrance ready.
-          # Gateway DNS/TLS and legacy NodePorts may converge after the pods.
+          # Gateway DNS/TLS may converge after the pods.
           Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
 
           :ok
@@ -524,6 +525,7 @@ defmodule Tuist.Kura.Reconciler do
         reconcile_manifest_revision(server, desired)
 
       {:ok, observed} ->
+        refresh_private_endpoint(server)
         record(server, derived_status(server, latest_status), observed, now())
 
       {:error, :not_found} ->
@@ -597,7 +599,8 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  # Converged private instances still need an observed readiness heartbeat.
+  # Availability is independent of image convergence; refresh active private
+  # instances during a rollout as well as after convergence.
   # This also moves legacy node-address URLs to the gateway once it is ready.
   defp refresh_private_endpoint(%Server{} = server) do
     case Kura.refresh_private_server_url(server) do
@@ -671,7 +674,7 @@ defmodule Tuist.Kura.Reconciler do
 
         record(server, server.status, desired, now())
 
-      {:error, reason} when reason in [:node_port_endpoint_not_ready, :private_endpoint_not_ready] ->
+      {:error, :private_endpoint_not_ready} ->
         Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
 
         record(server, server.status, desired, now())

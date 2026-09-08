@@ -202,3 +202,8 @@ publication stays disabled so external-dns cannot substitute public node IPs.
 The managed certificate issuer uses DNS-01, which works with private A records.
 
 See [runner migration and verification](../../kura-controller/private-runner-rollouts.md).
+
+The Tuist chart's managed gateway policy explicitly allows the backend hop from
+Cilium host and remote-node identities to TCP 4000 on private gateway-labelled Kura pods.
+The runner CIDR allowlist remains at nginx and on legacy NodePorts. A healthy DNS
+gateway remains selected across primary handoffs, including cross-host ones.

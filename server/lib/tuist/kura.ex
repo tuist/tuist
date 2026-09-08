@@ -1106,8 +1106,8 @@ defmodule Tuist.Kura do
   # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         {:ok, url} <- private_server_url(account, server),
-         {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
+         {:ok, %{url: url, observed_at: observed_at}} <- private_server_url(account, server),
+         {:ok, server} <- activate_private_server_transaction(server, url, image_tag, observed_at) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
@@ -1117,14 +1117,14 @@ defmodule Tuist.Kura do
   end
 
   # Off-cluster runners use the endpoint observed by the controller. Gateway
-  # regions wait for DNS, TLS and serving readiness; legacy regions use NodePort.
+  # regions wait for DNS, TLS and serving readiness.
   defp private_server_url(account, %Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
       if Regions.observed_private_endpoint?(region) do
         Provisioner.external_endpoint(server)
       else
         case Provisioner.public_url(account, server) do
-          url when is_binary(url) -> {:ok, url}
+          url when is_binary(url) -> {:ok, %{url: url, observed_at: now_truncated()}}
           {:error, reason} -> {:error, reason}
           other -> {:error, other}
         end
@@ -1136,19 +1136,18 @@ defmodule Tuist.Kura do
   Refreshes an active private server's dispatch URL and readiness heartbeat.
 
   Gateway regions publish a stable hostname only after the controller observes
-  the entrance ready. Legacy NodePort regions publish the current primary's
-  node address. While either endpoint is unready, the last URL is retained and
-  its readiness clock stops advancing; after the freshness window, new jobs
+  the entrance ready. The controller's observation time is persisted unchanged.
+  While the endpoint is unready, the last URL is retained; after the freshness window, new jobs
   fall back to the public cache. Running jobs keep the URL they already received.
   """
   def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id),
          true <- Regions.observed_private_endpoint?(region) do
       case Provisioner.external_endpoint(server) do
-        {:ok, url} ->
-          mark_private_endpoint_ready(server, url)
+        {:ok, %{url: url, observed_at: observed_at}} ->
+          mark_private_endpoint_ready(server, url, observed_at)
 
-        {:error, reason} when reason in [:node_port_endpoint_not_ready, :private_endpoint_not_ready] ->
+        {:error, :private_endpoint_not_ready} ->
           :ok
 
         {:error, reason} ->
@@ -1165,15 +1164,15 @@ defmodule Tuist.Kura do
   # Endpoint observable: heartbeat the readiness clock. Rewrite the url +
   # broadcast only when it actually moved, so a steady-state node isn't
   # re-pushed to every open settings LiveView every tick.
-  defp mark_private_endpoint_ready(%Server{url: url} = server, url) do
-    case server |> Server.observation_changeset(%{last_ready_at: now_truncated()}) |> Repo.update() do
+  defp mark_private_endpoint_ready(%Server{url: url} = server, url, observed_at) do
+    case server |> Server.observation_changeset(%{last_ready_at: observed_at}) |> Repo.update() do
       {:ok, _server} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp mark_private_endpoint_ready(%Server{} = server, url) do
-    case server |> Server.observation_changeset(%{url: url, last_ready_at: now_truncated()}) |> Repo.update() do
+  defp mark_private_endpoint_ready(%Server{} = server, url, observed_at) do
+    case server |> Server.observation_changeset(%{url: url, last_ready_at: observed_at}) |> Repo.update() do
       {:ok, server} ->
         broadcast_server(server, :updated)
         :ok
@@ -1183,7 +1182,7 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp activate_private_server_transaction(server, url, image_tag) do
+  defp activate_private_server_transaction(server, url, image_tag, observed_at) do
     Repo.transaction(fn ->
       case lock_server(server.id, server.account_id) do
         nil ->
@@ -1214,7 +1213,7 @@ defmodule Tuist.Kura do
               current_image_tag: image_tag,
               observed_image_tag: image_tag,
               last_observed_at: now_truncated(),
-              last_ready_at: now_truncated()
+              last_ready_at: observed_at
             })
             |> Repo.update()
 
@@ -1223,12 +1222,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  # Staleness window for a private node-port server's readiness heartbeat
+  # Staleness window for a private gateway's controller observation
   # (`last_ready_at`). Larger than the reconciler's 30s tick so one slow
   # tick can't flap dispatch; small enough that a `/ready`-503 node
   # degrades to the public cache within a couple of minutes instead of
   # timing out builds.
-  @runner_cache_ready_staleness_seconds 120
+  @runner_cache_ready_staleness_seconds Regions.private_endpoint_staleness_seconds()
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the

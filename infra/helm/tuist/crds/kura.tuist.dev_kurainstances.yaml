@@ -223,6 +223,13 @@ spec:
               properties:
                 phase:
                   type: string
+                endpointLastCheckedAt:
+                  type: string
+                  format: date-time
+                endpointReason:
+                  type: string
+                endpointMessage:
+                  type: string
                 privateURL:
                   type: string
                 endpointObservedGeneration:

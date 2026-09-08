@@ -116,6 +116,9 @@ func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {
 
 func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	*out = *in
+	if in.EndpointLastCheckedAt != nil {
+		out.EndpointLastCheckedAt = in.EndpointLastCheckedAt.DeepCopy()
+	}
 	if in.LastReconciledAt != nil {
 		out.LastReconciledAt = in.LastReconciledAt.DeepCopy()
 	}

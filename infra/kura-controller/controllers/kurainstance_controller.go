@@ -144,7 +144,10 @@ type KuraInstanceReconciler struct {
 
 	// MetricsClient sources the readings behind requests.cpu. Nil leaves
 	// every instance on the cold-start constant.
-	MetricsClient PodMetricsClient
+	MetricsClient  PodMetricsClient
+	gatewayCacheMu sync.Mutex
+	gatewayCache   map[string]gatewaySnapshot
+	clientDNSCache map[string]clientDNSObservation
 
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
@@ -381,6 +384,49 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	pods, err := r.instancePods(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	seedCPURequest(instance, pods)
+	r.observeCPUUsage(ctx, instance, pods)
+	applyScheduleCap(instance, pods, time.Now())
+	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
+	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGRPCService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileExternalService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
 	// volume is pinned to the box it was carved on. Two states leave an instance
 	// with a claim that can never bind, with nothing to self-heal it: a
@@ -422,45 +468,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
-	pods, err := r.instancePods(ctx, instance)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	seedCPURequest(instance, pods)
-	r.observeCPUUsage(ctx, instance, pods)
-	applyScheduleCap(instance, pods, time.Now())
-	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
-	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileGRPCService(ctx, instance, primaryPod); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileExternalService(ctx, instance, primaryPod); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
 	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -494,12 +501,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	privateURL, err := r.privateGatewayURL(ctx, instance, primaryPod, pods, samples)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	instance.Status.PrivateURL = privateURL
-	instance.Status.EndpointObservedGeneration = instance.Generation
 	now := metav1.NewTime(time.Now().UTC())
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
@@ -1430,6 +1431,9 @@ func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *k
 }
 
 func (r *KuraInstanceReconciler) instanceNodeAddress(ctx context.Context, instance *kurav1alpha1.KuraInstance, private bool) (string, error) {
+	if private {
+		return r.privateGatewayTarget(ctx, instance)
+	}
 	var pods corev1.PodList
 	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
@@ -1445,12 +1449,6 @@ func (r *KuraInstanceReconciler) instanceNodeAddress(ctx context.Context, instan
 				continue
 			}
 			return "", err
-		}
-		if private {
-			if ip := net.ParseIP(node.Labels["tuist.dev/pn-ipv4"]); nodeReady(&node) && ip.To4() != nil && ip.IsPrivate() {
-				return node.Labels["tuist.dev/pn-ipv4"], nil
-			}
-			continue
 		}
 		for _, addr := range node.Status.Addresses {
 			if addr.Type == corev1.NodeInternalIP && addr.Address != "" {
@@ -1761,6 +1759,20 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 	// short gap with no endpoint at all.
 	if err := r.demoteEvacuatingPods(ctx, pods, health, caughtUp); err != nil {
 		return "", err
+	}
+	// Prefer a fully joined member, but if every sibling is absent or
+	// restarting, keep routing to a Ready serving process. Ring completeness
+	// must not pin the Service to a dead primary while a survivor can serve.
+	anyJoined := false
+	for _, healthy := range health {
+		anyJoined = anyJoined || healthy
+	}
+	if !anyJoined {
+		for i := range pods {
+			if status, fresh := samples[pods[i].Name]; fresh && podReady(&pods[i]) && runtimeStatusServing(status) {
+				health[pods[i].Name] = true
+			}
+		}
 	}
 	return choosePrimaryPod(current, instance.Name, pods, health), nil
 }
@@ -2084,11 +2096,12 @@ func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (r
 	return status, nil
 }
 
+func runtimeStatusServing(status runtimeStatus) bool {
+	return status.Ready && status.State == "serving" && status.WriterLockOwned
+}
+
 func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
-	if !status.Ready || status.State != "serving" || !status.WriterLockOwned {
-		return false
-	}
-	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
+	return runtimeStatusServing(status) && status.RingMembers >= requiredPrimaryRingMembers(replicas)
 }
 
 func requiredPrimaryRingMembers(replicas int32) int {
@@ -2615,7 +2628,6 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Labels = labels(instance)
 		sts.Spec.ServiceName = headlessServiceName(instance)
 		sts.Spec.Replicas = ptr(replicas(instance))
-		sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		binPackCeiling, err := r.ceilingBudgetAdvertised(ctx, instance)
@@ -4001,6 +4013,9 @@ func labels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	labels["app.kubernetes.io/managed-by"] = "kura-controller"
 	labels["tuist.dev/account"] = instance.Spec.AccountHandle
 	labels["tuist.dev/region"] = instance.Spec.Region
+	if instance.Spec.Private && instance.Spec.PublicHostNetwork && clientHost(instance) != "" {
+		labels["tuist.dev/host-network-gateway"] = "true"
+	}
 	return labels
 }
 

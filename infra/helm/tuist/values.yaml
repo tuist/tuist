@@ -173,7 +173,7 @@ pdcAgent:
 
 kuraController:
   enabled: false
-  # Read gateway readiness in the managed platform namespace.
+  # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
     enabled: false
   namespace: kura

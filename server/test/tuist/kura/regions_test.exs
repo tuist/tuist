@@ -588,7 +588,6 @@ defmodule Tuist.Kura.RegionsTest do
       assert region.provisioner_config.data_plane == :private_gateway
       assert region.provisioner_config.expose_node_port
       assert Regions.observed_private_endpoint?(region)
-      refute Regions.node_port_data_plane?(region)
       refute Regions.observed_private_endpoint?(Regions.get("eu-central"))
       refute Regions.observed_private_endpoint?(nil)
     end

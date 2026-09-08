@@ -253,3 +253,11 @@ Runner caches share the ordinary managed two-replica StatefulSet rollout. Both p
 Mac runner VMs resolve a stable per-account HTTPS hostname to a runner-cache node's private-network IP. A regional ingress-nginx gateway uses the same HTTP/gRPC streaming routes, TLS and primary-pinned Service as public managed instances. A primary handover changes the Service selector, not the URL. Only the DNS address and client source allowlist differ. Gateways prefer the same host as the data; cross-host placement and evacuation use the ordinary managed path. A single-host fleet still has a host failure domain, and moving the gateway address requires DNS re-resolution.
 
 See [the migration and validation runbook](../../infra/kura-controller/private-runner-rollouts.md) for legacy NodePort compatibility and the limits of readiness during asynchronous replication.
+
+Gateway availability is independent of sibling ring membership: a Ready serving
+writer remains usable during a rolling restart. Shared primary selection prefers
+fully joined peers and uses a serving survivor if none are available. Private
+DNS retains a healthy published gateway across handoffs, and an explicit Cilium
+host/remote-node rule permits its cache-port hop across hosts. The endpoint's
+check time is separate from workload convergence and is preserved through server
+dispatch, so maintenance cannot expire a healthy entrance or renew stale status.

@@ -710,17 +710,10 @@ defmodule Tuist.Kura.Regions do
     |> Enum.map(& &1.id)
   end
 
-  @doc """
-  True iff this private region's runner fleet dials a node-published
-  endpoint (`http://<node address>:<NodePort>`) instead of cluster
-  Service DNS — the data plane for fleets that share a network with
-  the region's node pool but not with the cluster's pod network.
-  """
-  def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
-  def node_port_data_plane?(_), do: false
+  @doc "Maximum age of the controller observation used for private endpoint validation and dispatch."
+  def private_endpoint_staleness_seconds, do: 120
 
-  def observed_private_endpoint?(%__MODULE__{provisioner_config: config}),
-    do: config[:data_plane] in [:node_port, :private_gateway]
+  def observed_private_endpoint?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :private_gateway
 
   def observed_private_endpoint?(_), do: false
 

@@ -240,6 +240,9 @@ type KuraInstanceRolloutHealth struct {
 type KuraInstanceStatus struct {
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
+	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
+	EndpointReason             string       `json:"endpointReason,omitempty"`
+	EndpointMessage            string       `json:"endpointMessage,omitempty"`
 	PrivateURL                 string       `json:"privateURL,omitempty"`
 	EndpointObservedGeneration int64        `json:"endpointObservedGeneration,omitempty"`
 	Phase                      string       `json:"phase,omitempty"`

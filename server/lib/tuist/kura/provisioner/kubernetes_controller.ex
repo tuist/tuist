@@ -86,7 +86,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def public_url(handle, %Regions{provisioner_config: config} = region, _ref) do
     cond do
-      template = config[:private_host_template] || config[:public_host_template] ->
+      template = config[:public_host_template] ->
         "https://" <> interpolate_host(template, dns_handle(handle), config)
 
       url = config[:public_url] ->
@@ -114,7 +114,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def grpc_public_url(handle, %Regions{provisioner_config: config}, _ref) do
     cond do
-      template = config[:private_host_template] || config[:grpc_public_host_template] ->
+      template = config[:grpc_public_host_template] ->
         "grpcs://" <> interpolate_host(template, dns_handle(handle), config)
 
       url = config[:grpc_public_url] ->
@@ -149,7 +149,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc """
   The observed endpoint for a runner outside the pod network. Private gateways
   return HTTPS only after the controller observes DNS, TLS, gateway and primary
-  readiness for the current spec. Legacy regions retain their NodePort URL.
+  readiness for the current spec. The observation timestamp is preserved so
+  dispatch uses the same freshness clock rather than starting a second window.
   """
   @impl true
   def external_endpoint(name, %Regions{provisioner_config: %{data_plane: :private_gateway}} = region) do
@@ -161,38 +162,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       with true <- is_binary(host) and host != "",
            true <- is_integer(generation) and status["endpointObservedGeneration"] == generation,
            true <- status["privateURL"] == "https://#{host}",
-           timestamp when is_binary(timestamp) <- status["lastReconciledAt"],
+           timestamp when is_binary(timestamp) <- status["endpointLastCheckedAt"],
            {:ok, observed_at, _} <- DateTime.from_iso8601(timestamp),
            age = DateTime.diff(DateTime.utc_now(), observed_at),
-           true <- age >= 0 and age < 120 do
-        {:ok, status["privateURL"]}
+           true <- age >= 0 and age < Regions.private_endpoint_staleness_seconds() do
+        {:ok, %{url: status["privateURL"], observed_at: DateTime.truncate(observed_at, :second)}}
       else
         _ -> {:error, :private_endpoint_not_ready}
       end
     end
   end
 
-  def external_endpoint(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"nodeAddress" => address} = status}} when is_binary(address) and address != "" ->
-        # nodePortHTTP is the pre-rename name of nodePortCache, read as a
-        # fallback while controllers that publish it can still be running;
-        # drop it once the fleet publishes nodePortCache everywhere (tracked in #11654).
-        port = status["nodePortCache"] || status["nodePortHTTP"]
-
-        if is_integer(port) and port > 0 do
-          {:ok, "http://#{address}:#{port}"}
-        else
-          {:error, :node_port_endpoint_not_ready}
-        end
-
-      {:ok, _} ->
-        {:error, :node_port_endpoint_not_ready}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
+  def external_endpoint(_name, %Regions{}), do: {:error, :private_endpoint_not_ready}
 
   @impl true
   def caught_up?(name, %Regions{} = region) do
@@ -375,7 +356,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPeerHostNetwork" => mesh_peer_host_network?(region),
           "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
-          "exposeNodePort" => Regions.node_port_data_plane?(region) or region.provisioner_config[:expose_node_port],
+          "exposeNodePort" => region.provisioner_config[:expose_node_port],
           "clientCIDRs" => client_cidrs(region),
           # The account's effective pair, not the region's. The controller
           # derives the shaper's tuist.dev/egress-class from these same two
@@ -523,12 +504,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     if Regions.private?(region) do
       config = region.provisioner_config
 
-      endpoint =
-        {config[:private_host_template], config[:ingress_class_name], config[:data_plane], config[:expose_node_port],
-         config[:client_cidrs]}
+      inputs =
+        [
+          "host=#{config[:private_host_template]}",
+          "class=#{config[:ingress_class_name]}",
+          "plane=#{config[:data_plane]}",
+          "node-port=#{config[:expose_node_port]}"
+        ] ++ Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
 
-      digest = endpoint |> :erlang.term_to_binary() |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower)
-      "+replicas#{replicas(region)}+endpoint#{String.slice(digest, 0, 12)}"
+      digest = revision_digest(inputs)
+      "+replicas#{replicas(region)}+endpoint#{digest}"
     else
       ""
     end
@@ -601,16 +586,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # peer changes the desired revision and the reconciler re-applies the manifest.
   defp peers_revision_suffix([]), do: ""
 
-  defp peers_revision_suffix(peer_urls) when is_list(peer_urls) do
-    digest =
-      peer_urls
-      |> Enum.sort()
-      |> Enum.join(",")
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, 12)
+  defp peers_revision_suffix(peer_urls) when is_list(peer_urls), do: "+peers-" <> revision_digest(peer_urls)
 
-    "+peers-" <> digest
+  defp revision_digest(values) do
+    values
+    |> Enum.sort()
+    |> Enum.join(",")
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 12)
   end
 
   # Whether KURA_MESH_PEERS_SYNC is set has to be part of the revision, or a

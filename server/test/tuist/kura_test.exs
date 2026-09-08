@@ -1033,7 +1033,7 @@ defmodule Tuist.KuraTest do
 
       expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
         assert id == server.id
-        {:ok, "http://172.16.0.2:30080"}
+        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert {:ok, active} = Kura.activate_server(server, "0.5.2")
@@ -1056,10 +1056,10 @@ defmodule Tuist.KuraTest do
         })
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:error, :node_port_endpoint_not_ready}
+        {:error, :private_endpoint_not_ready}
       end)
 
-      assert {:error, :node_port_endpoint_not_ready} = Kura.activate_server(server, "0.5.2")
+      assert {:error, :private_endpoint_not_ready} = Kura.activate_server(server, "0.5.2")
       assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
     end
   end
@@ -1083,7 +1083,10 @@ defmodule Tuist.KuraTest do
           image_tag: "0.5.2"
         })
 
-      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
       {:ok, active} = Kura.activate_server(server, "0.5.2")
       %{server: active}
     end
@@ -1094,7 +1097,11 @@ defmodule Tuist.KuraTest do
       assert Repo.get!(Server, server.id).url == "http://172.16.0.2:30080"
 
       url = "https://account-scw-fr-par-runners.kura.tuist.dev"
-      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, url} end)
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, %{url: url, observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
       assert :ok = Kura.refresh_private_server_url(server)
       assert Repo.get!(Server, server.id).url == url
     end
@@ -1102,7 +1109,7 @@ defmodule Tuist.KuraTest do
     test "updates the URL when the primary pod moved nodes", %{server: server} do
       expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
         assert id == server.id
-        {:ok, "http://172.16.0.5:30080"}
+        {:ok, %{url: "http://172.16.0.5:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert :ok = Kura.refresh_private_server_url(server)
@@ -1111,11 +1118,24 @@ defmodule Tuist.KuraTest do
 
     test "keeps the last known URL while the endpoint is unobservable", %{server: server} do
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:error, :node_port_endpoint_not_ready}
+        {:error, :private_endpoint_not_ready}
       end)
 
       assert :ok = Kura.refresh_private_server_url(server)
       assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "rereading the same controller observation does not extend endpoint readiness", %{server: server} do
+      observed_at = DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -90)
+
+      expect(Provisioner, :external_endpoint, 2, fn %Server{} ->
+        {:ok, %{url: server.url, observed_at: observed_at}}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert Repo.get!(Server, server.id).last_ready_at == observed_at
+      assert :ok = Kura.refresh_private_server_url(Repo.get!(Server, server.id))
+      assert Repo.get!(Server, server.id).last_ready_at == observed_at
     end
 
     test "heartbeats last_ready_at without rewriting the URL when the endpoint is unchanged", %{server: server} do
@@ -1126,7 +1146,7 @@ defmodule Tuist.KuraTest do
       backdated = Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: past) |> Repo.update!()
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:ok, "http://172.16.0.2:30080"}
+        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
       end)
 
       assert :ok = Kura.refresh_private_server_url(backdated)
@@ -1140,7 +1160,7 @@ defmodule Tuist.KuraTest do
       Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stamp) |> Repo.update!()
 
       expect(Provisioner, :external_endpoint, fn %Server{} ->
-        {:error, :node_port_endpoint_not_ready}
+        {:error, :private_endpoint_not_ready}
       end)
 
       assert :ok = Kura.refresh_private_server_url(server)
@@ -1192,7 +1212,10 @@ defmodule Tuist.KuraTest do
           image_tag: "0.5.2"
         })
 
-      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, %{url: "http://172.16.0.2:30080", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
       {:ok, active} = Kura.activate_server(server, "0.5.2")
 
       %{account: account, server: active}
@@ -1321,7 +1344,10 @@ defmodule Tuist.KuraTest do
       {:ok, private} =
         Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
 
-      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, %{url: "http://172.16.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
       {:ok, active_private} = Kura.activate_server(private, "0.5.2")
 
       stale = ~U[2020-01-01 00:00:00Z]
@@ -1341,7 +1367,10 @@ defmodule Tuist.KuraTest do
       {:ok, private} =
         Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
 
-      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, %{url: "http://172.16.0.2:30815", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
       {:ok, active_private} = Kura.activate_server(private, "0.5.2")
 
       # activate_server/2 stamps last_ready_at, so the node serves at once and

@@ -1876,8 +1876,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "publicHost")
       refute Map.has_key?(spec, "rolloutPolicy")
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] =~ "+replicas2+endpoint"
-      assert KubernetesController.public_url("tuist", region, "ignored") == "https://#{spec["privateHost"]}"
-      assert KubernetesController.grpc_public_url("tuist", region, "ignored") == "grpcs://#{spec["privateHost"]}"
+      refute KubernetesController.public_url("tuist", region, "ignored") == "https://#{spec["privateHost"]}"
+      assert KubernetesController.grpc_public_url("tuist", region, "ignored") == nil
 
       assert KubernetesController.internal_url("tuist", region, "actual-ref") ==
                "http://actual-ref.kura.svc.cluster.local:4000"
@@ -1903,6 +1903,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end
     end
 
+    test "canonical endpoint revision ignores CIDR ordering" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
+      region = Regions.get("scw-fr-par-runners")
+      config = Map.put(region.provisioner_config, :client_cidrs, ["172.16.0.0/22", "172.16.4.0/22"])
+      ordered = %{region | provisioner_config: config}
+      reversed = %{region | provisioner_config: %{config | client_cidrs: Enum.reverse(config.client_cidrs)}}
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+
+      assert KubernetesController.manifest_revision(server, ordered) ==
+               KubernetesController.manifest_revision(server, reversed)
+    end
+
     test "publishes only the current, fresh, observed gateway URL" do
       region = Regions.get("scw-fr-par-runners")
       url = "https://tuist-scw-fr-par-runners.kura.tuist.dev"
@@ -1913,20 +1927,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "status" => %{
           "privateURL" => url,
           "endpointObservedGeneration" => 2,
-          "lastReconciledAt" => DateTime.to_iso8601(DateTime.utc_now()),
+          "endpointLastCheckedAt" => DateTime.to_iso8601(DateTime.truncate(DateTime.utc_now(), :second)),
           "nodeAddress" => "172.16.0.2",
           "nodePortCache" => 30_080
         }
       }
 
       stub(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
-      assert KubernetesController.external_endpoint("instance", region) == {:ok, url}
+      assert {:ok, %{url: ^url, observed_at: observed_at}} = KubernetesController.external_endpoint("instance", region)
+      assert DateTime.to_iso8601(observed_at) == instance["status"]["endpointLastCheckedAt"]
+
+      # Storage maintenance can keep the generic workload timestamp old.
+      maintenance = put_in(instance, ["status", "lastReconciledAt"], "2020-01-01T00:00:00Z")
+      stub(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, maintenance} end)
+      assert {:ok, %{url: ^url, observed_at: ^observed_at}} = KubernetesController.external_endpoint("instance", region)
 
       for stale <- [
             put_in(instance, ["status", "privateURL"], ""),
             put_in(instance, ["status", "privateURL"], "https://wrong.example.com"),
             put_in(instance, ["metadata", "generation"], 3),
-            put_in(instance, ["status", "lastReconciledAt"], DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -121))),
+            put_in(
+              instance,
+              ["status", "endpointLastCheckedAt"],
+              DateTime.to_iso8601(DateTime.add(DateTime.utc_now(), -121))
+            ),
             %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortCache" => 30_080}}
           ] do
         stub(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, stale} end)
@@ -1936,40 +1960,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "external_endpoint/2" do
-    test "builds the node-published URL from the observed status" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortCache" => 30_080}}}
-      end)
+    test "does not query cluster-DNS regions for an off-cluster endpoint" do
+      reject(&Client.get_kura_instance/3)
 
-      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
-               {:ok, "http://172.16.0.2:30080"}
+      assert KubernetesController.external_endpoint("instance", scaleway_region()) ==
+               {:error, :private_endpoint_not_ready}
     end
 
-    test "falls back to the pre-rename nodePortHTTP field while old controllers run" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortHTTP" => 30_080}}}
-      end)
-
-      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
-               {:ok, "http://172.16.0.2:30080"}
-    end
-
-    test "is not ready until the controller observed the full chain" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"nodePortCache" => 30_080}}}
-      end)
-
-      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
-               {:error, :node_port_endpoint_not_ready}
-    end
-
-    test "propagates client errors" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:error, :timeout}
-      end)
-
-      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
-               {:error, :timeout}
+    test "propagates gateway client errors" do
+      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:error, :timeout} end)
+      assert KubernetesController.external_endpoint("instance", Regions.get("scw-fr-par-runners")) == {:error, :timeout}
     end
   end
 
@@ -2005,7 +2005,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         cluster_id: "scw-fr-par",
         private: true,
         private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
-        data_plane: :node_port,
+        data_plane: :cluster_dns,
+        expose_node_port: true,
         client_cidrs: ["172.16.0.0/22"],
         pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
         node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},

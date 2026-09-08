@@ -14,10 +14,12 @@ same-host affinity, or runner-specific pod replacement state machine.
   outbox. Restarting a pod triggers initial peer backfill. The standby is writable
   and participates in replication throughout its lifetime.
 - HTTP and gRPC enter through the regional ingress-nginx gateway and the same
-  primary-pinned Service. The primary stays selected while runtime-routable;
-  readiness/deletion events cause selection to hand off to a healthy sibling.
+  primary-pinned Service. Selection prefers fully joined members; if none are available, a Ready
+  serving survivor can retain or take over the role while its sibling restarts.
 - The existing SIGUSR1 preStop and termination budget drain connections.
-  The normal disruption budget and node-evacuation machinery apply.
+  The normal disruption budget and node-evacuation machinery apply. Kubernetes
+  defaults new StatefulSets to RollingUpdate; an operator-set OnDelete pause
+  is preserved during reconciliation.
 
 This is asynchronous replication. Kubernetes Ready and runtime-routable do not
 prove that initial backfill has completed or every newly acknowledged write has
@@ -36,8 +38,11 @@ private host retains its legacy cluster/NodePort behavior, even if an old
 
 The stable account hostname is
 `<account>-scw-fr-par-runners<environment-suffix>.kura.tuist.dev`, where the
-suffix is empty, `-staging`, or `-canary`. Its A record uses a Ready cache node's
-`tuist.dev/pn-ipv4` label, never the public Node InternalIP. Public peer DNS keeps
+suffix is empty, `-staging`, or `-canary`. Its A record uses a Ready gateway node's
+`tuist.dev/pn-ipv4` label, never the public Node InternalIP. Initial placement
+prefers the selected primary's node, with a deterministic fallback. A healthy
+published gateway stays selected across primary handoffs and Pod List reordering;
+only losing that gateway requires a DNS-address change. Public peer DNS keeps
 its existing public address. The hostname is public DNS metadata pointing to a
 private address; DNS-01 issues the same managed TLS certificate as other Kura
 hosts. It is not a secret hostname or a floating private IP.
@@ -49,14 +54,36 @@ real-IP rewriting and PROXY protocol disabled on this direct entrance. Ingress
 status publication is disabled: only the per-account DNSEndpoint may advertise
 the hostname's IP. Empty or invalid allowlists suppress private ingress creation.
 
-The controller publishes `status.privateURL` after observing the serving primary,
-current Ready certificate, Ready gateway pod on the DNS target node and DNS
-resolving exclusively to that private IP. Its `platform` Pod read permission is
-list-only and explicitly enabled by managed values. The server requires the
-matching spec generation and an observation less than 120 seconds old before
-activation or refresh. Missing readiness preserves the stored URL and stops its
-heartbeat; dispatch eventually falls back to the ordinary cache. In-cluster
-callers retain the Service DNS URL.
+The gateway-to-backend hop is explicitly allowed by a CiliumNetworkPolicy for
+pods labelled `tuist.dev/host-network-gateway=true`: only TCP port 4000 from the
+`host` and `remote-node` identities. It selects private gateway backends. The existing Kubernetes NetworkPolicy retains the runner
+CIDRs for legacy NodePorts and the usual pod/namespace rules; the gateway checks
+the external client CIDR and Kura authenticates the request. Cilium classifies
+host-network traffic by node identity, so an ipBlock cannot replace this rule
+([Cilium policy reference](https://docs.cilium.io/en/stable/security/policy/layer3/)).
+
+The controller publishes `status.privateURL` after observing a fresh Ready,
+serving primary with its writer lock, a Ready certificate covering the hostname,
+a Ready gateway and matching DNS. A missing sibling does not make the selected
+primary unavailable. An explicitly stale certificate generation is rejected;
+a Ready condition may omit that optional field. `endpointReason` and
+`endpointMessage` distinguish primary, certificate, gateway and DNS failures.
+
+Shared client routing and `endpointLastCheckedAt` update before storage
+maintenance can yield. They do not depend on `lastReconciledAt`, which describes
+a completed workload pass. The server requires the current spec generation and
+an endpoint observation less than 120 seconds old, then persists that exact
+observation time in `last_ready_at`. Dispatch uses the same shared 120-second
+window, so rereading an old observation cannot extend it. Missing readiness
+preserves the stored URL; dispatch falls back when the last observation expires.
+In-cluster callers retain Service DNS. NodePort Services remain solely for jobs
+that already hold their URL; there is no NodePort-dispatch branch in the catalog.
+
+Gateway pod discovery uses a shared 30-second snapshot per ingress class through
+the list-only `platform` Role, rather than a LIST per account. Nodes and
+certificates use the informer. DNS answers are cached per hostname for the
+60-second record TTL (five seconds for negative answers), with a two-second
+lookup deadline. Changes are therefore observed within these bounded windows.
 
 A primary process handover changes the Service selector, not the client URL.
 Moving the gateway's host changes DNS and requires clients to reconnect and
@@ -78,7 +105,8 @@ currently has one host; two process replicas do not provide host redundancy.
    creates the private gateway route and scales to two standard replicas.
    `exposeNodePort` remains true, preserving allocated legacy Services/ports.
 4. Verify `status.privateURL`, `endpointObservedGeneration`, and
-   `lastReconciledAt`; confirm new jobs receive the HTTPS hostname. Verify from
+   `endpointLastCheckedAt`, `endpointReason`, and `endpointMessage`; confirm new
+   jobs receive the HTTPS hostname. Verify from
    an actual runner VM before resuming a rollout or retiring a host.
 5. Once all old node-IP jobs have finished, use the ordinary managed rollout and
    node-evacuation procedure. Retire legacy NodePorts in a separate change after
@@ -95,7 +123,9 @@ controller removes private ingresses, so it also requires draining hostname jobs
 Controller tests in `controllers/client_gateway_test.go` exercise public/private
 routing parity, primary handoff, preserved NodePorts, ordinary rollout strategy,
 preferred placement, disruption budgets, source restrictions, and publication
-readiness (including stale/public/mixed DNS answers). The provisioner tests cover
+readiness (including stale/public/mixed DNS answers), missing-sibling serving,
+resize early returns, orphan gateway pods, sticky DNS across hosts, bounded
+discovery caches and preservation of an operator rollout pause. The provisioner tests cover
 environment-separated hostnames, replica/endpoint manifest revisions, legacy
 NodePort compatibility, stale generations and expired observations.
 
