@@ -268,6 +268,35 @@
 			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
 		},
 
+		// Staging cluster → the BER1 rack's host LAN, on SSH only.
+		//
+		// This is the FIRST-DIAL path for rack-owned Mac minis
+		// (StaticAppleSiliconMachine). A rented mini has a public IP the
+		// operator can reach before anything is installed on it; a mini in a
+		// rack we own does not, and it is not on the tailnet yet either —
+		// bootstrap is what puts it there. So the operator reaches it at its
+		// LAN address, through a subnet router in the rack that advertises
+		// that prefix.
+		//
+		// Routing it separately from the host's OWN tailnet identity is
+		// deliberate, not incidental. Bootstrap stops and replaces tailscaled
+		// to install the operator's pinned build; over a session transported
+		// by the host's own tailnet identity that would drop the tunnel it is
+		// riding, which is exactly why the drift loop's tailnet fallback has
+		// to set SkipTailscaleInstall. Through a separate router the session
+		// survives, so a rack host can be fully bootstrapped in one pass.
+		//
+		// Subnet-routed destinations match by CIDR, not by the router's tag,
+		// hence the literal prefix. tcp:22 only: everything else a mini serves
+		// (node_exporter, tart-kubelet, the VNC relay) is reached over the
+		// per-machine egress Service once the host has joined the tailnet, the
+		// same as for a rented one.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["192.168.0.0/24"],
+			"ip":  ["tcp:22"],
+		},
+
 		// Humans SSH into any Mac mini. Not load-bearing — the
 		// CAPI provider's per-fleet SSH key is the normal path the
 		// controller takes. tag:tuist-ops is env-agnostic because
@@ -383,6 +412,14 @@
 			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
 		},
 	},
+
+	// The BER1 rack's host LAN is NOT auto-approved. Unlike the Connector's
+	// Service CIDR above — advertised by a Pod that is recreated on every
+	// rollout, so manual approval would break the route each time — the rack's
+	// subnet router is a long-lived box that advertises once. Auto-approval
+	// would buy nothing there and would mean any device holding the approver
+	// tag could put a private prefix into the tailnet's routing table by
+	// asserting it. Approve the rack router's route once, by hand.
 
 	// Tailscale SSH (distinct from "grants"). The same-env
 	// k8s→macmini accept grants let the cluster-side subnet-router

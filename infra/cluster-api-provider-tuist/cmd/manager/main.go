@@ -47,6 +47,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
@@ -589,6 +590,53 @@ func main() {
 		RunnerResolver:                runnerResolver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
+		os.Exit(1)
+	}
+
+	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
+	// inventory of physical hosts, and the machine kind that claims from it.
+	//
+	// Both are registered unconditionally, unlike the provider-backed kinds
+	// that stay dormant until an env wires credentials. They need none: the
+	// pool is Kubernetes objects, and with no RackHost declared they simply
+	// have nothing to reconcile. Gating them on a flag would only add a way for
+	// an env to have inventory that nothing acts on.
+	powerRegistry := power.NewRegistry()
+	if err := (&macos.RackHostReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackhost-controller"),
+		Power:            powerRegistry,
+		SecretsNamespace: secretsNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackHostReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&macos.StaticAppleSiliconMachineReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		CredentialsManager: credsManager,
+		Recorder:           mgr.GetEventRecorderFor("staticapplesiliconmachine-controller"),
+		Kubeconfig:         kubeconfigBuilder,
+		// The same fleet config the Scaleway kind gets: a rack mini and a
+		// rented one run the same host config, which is what lets one workload
+		// target both and one operator image roll both.
+		FleetConfig:                   fleetConfig,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
+		TartKubeletBinarySHA:          binarySHA,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		Power:                         powerRegistry,
+		SecretsNamespace:              secretsNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup StaticAppleSiliconMachineReconciler")
 		os.Exit(1)
 	}
 

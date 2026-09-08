@@ -49,6 +49,9 @@ rules:
       - dediboxmachinetemplates
       - vultrmachines
       - vultrmachinetemplates
+      - staticapplesiliconmachines
+      - staticapplesiliconmachinetemplates
+      - rackhosts
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -64,6 +67,13 @@ rules:
       - dediboxmachines/finalizers
       - vultrmachines/status
       - vultrmachines/finalizers
+      - staticapplesiliconmachines/status
+      - staticapplesiliconmachines/finalizers
+      # rackhosts/status carries the claim. It is the only status in this
+      # provider written by a DIFFERENT object's reconciler, and it is written
+      # with Update rather than a merge patch so the apiserver's
+      # resourceVersion check makes the claim atomic.
+      - rackhosts/status
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]

@@ -1,0 +1,182 @@
+{{- if and .Values.capi.enabled .Values.rackFleet.enabled }}
+{{- $fleetName := include "tuist.rackFleetName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- $pool := required "rackFleet.pool is required — it is the claim marker AND the environment boundary between racks" .Values.rackFleet.pool }}
+{{- /*
+Rack-owned Mac mini fleet (the BER1 colo programme) — declarative.
+
+Two object kinds, and the split is the whole design. Every OTHER machine kind
+in this provider gets its pool from a vendor API: Scaleway's server list
+filtered by a name prefix, OVH's by a displayName prefix, Dedibox's by a tag.
+Hardware we own has no such API, so the pool has to be Kubernetes objects:
+
+  * RackHost, one per physical box — serial, address, rack position, PDU
+    outlet. Rendered from `rackFleet.hosts` below, so adding a mini to the
+    rack is a values PR reviewed like any other, and the inventory is
+    versioned rather than living in someone's kubectl history.
+  * StaticAppleSiliconMachineTemplate + MachineDeployment, exactly as the
+    Scaleway fleets render them. The Machines carry NO host identity at all,
+    which is what lets one template be cloned N times and one replica count
+    scale the rack.
+
+Do not be tempted to fold the address and outlet onto the Machine spec. A
+MachineTemplate is CLONED, so every replica would carry the same address; and a
+MachineHealthCheck remediation would recreate the Machine onto the same broken
+host forever, because there would be nothing else for it to land on.
+*/ -}}
+{{- range $host := .Values.rackFleet.hosts }}
+{{- $hostName := required "each rackFleet.hosts entry needs a name" $host.name }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackHost
+metadata:
+  name: {{ $hostName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+    tuist.dev/rack-pool: {{ $pool }}
+spec:
+  pool: {{ $pool }}
+  {{- with $host.serial }}
+  serial: {{ . | quote }}
+  {{- end }}
+  address: {{ required (printf "rackFleet.hosts[%s].address is required — there is nothing to dial without it" $hostName) $host.address | quote }}
+  sshUser: {{ $host.sshUser | default $.Values.rackFleet.sshUser | default "tuist" }}
+  {{- if $host.unclaimable }}
+  unclaimable: true
+  {{- end }}
+  location:
+    {{- /* site composes the providerID, so the controller refuses to claim a
+    host without one. Required here rather than in the CRD: a required CRD
+    field breaks a Helm rollback to a revision predating it. */}}
+    site: {{ required (printf "rackFleet.hosts[%s].site is required — it composes the providerID" $hostName) (coalesce $host.site $.Values.rackFleet.site) | quote }}
+    {{- with $host.rack }}
+    rack: {{ . | quote }}
+    {{- end }}
+    {{- with $host.shelf }}
+    shelf: {{ . | quote }}
+    {{- end }}
+    {{- with $host.positionU }}
+    positionU: {{ . }}
+    {{- end }}
+  {{- with $host.power }}
+  power:
+    driver: {{ .driver | default "shelly" }}
+    host: {{ required (printf "rackFleet.hosts[%s].power.host is required when power is set" $hostName) .host | quote }}
+    outlet: {{ .outlet | default "0" | quote }}
+    {{- with .credentialsSecret }}
+    credentialsSecretRef:
+      name: {{ . }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- /*
+Machine spec, assembled the same way the Scaleway fleets assemble theirs: each
+optional sizing field is omitted when unset so the operator's global applies and
+the rendered spec — and therefore the template's name hash — is unchanged.
+
+The template name carries a hash of its own spec so a spec change renders a NEW
+object rather than an edit. Helm's three-way merge only patches fields that
+differ between the previous and current rendered manifest, so a field added to a
+template that already exists in-cluster is never applied and the object stays
+stale indefinitely.
+*/ -}}
+{{- $machineSpec := dict
+      "adoptPool" $pool
+      "fleetName" $fleetName
+}}
+{{- with .Values.rackFleet.machine.hostCPU }}
+{{- $_ := set $machineSpec "hostCPU" . }}
+{{- end }}
+{{- with .Values.rackFleet.machine.hostMemoryMB }}
+{{- $_ := set $machineSpec "hostMemoryMB" . }}
+{{- end }}
+{{- with .Values.rackFleet.machine.maxPods }}
+{{- $_ := set $machineSpec "maxPods" . }}
+{{- end }}
+{{- with .Values.rackFleet.machine.guestCapacity }}
+{{- $_ := set $machineSpec "guestCapacity" . }}
+{{- end }}
+{{- /*
+Presence, not truthiness: 0 means "cache volumes off on this host" and `with`
+would swallow it, leaving the host on the operator's non-zero global. That
+matters more here than on the rented fleet — the BER1 prototype's 256 GB disk
+cannot hold the fleet's normal quota at all. `hasKey` alone is not enough: the
+documented placeholder in values.yaml is an explicit null, i.e. a present key
+with no value.
+*/}}
+{{- if and (hasKey .Values.rackFleet.machine "runnerCacheVolumeGiB") (not (kindIs "invalid" .Values.rackFleet.machine.runnerCacheVolumeGiB)) }}
+{{- $_ := set $machineSpec "runnerCacheVolumeGiB" .Values.rackFleet.machine.runnerCacheVolumeGiB }}
+{{- end }}
+{{- $templateName := printf "%s-%s" $fleetName (toYaml $machineSpec | sha256sum | trunc 8) }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: StaticAppleSiliconMachineTemplate
+metadata:
+  name: {{ $templateName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # A superseded template stays referenced by the MachineSet cloned from it,
+    # which outlives the template under OnDelete.
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      {{- toYaml $machineSpec | nindent 6 }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  {{- /*
+  Replicas is a MACHINE count, and it must not exceed the number of claimable
+  RackHosts: a machine with nowhere to land sits on NoAvailableHost, which is
+  honest but is also a MachineDeployment permanently below spec, and
+  `helm upgrade --wait` on a rollout gated by that count runs out its ceiling.
+  Default to the declared host count so the common case cannot get this wrong,
+  and allow an explicit override for staging one box at a time.
+
+  `dig`, not `default`: an explicit 0 is a real and useful value here — declare
+  the inventory, let the RackHosts land and be power-polled, and hold the claim
+  back until the boxes are actually reachable — and `default` treats 0 as empty,
+  so it would silently scale the fleet to every host declared.
+  */}}
+  replicas: {{ dig "replicas" (len .Values.rackFleet.hosts) .Values.rackFleet }}
+  # OnDelete for the same reason the Scaleway fleets use it, and more so: these
+  # boxes are ours, they are doing real work, and re-bootstrapping one is
+  # minutes of SSH plus a cold golden-image pull. An operator rolls a host by
+  # deleting its Machine.
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: StaticAppleSiliconMachineTemplate
+        name: {{ $templateName }}
+{{- end }}

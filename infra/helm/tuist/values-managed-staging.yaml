@@ -725,6 +725,58 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
+# BER1 rack fleet — the prototype M1 mini, the first hardware we own to join a
+# cluster. Staging only; the rack itself does not exist yet.
+#
+# Kept at replicas 0 until the box is actually reachable from this cluster. A
+# Machine with nowhere to land sits on NoAvailableHost forever, which leaves the
+# MachineDeployment permanently below spec, and a `helm upgrade --wait` gated on
+# that count runs out its step ceiling. Declaring the inventory at 0 lets the
+# RackHost land, be power-polled, and show up in `kubectl get rh` — everything
+# except the claim — so the plumbing is verifiable before a Machine depends on
+# it. Scale to 1 once the first dial works.
+#
+# The address is a home-LAN address, not a public one, and reaching it needs a
+# tailnet subnet router advertising 192.168.0.0/24 plus the matching grant in
+# infra/tailscale/acls.json. Without that the claim succeeds and bootstrap then
+# fails on a dial timeout, which is loud but wasteful.
+rackFleet:
+  enabled: true
+  pool: ber1-staging
+  site: ber1
+  replicas: 0
+  hosts:
+    - name: ber1-proto-01
+      serial: C07FC05JQ6NY
+      address: 192.168.0.41
+      rack: proto
+      # The Shelly plug has not been delivered. Until it is, this host has no
+      # outlet: PowerReachable reports False with PowerNotConfigured, the
+      # bootstrap-failure ladder skips its reboot tier and escalates straight to
+      # quarantine, and `tuist.dev/power-action` is refused. All of that is
+      # correct behaviour for a box nobody can power-cycle remotely — it is
+      # visible rather than silent, which is the point. Add the `power` block
+      # when the plug lands.
+  machine:
+    # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
+    # ~2 GB Virtualization.framework reserves for the host, below which
+    # `tart run` fails with `memorySize > maximumAllowedMemorySize`.
+    hostCPU: 8
+    hostMemoryMB: 14336
+    guestCapacity: 1
+    # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
+    # guest slot can transiently hold its running Pod plus a predecessor GC has
+    # not collected yet.
+    maxPods: 3
+    # Cache volumes OFF. This is a 256 GB box: the goldens alone do not leave
+    # room for the fleet's normal quota, and the point of this host is to
+    # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
+    # from unset, which would inherit the fleet's non-zero global.
+    runnerCacheVolumeGiB: 0
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+
 macosFleet:
   enabled: true
   replicas: 1

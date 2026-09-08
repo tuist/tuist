@@ -50,3 +50,37 @@ func recordMachinePhase(m *infrav1.ScalewayAppleSiliconMachine) {
 func forgetMachinePhase(name string) {
 	machinePhaseGauge.DeletePartialMatch(prometheus.Labels{"machine": name})
 }
+
+// staticMachinePhaseGauge is the RackHost-backed kind's half of the same
+// contract: one 1-valued series per machine, cleared before each transition so
+// a recovered machine never leaves a stale Failed series alerting forever.
+//
+// A separate metric rather than a `kind` label on the Scaleway one, because the
+// existing "machine stuck Failed" rule and its dashboards select on that metric
+// name; folding a second kind into it would silently widen every one of them
+// the moment the rack fleet exists.
+var staticMachinePhaseGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "capt_static_applesilicon_machine_phase",
+	Help: "Current lifecycle phase of each StaticAppleSiliconMachine (rack-owned Mac minis) as a 1-valued series. Labels: machine, fleet, pool, phase (Pending|Adopting|Bootstrapping|Ready|Deleting|Failed), failure_reason (set on terminal Failed). Exactly one series per machine.",
+}, []string{"machine", "fleet", "pool", "phase", "failure_reason"})
+
+func init() {
+	metrics.Registry.MustRegister(staticMachinePhaseGauge)
+}
+
+func recordStaticMachinePhase(m *infrav1.StaticAppleSiliconMachine) {
+	staticMachinePhaseGauge.DeletePartialMatch(prometheus.Labels{"machine": m.Name})
+	phase := m.Status.Phase
+	if phase == "" {
+		phase = "Pending"
+	}
+	reason := ""
+	if m.Status.FailureReason != nil {
+		reason = *m.Status.FailureReason
+	}
+	staticMachinePhaseGauge.WithLabelValues(m.Name, m.Spec.FleetName, m.Spec.AdoptPool, phase, reason).Set(1)
+}
+
+func forgetStaticMachinePhase(name string) {
+	staticMachinePhaseGauge.DeletePartialMatch(prometheus.Labels{"machine": name})
+}
