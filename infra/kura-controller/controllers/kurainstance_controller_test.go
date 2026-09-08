@@ -3940,3 +3940,74 @@ func TestKuraInstanceReconcileKeepsPerInstanceCertificateForHostOutsideWildcard(
 		t.Fatalf("expected the per-instance Certificate for a host outside the wildcard: %v", err)
 	}
 }
+
+// Losing the wildcard after the cutover must fail back rather than leave the
+// fleet pointed at a Secret that is gone. The retained per-instance leaf makes
+// that automatic: the Ingress returns to it, and the recreated Certificate
+// adopts the still-valid Secret instead of placing an ACME order.
+func TestKuraInstanceReconcileFailsBackWhenWildcardSecretDisappears(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := sharedWildcardTLSTestInstance()
+	legacySecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: publicTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, instance.Spec.PublicHost)},
+	}
+	wildcardSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacySecret, wildcardSecret).
+			WithStatusSubresource(instance).Build(),
+		Scheme:              scheme,
+		GRPCClusterIssuer:   "letsencrypt-cloudflare",
+		PublicTLSSecretName: "kura-public-wildcard-tls",
+	}
+
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	for i := 0; i < 2; i++ {
+		if _, err := reconciler.Reconcile(ctx, request); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != "kura-public-wildcard-tls" {
+		t.Fatalf("expected the cutover to have happened before the wildcard is lost, got %q", got)
+	}
+
+	if err := reconciler.Delete(ctx, wildcardSecret); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != publicTLSSecretName(instance) {
+		t.Fatalf("expected the ingress to fail back to the retained per-instance Secret, got %q", got)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, &corev1.Secret{}); err != nil {
+		t.Fatalf("expected the retained leaf to still be serving the failback, got %v", err)
+	}
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
+		t.Fatalf("expected the per-instance Certificate to be recreated over the retained Secret: %v", err)
+	}
+}
