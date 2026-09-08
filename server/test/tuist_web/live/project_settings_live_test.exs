@@ -6,6 +6,8 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
   test "renders the project settings page", %{
     conn: conn,
     organization: organization,
@@ -16,6 +18,22 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
     # Then
     assert html =~ "Settings"
+  end
+
+  test "hides bundle settings for Bazel projects", %{
+    conn: conn,
+    organization: organization
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        account: organization.account,
+        build_system: :bazel
+      )
+
+    {:ok, live_view, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+
+    refute has_element?(live_view, "#project-settings", "Bundles")
   end
 
   test "handles URL parameter changes via live_patch", %{

@@ -169,6 +169,7 @@ msgstr ""
 msgid "Build Setup"
 msgstr ""
 
+#: lib/tuist_web/live/gradle_build_live.html.heex:131
 #: lib/tuist_web/live/gradle_builds_live.html.heex:513
 #: lib/tuist_web/live/gradle_builds_live.html.heex:563
 #, elixir-autogen, elixir-format
@@ -194,12 +195,12 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:134
+#: lib/tuist_web/live/gradle_build_live.html.heex:138
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.html.heex:140
+#: lib/tuist_web/live/gradle_build_live.html.heex:127
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:121
 #: lib/tuist_web/live/gradle_builds_live.html.heex:706
 #: lib/tuist_web/live/gradle_cache_live.html.heex:645
@@ -389,7 +390,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.ex:599
 #: lib/tuist_web/live/gradle_build_live.ex:651
 #: lib/tuist_web/live/gradle_build_live.ex:688
-#: lib/tuist_web/live/gradle_build_live.html.heex:127
 #: lib/tuist_web/live/gradle_build_live.html.heex:228
 #: lib/tuist_web/live/gradle_build_live.html.heex:262
 #: lib/tuist_web/live/gradle_build_live.html.heex:327
@@ -436,6 +436,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/gradle_task.ex:18
 #: lib/tuist_web/live/gradle_build_live.ex:710
+#: lib/tuist_web/live/gradle_build_live.html.heex:113
 #: lib/tuist_web/live/gradle_build_runs_live.ex:225
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:88
 #: lib/tuist_web/live/gradle_builds_live.html.heex:697
@@ -454,11 +455,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_overview_live.html.heex:329
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
-msgstr ""
-
-#: lib/tuist_web/live/gradle_build_live.html.heex:113
-#, elixir-autogen, elixir-format
-msgid "Failure"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:276
@@ -719,6 +715,7 @@ msgstr ""
 msgid "Partially invalid"
 msgstr ""
 
+#: lib/tuist_web/live/gradle_build_live.html.heex:106
 #: lib/tuist_web/live/gradle_build_runs_live.ex:224
 #: lib/tuist_web/live/gradle_build_runs_live.html.heex:83
 #: lib/tuist_web/live/gradle_builds_live.html.heex:692
@@ -898,11 +895,6 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.html.heex:772
 #, elixir-autogen, elixir-format
 msgid "Subject"
-msgstr ""
-
-#: lib/tuist_web/live/gradle_build_live.html.heex:106
-#, elixir-autogen, elixir-format
-msgid "Success"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_builds_live.html.heex:616

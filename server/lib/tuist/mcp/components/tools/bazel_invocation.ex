@@ -13,6 +13,15 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "git_branch" => %{"type" => "string"},
         "git_commit_sha" => %{"type" => "string"},
         "is_ci" => %{"type" => "boolean"},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"],
+          "additionalProperties" => false
+        },
         "bazel_version" => %{"type" => "string"},
         "cache_endpoint" => %{"type" => "string"},
         "status" => %{"type" => "string"},
@@ -32,6 +41,7 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "git_branch",
         "git_commit_sha",
         "is_ci",
+        "custom_metadata",
         "bazel_version",
         "cache_endpoint",
         "status",
@@ -56,6 +66,7 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      custom_metadata: %{tags: [], values: invocation.custom_values},
       bazel_version: invocation.bazel_version,
       cache_endpoint: invocation.cache_endpoint,
       status: to_string(invocation.status),
