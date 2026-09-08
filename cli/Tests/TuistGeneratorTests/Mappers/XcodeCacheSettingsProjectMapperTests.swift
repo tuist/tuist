@@ -10,6 +10,8 @@ import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistLoggerTesting
+import TuistLogging
 import TuistSupport
 import TuistTesting
 import XcodeGraph
@@ -539,5 +541,85 @@ struct XcodeCacheSettingsProjectMapperTests {
             mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
                 == .string(casPluginPath.pathString)
         )
+    }
+
+    /// The proxy owns the remote half of the kura path, and a machine without one
+    /// caches only locally. The socket file alone proves nothing: the proxy unlinks
+    /// it at bind and never at exit, so a dead proxy leaves the file behind.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment(), .withMockedLogger())
+    func map_whenProxyIsNotReachable_warnsAndKeepsCachingSettings() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        let warnings = Logger.testingLogHandler.collected[.warning, ==]
+        #expect(warnings.contains(Environment.current.casProxySocketPath().pathString) == true)
+        #expect(warnings.contains("local-only compilation caching") == true)
+
+        // Not fatal: the build still gets every caching setting, it just has no
+        // remote to reach.
+        #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(Environment.current.casProxySocketPathString())
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment(), .withMockedLogger())
+    func map_whenProxyIsReachable_doesNotWarn() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let cacheSocketService = MockCacheSocketServicing()
+        given(cacheSocketService)
+            .canConnect(to: .value(Environment.current.casProxySocketPath()))
+            .willReturn(true)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath],
+            cacheSocketService: cacheSocketService
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        _ = try await subject.map(project: project)
+
+        // Then
+        #expect(Logger.testingLogHandler.collected[.warning, ==].isEmpty == true)
     }
 }

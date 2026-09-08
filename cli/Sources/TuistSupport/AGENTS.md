@@ -7,6 +7,7 @@ This module provides low-level helpers and shared infrastructure used across the
 - Error modeling (`FatalError`) and common system helpers (process, environment, Xcode detection).
 - Shared constants and utilities used across CLI modules.
 - Caller-owned scratch directory preparation and validation for cache warming.
+- Unix socket reachability probing for the Xcode Cache daemon and CAS proxy sockets.
 
 ## Boundaries
 - Keep this module dependency-light; it should not depend on higher-level feature modules.

@@ -8,17 +8,22 @@ import Mockable
 import Path
 
 @Mockable
-protocol CacheSocketServicing {
+public protocol CacheSocketServicing {
+    /// Whether something is accepting connections on the unix socket at `path`. A
+    /// socket file outlives the process that bound it, so only a `connect()` answers.
+    func canConnect(to path: AbsolutePath) -> Bool
     func waitUntilListening(at path: AbsolutePath, timeout: Duration) async -> Bool
 }
 
-struct CacheSocketService: CacheSocketServicing {
-    func waitUntilListening(at path: AbsolutePath, timeout: Duration) async -> Bool {
+public struct CacheSocketService: CacheSocketServicing {
+    public init() {}
+
+    public func waitUntilListening(at path: AbsolutePath, timeout: Duration) async -> Bool {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
 
         repeat {
-            if canConnect(to: path.pathString) {
+            if canConnect(to: path) {
                 return true
             }
             if clock.now >= deadline || Task.isCancelled {
@@ -28,7 +33,9 @@ struct CacheSocketService: CacheSocketServicing {
         } while true
     }
 
-    private func canConnect(to path: String) -> Bool {
+    public func canConnect(to path: AbsolutePath) -> Bool {
+        let path = path.pathString
+
         #if canImport(Darwin)
             let descriptor = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         #else
