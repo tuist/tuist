@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1229,6 +1230,11 @@ func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
 		}
 		if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != in.Name {
 			t.Fatalf("expected %s Service to select its own pods, got %q", in.Name, got)
+		}
+		// With no pod routable the primary defaults to ordinal 0, and with no
+		// eligible standby the primary is the gateway.
+		if got := lb.Spec.Selector[podNameLabel]; got != in.Name+"-0" {
+			t.Fatalf("expected %s Service to be pinned to the gateway pod, got %q", in.Name, got)
 		}
 	}
 
@@ -3696,4 +3702,210 @@ func TestAggregateRolloutHealthSurfacesBackfillTrouble(t *testing.T) {
 	if health.BackfillingPeers != 2 {
 		t.Fatalf("expected in-flight peers to still be reported, got %d", health.BackfillingPeers)
 	}
+}
+
+func TestChooseGatewayPod(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	pod := func(ordinal int) string { return fmt.Sprintf("%s-%d", name, ordinal) }
+	cases := []struct {
+		title    string
+		current  string
+		primary  string
+		pods     []int
+		eligible []int
+		want     string
+	}{
+		{"two Ready pods: the complement of the primary", "", pod(0), []int{0, 1}, []int{0, 1}, pod(1)},
+		{"complement holds whichever ordinal the primary has", "", pod(1), []int{0, 1}, []int{0, 1}, pod(0)},
+		{"standby draining: the primary takes the role", "", pod(0), []int{0, 1}, []int{0}, pod(0)},
+		{"standby unready: the primary takes the role", pod(1), pod(0), []int{0, 1}, []int{0}, pod(0)},
+		{"single pod is both primary and gateway", "", pod(0), []int{0}, []int{0}, pod(0)},
+		{"no eligible pod at all still names the primary", "", pod(0), nil, nil, pod(0)},
+		{"sticky: a recovered lower ordinal does not take it back", pod(2), pod(0), []int{0, 1, 2}, []int{0, 1, 2}, pod(2)},
+		{"not sticky on the primary: moves off it once a standby is eligible", pod(0), pod(0), []int{0, 1}, []int{0, 1}, pod(1)},
+		{"primary moves onto the gateway: role falls to the lowest eligible other pod", pod(1), pod(1), []int{0, 1, 2}, []int{0, 1, 2}, pod(0)},
+		{"primary moves onto the gateway with nothing else eligible: primary keeps both", pod(1), pod(1), []int{0, 1}, []int{1}, pod(1)},
+		{"current holder lost eligibility: lowest eligible other pod", pod(2), pod(0), []int{0, 1, 2}, []int{0, 1}, pod(1)},
+		{"orders ordinals numerically, not lexically", "", pod(0), []int{0, 2, 10}, []int{0, 2, 10}, pod(2)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.title, func(t *testing.T) {
+			pods := make([]corev1.Pod, 0, len(tc.pods))
+			for _, ordinal := range tc.pods {
+				pods = append(pods, *kuraPod(name, "kura", ordinal, true))
+			}
+			eligible := map[string]bool{}
+			for _, ordinal := range tc.eligible {
+				eligible[pod(ordinal)] = true
+			}
+			if got := chooseGatewayPod(tc.current, tc.primary, pods, eligible); got != tc.want {
+				t.Fatalf("chooseGatewayPod(current=%q, primary=%q) = %q, want %q", tc.current, tc.primary, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGatewayEligibleFromSamples(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+		*kuraPod(name, "kura", 2, false),
+		*kuraPod(name, "kura", 3, true),
+	}
+	samples := map[string]runtimeStatus{
+		name + "-0": {Ready: true, State: "serving"},
+		name + "-1": {Ready: true, State: "draining"},
+		name + "-2": {Ready: true, State: "serving"},
+	}
+
+	got := gatewayEligibleFromSamples(pods, samples)
+	want := map[string]bool{
+		name + "-0": true, // Ready and serving
+		name + "-3": true, // Ready, unsampled: readiness is the only evidence
+	}
+	if len(got) != len(want) {
+		t.Fatalf("eligible = %v, want %v", got, want)
+	}
+	for pod := range want {
+		if !got[pod] {
+			t.Fatalf("expected %s eligible, got %v", pod, got)
+		}
+	}
+}
+
+func TestPeerRolesListsExpectedOrdinalsAndSurplusPods(t *testing.T) {
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	// Ordinal 0 is expected but absent; ordinal 2 is present but beyond the
+	// expected replica count (a scale-down in flight).
+	pods := []corev1.Pod{
+		*kuraPod(instance.Name, instance.Namespace, 2, true),
+		*kuraPod(instance.Name, instance.Namespace, 1, true),
+	}
+
+	got := peerRoles(instance, pods, instance.Name+"-0", instance.Name+"-1")
+	want := []kurav1alpha1.KuraInstancePeerRole{
+		{NodeURL: "https://kura-tuist-eu-1-0.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Primary: true},
+		{NodeURL: "https://kura-tuist-eu-1-1.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Gateway: true},
+		{NodeURL: "https://kura-tuist-eu-1-2.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("peerRoles = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("peerRoles[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPodNodeURLMatchesRenderedEnv(t *testing.T) {
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	env := map[string]string{}
+	for _, envVar := range baseEnv(instance, "", "production") {
+		env[envVar.Name] = envVar.Value
+	}
+	// The template keeps the downward-API placeholders (a literal would roll
+	// every pod); expanding them must yield exactly the URL status publishes.
+	expanded := strings.NewReplacer("$(POD_NAME)", instance.Name+"-1", "$(POD_NAMESPACE)", instance.Namespace).Replace(env["KURA_NODE_URL"])
+	if got := podNodeURL(instance, instance.Name+"-1"); got != expanded {
+		t.Fatalf("podNodeURL = %q, rendered KURA_NODE_URL expands to %q", got, expanded)
+	}
+}
+
+func TestKuraInstanceReconcilePinsPublicPeerServiceToGatewayPod(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	serving := func() runtimeStatus {
+		return runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+	}
+	statuses := map[string]runtimeStatus{
+		instance.Name + "-0": serving(),
+		instance.Name + "-1": serving(),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance,
+			kuraPod(instance.Name, instance.Namespace, 0, true),
+			kuraPod(instance.Name, instance.Namespace, 1, true),
+		).Build(),
+		Scheme:              scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses},
+	}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	reconcile := func() {
+		t.Helper()
+		if _, err := reconciler.Reconcile(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertRoles := func(primary, gateway string) {
+		t.Helper()
+		assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, primary)
+		assertServiceRoutesTo(t, reconciler, instancePublicPeerServiceName(instance), instance.Namespace, gateway)
+
+		headless := &corev1.Service{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: headlessServiceName(instance), Namespace: instance.Namespace}, headless); err != nil {
+			t.Fatal(err)
+		}
+		if _, pinned := headless.Spec.Selector[podNameLabel]; pinned {
+			t.Fatalf("expected the headless Service to keep selecting every pod, got %v", headless.Spec.Selector)
+		}
+
+		got := &kurav1alpha1.KuraInstance{}
+		if err := reconciler.Get(ctx, req.NamespacedName, got); err != nil {
+			t.Fatal(err)
+		}
+		want := []kurav1alpha1.KuraInstancePeerRole{
+			{NodeURL: podNodeURL(instance, instance.Name+"-0"), Gateway: gateway == instance.Name+"-0", Primary: primary == instance.Name+"-0"},
+			{NodeURL: podNodeURL(instance, instance.Name+"-1"), Gateway: gateway == instance.Name+"-1", Primary: primary == instance.Name+"-1"},
+		}
+		if len(got.Status.PeerRoles) != len(want) {
+			t.Fatalf("status.peerRoles = %+v, want %+v", got.Status.PeerRoles, want)
+		}
+		for i := range want {
+			if got.Status.PeerRoles[i] != want[i] {
+				t.Fatalf("status.peerRoles[%d] = %+v, want %+v", i, got.Status.PeerRoles[i], want[i])
+			}
+		}
+	}
+
+	// Two Ready pods: the primary is ordinal 0 and the gateway its complement.
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-1")
+
+	// The standby drains (still Ready for the overlap): the primary takes the
+	// role rather than the region losing it.
+	draining := serving()
+	draining.State = "draining"
+	statuses[instance.Name+"-1"] = draining
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-0")
+
+	// The standby is back: the role moves off the primary again.
+	statuses[instance.Name+"-1"] = serving()
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-1")
+
+	// The primary drains out: serving fails over onto the gateway, which then
+	// carries both roles because nothing else is eligible.
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, false)
+	statuses[instance.Name+"-0"] = draining
+	reconcile()
+	assertRoles(instance.Name+"-1", instance.Name+"-1")
+
+	// Ordinal 0 recovers: the primary is sticky on ordinal 1, so ordinal 0
+	// becomes the complement.
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, true)
+	statuses[instance.Name+"-0"] = serving()
+	reconcile()
+	assertRoles(instance.Name+"-1", instance.Name+"-0")
 }

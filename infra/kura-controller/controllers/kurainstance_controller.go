@@ -413,15 +413,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
-		return ctrl.Result{}, err
-	}
 	pods, err := r.instancePods(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -432,6 +423,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
 	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
+		return ctrl.Result{}, err
+	}
+	gatewayPod, err := r.selectGatewayPod(ctx, instance, pods, samples, primaryPod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// The public peer plane follows the gateway, and the gateway is derived
+	// from the primary, so both reconcile only once the roles are settled.
+	if err := r.reconcileInstancePublicPeerService(ctx, instance, gatewayPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
@@ -505,6 +511,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
 	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
+	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
@@ -563,8 +570,11 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 // MeshPublicPeerHost to the assigned address. One Service per instance (region)
 // so the host, cert, and selected pods stay aligned across a multi-region
 // account. Only created when the controller owns the account CA
-// (meshManagedPeerTLS) and a public host is requested.
-func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// (meshManagedPeerTLS) and a public host is requested. It selects the gateway
+// pod only: a self-hosted node that dials in is a non-gateway of this region,
+// and non-gateways pull from their gateway (kura/docs/replication-design.md
+// §2).
+func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance, gatewayPod string) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
 	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
 		// No public peer plane requested (a non-mesh region, or the host was
@@ -607,11 +617,13 @@ func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.
 			// pod, which intermittently reset long-lived bootstrap connections.
 			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		}
-		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
-		// region-scoped, so the Service must select only this instance's pods. An
-		// account-scoped selector would route one region's hostname to another
-		// region's pods and mismatch the cert.
-		service.Spec.Selector = selectorLabels(instance)
+		// The selector doubles as the persisted gateway designation that
+		// selectGatewayPod reads back, which is what keeps the role sticky
+		// across reconciles and controller restarts. It keeps the instance
+		// labels because MeshPublicPeerHost and the peer cert SAN are
+		// region-scoped: an account-scoped selector would route one region's
+		// hostname to another region's pods and mismatch the cert.
+		service.Spec.Selector = gatewayServiceSelector(instance, gatewayPod)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 		}
@@ -998,7 +1010,7 @@ func (r *KuraInstanceReconciler) peerAddressCutoverReady(
 		}
 		return state, false, err
 	}
-	if service.Spec.Type != corev1.ServiceTypeClusterIP || !stringMapEqual(service.Spec.Selector, selectorLabels(instance)) {
+	if service.Spec.Type != corev1.ServiceTypeClusterIP || !gatewayServiceSelectorMatches(instance, service.Spec.Selector) {
 		return state, false, nil
 	}
 	endpointSlices := &discoveryv1.EndpointSliceList{}
@@ -1721,6 +1733,21 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 	return selector
 }
 
+// gatewayServiceSelector pins the public peer Service to the gateway pod the
+// way the public Services pin to the primary.
+func gatewayServiceSelector(instance *kurav1alpha1.KuraInstance, gatewayPod string) map[string]string {
+	selector := selectorLabels(instance)
+	selector[podNameLabel] = gatewayPod
+	return selector
+}
+
+// gatewayServiceSelectorMatches reports whether selector has the shape
+// gatewayServiceSelector renders, whichever pod it names.
+func gatewayServiceSelectorMatches(instance *kurav1alpha1.KuraInstance, selector map[string]string) bool {
+	gatewayPod := selector[podNameLabel]
+	return gatewayPod != "" && stringMapEqual(selector, gatewayServiceSelector(instance, gatewayPod))
+}
+
 // selectPrimaryPod resolves which pod the public Services should route
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
@@ -1756,6 +1783,50 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 		return "", err
 	}
 	return choosePrimaryPod(current, instance.Name, pods, health), nil
+}
+
+// selectGatewayPod resolves which pod carries the region's cross-region
+// replication: the Ready, non-draining pod that is not the primary, or the
+// primary itself when there is none (kura/docs/replication-design.md §2.1).
+// As with the primary, the current holder is read back from the selector of
+// the Service that routes to it, so the role is sticky without a dedicated
+// status field.
+func (r *KuraInstanceReconciler) selectGatewayPod(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+	primaryPod string,
+) (string, error) {
+	current := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, service); {
+	case err == nil:
+		current = service.Spec.Selector[podNameLabel]
+	case apierrors.IsNotFound(err):
+	default:
+		return "", err
+	}
+	return chooseGatewayPod(current, primaryPod, pods, gatewayEligibleFromSamples(pods, samples)), nil
+}
+
+// gatewayEligibleFromSamples marks the pods that may hold the gateway role:
+// Ready, and not reported draining by the runtime. Readiness alone is not
+// enough because the drain overlap keeps a pod Ready while it hands off, and
+// a role given to it evaporates seconds later. A pod that could not be
+// sampled has only its readiness as evidence.
+func gatewayEligibleFromSamples(pods []corev1.Pod, samples map[string]runtimeStatus) map[string]bool {
+	eligible := map[string]bool{}
+	for i := range pods {
+		if !podReady(&pods[i]) {
+			continue
+		}
+		if status, ok := samples[pods[i].Name]; ok && status.State == "draining" {
+			continue
+		}
+		eligible[pods[i].Name] = true
+	}
+	return eligible
 }
 
 func (r *KuraInstanceReconciler) instancePods(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]corev1.Pod, error) {
@@ -1959,6 +2030,43 @@ func primaryPodHealthFromSamples(
 	return runtimeHealthy, caughtUp
 }
 
+// peerRoles publishes the resolved roles keyed by the KURA_NODE_URL each pod
+// registers with the server: one entry per expected ordinal plus any surplus
+// pod still present, so the server can hand every node its own role and its
+// peers' from one document (kura/docs/replication-design.md §2.2). Expected
+// ordinals are listed even before their pod exists because the primary
+// defaults to ordinal 0 before any pod is routable.
+func peerRoles(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, primaryPod, gatewayPod string) []kurav1alpha1.KuraInstancePeerRole {
+	names := map[string]bool{}
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		names[fmt.Sprintf("%s-%d", instance.Name, ordinal)] = true
+	}
+	for i := range pods {
+		names[pods[i].Name] = true
+	}
+	ordered := make([]string, 0, len(names))
+	for name := range names {
+		ordered = append(ordered, name)
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		left, _ := podOrdinalSuffix(ordered[i])
+		right, _ := podOrdinalSuffix(ordered[j])
+		if left != right {
+			return left < right
+		}
+		return ordered[i] < ordered[j]
+	})
+	roles := make([]kurav1alpha1.KuraInstancePeerRole, 0, len(ordered))
+	for _, name := range ordered {
+		roles = append(roles, kurav1alpha1.KuraInstancePeerRole{
+			NodeURL: podNodeURL(instance, name),
+			Gateway: name == gatewayPod,
+			Primary: name == primaryPod,
+		})
+	}
+	return roles
+}
+
 // aggregateRolloutHealth folds the per-pod sample cache into the status
 // aggregate. Per-field semantics are documented on the API type. Pods that
 // answered a previous reconcile but not this one contribute their last-known
@@ -2135,6 +2243,55 @@ func choosePrimaryPod(current, instanceName string, pods []corev1.Pod, routable 
 		return current
 	}
 	return fmt.Sprintf("%s-0", instanceName)
+}
+
+// chooseGatewayPod derives the gateway from the primary instead of keeping a
+// second designation: the lowest-ordinal eligible pod that is not the
+// primary, else the primary itself so the region never loses the role. It is
+// sticky the way choosePrimaryPod is — the current holder keeps the role
+// while it stays eligible and is not the primary, so a recovered
+// lower-ordinal pod does not take it back — but it moves off the primary as
+// soon as a standby is eligible, since carrying cross-region work off the
+// node that serves clients is the point of the role.
+func chooseGatewayPod(current, primary string, pods []corev1.Pod, eligible map[string]bool) string {
+	if current != "" && current != primary && eligible[current] {
+		return current
+	}
+
+	best := ""
+	bestOrdinal := -1
+	for i := range pods {
+		name := pods[i].Name
+		if name == primary || !eligible[name] {
+			continue
+		}
+		ordinal, ok := podOrdinalSuffix(name)
+		if !ok {
+			continue
+		}
+		if best == "" || ordinal < bestOrdinal {
+			best = name
+			bestOrdinal = ordinal
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return primary
+}
+
+// podOrdinalSuffix parses the StatefulSet ordinal off a pod name without the
+// instance name, which the role derivation does not carry.
+func podOrdinalSuffix(podName string) (int, bool) {
+	index := strings.LastIndex(podName, "-")
+	if index < 0 {
+		return 0, false
+	}
+	ordinal, err := strconv.Atoi(podName[index+1:])
+	if err != nil {
+		return 0, false
+	}
+	return ordinal, true
 }
 
 func podReady(pod *corev1.Pod) bool {
@@ -3803,7 +3960,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
-		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
+		{Name: "KURA_NODE_URL", Value: renderPodNodeURL(instance, "$(POD_NAME)", "$(POD_NAMESPACE)")},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: discoveryDNSName},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
 		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
@@ -4013,6 +4170,21 @@ func selectorLabels(instance *kurav1alpha1.KuraInstance) map[string]string {
 
 func headlessServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-headless"
+}
+
+// podNodeURL is the KURA_NODE_URL a pod runs with: its per-pod DNS name on
+// the headless Service, on the peer port. It is the identity the runtime
+// registers with the server and status.peerRoles keys roles by it, so the
+// pod template renders through the same function and the two cannot drift.
+func podNodeURL(instance *kurav1alpha1.KuraInstance, podName string) string {
+	return renderPodNodeURL(instance, podName, instance.Namespace)
+}
+
+// renderPodNodeURL takes the namespace separately so the pod template can
+// keep passing the downward-API placeholders: rendering the literal would
+// change every pod template and roll the fleet for nothing.
+func renderPodNodeURL(instance *kurav1alpha1.KuraInstance, podName, namespace string) string {
+	return fmt.Sprintf("https://%s.%s.%s.svc.cluster.local:%d", podName, headlessServiceName(instance), namespace, peerPort)
 }
 
 func accountPeerServiceDNSName(instance *kurav1alpha1.KuraInstance) string {
