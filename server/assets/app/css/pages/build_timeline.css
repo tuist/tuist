@@ -1,4 +1,5 @@
 .tuist-build-timeline {
+  --timeline-metrics-height: 0px;
   --timeline-fill-compile: light-dark(var(--noora-purple-100), var(--noora-purple-300));
   --timeline-fill-link: light-dark(var(--noora-blue-100), var(--noora-blue-300));
   --timeline-fill-script: light-dark(var(--noora-green-100), var(--noora-green-300));
@@ -104,6 +105,33 @@
   }
   & canvas {
     display: block;
+  }
+  & [data-part="metric-track"] {
+    cursor: crosshair;
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+  }
+  & [data-part="metric-heading"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+    padding: 3px 12px 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    font-variant-numeric: tabular-nums;
+    & output {
+      margin-left: auto;
+      color: var(--noora-surface-label-secondary);
+      font-weight: var(--noora-font-weight-regular);
+    }
+  }
+  & [data-part="metric-series"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+    & [data-series="primary"] {
+      color: var(--noora-chart-secondary);
+    }
+    & [data-series="secondary"] {
+      color: var(--noora-chart-tertiary);
+    }
   }
   & [data-part="ruler"] {
     cursor: crosshair;
@@ -234,7 +262,7 @@
     box-sizing: border-box;
     padding: var(--noora-spacing-5) 0;
     min-width: 0;
-    max-height: calc(var(--timeline-viewport-height) + 52px);
+    max-height: calc(var(--timeline-viewport-height) + var(--timeline-metrics-height) + 52px);
     overflow-y: auto;
     & [data-detail="title"] {
       display: block;

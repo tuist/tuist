@@ -160,6 +160,63 @@ defmodule TuistWeb.BuildRunLiveTest do
   end
 
   @tag :capture_log
+  test "aligned machine samples join the timeline and old metric links still work", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      offset_ms: 250.0,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, machine_metrics: [metric])
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=machine-metrics")
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-metric=cpu]")
+    assert has_element?(lv, "[data-metric=memory]")
+    refute has_element?(lv, "a", "Machine Metrics")
+    refute has_element?(lv, ".noora-table-empty-state", "No timeline available")
+    refute has_element?(lv, "#build-timeline[data-machine-metrics]")
+  end
+
+  test "legacy machine samples keep the standalone metrics view", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, machine_metrics: [metric])
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=machine-metrics")
+
+    assert has_element?(lv, "a", "Machine Metrics")
+    assert has_element?(lv, "#cpu-usage-chart")
+    refute has_element?(lv, "#build-timeline")
+  end
+
   test "timeline query failures use the shared error panel", %{conn: conn, organization: organization, project: project} do
     {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
     stub(Tuist.Builds, :build_timeline, fn _ -> raise "query failed" end)

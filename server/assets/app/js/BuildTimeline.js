@@ -1,3 +1,4 @@
+import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
 import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
 import { TimelineCache } from "./BuildTimelineCache.mjs";
 import { densityLayout } from "./BuildTimelineDensity.mjs";
@@ -41,6 +42,13 @@ export default {
   },
 
   initialize(timeline) {
+    this.metrics = new TimelineMetrics(timeline.machine_metrics || [], {
+      in: this.el.dataset.metricIn,
+      out: this.el.dataset.metricOut,
+      read: this.el.dataset.metricRead,
+      write: this.el.dataset.metricWrite,
+    });
+    this.part("machine-metrics").hidden = !this.metrics.samples.length;
     this.events = normalizeEvents(timeline.events);
     this.search = "";
     this.target = "";
@@ -51,6 +59,11 @@ export default {
     );
     this.maxSpan = timeline.max_span || Math.min(this.duration, 120_000);
     this.range = timeline.range || { start: 0, span: Math.min(this.duration, 10_000) };
+    if (timeline.total_count === 0 && this.metrics.samples.length) {
+      this.maxSpan = Math.min(this.duration, 120_000);
+      this.range = { start: 0, span: Math.min(this.duration, 10_000) };
+      timeline.loaded_range = { start: 0, span: this.duration };
+    }
     this.initialRange = { ...this.range };
     this.prefetch = new TimelinePrefetch();
     this.cache = new TimelineCache();
@@ -75,7 +88,7 @@ export default {
     });
     this.rangeHandler = this.handleEvent("timeline-range", (response) => this.receiveRange(response));
     this.logHandler = this.handleEvent("timeline-log", (response) => this.receiveLog(response));
-    const on = (el, name, fn) => el.addEventListener(name, fn, { signal: this.abort.signal });
+    const on = (el, name, fn, options = {}) => el.addEventListener(name, fn, { ...options, signal: this.abort.signal });
     this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
     this.control = (name) => this.el.querySelector(`[data-control="${name}"]`);
     this.scrollport = this.part("scrollport");
@@ -138,6 +151,19 @@ export default {
         this.zoom(factor, Math.max(0, Math.min(1, anchor)));
       },
       this.abort.signal,
+    );
+    on(
+      this.part("machine-metrics"),
+      "wheel",
+      (event) => {
+        if (event.ctrlKey || event.metaKey) return;
+        const delta = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+        if (!delta) return;
+        event.preventDefault();
+        this.scrollport.scrollLeft +=
+          delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.scrollport.clientWidth : 1);
+      },
+      { passive: false },
     );
     on(this.scrollport, "scroll", () => {
       this.hideTooltip();
@@ -270,6 +296,11 @@ export default {
     }
     if (this.resetRange) {
       this.range = timeline.range;
+      if (timeline.total_count === 0 && this.metrics.samples.length) {
+        this.maxSpan = Math.min(this.duration, 120_000);
+        this.range = { start: 0, span: Math.min(this.duration, 10_000) };
+        timeline.loaded_range = { start: 0, span: this.duration };
+      }
       this.initialRange = { ...this.range };
       this.resetRange = false;
     }
@@ -287,6 +318,7 @@ export default {
     );
     this.scrollport.style.height = `${availableHeight}px`;
     this.el.style.setProperty("--timeline-viewport-height", `${availableHeight}px`);
+    this.el.style.setProperty("--timeline-metrics-height", `${this.part("machine-metrics").offsetHeight}px`);
     this.part("tracks").style.height = `${availableHeight}px`;
     const geometry = scrollGeometry(this.scrollport.clientWidth, this.range, this.duration);
     this.part("tracks").style.width = `${geometry.width}px`;
@@ -317,6 +349,7 @@ export default {
   hideCursor() {
     this.cursorX = null;
     this.part("time-cursor").hidden = true;
+    this.updateMetricValues(null);
   },
 
   updateCursor() {
@@ -328,7 +361,9 @@ export default {
     const x = Math.max(12, Math.min(rect.width - 12, position));
     this.part("cursor-line").style.left = `${x}px`;
     const label = this.part("cursor-time");
-    label.textContent = cursorTimeLabel(cursorTime(x, rect.width, this.range));
+    const time = cursorTime(x, rect.width, this.range);
+    label.textContent = cursorTimeLabel(time);
+    this.updateMetricValues(time);
     label.style.left = `${Math.max(0, Math.min(rect.width - label.offsetWidth, x - label.offsetWidth / 2))}px`;
   },
 
@@ -408,6 +443,8 @@ export default {
         ]),
       ),
       accent: color("--noora-chart-primary"),
+      metricPrimary: color("--noora-chart-secondary"),
+      metricSecondary: color("--noora-chart-tertiary"),
       text: color("--noora-surface-label-primary"),
       muted: color("--noora-surface-label-secondary"),
       border: color("--noora-surface-border-primary"),
@@ -429,6 +466,7 @@ export default {
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, height);
     this.drawRuler(inset, plotWidth, colors);
+    this.drawMetrics(colors);
     ctx.strokeStyle = colors.border;
     ctx.globalAlpha = 0.45;
     const tickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / 100)));
@@ -517,6 +555,27 @@ export default {
     ctx.clip();
     ctx.fillText(text, x, y);
     ctx.restore();
+  },
+
+  drawMetrics(colors) {
+    if (!this.metrics?.samples.length) return;
+    for (const track of this.metrics.tracks) {
+      const canvas = this.el.querySelector(`[data-metric-canvas="${track.key}"]`);
+      const { ctx, width } = this.context(canvas, 36);
+      this.metrics.draw(ctx, width, 36, track, this.range, colors);
+    }
+    this.updateMetricValues(null);
+  },
+
+  updateMetricValues(time) {
+    if (!this.metrics?.samples.length) return;
+    for (const track of this.metrics.tracks) {
+      const output = this.el.querySelector(`[data-metric-value="${track.key}"]`);
+      output.textContent = this.metrics.label(track, time);
+      this.el
+        .querySelector(`[data-metric-canvas="${track.key}"]`)
+        .setAttribute("aria-label", `${track.key}: ${output.textContent}`);
+    }
   },
 
   drawRuler(labelWidth, plotWidth, colors) {

@@ -11,9 +11,12 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :version, :integer, required: true
 
   def build_timeline(assigns) do
+    assigns =
+      assign(assigns, :has_metrics, Enum.any?(Map.get(assigns.timeline, :machine_metrics, []), &is_number(&1.offset_ms)))
+
     ~H"""
     <.card
-      :if={@timeline.events == []}
+      :if={@timeline.events == [] and not @has_metrics}
       title={dgettext("dashboard_builds", "Build Timeline")}
       icon="timeline_event"
     >
@@ -31,11 +34,15 @@ defmodule TuistWeb.Components.BuildTimeline do
       </.card_section>
     </.card>
     <div
-      :if={@timeline.events != []}
+      :if={@timeline.events != [] or @has_metrics}
       id="build-timeline"
       class="tuist-build-timeline"
       phx-hook="BuildTimeline"
       phx-update="ignore"
+      data-metric-in={dgettext("dashboard_builds", "In")}
+      data-metric-out={dgettext("dashboard_builds", "Out")}
+      data-metric-read={dgettext("dashboard_builds", "Read")}
+      data-metric-write={dgettext("dashboard_builds", "Write")}
       data-version={@version}
       data-duration={@duration}
       data-log-loading={dgettext("dashboard_builds", "Loading log…")}
@@ -100,6 +107,34 @@ defmodule TuistWeb.Components.BuildTimeline do
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">
                 <canvas data-part="ruler" aria-hidden="true"></canvas>
+                <div data-part="machine-metrics" hidden>
+                  <div
+                    :for={
+                      {key, label, unit} <- [
+                        {"cpu", "CPU", "%"},
+                        {"memory", dgettext("dashboard_builds", "Memory"), "GB"},
+                        {"network", dgettext("dashboard_builds", "Network"), "MiB/s"},
+                        {"disk", dgettext("dashboard_builds", "Disk I/O"), "MiB/s"}
+                      ]
+                    }
+                    data-part="metric-track"
+                    data-metric={key}
+                  >
+                    <div data-part="metric-heading">
+                      <span>{label}</span>
+                      <span :if={key in ["network", "disk"]} data-part="metric-series">
+                        <span data-series="primary">{if key == "network",
+                          do: dgettext("dashboard_builds", "In"),
+                          else: dgettext("dashboard_builds", "Read")}</span>
+                        <span data-series="secondary">{if key == "network",
+                          do: dgettext("dashboard_builds", "Out"),
+                          else: dgettext("dashboard_builds", "Write")}</span>
+                      </span>
+                      <output data-metric-value={key}>{unit}</output>
+                    </div>
+                    <canvas data-metric-canvas={key} role="img" aria-label={label}></canvas>
+                  </div>
+                </div>
                 <div data-part="scrollport">
                   <div data-part="tracks">
                     <canvas

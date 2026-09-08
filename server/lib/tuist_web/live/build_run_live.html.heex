@@ -192,7 +192,10 @@
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
       <.tab_menu_horizontal_item
-        :if={length(@machine_metrics) > 0}
+        :if={
+          length(@machine_metrics) > 0 and
+            not Enum.any?(@machine_metrics, &is_number(&1.offset_ms))
+        }
         label={dgettext("dashboard_builds", "Machine Metrics")}
         selected={@selected_tab == "machine-metrics"}
         patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}

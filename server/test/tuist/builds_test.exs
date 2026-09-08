@@ -206,6 +206,7 @@ defmodule Tuist.BuildsTest do
       machine_metrics = [
         %{
           timestamp: base_ts + 1.0,
+          offset_ms: 250.0,
           cpu_usage_percent: 45.5,
           memory_used_bytes: 8_000_000_000,
           memory_total_bytes: 16_000_000_000,
@@ -248,6 +249,8 @@ defmodule Tuist.BuildsTest do
       # Then
       build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
       assert length(build.machine_metrics) == 2
+      assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
+      assert Enum.at(build.machine_metrics, 1).offset_ms == nil
       assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001

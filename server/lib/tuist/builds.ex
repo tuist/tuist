@@ -348,6 +348,7 @@ defmodule Tuist.Builds do
           build_run_id: build.id,
           gradle_build_id: nil,
           timestamp: metric.timestamp,
+          offset_ms: Map.get(metric, :offset_ms),
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,

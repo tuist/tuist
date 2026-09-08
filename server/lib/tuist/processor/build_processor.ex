@@ -92,6 +92,7 @@ defmodule Tuist.Processor.BuildProcessor do
         ts = sample["timestamp"]
         ts >= start_unix and ts <= end_unix
       end)
+      |> Stream.map(&Map.put(&1, "offset_ms", (&1["timestamp"] - start_unix) * 1000))
       |> Enum.to_list()
     else
       []

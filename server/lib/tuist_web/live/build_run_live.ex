@@ -288,7 +288,10 @@ defmodule TuistWeb.BuildRunLive do
     selected_breakdown_tab = params["breakdown-tab"] || "module"
     selected_cache_tab = params["cache-tab"] || "cacheable-tasks"
 
-    selected_tab = params["tab"] || "overview"
+    selected_tab =
+      if params["tab"] == "machine-metrics" and Enum.any?(socket.assigns.machine_metrics, &is_number(&1.offset_ms)),
+        do: "timeline",
+        else: params["tab"] || "overview"
 
     available_filters =
       case {selected_tab, selected_breakdown_tab, selected_cache_tab} do
@@ -367,6 +370,21 @@ defmodule TuistWeb.BuildRunLive do
   defp assign_timeline(socket, "timeline", force) do
     run_id = socket.assigns.run.id
 
+    metrics =
+      Enum.map(
+        socket.assigns.machine_metrics,
+        &Map.take(&1, [
+          :offset_ms,
+          :cpu_usage_percent,
+          :memory_used_bytes,
+          :memory_total_bytes,
+          :network_bytes_in,
+          :network_bytes_out,
+          :disk_bytes_read,
+          :disk_bytes_written
+        ])
+      )
+
     if force or socket.assigns.timeline_run_id != run_id do
       socket
       |> assign(:timeline_run_id, run_id)
@@ -374,7 +392,14 @@ defmodule TuistWeb.BuildRunLive do
       |> assign_async(
         :timeline,
         fn ->
-          {:ok, %{timeline: Map.put(Builds.build_timeline(run_id), :targets, Builds.build_timeline_targets(run_id))}}
+          {:ok,
+           %{
+             timeline:
+               run_id
+               |> Builds.build_timeline()
+               |> Map.put(:targets, Builds.build_timeline_targets(run_id))
+               |> Map.put(:machine_metrics, metrics)
+           }}
         end,
         reset: true
       )

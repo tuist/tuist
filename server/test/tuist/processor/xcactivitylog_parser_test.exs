@@ -2,6 +2,7 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
   # Writes a stub executable into the app's priv dir, which is global state.
   use ExUnit.Case, async: false
 
+  alias Tuist.Processor.BuildProcessor
   alias Tuist.Processor.XCActivityLogParser
 
   @executable_path Path.join([:code.priv_dir(:tuist), "native", "xcactivitylog-parser"])
@@ -17,6 +18,25 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
     XCActivityLogParser.parse("log.xcactivitylog", "cas.db", "cas_metadata", false, fn data ->
       {:ok, Map.update!(data, "build_steps", &Enum.to_list/1)}
     end)
+  end
+
+  test "archive samples use the activity log start, preserving fractional offsets" do
+    install_parser(~S|printf '{"time_started_recording":100.125,"time_stopped_recording":102.125}' > "$4"|)
+    path = Path.join(System.tmp_dir!(), "metric-offset-#{System.unique_integer([:positive])}.zip")
+    on_exit(fn -> File.rm(path) end)
+    samples = Enum.map_join([978_307_300.0, 978_307_300.375, 978_307_303.0], "\n", &JSON.encode!(%{timestamp: &1}))
+
+    {:ok, _} =
+      :zip.create(String.to_charlist(path), [
+        {~c"xcactivitylog/build.xcactivitylog", "log"},
+        {~c"machine_metrics.jsonl", samples}
+      ])
+
+    assert {:ok, [%{"offset_ms" => offset, "timestamp" => timestamp}]} =
+             BuildProcessor.process_build(path, false, fn data -> {:ok, data["machine_metrics"]} end)
+
+    assert offset == 250.0
+    assert timestamp == 978_307_300.375
   end
 
   test "returns the decoded build data the parser wrote" do
