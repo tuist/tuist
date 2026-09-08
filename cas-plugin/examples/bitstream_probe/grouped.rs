@@ -72,7 +72,13 @@ fn groups(data: &[u8], limit: usize) -> Result<Vec<(Key, &[u8])>> {
     Ok(output)
 }
 
-pub fn encode(base: &[u8], target: &[u8], limit: usize, level: i32) -> Result<Patch> {
+pub fn encode(
+    base: &[u8],
+    target: &[u8],
+    limit: usize,
+    level: i32,
+    residual: bool,
+) -> Result<Patch> {
     let base_groups: BTreeMap<_, _> = groups(base, limit)?.into_iter().collect();
     let target_groups = groups(target, limit)?;
     let mut patch = Patch {
@@ -88,7 +94,7 @@ pub fn encode(base: &[u8], target: &[u8], limit: usize, level: i32) -> Result<Pa
     }
     for (key, bytes) in target_groups {
         let prefix = base_groups.get(&key).copied().unwrap_or_default();
-        let (mode, payload) = if prefix == bytes {
+        let (mut mode, mut payload) = if prefix == bytes {
             patch.copied_bytes += bytes.len();
             (0, Vec::new())
         } else {
@@ -120,6 +126,21 @@ pub fn encode(base: &[u8], target: &[u8], limit: usize, level: i32) -> Result<Pa
                 (2, bytes.to_vec())
             }
         };
+        if residual && mode != 0 && prefix.len() == bytes.len() {
+            // A numeric-reference change may be sparse without containing long
+            // exact matches. Keep a bytewise difference only when it is smaller.
+            let difference: Vec<_> = bytes
+                .iter()
+                .zip(prefix)
+                .map(|(new, old)| new.wrapping_sub(*old))
+                .collect();
+            let compressed = zstd::bulk::compress(&difference, level)
+                .map_err(|e| format!("compress difference: {e}"))?;
+            if compressed.len() < payload.len() {
+                mode = 3;
+                payload = compressed;
+            }
+        }
         for value in key {
             patch.bytes.extend(value.to_le_bytes());
         }
@@ -194,6 +215,18 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
                 require(payload.len() == decoded_size, "incorrect literal size")?;
                 output.extend(payload);
             }
+            3 => {
+                require(prefix.len() == decoded_size, "difference base size")?;
+                let difference = zstd::bulk::decompress(payload, decoded_size)
+                    .map_err(|e| format!("decompress difference: {e}"))?;
+                require(difference.len() == decoded_size, "difference output size")?;
+                output.extend(
+                    difference
+                        .iter()
+                        .zip(prefix)
+                        .map(|(change, old)| change.wrapping_add(*old)),
+                );
+            }
             _ => return Err("unknown group mode".into()),
         }
     }
@@ -229,13 +262,13 @@ mod tests {
             let mut values = vec![11; 4096];
             values[1800] = 19;
             let target = prepared(&values, code);
-            let patch = encode(&base, &target, 1024, 3).unwrap();
+            let patch = encode(&base, &target, 1024, 3, true).unwrap();
             assert_eq!(decode(&base, &patch.bytes).unwrap(), target);
             if code == 7 {
                 assert!(patch.copied_bytes >= 3072);
             }
         }
-        let patch = encode(&base, &base, 1024, 3).unwrap();
+        let patch = encode(&base, &base, 1024, 3, true).unwrap();
         assert_eq!(patch.copied_bytes, base.len());
         assert_eq!(patch.bytes.len(), patch.metadata_bytes());
     }
@@ -244,7 +277,7 @@ mod tests {
     fn rejects_wrong_bases_truncation_and_trailing_bytes() {
         let base = prepared(&vec![11; 4096], 7);
         let target = prepared(&vec![19; 4096], 7);
-        let patch = encode(&base, &target, 1024, 3).unwrap().bytes;
+        let patch = encode(&base, &target, 1024, 3, true).unwrap().bytes;
         assert!(decode(&target, &patch).is_err());
         for end in 0..patch.len() {
             assert!(decode(&base, &patch[..end]).is_err());
@@ -261,7 +294,7 @@ mod tests {
         let mut extra = patch;
         extra.push(0);
         assert!(decode(&base, &extra).is_err());
-        assert!(encode(&base, &target, 0, 3).is_err());
-        assert!(encode(&base, &target, 16 * 1024 * 1024, 3).is_err());
+        assert!(encode(&base, &target, 0, 3, true).is_err());
+        assert!(encode(&base, &target, 16 * 1024 * 1024, 3, true).is_err());
     }
 }

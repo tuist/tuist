@@ -24,6 +24,8 @@ struct Config {
     prefix: bool,
     #[serde(default)]
     group_bytes: usize,
+    #[serde(default)]
+    residual: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -132,6 +134,7 @@ fn main() {
                     &next_prepared,
                     config.group_bytes,
                     config.level,
+                    config.residual,
                 )
                 .unwrap();
                 groups = patch.groups;
