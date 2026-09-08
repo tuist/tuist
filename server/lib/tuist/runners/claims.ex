@@ -82,6 +82,7 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
   require Logger
@@ -387,10 +388,18 @@ defmodule Tuist.Runners.Claims do
 
         # The lifecycle row re-queues in the same transaction as the
         # claim delete, so claim and row state cannot diverge across
-        # a crash. Terminal rows never match `requeue/1`'s guard and
+        # a crash. Terminal rows never match the requeue guard and
         # stay completed.
+        #
+        # Handle-guarded, like the row's own claim transition: the row
+        # carries this claim's `claimed_at` only while it belongs to
+        # this generation. A job the runner shuffle displaced *onto*
+        # another Pod carries that Pod's execution handle instead, and
+        # ClickHouse dispatch lag can still hand it a second, stale
+        # claim; re-queueing off that one would put a job that is
+        # actively running back in the queue.
         if count == 1 do
-          WorkflowJobs.requeue(workflow_job_id)
+          WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
           :ok
         else
           {:error, :stale_claim}
@@ -935,6 +944,47 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Lifecycle rows still reading `queued` that a live claim proves are
+  executing: the claim records this row as its `executed_workflow_job_id`
+  and the row already carries that runner's name. Up to `limit` of them,
+  oldest arrival first, in the shape
+  `Tuist.Runners.WorkflowJobs.transition_executing/3` needs.
+
+  The backstop for `record_execution/3`. That path starts the executed
+  job in the same transaction as the detach, but only for deliveries it
+  sees: a row stranded before the transition existed, or by an
+  `in_progress` that never landed and was recovered by the `completed`
+  attribution instead, has nothing left to move it. Both leave the same
+  provable shape — a queued row bound to a runner whose claim is holding
+  a slot for it — so it is recoverable without asking GitHub anything.
+
+  Driven from the claim side because that table is bounded by concurrent
+  Pods (hundreds), where the lifecycle table is bounded by the queue.
+  `runner_name` has to agree on both rows: it is the only evidence that
+  the binding on the lifecycle row came from this claim's runner, and a
+  runner name is unique per account by 32 bits of randomness alone.
+  """
+  def list_executing_queued(limit) when is_integer(limit) and limit > 0 do
+    Repo.all(
+      from(c in Claim,
+        join: j in WorkflowJob,
+        on: j.workflow_job_id == c.executed_workflow_job_id and j.account_id == c.account_id,
+        where: c.lifecycle_state == "running" and j.status == "queued" and j.runner_name == c.runner_name,
+        order_by: [asc: j.enqueued_at, asc: j.workflow_job_id],
+        limit: ^limit,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: j.account_id,
+          fleet_name: j.fleet_name,
+          enqueued_at: j.enqueued_at,
+          runner_name: c.runner_name,
+          pod_name: c.pod_name
+        }
+      )
+    )
+  end
+
+  @doc """
   Records the workflow_job GitHub actually placed on the runner named
   `runner_name`, learned from the `workflow_job.in_progress` /
   `completed` webhook. The mint-chosen `runner_name` is unique per
@@ -955,6 +1005,12 @@ defmodule Tuist.Runners.Claims do
   runner needs for the job it actually took, and clears the unique index
   so another Pod can claim it. The claim is keyed by `pod_name`, so it
   survives losing its job.
+
+  The same transaction starts the job the runner *did* take
+  (`Tuist.Runners.WorkflowJobs.transition_executing/3`). The Pod's slot
+  has moved from one job to the other, and both lifecycle rows have to
+  move with it: the executed job was never claimed here, so no mint will
+  ever transition it, and GitHub sends nothing more until it completes.
 
   The detach and the re-queue must commit together. Split across two
   transactions, a crash or a failed write between them leaves the job
@@ -1014,12 +1070,26 @@ defmodule Tuist.Runners.Claims do
                executed_workflow_job_id: executed_workflow_job_id,
                workflow_job_id: nil
              ) do
-          1 -> requeue_displaced_job(claimed_job_id, claimed_at)
-          0 -> nil
+          1 ->
+            adopt_executed_job(claim, executed_workflow_job_id)
+            requeue_displaced_job(claimed_job_id, claimed_at)
+
+          0 ->
+            nil
         end
       end)
 
     displaced
+  end
+
+  # The slot moves from the claimed job to the executed one, so both
+  # lifecycle rows move with it, in the transaction that moves the claim.
+  # Nothing else will start the executed job: it was never claimed by this
+  # Pod, so `mark_running/3` runs for a different row, and GitHub sends no
+  # further webhook until the job is over. Guarded on `queued`, so a row
+  # another Pod holds under its own claim generation is left to it.
+  defp adopt_executed_job(%Claim{pod_name: pod_name, runner_name: runner_name}, executed_workflow_job_id) do
+    WorkflowJobs.transition_executing(executed_workflow_job_id, runner_name, pod_name)
   end
 
   # Writes the claim that was read, by its primary key, rather than every

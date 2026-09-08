@@ -137,6 +137,61 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
+  describe "transition_executing/3" do
+    test "CAS queued → running stamps the executing Pod's identity" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_025))
+
+      assert :ok = WorkflowJobs.transition_executing(910_025, "runner-x", "pod-1")
+
+      row = get_row!(910_025)
+      assert row.status == "running"
+      assert row.runner_name == "runner-x"
+      assert row.pod_name == "pod-1"
+      assert row.executed_workflow_job_id == 910_025
+      assert %DateTime{} = row.started_at
+      assert %DateTime{} = row.claimed_at
+    end
+
+    # A row another Pod holds belongs to that Pod's claim generation;
+    # stamping this runner over it would misattribute the next execution.
+    test "leaves a row another Pod already claimed alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_026))
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_026, "pod-other", claimed_at)
+
+      assert :noop = WorkflowJobs.transition_executing(910_026, "runner-x", "pod-1")
+
+      row = get_row!(910_026)
+      assert row.status == "claimed"
+      assert row.pod_name == "pod-other"
+    end
+
+    test "cannot resurrect a terminal row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_027))
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_027), "success", DateTime.utc_now())
+
+      assert :noop = WorkflowJobs.transition_executing(910_027, "runner-x", "pod-1")
+      assert get_row!(910_027).status == "completed"
+    end
+
+    # The handle it stamps is its own, not the minting claim's, so the
+    # stale claim a ClickHouse-lagged dispatch can still hand this job
+    # cannot re-queue it mid-flight.
+    test "the stamped handle does not match the minting claim's" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_028))
+      minting_claimed_at = DateTime.utc_now()
+
+      assert :ok = WorkflowJobs.transition_executing(910_028, "runner-x", "pod-1")
+
+      assert :noop = WorkflowJobs.requeue_by_handle(910_028, minting_claimed_at)
+      assert get_row!(910_028).status == "running"
+    end
+  end
+
   describe "requeue/1" do
     test "moves a claimed row back to queued and clears the claim binding" do
       account = account_fixture()

@@ -243,6 +243,76 @@ defmodule Tuist.Runners.ClaimsTest do
     test "returns :stale_claim when the row is gone" do
       assert {:error, :stale_claim} = Claims.release(9_999_999, DateTime.utc_now())
     end
+
+    # ClickHouse dispatch lag can hand a second claim to a job the runner
+    # shuffle already started on someone else's Pod. Releasing that claim
+    # must free the slot without putting a job that is actively burning
+    # CPU back in the queue — where the autoscaler would then provision
+    # for it a second time.
+    test "does not re-queue a job running under another Pod's handle" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2010))
+      :ok = WorkflowJobs.transition_executing(2010, "runner-elsewhere", "pod-elsewhere")
+
+      {:ok, stale} = Claims.attempt(2010, account.id, "fleet-a", "pod-late", @linux_resources)
+
+      assert :ok = Claims.release(2010, stale.claimed_at)
+
+      row = Repo.get!(WorkflowJob, 2010)
+      assert row.status == "running"
+      assert row.pod_name == "pod-elsewhere"
+      assert Claims.counts_per_account() == %{}
+    end
+  end
+
+  describe "list_executing_queued/1" do
+    test "returns queued rows a live claim proves are executing" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2020))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2021))
+      {:ok, _} = Claims.attempt(2020, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(2020, "runner-stuck")
+
+      # The strand this sweep exists for: the claim records the execution
+      # and the row learned the runner, but nothing moved the row out of
+      # `queued`.
+      :ok = WorkflowJobs.record_execution("runner-stuck", 2021, account.id)
+      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2021])
+
+      assert [candidate] = Claims.list_executing_queued(10)
+      assert candidate.workflow_job_id == 2021
+      assert candidate.runner_name == "runner-stuck"
+      assert candidate.pod_name == "pod-1"
+      assert candidate.fleet_name == "fleet-a"
+    end
+
+    # A runner name is unique per account by 32 bits of randomness alone,
+    # so agreement on both rows is the evidence that this claim's runner
+    # is the one holding the job.
+    test "skips a queued row whose runner_name does not match the claim's" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2030))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2031))
+      {:ok, _} = Claims.attempt(2030, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(2030, "runner-a")
+
+      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2031])
+
+      assert Claims.list_executing_queued(10) == []
+    end
+
+    test "skips a row that is no longer queued" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2040))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2041))
+      {:ok, _} = Claims.attempt(2040, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(2040, "runner-done")
+      :ok = WorkflowJobs.record_execution("runner-done", 2041, account.id)
+      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2041])
+      :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 2041), "success", DateTime.utc_now())
+
+      assert Claims.list_executing_queued(10) == []
+    end
   end
 
   describe "counts_per_account/0" do
@@ -602,6 +672,44 @@ defmodule Tuist.Runners.ClaimsTest do
       assert row.workflow_job_id == nil
       assert Claims.counts_per_account() == %{account.id => 1}
       assert Repo.get!(WorkflowJob, 7002).status == "queued"
+    end
+
+    # The slot moved from one job to the other, so both rows move with it.
+    # Nothing else would start the executed one: it was never claimed
+    # here, so no mint transitions it, and GitHub announces nothing more
+    # about a job it has already placed.
+    test "starts the executed job's lifecycle row on the claim's Pod" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7020))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7021))
+      {:ok, _} = Claims.attempt(7020, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = mark_running!(7020, "runner-shuffle")
+
+      assert {:mismatch, %{workflow_job_id: 7020}} = Claims.record_execution("runner-shuffle", 7021, account.id)
+
+      executed = Repo.get!(WorkflowJob, 7021)
+      assert executed.status == "running"
+      assert executed.runner_name == "runner-shuffle"
+      assert executed.pod_name == "pod-1"
+      assert %DateTime{} = executed.started_at
+    end
+
+    # The executed job may already belong to another Pod's claim
+    # generation — the shuffle does not stop dispatch from having handed
+    # it out. That generation owns the row.
+    test "leaves the executed job alone when another Pod already claimed it" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7022))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7023))
+      {:ok, _} = Claims.attempt(7022, account.id, "fleet-a", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(7023, account.id, "fleet-a", "pod-2", @linux_resources)
+      :ok = mark_running!(7022, "runner-late")
+
+      assert {:mismatch, _displaced} = Claims.record_execution("runner-late", 7023, account.id)
+
+      executed = Repo.get!(WorkflowJob, 7023)
+      assert executed.status == "claimed"
+      assert executed.pod_name == "pod-2"
     end
 
     # The failure the transaction closes. Committed separately, a re-queue

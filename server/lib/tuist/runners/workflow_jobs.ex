@@ -24,8 +24,11 @@ defmodule Tuist.Runners.WorkflowJobs do
     * `Tuist.Runners.Claims.attempt/5` (same transaction as the claim
       insert) → `transition_claimed/3`
     * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
-    * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
-      (same transaction as the claim delete) → `requeue/1`
+    * `Tuist.Runners.Claims.record_execution/3` (webhook `in_progress`,
+      same transaction as the claim detach) → `transition_executing/3`
+    * `Tuist.Runners.Claims.release/2` (same transaction as the claim
+      delete) → `requeue_by_handle/2`, and `release_pod_missing/2` →
+      `requeue/1`
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
       plus the recovery workers' force-completes) → `record_completed/3`
 
@@ -197,6 +200,60 @@ defmodule Tuist.Runners.WorkflowJobs do
       :noop -> :noop
     end
   end
+
+  @doc """
+  CAS `queued → running` for a job the `in_progress` webhook proves is
+  executing on a runner it never claimed — the other half of the runner
+  shuffle.
+
+  GitHub binds a JIT runner to a label set, not to a job, so it
+  routinely places job B on the Pod we minted for job A.
+  `Tuist.Runners.Claims.record_execution/3` already hands A back to the
+  queue; this moves B, whose own row nothing else touches.
+  `transition_running/3` cannot: it CASes the Pod's own
+  `claimed → running` under the `claimed_at` handle, and B was never
+  claimed by this Pod. Left alone B reads `queued` until its
+  `completed` webhook flips it terminal — for its entire runtime the
+  dashboard says Queued, and the queue depth and age gauges (and the
+  autoscaler reading them) count a job that is already burning CPU.
+
+  Guarded on `queued` alone, so it cannot resurrect a terminal row or
+  overwrite a generation another Pod holds: a row already `claimed` or
+  `running` belongs to whichever claim moved it there, and stamping
+  this Pod over it would misattribute the next execution.
+
+  The Pod's identity rides along. `pod_name` is what
+  `list_running_for_pod/1` reads, so B is recoverable when the Pod it
+  is actually on goes away, and `claimed_at` gives the row a release
+  handle of its own — a `running` row without one crashes the recovery
+  sweeps, and a distinct handle is what stops a stale claim naming B
+  from re-queueing it mid-flight (see
+  `Tuist.Runners.Claims.release/2`). Both are the execution's own
+  moment rather than the minting claim's: B waited in the queue until
+  GitHub placed it here, not until the Pod that took it was reserved.
+  """
+  def transition_executing(workflow_job_id, runner_name, pod_name)
+      when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
+             pod_name != "" do
+    now = DateTime.utc_now()
+
+    workflow_job_id
+    |> transition(["queued"], "running",
+      runner_name: runner_name,
+      pod_name: pod_name,
+      claimed_at: now,
+      started_at: now,
+      executed_workflow_job_id: workflow_job_id
+    )
+    |> finish_executing()
+  end
+
+  defp finish_executing({:applied, row}) do
+    Tuist.PubSub.broadcast(%{status: "running"}, Jobs.topic(row.account_id), :runner_jobs_status_changed)
+    :ok
+  end
+
+  defp finish_executing(:noop), do: :noop
 
   @doc """
   CAS `claimed | running → queued` — the claim-release transition.
