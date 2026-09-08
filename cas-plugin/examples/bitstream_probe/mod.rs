@@ -8,6 +8,7 @@ pub mod grouped;
 type Result<T> = std::result::Result<T, String>;
 type Key = (i32, i32, u32);
 type Abbreviation = Arc<Vec<(u8, u64)>>;
+type ColumnRow<'a> = Vec<Option<(Cursor<'a>, u64)>>;
 pub const MAX_INPUT: usize = 32 * 1024 * 1024;
 pub const MAX_PREPARED: usize = 256 * 1024 * 1024;
 const MAX_OPERATIONS: usize = 16 * 1024 * 1024;
@@ -581,7 +582,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         data: input.take(blob_size)?,
         at: 0,
     };
-    let mut columns: BTreeMap<(i32, i32), Vec<Option<(Cursor<'_>, u64)>>> = BTreeMap::new();
+    let mut columns: BTreeMap<(i32, i32), ColumnRow<'_>> = BTreeMap::new();
     let mut slots = 0;
     for (key, size) in descriptors {
         require(key.2 <= column_cap, "invalid column index")?;
@@ -801,6 +802,32 @@ mod tests {
             .variable()
             .is_err());
         }
+    }
+
+    #[test]
+    fn rejects_invalid_column_indices_and_sparse_slot_expansion() {
+        let bytes = fixture();
+        let mut prepared = prepare_compact(&bytes, true, 32, true, true).unwrap();
+        prepared[44..48].copy_from_slice(&33u32.to_le_bytes());
+        assert_eq!(
+            restore(&prepared, bytes.len()).unwrap_err(),
+            "invalid column index"
+        );
+
+        let mut prepared = b"BCOL0002".to_vec();
+        prepared.extend(0u64.to_le_bytes());
+        for value in [0u32, 0, 1024, 1024, 7] {
+            prepared.extend(value.to_le_bytes());
+        }
+        for record in 0..1024u32 {
+            for value in [0, record, 1024, 0] {
+                prepared.extend(value.to_le_bytes());
+            }
+        }
+        assert_eq!(
+            restore(&prepared, 0).unwrap_err(),
+            "column slot limit exceeded"
+        );
     }
 
     #[test]

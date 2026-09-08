@@ -20,6 +20,16 @@ transfer bytes. Bounded page comparisons do not mean bounded total memory: the
 current preparation and inverse still retain whole expanded representations.
 Do not claim streaming, base discovery, authorization, or network integration.
 
+The compact offline representation records repeated operation layouts as runs
+and numeric columns as variable-length integers, optionally encoding signed
+differences. These are reversible storage encodings, not compiler normalization.
+Preserve original padding and variable-integer spelling separately. Keep the
+legacy research representation readable, reject unknown flags and noncanonical
+compact integers, and bound sparse column slots as well as descriptor counts.
+The optional accelerated hash must produce identical digests and patch bytes;
+cross-check both implementations. Its dependency is development-only and must
+not change production hashing or capability negotiation.
+
 Any future production field-patch path must remain experimental and explicitly
 opt-in per project. Missing, empty, or invalid configuration means disabled;
 server support alone must never enable it. The opt-in must accompany requests

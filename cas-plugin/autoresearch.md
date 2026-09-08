@@ -410,7 +410,8 @@ Next work, before considering a production codec:
    feature is enabled](https://github.com/RustCrypto/hashes/blob/sha2-v0.10.9/sha2/src/sha256.rs).
    The [accelerated backend checks processor support at runtime](https://github.com/RustCrypto/hashes/blob/sha2-v0.10.9/sha2/src/sha256/aarch64.rs).
    Benchmark an accelerated build and verify both supported architectures before
-   changing a shipping dependency. No acceleration is enabled by this experiment.
+   changing a shipping dependency. The fourth segment below tests an accelerated
+   development-only implementation on Apple silicon; shipping hashing is unchanged.
 3. Test insertion/deletion, multiple edits, different build modes, toolchain
    revisions, and unrelated bases. A transfer selection policy must include
    processing cost and fallback, not choose solely from patch size.
@@ -424,8 +425,10 @@ still have been compiled somewhere before its exact output can be reconstructed.
 
 To repeat with available artifact pairs, run `./autoresearch.swift.sh` with a
 manifest containing the three edits, the body-only pair, the large Xcode module,
-and the Foundation header. Use the checked-in grouped configuration, or set
-`group_bytes` to zero and `residual` to false for the monolithic baseline. The
+and the Foundation header. Use the checked-in grouped configuration for the
+latest candidate. For the original monolithic baseline, also set `group_bytes`
+to zero and `residual`, `fast_hash`, `compact_layout`, and `compact_columns` to
+false. The
 historical temporary artifacts are not bundled; regenerated artifacts establish
 a new corpus rather than reproducing these exact byte counts. Set
 `SWIFT_PATCH_RESTORED_DIR` to an existing empty temporary directory to export
@@ -457,3 +460,102 @@ Only examples, development-only dependencies, and research notes are in scope.
 Production hashing, server protocols, default behavior, and the unimplemented
 project opt-in setting are not changed. Run compiler-consumer checks on retained
 reconstructions and record the actual costs, not a predicted download speedup.
+
+### Retained changes
+
+The six-run segment kept four optimizations after the baseline, then discarded
+an earlier-buffer-release experiment that increased resident memory.
+
+- Select the existing transport dependency's accelerated digest implementation
+  for the offline patch envelope. It produces identical digests and patch bytes;
+  tests cross-decode with both implementations. `ring` is a development-only
+  direct dependency, already present transitively. No production hash or normal
+  dependency feature changed. See the [digest implementation](https://docs.rs/ring/latest/ring/digest/index.html).
+- Store repeated operation layouts as runs, preserving their width and original
+  variable-integer group counts. Padding remains exact, including nonzero bits.
+- Encode numeric columns with variable-length integers and signed differences,
+  using the [ZigZag mapping](https://protobuf.dev/programming-guides/encoding/#signed-ints)
+  so small negative differences are also compact. This is not compiler semantic
+  normalization or a Protocol Buffers message format.
+- Resolve column rows once per record during reconstruction, and reuse the
+  capped tail column during preparation. Sparse lookup slots have a separate
+  allocation bound, so a small malicious descriptor list cannot create an
+  unbounded sparse table.
+
+The compact research representation has a new version and explicit option bits;
+the inverse still accepts the previous research version. The grouped envelope
+and its hashes remain byte-preserving. Nothing is advertised through the
+production chunk capability or exposed through a new build setting.
+
+### Confirmation results
+
+The initial baseline took 2,897 milliseconds of aggregate receiver work, but
+unchanged verification phases also became faster during the search. To avoid
+attributing machine timing variation to the code, the original example and parser
+from `0fe9d46` were rebuilt in a temporary package using the same Rust 1.94.1,
+release optimization level 2, thin link-time optimization, dependency lockfile,
+production node encoder, and artifact manifest. The original and retained
+implementations were then run sequentially without concurrent test/build work.
+
+| Metric, five changed outputs | Original grouped confirmation | Compact grouped confirmation | Reduction |
+| --- | ---: | ---: | ---: |
+| Selected transfer bytes | 1,243,833 | 1,098,158 | 11.7% |
+| Total prepared output bytes | 309,728,330 | 117,453,842 | 62.1% |
+| Fresh-base receiver work | 1,956.76 ms | 818.62 ms | 58.2% |
+| Patch construction work | 1,286.38 ms | 201.15 ms | 84.4% |
+| Whole-process peak resident bytes | 1,811,054,592 | 617,316,352 | 65.9% |
+
+These are sums of three-sample phase medians for the five changed outputs, not
+one build's elapsed time. Receiver work includes preparing its base, verifying
+and decoding the patch, restoring the exact file, and reconstructing/verifying
+the complete compressed node. Patch construction excludes both preparations.
+Selected bytes still include actual group metadata and an estimated 192-byte
+outer envelope. The body-only output was already identical and transfers zero.
+
+| Output | Previous grouped bytes | Compact grouped bytes | Compact prepared bytes | Fresh-base receiver work |
+| --- | ---: | ---: | ---: | ---: |
+| ProjectDescription public declaration | 158,211 | 146,170 | 4,327,013 | 33.00 ms |
+| ProjectDescription enum change | 50,307 | 45,198 | 4,302,870 | 32.05 ms |
+| ProjectDescription hashing change | 169,102 | 152,404 | 4,301,693 | 34.12 ms |
+| Foundation precompiled header | 776,089 | 664,623 | 35,632,343 | 283.69 ms |
+| Xcode Swift module | 90,124 | 89,763 | 68,889,923 | 435.76 ms |
+
+The header benefits more from the new representation than the large Swift
+module's transfer size, which was already very small. For that Swift module,
+the more important gain is reducing the prepared representation from 183,174,600
+to 68,889,923 bytes. No tested output regressed in transfer bytes. Group metadata
+grew slightly from 25,990 to 28,312 bytes and is included in the totals.
+
+Two additional retained-candidate runs measured 821.02 and 830.78 milliseconds
+and peak process memory of 614,383,616 and 620,675,072 bytes. The latter overlapped
+focused tests and is not used for the headline timing comparison. All reproduced
+the same transfer sizes. The rejected early-release experiment peaked at
+746,225,664 bytes; allocator lifetime and retention still matter.
+
+### Validation and remaining limits
+
+All six search runs and subsequent confirmations reconstructed every changed
+compiler output and the complete compressed-node bytes/digest exactly. Fresh
+exports passed four Swift consumer import/type-checks and one Objective-C
+precompiled-header consumer check. `./autoresearch.checks.sh` passed twelve Swift
+example tests, three chunking-example tests, and three non-server chunk tests.
+The new tests cover compact encoding combinations, integer extremes, truncation,
+mutations, malformed runs, sparse-slot bounds, and cross-implementation hashes.
+The 109 library and ten negotiation/backpressure tests passed again. The example
+Clippy check passed with the same command-line allowance for the existing library
+raw-pointer lint; no new example warning remains.
+
+This remains above the 512-mebibyte promotion budget. Peak memory measures the
+combined sender/receiver process across all pairs and allocator retention, not
+an isolated receiver. It is neither a streaming codec nor a bounded-memory
+production implementation. Only Apple silicon was measured. Missing-base
+fallback, base authorization/discovery, concurrency limits, broader edit/toolchain
+coverage, fuzzing, and separate capability negotiation remain unimplemented.
+The two live-Kura tests were ignored in this research pass. No new network
+end-to-end test of field patches is possible because they have no runtime path.
+
+Keep the explicit per-project opt-in policy above: never enable field patches
+by default, and never treat server support as consent. The next useful work is
+streamed or spooled prepared pages with measured receiver-only peak memory,
+rather than another compression-level search. There is no claimed reduction in
+compiler invalidation or total build time.
