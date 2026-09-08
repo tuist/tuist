@@ -372,6 +372,33 @@ and ten negotiation/backpressure tests also passed. Two live-Kura chunk tests
 were explicitly ignored in this pass because no local Kura was running. This is
 not a new end-to-end network test of grouped patches, which have no network path.
 
+### Rollout decision: explicit opt-in, never the default
+
+The experimental field-patch format must not become the default transfer path.
+Server support is necessary but is not consent to enable it. Missing, empty, or
+invalid project configuration must leave it off. Ordinary negotiated chunking
+and local chunk reuse are separate features and keep their existing behavior.
+
+The proposed Swift-only setting is
+`TUIST_XCODE_CACHE_EXPERIMENTAL_FIELD_PATCHES`, defaulting to `NO`. When a supported
+runtime path exists, generation can expand that value into the `tuist-field-patches`
+plugin option through `OTHER_SWIFT_FLAGS`. This setting is not implemented today:
+the codec remains an offline example. Arbitrary build settings should not be
+assumed to appear in the compiler plugin's environment.
+
+An explicit opt-in must travel with each transfer request and queued publication,
+including background materialization. It must not toggle the shared proxy for
+other projects or silently opt in another build configuration. Supporting Clang
+outputs needs a separate project-scoped configuration path because the current
+Swift compiler flags do not reach Xcode's build-system-managed Clang cache.
+
+Before activation, require compatible plugin/proxy/server support, an authorized
+digest-pinned base, and available memory/processing budgets. Unsupported versions,
+unavailable bases, or exceeded limits must retain ordinary transfers. Old clients
+must remain able to retrieve the original output. Test disabled and mixed-version
+paths as well as opt-in, proxy restarts, queued work, and concurrent projects with
+different settings. An experimental opt-in does not waive the promotion work below.
+
 Next work, before considering a production codec:
 
 1. Prepare compact or spooled field streams and reuse bounded scratch buffers.

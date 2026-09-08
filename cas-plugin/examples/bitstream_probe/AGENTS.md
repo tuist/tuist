@@ -19,3 +19,10 @@ difference modes must all preserve every byte. Count the compressed metadata as
 transfer bytes. Bounded page comparisons do not mean bounded total memory: the
 current preparation and inverse still retain whole expanded representations.
 Do not claim streaming, base discovery, authorization, or network integration.
+
+Any future production field-patch path must remain experimental and explicitly
+opt-in per project. Missing, empty, or invalid configuration means disabled;
+server support alone must never enable it. The opt-in must accompany requests
+and background work, not mutate a machine-wide proxy switch. Opt-in does not
+bypass capability negotiation, base authorization, or resource limits. Add the
+build setting only with a working supported runtime path, not as a no-op flag.
