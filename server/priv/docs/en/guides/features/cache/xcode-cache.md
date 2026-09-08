@@ -141,6 +141,32 @@ let tuist = Tuist(
 
 With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
 
+#### Changing the policy without reinstalling the agent {#changing-the-upload-policy}
+
+`xcodeCache(upload:)` is committed configuration, so it is the same for every machine and every lane that checks the project out. When a single machine or lane needs a different answer, `tuist setup cache --upload-policy` changes it in place:
+
+```bash
+tuist setup cache --upload-policy disabled
+```
+
+This rewrites the policy the cache proxy reads and leaves the proxy's launch agent running, so nothing is torn down or bootstrapped. The proxy picks the new value up within 15 seconds. `--upload-policy enabled` turns uploading back on.
+
+The flag needs neither authentication nor the Tuist server: it writes a local file, which is also why it works on a lane whose token is scoped for reads.
+
+It does not set the cache up, and the ordering matters: `tuist setup cache` records the policy from `Tuist.swift`, so a flip that runs before it is overwritten by it. Run `tuist setup cache` first, then the flip.
+
+> [!IMPORTANT]
+> **Enabling is not the mirror image of disabling**
+>
+> `--upload-policy disabled` stops every upload on its own, because the proxy checks the policy for every publication whatever the project's build settings say.
+>
+> `--upload-policy enabled` is not enough on a generated project that was generated with `xcodeCache(upload: false)`. `tuist generate` bakes that into the project as a build setting the cache plugin gates on by itself, so Swift compilations keep withholding their outputs until the project is regenerated with `xcodeCache(upload: true)`. C, Objective-C and precompiled modules are unaffected and start uploading immediately.
+
+> [!NOTE]
+> **The policy is per machine and per project, not per build**
+>
+> The cache proxy serves every project on the machine and records one policy per project, so a flip covers every build of that project on that machine. Two lanes building the same project at the same time on one machine both see whichever policy was written last. Give each lane its own machine (the usual arrangement on CI) when they need different policies.
+
 ### Continuous integration {#continuous-integration}
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.

@@ -20,6 +20,7 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case cacheDaemonNotReady(label: String, socketPath: String, logPath: String)
     case registryNotReplaced(String, Int32)
     case registryNotLocked(String, Int32)
+    case uploadPolicyRequiresProxy
 
     var errorDescription: String? {
         switch self {
@@ -36,49 +37,24 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
             return "Could not update the cache proxy's registry at \(path) (errno \(code))."
         case let .registryNotLocked(path, code):
             return "Could not lock the cache proxy's registry at \(path) (errno \(code))."
+        case .uploadPolicyRequiresProxy:
+            return
+                "The upload policy is read from the cache proxy's registry, and this machine runs the per-project cache daemon instead (`TUIST_FEATURE_FLAG_KURA` is off). Change `xcodeCache(upload:)` in 'Tuist.swift' and run `tuist setup cache` again."
         }
     }
 }
 
-/// What setup knows about a project that the proxy cannot work out for itself
-/// (see `load_sources` in cas-plugin).
+/// Which way `tuist setup cache --upload-policy` moves a project's recorded
+/// Xcode cache upload policy.
 ///
-/// The registry is a JSON object of instance -> this. JSON because we write it
-/// and the proxy reads it from another language: a format each side hand-rolls
-/// is one each side can drift on, and every value here is optional, which is the
-/// shape a hand-rolled one gets wrong first.
-private struct RegisteredSource: Codable {
-    /// The project's configured default branch, which is a server-side decision.
-    /// The proxy would otherwise have to guess it from the local clone's
-    /// `origin/HEAD`, a property of how this machine cloned rather than of the
-    /// project.
-    let trunk: String?
-    /// Recorded only on CI. See `ciBranch`.
-    let branch: String?
-    /// The project's `xcodeCache.upload`. The proxy is the only place that can
-    /// enforce this: the plugin reads it as a compiler option, which reaches
-    /// Swift, while the build system's Clang caching runs in its own process
-    /// with no plugin options at all. Recorded here so one answer covers both.
-    let upload: Bool
+/// Not a `Bool` on the command line: the flag stands in for `xcodeCache(upload:)`
+/// for one machine, and `--upload-policy disabled` says in a CI file what
+/// `--upload-policy false` would leave the reader to work out.
+enum XcodeCacheUploadPolicy: String, CaseIterable, Sendable {
+    case enabled
+    case disabled
 
-    init(trunk: String?, branch: String?, upload: Bool) {
-        self.trunk = trunk
-        self.branch = branch
-        self.upload = upload
-    }
-
-    /// Hand-written rather than synthesized, so that an absent field means here
-    /// what it means to the proxy. The synthesized one requires every
-    /// non-optional, which would make this side reject a registry the proxy
-    /// reads happily: the drift that using one format on both sides exists to
-    /// prevent.
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        trunk = try container.decodeIfPresent(String.self, forKey: .trunk)
-        branch = try container.decodeIfPresent(String.self, forKey: .branch)
-        // Nothing recorded is nothing to withhold (`uploads_by_default` there).
-        upload = try container.decodeIfPresent(Bool.self, forKey: .upload) ?? true
-    }
+    var upload: Bool { self == .enabled }
 }
 
 struct SetupCacheCommandService {
@@ -87,7 +63,7 @@ struct SetupCacheCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let manifestLoader: ManifestLoading
-    private let fileSystem: FileSysteming
+    private let sourcesRegistry: CacheSourcesRegistry
     private let getProjectService: GetProjectServicing
     private let gitController: GitControlling
     private let cacheSocketService: CacheSocketServicing
@@ -110,7 +86,7 @@ struct SetupCacheCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.manifestLoader = manifestLoader
-        self.fileSystem = fileSystem
+        sourcesRegistry = CacheSourcesRegistry(fileSystem: fileSystem)
         self.getProjectService = getProjectService
         self.gitController = gitController
         self.cacheSocketService = cacheSocketService
@@ -154,8 +130,7 @@ struct SetupCacheCommandService {
     }
 
     /// Records a `RegisteredSource` for this project in the proxy's sources
-    /// registry (`<state>/cas-proxy.sock.registry.sources`, honoring the same
-    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads).
+    /// registry.
     ///
     /// Upserts, so setting up a second project does not clobber the first.
     private func registerSource(
@@ -164,92 +139,64 @@ struct SetupCacheCommandService {
         branch: String?,
         upload: Bool
     ) async throws {
-        // Derived from the proxy's OWN socket, not from `stateDirectory`. The two
-        // agree by default and diverge under `XDG_STATE_HOME`, which the socket
-        // deliberately ignores (see `casProxySocketPath`) because the plugin must
-        // resolve it from HOME alone. Writing this file where the proxy is not
-        // reading loses the trunk silently: unscoped snapshots and untagged
-        // publishes, with nothing to show for it.
-        let sourcesPath: AbsolutePath
-        if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
-            sourcesPath = try AbsolutePath(validating: registry + ".sources")
-        } else {
-            sourcesPath = try AbsolutePath(
-                validating: Environment.current.casProxySocketPath().pathString + ".registry.sources"
-            )
-        }
-
-        if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
-            try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
-        }
-
-        // The whole read-modify-write is serialized across processes. Atomic
-        // rename gives a READER the old file or the new one, never a torn one,
-        // but it does nothing for two setups racing: both read the registry
-        // before either renames, and the later rename drops the project the
-        // earlier one added, silently losing its trunk and upload policy. An
-        // exclusive lock on a sidecar file makes the second setup wait for the
-        // first, so it reads the already-updated registry and upserts onto it.
-        let lockPath = sourcesPath.parentDirectory
-            .appending(component: "\(sourcesPath.basename).lock")
-        try await withRegistryLock(at: lockPath) {
-            // Read every other project back: this rewrites the whole file, so
-            // anything lost here is a project silently losing its policy. A
-            // registry we cannot decode therefore fails the command rather than
-            // being written over with just this project, which would erase every
-            // other one's.
-            var entries: [String: RegisteredSource] = [:]
-            if try await fileSystem.exists(sourcesPath) {
-                let contents = try await fileSystem.readTextFile(at: sourcesPath)
-                entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
-            }
-            entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
-
-            let encoder = JSONEncoder()
-            // Sorted so a rewrite that changes nothing produces the same bytes,
-            // and unescaped because every key here is an `account/project`.
-            encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
-            let body = String(decoding: try encoder.encode(entries), as: UTF8.self)
-
-            // Swapped in, never rewritten in place, and `rename` rather than a
-            // remove followed by a write or a move: it is the only one of the
-            // three that leaves no instant where the file is missing or
-            // half-written.
-            //
-            // The proxy re-reads this on a timer while we write it, and it
-            // carries the upload policy. A reader that finds no file sees no
-            // projects, and an unknown project has to be allowed to upload, so
-            // any gap here hands an opted-out project a window in which its Clang
-            // outputs are published. `rename` gives every reader either the whole
-            // old file or the whole new one, and both are answers we can live
-            // with.
-            let staged = sourcesPath.parentDirectory
-                .appending(component: "\(sourcesPath.basename).\(UUID().uuidString)")
-            try await fileSystem.writeText(body, at: staged)
-            guard rename(staged.pathString, sourcesPath.pathString) == 0 else {
-                let code = errno
-                try? await fileSystem.remove(staged)
-                throw SetupCacheCommandServiceError.registryNotReplaced(sourcesPath.pathString, code)
-            }
+        try await sourcesRegistry.update(fullHandle: fullHandle) { _ in
+            RegisteredSource(trunk: trunk, branch: branch, upload: upload)
         }
     }
 
-    /// Runs `body` while holding an exclusive advisory lock on `lockPath`, so two
-    /// `tuist setup cache` processes cannot interleave a read-modify-write of the
-    /// registry. The lock file is created on demand and never removed: deleting
-    /// it would reopen the race it closes. `flock` is released when the descriptor
-    /// closes, including on a crash, so a killed setup cannot wedge the next one.
-    private func withRegistryLock(at lockPath: AbsolutePath, _ body: () async throws -> Void) async throws {
-        let descriptor = open(lockPath.pathString, O_CREAT | O_RDWR, 0o644)
-        guard descriptor >= 0 else {
-            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+    /// Rewrites nothing but this project's upload policy in the proxy's sources
+    /// registry, leaving the launch agent running.
+    ///
+    /// `Proxy::upload_enabled` re-reads the registry on a fifteen second memo, and
+    /// every publication from both lanes and from the background sweeper passes
+    /// through it, so the file is the whole mechanism. Reinstalling the agent to
+    /// change one boolean would tear down and bootstrap the machine's only cache
+    /// proxy for a change it never sees.
+    ///
+    /// The trunk and the CI branch are carried over rather than re-resolved. Neither
+    /// is a policy decision: the trunk is the server's answer to a question this
+    /// command is not asking, and the branch is what the setup that ran inside the
+    /// CI job saw. Re-resolving them would put a server round trip and a git call in
+    /// front of a local file write whose only outcomes are keeping them or losing
+    /// them.
+    private func setUploadPolicy(
+        fullHandle: String,
+        policy: XcodeCacheUploadPolicy,
+        configuredUpload: Bool
+    ) async throws {
+        // The registry is the machine-wide proxy's file and nobody else's. On the
+        // legacy per-project daemon the policy is a `--no-upload` launchd argument,
+        // so writing it here would report success over a lane that keeps publishing.
+        guard ClientFeatureFlags.contains("kura") else {
+            throw SetupCacheCommandServiceError.uploadPolicyRequiresProxy
         }
-        defer { close(descriptor) }
-        guard flock(descriptor, LOCK_EX) == 0 else {
-            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+
+        try await sourcesRegistry.update(fullHandle: fullHandle) { existing in
+            RegisteredSource(trunk: existing?.trunk, branch: existing?.branch, upload: policy.upload)
         }
-        defer { flock(descriptor, LOCK_UN) }
-        try await body()
+
+        // Enabling is not the mirror image of disabling. Disabling holds on its own,
+        // because the proxy gate covers every publication whatever the build settings
+        // say. Enabling only lifts the proxy's half: `tuist generate` bakes
+        // `xcodeCache(upload: false)` into the project as `-cas-plugin-option
+        // tuist-upload=false`, and the plugin's own gate keeps withholding Swift
+        // outputs until the project is regenerated. Left unsaid, that is a flip
+        // someone believes took and half of which did not.
+        if policy == .enabled, !configuredUpload {
+            AlertController.current.warning(
+                "'Tuist.swift' still sets `xcodeCache(upload: false)`, which `tuist generate` bakes into generated projects as a build setting the cache plugin gates on by itself. Swift compilations keep withholding their outputs until the project is regenerated with `xcodeCache(upload: true)`. C, Objective-C and precompiled modules publish from now on."
+            )
+        }
+
+        AlertController.current.success(
+            .alert(
+                "Xcode cache uploads are now \(policy.rawValue) for \(fullHandle)",
+                takeaways: [
+                    "The cache proxy picks this up within 15 seconds; its launch agent was left running",
+                    "The policy is recorded per machine, so it covers every build of \(fullHandle) here",
+                ]
+            )
+        )
     }
 
     private func ensureCacheDaemonIsListening(label: String, socketPath: AbsolutePath) async throws {
@@ -288,13 +235,27 @@ struct SetupCacheCommandService {
     }
 
     func run(
-        path: String?
+        path: String?,
+        uploadPolicy: XcodeCacheUploadPolicy? = nil
     ) async throws {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
 
         guard let fullHandle = config.fullHandle else {
             throw SetupCacheCommandServiceError.missingFullHandle
+        }
+
+        // Before anything that authenticates or reaches the server. A policy flip
+        // rewrites one field of a local file the proxy already reads; a credential
+        // it does not need is a credential that can fail it, which is exactly the
+        // read-scoped PR lane the flip exists for.
+        if let uploadPolicy {
+            try await setUploadPolicy(
+                fullHandle: fullHandle,
+                policy: uploadPolicy,
+                configuredUpload: config.xcodeCache.upload
+            )
+            return
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
