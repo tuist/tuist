@@ -111,7 +111,6 @@ permissions:
   deployments: write
 
 env:
-  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
@@ -503,9 +502,8 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.platform_ref }}
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "helm kubectl jq"
           cache: "false"
       - name: Resolve immutable Kura runtime image tag
@@ -1114,9 +1112,11 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
-      - uses: jdx/mise-action@v3.2.0
+      - uses: actions/checkout@v4
         with:
-          version: ${{ env.MISE_VERSION }}
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/mise
+        with:
           install_args: "helm kubectl"
           cache: "false"
       - name: Load kubeconfig

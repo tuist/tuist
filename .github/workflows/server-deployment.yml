@@ -188,7 +188,6 @@ permissions:
   packages: write
 
 env:
-  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
@@ -389,9 +388,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
@@ -463,9 +461,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4
@@ -548,9 +545,8 @@ jobs:
             echo "$VALUES not present; skipping tailscale-operator install for this env."
           fi
       - if: steps.check-values.outputs.exists == 'true'
-        uses: jdx/mise-action@v3.2.0
+        uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm kubectl"
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
@@ -615,9 +611,8 @@ jobs:
           # Full history + tags so k8s:install-platform can resolve the
           # stable-egress-controller@<semver> image tag reachable from this commit.
           fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4
@@ -780,9 +775,8 @@ jobs:
             echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@' 'tuist/tuist-runners-controller')"
             echo "EGRESS_TREE_AGENT_TAG=$(resolve 'egress-tree-agent@' "$EGRESS_TREE_AGENT_IMAGE_NAME")"
           } >> "$GITHUB_ENV"
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4

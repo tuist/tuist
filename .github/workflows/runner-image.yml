@@ -40,9 +40,6 @@ permissions:
   contents: read
   packages: write
 
-env:
-  MISE_VERSION: "2026.5.15"
-
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
@@ -69,7 +66,6 @@ jobs:
       # production cascade builds them — see the action for why it is shared.
       - uses: ./.github/actions/build-runner-image-binaries
         with:
-          mise-version: ${{ env.MISE_VERSION }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image

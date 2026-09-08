@@ -40,9 +40,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MISE_VERSION: "2026.5.15"
-
 jobs:
   refresh:
     name: Refresh ESO 1Password token (${{ inputs.environment }})
@@ -54,9 +51,8 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2

@@ -21,9 +21,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MISE_VERSION: "2026.5.15"
-
 jobs:
   sweep:
     name: Sweep expired previews
@@ -35,9 +32,8 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked helm@4.2.0 kubectl@1.36.1 jq@1.8.1"
           cache: "false"
       - name: Load kubeconfig
