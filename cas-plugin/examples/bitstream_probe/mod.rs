@@ -305,7 +305,7 @@ impl Reader<'_> {
             }
             require(self.position <= end, "record exceeds block")?;
         }
-        require(depth == 0 || end == self.position, "truncated block")
+        require(depth == 0, "missing end-block marker")
     }
 }
 
@@ -592,6 +592,18 @@ mod tests {
         extra.push(0);
         assert!(restore(&extra, bytes.len()).is_err());
         assert!(prepare(b"unknown", true, 32).is_err());
+    }
+
+    #[test]
+    fn rejects_a_child_without_its_end_marker() {
+        let mut writer = Writer {
+            limit: 1024,
+            ..Default::default()
+        };
+        for (value, width) in [(0x0ea89ce2, 32), (1, 2), (8, 8), (2, 4), (0, 18), (0, 32)] {
+            writer.bits(value, width).unwrap();
+        }
+        assert!(prepare(&writer.data, true, 32).is_err());
     }
 
     #[test]

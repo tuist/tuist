@@ -32,6 +32,18 @@ fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
     }
 }
 
+fn read_artifact(path: &str) -> Vec<u8> {
+    use std::io::Read;
+    let file = fs::File::open(path).unwrap();
+    assert!(file.metadata().unwrap().len() <= bitstream_probe::MAX_INPUT as u64);
+    let mut bytes = Vec::new();
+    file.take(bitstream_probe::MAX_INPUT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .unwrap();
+    assert!(bytes.len() <= bitstream_probe::MAX_INPUT);
+    bytes
+}
+
 fn elapsed(start: Instant) -> f64 {
     start.elapsed().as_secs_f64() * 1000.0
 }
@@ -73,11 +85,8 @@ fn main() {
     let (mut base_ms, mut target_ms, mut patch_ms, mut restore_ms, mut verify_ms) =
         (0.0, 0.0, 0.0, 0.0, 0.0);
     for fixture in fixtures {
-        let base = fs::read(&fixture.base).unwrap();
-        let next = fs::read(&fixture.edited).unwrap();
-        assert!(
-            base.len() <= bitstream_probe::MAX_INPUT && next.len() <= bitstream_probe::MAX_INPUT
-        );
+        let base = read_artifact(&fixture.base);
+        let next = read_artifact(&fixture.edited);
         // A nonempty reference list makes this check cover the complete node
         // frame, not only the module file. These are synthetic graph references.
         let references = vec![vec![0x47; 32], vec![0x62; 64]];
@@ -107,18 +116,27 @@ fn main() {
             prepared_size = next_prepared.len();
             let start = Instant::now();
             let mut compressor = zstd::zstd_safe::CCtx::create();
-            compressor.set_parameter(zstd::zstd_safe::CParameter::CompressionLevel(config.level)).unwrap();
-            if !config.prefix { compressor.load_dictionary(&base_prepared).unwrap(); }
+            compressor
+                .set_parameter(zstd::zstd_safe::CParameter::CompressionLevel(config.level))
+                .unwrap();
+            if !config.prefix {
+                compressor.load_dictionary(&base_prepared).unwrap();
+            }
             if config.window_log != 0 {
                 compressor
                     .set_parameter(zstd::zstd_safe::CParameter::WindowLog(config.window_log))
                     .unwrap();
             }
             compressor
-                .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(config.long_distance))
+                .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(
+                    config.long_distance,
+                ))
                 .unwrap();
-            if config.prefix { compressor.ref_prefix(&base_prepared).unwrap(); }
-            let mut patch = Vec::with_capacity(zstd::zstd_safe::compress_bound(next_prepared.len()));
+            if config.prefix {
+                compressor.ref_prefix(&base_prepared).unwrap();
+            }
+            let mut patch =
+                Vec::with_capacity(zstd::zstd_safe::compress_bound(next_prepared.len()));
             compressor.compress2(&mut patch, &next_prepared).unwrap();
             samples[2].push(elapsed(start));
             drop(compressor);
@@ -131,8 +149,11 @@ fn main() {
             selected = (patch.len() + 192).min(expected_blob.len());
             let start = Instant::now();
             let mut decoder = zstd::zstd_safe::DCtx::create();
-            if config.prefix { decoder.ref_prefix(&base_prepared).unwrap(); }
-            else { decoder.load_dictionary(&base_prepared).unwrap(); }
+            if config.prefix {
+                decoder.ref_prefix(&base_prepared).unwrap();
+            } else {
+                decoder.load_dictionary(&base_prepared).unwrap();
+            }
             let mut prepared = Vec::with_capacity(next_prepared.len());
             decoder.decompress(&mut prepared, &patch).unwrap();
             assert_eq!(prepared.len(), next_prepared.len());

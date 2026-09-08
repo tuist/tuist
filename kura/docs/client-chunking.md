@@ -50,6 +50,12 @@ An experimental codec needs a separate capability, tenant-scoped digest-pinned b
 
 The [eight-run automated search](../../cas-plugin/autoresearch.md) compared raw compression sizes, compression strength, and object-section resets across ten output pairs, holding transfer parameters fixed and checking exact reconstruction. Smaller raw frames were not consistently better. Section resets reduced warm payload by 24.1% for the C object and 0.98% for the Swift object, or 1.17% across the corpus. That candidate remains research-only; the production encoder is unchanged. The offline overlap model includes estimated recipe-entry overhead but not local eviction, network scheduling, or a representative customer distribution.
 
+A second eight-run search implemented both directions of Swift field preparation natively, instead of extrapolating from an inverse-only timing. On three historical ProjectDescription edits, field separation followed by a prefix patch reduced 1,755,906 whole compressed bytes to 500,711 bytes including estimated patch envelopes (71.5%). Per-edit reductions were 66.0%, 84.2%, and 64.3%; a body-only edit was already identical. The implementation must use the old prepared data as a prefix and enable long-distance matching, as [Zstandard's patch mode does](https://github.com/facebook/zstd/blob/v1.5.7/programs/fileio.c). Its ordinary dictionary interface produced much weaker reuse.
+
+Native receiver work was about 55–60 milliseconds per two-megabyte module when preparing the base locally, including decoding, inverse transformation, and reproducing the exact compressed node identity with nonempty synthetic graph references. Disk access, networking, base discovery, and authorization are excluded. Exported results passed Swift consumer import/type-checks. This is an offline example (`cas-plugin/examples/swift_patch_search.rs`), not an enabled client or server codec.
+
+The scale check is a reason not to ship it yet: the actual Xcode Swift module expanded to 183,174,600 prepared bytes, and the combined large-module/header benchmark peaked at 1,701,347,328 bytes of process memory. Both outputs reconstructed exactly and passed compiler-consumer checks, but memory exceeded the research budget. The next design should prepare and patch bounded field groups independently, with stable group identities, explicit metadata costs, a per-group history limit, and whole-blob fallback. Full results and commands are in the [research journal](../../cas-plugin/autoresearch.md).
+
 ## Validation and benchmarks
 
 From `kura/`:

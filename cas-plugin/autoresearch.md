@@ -158,3 +158,106 @@ module. Any retained candidate must save bytes after the envelope estimate.
 These are exploratory budgets, not service guarantees. Prepared data expands,
 and caching it would require its own storage budget. Larger real-action outputs
 are a separate scale check after the bounded search, not a change to its metric.
+
+### Results, 2026-09-08
+
+All eight configurations completed exact module and compressed-node checks.
+The native implementation reproduces the earlier patch savings only when the
+base is supplied as a **prefix**, not an ordinary dictionary. The upstream
+[Zstandard patch implementation](https://github.com/facebook/zstd/blob/v1.5.7/programs/fileio.c)
+uses prefix references and configures long-distance matching. Merely enlarging
+the history window did not produce the same result. This is a useful warning
+against substituting a library's default dictionary interface for its patch mode.
+
+| Preparation and patch settings | Selected bytes across three edits | Decision |
+| --- | ---: | --- |
+| Original bytes, ordinary dictionary, defaults | 1,753,183 | Baseline |
+| Original bytes, ordinary dictionary, 16-mebibyte window | 1,753,145 | Numerically retained, negligible difference |
+| Field differences, ordinary dictionary, defaults | 1,475,149 | Keep |
+| Field differences, ordinary dictionary, 16-mebibyte window | 1,484,429 | Discard |
+| Field differences, dictionary, long-distance matching | 1,299,652 | Keep |
+| Field differences, prefix, long-distance matching, level 1 | 504,191 | Keep |
+| Original bytes, prefix, long-distance matching, level 1 | 1,307,491 | Discard against field candidate; useful lower-cost alternative |
+| Field differences, prefix, long-distance matching, level 3 | 500,711 | Keep for research only |
+
+The last four rows use a 16-mebibyte history window. The final configuration is
+not automatically best for every edit: level 3 slightly improves the aggregate
+over level 1, but makes the enum edit larger. No production selection policy is
+being introduced from three samples.
+
+| ProjectDescription edit | Whole compressed node | Raw prefix patch plus envelope | Native field patch plus envelope | Reduction from whole |
+| --- | ---: | ---: | ---: | ---: |
+| Public declaration | 588,354 | 507,419 | 200,083 | 66.0% |
+| Enum change | 583,767 | 308,581 | 92,071 | 84.2% |
+| Hashing change | 583,785 | 491,491 | 208,557 | 64.3% |
+| Body-only change | 583,922 | 0 | 0 | Already identical, no patch needed |
+
+The three edited originals total 1,755,906 compressed bytes; the selected field
+patches plus estimated envelopes total 500,711, a 71.5% reduction. Whole sizes
+include synthetic references in the node frame and therefore differ slightly
+from the earlier standalone-file measurements. These are byte savings, not build
+speedups, and the base must be present and authorized.
+
+In the three-sample and confirmation runs, native preparation took 26–28 milliseconds per
+module. Prefix-patch creation took 21–27 milliseconds. Patch decoding and inverse
+transformation took 23–27 milliseconds, followed by about 5 milliseconds for
+reconstructing and verifying the exact compressed node. A receiver preparing its
+base therefore paid about 55–60 milliseconds of measured work, not the inverse
+time alone. A prepared-base cache could avoid about 26 milliseconds, but each
+two-megabyte module expands to about 12.3 megabytes of prepared data. The combined
+in-process benchmark peaked at 179 million bytes, or 191 million in the export
+confirmation run. This is not an isolated receiver-memory measurement.
+
+Exported native reconstructions of all three modules passed a fresh-cache Swift
+consumer import and type-check. The body-only module was byte-identical before
+any transformation. Confirmation preserved the exact patch sizes. Tests exercise
+padding, variable-integer spelling, malformed mutations, truncation, output size,
+trailing data, and missing child end markers. These focused checks are not a
+fuzzing campaign or validation of a remotely exposed codec.
+
+### Scale check and next design
+
+The same configuration also reconstructed the actual 4,000-struct Xcode module
+and the exploratory Foundation precompiled header byte-for-byte, including their
+compressed node identities. A Swift consumer of the restored large module and an
+Objective-C consumer of the restored header both type-checked.
+
+| Output | Whole compressed node | Patch plus estimated envelope | Prepared output | Fresh-base receiver work |
+| --- | ---: | ---: | ---: | ---: |
+| Xcode Swift module | 6,177,960 | 3,198,463 | 183,174,600 | 756 milliseconds |
+| Foundation header | 9,130,230 | 6,495,827 | 89,710,267 | 492 milliseconds |
+
+The combined scale-check process peaked at **1,701,347,328 bytes**, beyond the
+research memory budget. Do not promote this all-in-memory representation. The
+confirmation run preserved both payload sizes and peaked at 1,714,536,448 bytes.
+These are whole-process pipeline measurements, not isolated decoder peaks. The
+fixed 16-mebibyte matching window also cannot cover these expanded bases. The
+header's result is consequently not equivalent to the earlier command-line
+patch experiment, which selected its window from the expanded file size.
+
+The next candidate should prepare and patch **one field group at a time**:
+
+1. Give groups stable identities derived from container block, record, and
+   operand, keeping spelling/layout and raw byte payloads separate.
+2. Spool bounded groups or read them from mapped files; release each base/target
+   pair after its patch is produced instead of holding two expanded files.
+3. Use a bounded history per group. Measure the extra per-group metadata and
+   lost cross-group matches, not just peak memory.
+4. Reassemble every original bit and graph reference, reproduce the writer's
+   pinned compression version/parameters, and verify its expected blob digest.
+5. Negotiate a separate codec, authorize and pin base identities, disallow patch
+   chains, and fall back to the original blob on unavailable bases or limits.
+
+This segment is complete. Larger history windows, group-wise streaming, stronger
+compression, more edits, and prepared-base caching are future experiments, not
+shipping behavior. No production source or server protocol changed in this pass.
+
+To repeat with available artifact pairs, run `./autoresearch.swift.sh` with a
+manifest containing the three edits and a body-only pair. Set
+`SWIFT_PATCH_RESTORED_DIR` to an existing empty temporary directory to export
+verified modules/headers; existing files are never overwritten. For a Swift
+consumer, place each exported file under its original module name and run
+`xcrun swiftc -typecheck -target arm64-apple-macosx15.0 -I <module-directory>
+-module-cache-path <fresh-cache-directory> <consumer.swift>`. The header check
+used `xcrun clang -x objective-c -fno-modules -isysroot <macOS-sdk-path>
+-include-pch <restored-header.pch> -fsyntax-only <consumer.m>`.
