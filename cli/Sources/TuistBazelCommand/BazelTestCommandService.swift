@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistAlert
 import TuistConfigLoader
 import TuistEnvironment
 import TuistServer
@@ -33,34 +34,46 @@ public struct BazelTestCommandService {
         quarantine: Bool
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
-        var arguments = arguments
-
         var muted = Set<BazelTestCaseIdentity>()
+        var skipped: [String] = []
         if quarantine {
             let policies = try await quarantinePolicies(directory: directoryPath)
             muted = policies.muted
-            let targets = policies.skipped
-            arguments = try Self.excluding(targets, from: arguments)
-            if !targets.isEmpty {
+            skipped = policies.skipped
+            _ = try Self.excluding(skipped, from: arguments)
+            if !skipped.isEmpty {
                 Noora.current.passthrough(
-                    "Skipping \(targets.count) Bazel target(s) containing skipped tests. All cases in those targets are excluded."
+                    "Skipping \(skipped.count) Bazel target(s) containing skipped tests. All cases in those targets are excluded."
                 )
             }
         }
 
-        if muted.isEmpty {
+        if muted.isEmpty, skipped.isEmpty {
             try await runBazel(bazel, arguments: arguments, directory: directoryPath)
         } else {
-            let arguments = arguments
-            let muted = muted
-            let commandRunner = commandRunner
-            try await FileSystem().runInTemporaryDirectory(prefix: "bazel-quarantine") { temporaryDirectory in
-                let eventsURL = URL(fileURLWithPath: temporaryDirectory.appending(component: "events.json").pathString)
-                let separator = arguments.firstIndex(of: "--") ?? arguments.endIndex
-                guard !arguments[..<separator].contains(where: {
-                    $0 == "--build_event_json_file" || $0.hasPrefix("--build_event_json_file=")
-                }) else { throw BazelTestCommandServiceError.buildEventFile }
-                var recordedArguments = arguments
+            try await runWithQuarantine(bazel, arguments: arguments, directory: directoryPath, skipped: skipped, muted: muted)
+        }
+    }
+
+    private func runWithQuarantine(
+        _ bazel: String,
+        arguments: [String],
+        directory: AbsolutePath,
+        skipped: [String],
+        muted: Set<BazelTestCaseIdentity>
+    ) async throws {
+        let separator = arguments.firstIndex(of: "--") ?? arguments.endIndex
+        guard !arguments[..<separator].contains(where: {
+            $0 == "--build_event_json_file" || $0.hasPrefix("--build_event_json_file=")
+        }) else { throw BazelTestCommandServiceError.buildEventFile }
+        let commandRunner = commandRunner
+        try await FileSystem().runInTemporaryDirectory(prefix: "bazel-quarantine") { temporaryDirectory in
+            var skipped = skipped
+            var retries = 0
+            while true {
+                let eventsURL = URL(fileURLWithPath: temporaryDirectory.appending(component: "events-\(retries).json").pathString)
+                var recordedArguments = try Self.excluding(skipped, from: arguments)
+                let separator = recordedArguments.firstIndex(of: "--") ?? recordedArguments.endIndex
                 recordedArguments.insert(contentsOf: [
                     "--build_event_json_file=\(eventsURL.path)",
                     "--nobuild_event_json_file_path_conversion",
@@ -68,14 +81,40 @@ public struct BazelTestCommandService {
                 do {
                     try await commandRunner.runAndPrint(
                         arguments: ["/usr/bin/env", bazel, "test"] + recordedArguments,
-                        workingDirectory: directoryPath
+                        workingDirectory: directory
                     )
                 } catch let error as CommandError {
+                    if case .terminated(1, _, _) = error, retries < 5 {
+                        let missing = BazelTestFailureReader().missingSkippedTargets(eventsURL: eventsURL, skipped: Set(skipped))
+                        if !missing.isEmpty {
+                            AlertController.current.warning(.alert(
+                                """
+                                Ignoring skipped targets that Bazel could not find: \(missing.sorted().joined(separator: ", ")). \
+                                Retrying the original test selection with the remaining quarantine policy.
+                                """
+                            ))
+                            skipped.removeAll { missing.contains($0) }
+                            retries += 1
+                            continue
+                        }
+                    }
                     guard case .terminated(3, _, _) = error,
-                          BazelTestFailureReader().onlyMutedTestsFailed(eventsURL: eventsURL, muted: muted)
+                          BazelTestFailureReader().onlyMutedTestsFailed(
+                              eventsURL: eventsURL,
+                              muted: muted,
+                              onLegacyMute: { old, new in
+                                  AlertController.current.warning(.alert(
+                                      """
+                                      The mute for '\(old.target) / \(old.suite) / \(old.name)' uses the older suite identity. \
+                                      Reapply it to '\(new.suite) / \(new.name)' in Tuist. This failure remains blocking.
+                                      """
+                                  ))
+                              }
+                          )
                     else { throw error }
                     Noora.current.passthrough("Only muted test cases failed. Bazel's test reports retain their failures.")
                 }
+                return
             }
         }
     }
@@ -165,7 +204,7 @@ enum BazelTestCommandServiceError: LocalizedError, Equatable {
         case let .invalidTarget(target):
             return "The skipped test target '\(target)' is not an explicit Bazel target label."
         case .buildEventFile:
-            return "Tuist needs its own build event file to verify muted failures. Remove --build_event_json_file or use --no-quarantine."
+            return "Tuist needs its own build event file to apply quarantine safely. Remove --build_event_json_file or use --no-quarantine."
         case .tooManyTests:
             return "The Bazel quarantine policy is too large to apply completely. Use --no-quarantine to run all requested tests."
         }

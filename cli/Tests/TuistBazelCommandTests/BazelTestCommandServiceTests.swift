@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Testing
@@ -41,8 +42,8 @@ struct BazelTestCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies())
-    func loads_all_pages_and_deduplicates_targets_without_weakening_the_policy() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), arguments: [0, 4])
+    func loads_all_pages_and_deduplicates_targets_without_weakening_the_policy(exitStatus: Int) async throws {
         let configLoader = MockConfigLoading()
         let serverEnvironment = MockServerEnvironmentServicing()
         let cases = MockListTestCasesServicing()
@@ -71,12 +72,22 @@ struct BazelTestCommandServiceTests {
             "/usr/bin/env", "bazel", "test", "//...", "--expand_test_suites", "--target_pattern_file=", "--",
             "-//app:tests", "-//deleted:tests", "-//other:tests",
         ]
-        runner.succeedCommand(command)
-        try await BazelTestCommandService(
+        runner.defaultCaptureStubs = (stderror: nil, stdout: nil, exitstatus: exitStatus)
+        let service = BazelTestCommandService(
             configLoader: configLoader, serverEnvironmentService: serverEnvironment,
             listTestCasesService: cases, commandRunner: runner
-        ).run(directory: nil, bazel: "bazel", arguments: ["//..."], quarantine: true)
-        #expect(runner.called(command))
+        )
+        do {
+            try await service.run(directory: nil, bazel: "bazel", arguments: ["//..."], quarantine: true)
+            #expect(exitStatus == 0)
+        } catch let error as CommandError {
+            guard case .terminated(4, _, _) = error, exitStatus == 4 else { throw error }
+        }
+        let recorded = try #require(runner.calls.first).split(separator: " ").map(String.init)
+        #expect(recorded.filter {
+            !$0.hasPrefix("--build_event_json_file=") && $0 != "--nobuild_event_json_file_path_conversion"
+        } == command)
+        #expect(runner.calls.count == 1)
     }
 
     @Test(.withMockedEnvironment()) func disabling_quarantine_does_not_contact_server() async throws {

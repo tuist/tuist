@@ -10,6 +10,40 @@ struct BazelTestCaseIdentity: Hashable, Sendable {
 }
 
 struct BazelTestFailureReader {
+    func missingSkippedTargets(eventsURL: URL, skipped: Set<String>) -> Set<String> {
+        do {
+            let data = try Self.read(eventsURL, limit: 64 * 1024 * 1024)
+            var missing = Set<String>()
+            var finished = false
+            var complete = false
+            for line in data.split(separator: 0x0A) where !line.isEmpty {
+                guard let event = try JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+                      let identifier = event["id"] as? [String: Any]
+                else { return [] }
+                // Aborted placeholders can have target identifiers without configuration or execution payloads.
+                guard event["configured"] == nil, event["completed"] == nil,
+                      event["action"] == nil, event["testResult"] == nil
+                else { return [] }
+                if let aborted = event["aborted"] as? [String: Any], let reason = aborted["reason"] as? String {
+                    guard reason == "LOADING_FAILURE",
+                          let patterns = (identifier["pattern"] as? [String: Any])?["pattern"] as? [String],
+                          patterns.count == 1, let target = patterns.first, skipped.contains(target),
+                          let description = aborted["description"] as? String,
+                          description.hasPrefix("no such target '\(target)':") || description.hasPrefix("no such package '")
+                    else { return [] }
+                    missing.insert(target)
+                }
+                if let finish = event["finished"] as? [String: Any] {
+                    finished = (finish["exitCode"] as? [String: Any])?["code"] as? Int == 1
+                }
+                complete = complete || event["lastMessage"] as? Bool == true
+            }
+            return finished && complete ? missing : []
+        } catch {
+            return []
+        }
+    }
+
     private struct Target: Hashable {
         let label: String
         let configuration: String
@@ -21,7 +55,11 @@ struct BazelTestFailureReader {
         }
     }
 
-    func onlyMutedTestsFailed(eventsURL: URL, muted: Set<BazelTestCaseIdentity>) -> Bool {
+    func onlyMutedTestsFailed(
+        eventsURL: URL,
+        muted: Set<BazelTestCaseIdentity>,
+        onLegacyMute: (BazelTestCaseIdentity, BazelTestCaseIdentity) -> Void = { _, _ in }
+    ) -> Bool {
         do {
             let data = try Self.read(eventsURL, limit: 64 * 1024 * 1024)
             var expected = Set<Target>()
@@ -68,8 +106,11 @@ struct BazelTestFailureReader {
                           let report = outputs.first(where: { $0["name"] as? String == "test.xml" }),
                           let uri = report["uri"] as? String, let url = URL(string: uri), url.isFileURL
                     else { return false }
-                    let failures = try Self.failures(in: Self.read(url, limit: 5 * 1024 * 1024), target: target.label)
-                    guard !failures.isEmpty, failures.isSubset(of: muted) else { return false }
+                    let parsed = try Self.failureReport(in: Self.read(url, limit: 5 * 1024 * 1024), target: target.label)
+                    for (current, legacy) in parsed.legacyIdentities where muted.contains(legacy) && !muted.contains(current) {
+                        onLegacyMute(legacy, current)
+                    }
+                    guard !parsed.failures.isEmpty, parsed.failures.isSubset(of: muted) else { return false }
                     failedAttempts += 1
                 }
                 guard failedAttempts > 0 else { return false }
@@ -82,6 +123,10 @@ struct BazelTestFailureReader {
     }
 
     static func failures(in data: Data, target: String) throws -> Set<BazelTestCaseIdentity> {
+        try failureReport(in: data, target: target).failures
+    }
+
+    private static func failureReport(in data: Data, target: String) throws -> JunitFailureDelegate {
         guard let text = String(data: data, encoding: .utf8),
               text.range(of: "<!DOCTYPE", options: .caseInsensitive) == nil,
               text.range(of: "<!ENTITY", options: .caseInsensitive) == nil
@@ -91,7 +136,7 @@ struct BazelTestFailureReader {
         parser.shouldResolveExternalEntities = false
         parser.delegate = delegate
         guard parser.parse(), !delegate.invalid else { throw ReaderError.invalidReport }
-        return delegate.failures
+        return delegate
     }
 
     private static func read(_ url: URL, limit: Int) throws -> Data {
@@ -111,10 +156,12 @@ struct BazelTestFailureReader {
 private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
     let target: String
     var failures = Set<BazelTestCaseIdentity>()
+    var legacyIdentities: [BazelTestCaseIdentity: BazelTestCaseIdentity] = [:]
     var invalid = false
     private var elements: [String] = []
     private var suites: [String] = []
     private var testCase: BazelTestCaseIdentity?
+    private var legacyTestCase: BazelTestCaseIdentity?
 
     init(target: String) { self.target = target }
 
@@ -137,10 +184,18 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
                 suite: field(attributes["classname"], fallback: suite),
                 name: field(attributes["name"], fallback: "Unnamed test")
             )
+            legacyTestCase = BazelTestCaseIdentity(
+                target: target,
+                suite: suite,
+                name: field(attributes["name"], fallback: "Unnamed test")
+            )
         }
         if element == "failure" || element == "error" {
             if elements.last == "testcase", let testCase {
                 failures.insert(testCase)
+                if let legacyTestCase, legacyTestCase != testCase {
+                    legacyIdentities[testCase] = legacyTestCase
+                }
             } else {
                 invalid = true
             }
@@ -150,7 +205,10 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
 
     func parser(_: XMLParser, didEndElement elementName: String, namespaceURI _: String?, qualifiedName _: String?) {
         let element = elementName.split(separator: ":").last.map(String.init) ?? elementName
-        if element == "testcase" { testCase = nil }
+        if element == "testcase" {
+            testCase = nil
+            legacyTestCase = nil
+        }
         if element == "testsuite", !suites.isEmpty { suites.removeLast() }
         if !elements.isEmpty { elements.removeLast() }
     }

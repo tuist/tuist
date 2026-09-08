@@ -1,6 +1,7 @@
 import ArgumentParser
 import Command
 import Foundation
+import TuistAlert
 
 public struct BazelTestCommand: AsyncParsableCommand {
     public init() {}
@@ -34,6 +35,7 @@ public struct BazelTestCommand: AsyncParsableCommand {
                 quarantine: quarantine
             )
         } catch let CommandError.terminated(code, _, _) {
+            AlertController.current.print()
             throw ExitCode(code)
         }
     }

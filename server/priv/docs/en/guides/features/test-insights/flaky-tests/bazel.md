@@ -19,7 +19,7 @@ bazel test --flaky_test_attempts=3 \
 
 Retries must actually run for Tuist to observe their results. A Bazel target's flaky summary alone does not identify which individual case was flaky. Reports that are unavailable or cannot be parsed cannot provide case-level evidence.
 
-Cases are identified by target label, class name (falling back to the suite name), and test name. This keeps identically named methods in different classes separate. Older reports that used a different enclosing suite name retain their history under the old identity; their quarantine state must be applied to the new identity.
+Cases are identified by target label, class name (falling back to the suite name), and test name. This keeps identically named methods in different classes separate. Older reports that used a different enclosing suite name retain their history under the old identity; their quarantine state must be applied to the new identity. When a failure matches an old suite-based mute instead of its current class identity, the command warns which policy needs to be reapplied and keeps the failure blocking. Policies are not transferred automatically because multiple classes may have shared the old identity.
 
 The **Flaky Tests**, **Quarantined Tests**, and individual test pages support the same manual state changes as other build systems. Use **Settings → Automations** to configure flakiness thresholds, quarantine actions, and recovery actions.
 
@@ -38,13 +38,13 @@ Arguments after `--` are forwarded to `bazel test`. Use `--path` to select the p
 
 Marking a case **Skipped** excludes its **entire Bazel target**, including healthy cases inside that target. Bazel's individual-case filter syntax depends on the test framework and is not universally supported. Tuist therefore uses native negative target patterns with test-suite expansion enabled. Explicit targets, wildcard selections, and tests inside `test_suite` rules keep Bazel's normal selection behavior.
 
-The command fetches every quarantine page and deduplicates targets. Unresolvable labels, including deleted targets, retain Bazel's error rather than silently weakening the policy. Return those cases to **Enabled** to remove stale exclusions. Pass target patterns directly; `--target_pattern_file` cannot be combined with quarantine exclusions. If no test targets remain, Bazel retains its normal “no tests found” exit status.
+The command fetches every quarantine page and deduplicates targets. If Bazel's complete event log identifies a missing skipped target before target configuration or execution, Tuist names it in a warning and retries without that stale exclusion. The original requested patterns and all other exclusions are preserved. Recovery is limited to five retries; other loading failures and incomplete evidence retain Bazel's error. Return stale cases to **Enabled** to remove their policies permanently. Pass target patterns directly; `--target_pattern_file` cannot be combined with quarantine exclusions. If no test targets remain, Bazel retains its normal “no tests found” exit status, which also catches an accidentally empty test selection.
 
 ### Mute {#mute}
 
 **Muted** cases continue to run. Tuist reads a temporary local build-event file and the referenced `test.xml` reports. It changes Bazel's test-failure exit to success only when complete reports attribute every reported failure in each failed target to a muted case. Healthy cases within those targets still affect the result.
 
-Build errors, timeouts, interrupted runs, missing or malformed reports, incomplete event streams, and failures outside the muted set retain Bazel's failure status. The local event file is bounded to 64 mebibytes and individual reports to 5 mebibytes. Tuist needs its own local build-event file for this check, so an explicit `--build_event_json_file` cannot be combined with active muted cases. Remote build-event reporting remains configured through `tuist bazel setup`.
+Build errors, timeouts, interrupted runs, missing or malformed reports, incomplete event streams, and failures outside the muted set retain Bazel's failure status. The local event file is bounded to 64 mebibytes and individual reports to 5 mebibytes. Tuist needs its own local build-event file to verify muted failures and recover from stale skipped targets, so an explicit `--build_event_json_file` cannot be combined with active muted or skipped cases. Remote build-event reporting remains configured through `tuist bazel setup`.
 
 The original Bazel invocation and reports retain their actual outcomes. Tuist's server records whether a case was quarantined when the invocation started, even if its state changes before the report is processed.
 
