@@ -22,6 +22,7 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
       label={dgettext("dashboard_projects", "Bundles")}
       selected={true}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}

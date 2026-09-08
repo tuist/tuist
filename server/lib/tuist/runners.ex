@@ -46,6 +46,18 @@ defmodule Tuist.Runners do
   same transaction so the next poll can pick the workflow_job up
   again.
 
+  ## The runner shuffle
+
+  GitHub binds a JIT runner to a label set, not to a job, so it
+  routinely places job B on the Pod minted for job A. Both jobs move on
+  the `workflow_job.in_progress` webhook, in the transaction that moves
+  the claim (`Claims.record_execution/3`): A is detached and re-queued
+  so another Pod can take it, and B starts on the Pod's slot. B has no
+  other way in — it was never claimed here, so no mint transitions it,
+  and GitHub announces nothing further about a job it has already
+  started. `UnstartedExecutionsWorker` is the backstop for a delivery
+  that never lands.
+
   ## Who releases a claim, and why there is a backstop
 
   A claim is a reservation against the account's concurrency budget.

@@ -76,7 +76,7 @@ class TuistHttpClientTest {
         }
 
         val request = mockWebServer.takeRequest()
-        assertEquals("A", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+        assertEquals("A,KURA", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
     }
 
     @Test

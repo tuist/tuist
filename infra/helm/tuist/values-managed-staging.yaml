@@ -338,6 +338,12 @@ clickhouse:
     enabled: true
     persistence:
       size: 60Gi
+      localVolume:
+        # Staging's pool is one node, so this changes nothing here today. It is
+        # required rather than optional because the pool-label binding it
+        # replaces is safe only at one node, and an environment that grew a
+        # second one would otherwise regress silently.
+        nodeName: bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
     # Dual writes come before the backfill, not after it. From the moment this
     # is on, every new row reaches both servers; the backfill then copies what
     # was written before a stated cutoff. Doing it the other way round leaves

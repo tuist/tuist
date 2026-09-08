@@ -24941,6 +24941,30 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  custom_metadata:
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - tags
+                      - values
+                    type: object
+                    x-struct:
+                    x-validate:
                   duration_ms:
                     type: integer
                     x-struct:
@@ -24997,6 +25021,7 @@ paths:
                   - git_branch
                   - git_commit_sha
                   - is_ci
+                  - custom_metadata
                   - bazel_version
                   - cache_endpoint
                   - status
@@ -27177,6 +27202,30 @@ paths:
                           type: object
                           x-struct:
                           x-validate:
+                        custom_metadata:
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          required:
+                            - tags
+                            - values
+                          type: object
+                          x-struct:
+                          x-validate:
                         duration_ms:
                           type: integer
                           x-struct:
@@ -27233,6 +27282,7 @@ paths:
                         - git_branch
                         - git_commit_sha
                         - is_ci
+                        - custom_metadata
                         - bazel_version
                         - cache_endpoint
                         - status

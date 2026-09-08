@@ -94,6 +94,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -191,7 +192,7 @@ defmodule TuistWeb.TestRunLive do
     params = Query.query_params(uri)
     uri = build_uri(params)
     selected_tab = selected_tab(params)
-    selected_test_tab = params["test-tab"] || "test-cases"
+    selected_test_tab = selected_test_tab(params, socket.assigns.show_test_suites)
 
     {available_filters, active_filters} =
       case {selected_tab, selected_test_tab} do
@@ -473,7 +474,7 @@ defmodule TuistWeb.TestRunLive do
         Map.put(params, "selective-testing-page", "1")
 
       true ->
-        test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
+        test_tab = selected_test_tab(URI.decode_query(socket.assigns.uri.query), socket.assigns.show_test_suites)
 
         page_param =
           case test_tab do
@@ -506,7 +507,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "overview", params) do
-    selected_test_tab = params["test-tab"] || "test-cases"
+    selected_test_tab = selected_test_tab(params, socket.assigns.show_test_suites)
     run = socket.assigns.run
 
     [{failed_test_case_runs, failures_meta}, flaky_runs_grouped, {tab_type, {tab_data, tab_meta}}] =
@@ -550,15 +551,26 @@ defmodule TuistWeb.TestRunLive do
          params
        )
        when invocation_id not in [nil, ""] do
-    page = String.to_integer(params["logs-page"] || "1")
+    page = Query.positive_integer(params["logs-page"])
 
     {logs, meta} =
-      Bazel.list_invocation_logs(socket.assigns.selected_project.id, invocation_id, %{
-        order_by: [:sequence_number],
-        order_directions: [:asc],
-        page: page,
-        page_size: @table_page_size
-      })
+      case Bazel.get_invocation(socket.assigns.selected_project.id, invocation_id, include_cache_summary: false) do
+        {:ok, invocation} ->
+          Bazel.list_invocation_logs(
+            socket.assigns.selected_project.id,
+            invocation_id,
+            %{
+              order_by: [:sequence_number],
+              order_directions: [:asc],
+              page: page,
+              page_size: @table_page_size
+            },
+            Bazel.invocation_log_query_options(invocation)
+          )
+
+        {:error, :not_found} ->
+          {[], %{current_page: 1, total_pages: 0}}
+      end
 
     socket
     |> assign(:bazel_invocation_logs, Enum.map(logs, &bazel_log/1))
@@ -589,6 +601,10 @@ defmodule TuistWeb.TestRunLive do
       _ -> {:test_cases, load_test_cases_data(run, params)}
     end
   end
+
+  defp selected_test_tab(%{"test-tab" => "test-suites"}, true), do: "test-suites"
+  defp selected_test_tab(%{"test-tab" => "test-modules"}, _show_test_suites), do: "test-modules"
+  defp selected_test_tab(_params, _show_test_suites), do: "test-cases"
 
   defp assign_selective_testing_data(socket, analytics, meta, params) do
     filters =

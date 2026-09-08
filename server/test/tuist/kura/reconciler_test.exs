@@ -207,7 +207,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
     mark_deployment_succeeded(deployment)
 
-    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
 
     # The region template now renders a different host (e.g. an
     # environment-scoped public-host rename). The image is unchanged, so only
@@ -222,7 +222,33 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Server{status: :active, url: "http://localhost:4200"} = Repo.get!(Server, server.id)
-    assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4200"]
+  end
+
+  # A rollout abort or supersede cancels the open deployments it owns, which
+  # can leave a replicating server with none. The rollout fast path drives open
+  # deployments alone, so the projection is the only thing that reaches it.
+  test "projects a replicating server whose deployment was closed under it" do
+    {account, server, deployment} = create_server()
+
+    server
+    |> Ecto.Changeset.change(%{status: :replicating})
+    |> Repo.update!()
+
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_cancelled(deployment, "superseded by a newer rollout")
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
   end
 
   test "refreshes a converged node-port server instead of re-activating it every tick" do
@@ -762,6 +788,89 @@ defmodule Tuist.Kura.ReconcilerTest do
       assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
       assert %Server{status: ^status} = Repo.get!(Server, server.id)
     end
+  end
+
+  describe "provisioning stalls" do
+    setup do
+      # A host that resolves but whose endpoint never answers: exactly the
+      # shape of an instance whose certificate was never issued, so the
+      # workload is up and the ingress serves something the probe rejects.
+      stub(Provisioner, :public_url, fn _account, _server -> "https://localhost:4100" end)
+      stub(Req, :get, fn _url, _opts -> {:error, :econnrefused} end)
+      :ok
+    end
+
+    test "keeps waiting while the attempt is younger than the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "marks the server failed once the attempt runs past the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, url: nil} = Repo.get!(Server, server.id)
+
+      # The deployment stays open on purpose: the fast path keeps probing every
+      # tick, so the instance activates by itself when its endpoint comes up.
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "activates a stalled server once its endpoint starts serving" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      assert %Server{status: :failed} = Repo.get!(Server, server.id)
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %Req.Response{status: 200}} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :active, url: "https://localhost:4100"} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "leaves a stalled server failed without re-reporting it every tick" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      failed = Repo.get!(Server, server.id)
+      assert failed.status == :failed
+
+      # Only the first crossing reports; afterwards the row is already recorded
+      # and is left untouched, so a stall does not rewrite the row once a
+      # minute for as long as it lasts.
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, updated_at: updated_at} = Repo.get!(Server, server.id)
+      assert updated_at == failed.updated_at
+    end
+  end
+
+  defp backdate_deployment(deployment, seconds) do
+    deployment
+    |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(), -seconds, :second))
+    |> Repo.update!()
   end
 
   defp create_server do

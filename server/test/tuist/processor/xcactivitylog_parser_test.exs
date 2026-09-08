@@ -57,6 +57,21 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
     assert {:error, "unsupported log version"} = parse()
   end
 
+  test "handles repeated immediate exits after writing diagnostics" do
+    install_parser(~S|echo "unsupported log version" >&2; exit 1|)
+
+    for _ <- 1..100 do
+      assert {:error, "unsupported log version"} = parse()
+    end
+  end
+
+  test "captures diagnostics larger than MuonTrap's output window" do
+    message = String.duplicate("unsupported log version\n", 1000)
+    install_parser("printf '" <> message <> "' >&2; exit 1")
+
+    assert {:error, String.trim(message)} == parse()
+  end
+
   # The reason this module shells out at all: a Swift runtime trap aborts the
   # parser process, and that has to surface as an error rather than take the
   # BEAM down with it.

@@ -75,7 +75,7 @@ Three reasons: `CREATE ROLE` is superuser-only, role state is infra rather than 
 
 ## Connection pooler (PgBouncer)
 
-The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It is a **transaction-mode pooler for the processor only**, matching the processor's `prepare: :unnamed` connection shape.
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). The managed deployment routes the Linux build processors, macOS xcresult processors, and Swift registry sync consumer through it in **transaction mode**, matching their `prepare: :unnamed` connection shape.
 
 ### Why the web tier is not pooled
 
@@ -94,6 +94,53 @@ To activate:
 3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
 
 There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
+
+### Client connections through Tailscale
+
+The macOS xcresult processors reach PgBouncer through a Tailscale operator
+proxy. The proxy's TCP connection to PgBouncer can survive a lost VM. TCP
+keepalives on that connection test the proxy, not the original VM, so they
+cannot by themselves bound how long an abandoned client occupies a slot.
+
+On September 7, 2026, production reached its 100-client limit during processor
+rollouts. One xcresult processor could not fetch Oban jobs from 19:36 to 19:52
+UTC. The pooler rejected new clients with `max_client_conn` until ten older
+connections from the Tailscale proxy closed together at 19:52:45. Sixty such
+connections were released in batches of ten by 21:46, returning the pooler to
+its normal 50 application clients plus the monitoring connection. These
+observations point to connections surviving earlier VM replacements; they do
+not establish a leak of Postgres backend connections.
+
+The managed common values apply two controls to staging, canary, and production:
+
+- `client_idle_timeout: "300"` closes clients after five minutes without
+  PostgreSQL protocol traffic. DBConnection's default one-second idle checks
+  call Postgrex's `Sync` ping, which refreshes PgBouncer's client activity
+  timestamp. Healthy idle pools therefore stay connected. PgBouncer skips
+  clients linked to a backend, including running queries and open transactions;
+  this is not a query or transaction timeout. A client that stops sending
+  traffic for five minutes outside a transaction must reconnect.
+- `max_client_conn: "200"` provides admission headroom while abandoned clients
+  age out and old/new consumers overlap. Production's normal topology has two Linux
+  processors, two xcresult processors, and one Swift registry sync consumer,
+  each with ten connections. The backend `default_pool_size` remains 20 per
+  database/user pair, and Postgres `max_connections` is unchanged. Increasing
+  the application pools or only increasing this admission limit would not
+  reclaim abandoned connections.
+
+These overrides are limited to managed environments. The base chart leaves
+the idle timeout disabled, since other clients may not send idle heartbeats.
+See [PgBouncer's timeout documentation](https://www.pgbouncer.org/config.html#client_idle_timeout)
+and the [1.25.1 client maintenance implementation](https://github.com/pgbouncer/pgbouncer/blob/pgbouncer_1_25_1/src/janitor.c#L376-L401).
+
+After deployment, verify the `Pooler` parameters, then observe a processor
+rollout: `cnpg_pgbouncer_lists_used_clients` should return near the steady-state
+baseline within five minutes of the old clients' last protocol traffic. Check
+PgBouncer logs for `client_idle_timeout` and absence of `max_client_conn`
+rejections, and confirm `process_xcresult` continues completing jobs. Sustained
+idle-timeout disconnects from live consumers indicate their heartbeat behavior
+needs investigation. To roll back, set the managed `client_idle_timeout` to
+`"0"`; the client admission limit can be reverted independently.
 
 ## Password rotation
 

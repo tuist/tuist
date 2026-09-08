@@ -47,9 +47,9 @@
     },
     {
       "customType": "regex",
-      "description": "Single source for the mise CLI version pinned across every GitHub Actions workflow (MISE_VERSION env). Renovate tracks jdx/mise releases and bumps all MISE_VERSION literals together in one PR, keeping the whole repo on one version. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
-      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
-      "matchStrings": ["MISE_VERSION:\\s*\"(?<currentValue>[^\"]+)\""],
+      "description": "Single source for the mise CLI version. Every workflow installs mise through .github/actions/mise, so the pin exists once and this manager bumps that one line. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
+      "fileMatch": ["^\\.github/actions/mise/action\\.yml$"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+version: \"(?<currentValue>[^\"]+)\""],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "jdx/mise",
       "extractVersionTemplate": "^v?(?<version>.+)$"

@@ -80,6 +80,8 @@ Kura decodes Bazel test-result and test-summary events from the Build Event Prot
 
 This is deliberately not a durable outbox. A result carries at most two matching outputs, each output is limited to 256 KiB, and a worker takes a background transient-memory reservation before reading it. The queue has a fixed capacity; full queues, oversized data, invalid metadata, unavailable local blobs, and exhausted retries are dropped. Temporary upstream responses receive a small, bounded retry sequence. Result and summary admission never waits. The small completion marker waits only for bounded queue capacity, preserving ordering without allocating beyond the configured budget or adding latency to cache paths. Tuist durably deduplicates accepted results and never reads test reports or logs back from Kura.
 
+The same Build Event Protocol stream carries custom build metadata. Kura retains at most 20 pairs per in-flight invocation, limits keys to 50 bytes and values to 500 bytes, and deterministically keeps the first valid keys when a client sends more. Metadata used for branch, commit, or continuous-integration provenance is stored in its dedicated invocation field and omitted from the custom map. The bounded map leaves Kura through the existing invocation analytics queue and is not written to Kura's local storage.
+
 ## Memory Pressure And Shedding
 
 Kura treats memory as an admission-controlled shared resource, not just a set of independent caches:

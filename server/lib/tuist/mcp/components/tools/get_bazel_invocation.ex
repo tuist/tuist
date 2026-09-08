@@ -22,7 +22,7 @@ defmodule Tuist.MCP.Components.Tools.GetBazelInvocation do
 
   @impl EMCP.Tool
   def description do
-    "Get a completed Bazel invocation with build metrics, bounded timeline and critical-path diagnostics, and correlated remote-cache totals."
+    "Get a completed Bazel invocation with custom metadata, build metrics, bounded timeline and critical-path diagnostics, and correlated remote-cache totals."
   end
 
   def execute(_conn, %{"invocation_id" => invocation_id}, project) do

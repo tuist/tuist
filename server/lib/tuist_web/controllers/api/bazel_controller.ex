@@ -125,6 +125,14 @@ defmodule TuistWeb.API.BazelController do
       git_branch: %Schema{type: :string},
       git_commit_sha: %Schema{type: :string},
       is_ci: %Schema{type: :boolean},
+      custom_metadata: %Schema{
+        type: :object,
+        properties: %{
+          tags: %Schema{type: :array, items: %Schema{type: :string}},
+          values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+        },
+        required: [:tags, :values]
+      },
       bazel_version: %Schema{type: :string},
       cache_endpoint: %Schema{type: :string},
       status: %Schema{type: :string, enum: ["success", "failure"]},
@@ -144,6 +152,7 @@ defmodule TuistWeb.API.BazelController do
       :git_branch,
       :git_commit_sha,
       :is_ci,
+      :custom_metadata,
       :bazel_version,
       :cache_endpoint,
       :status,
@@ -461,6 +470,7 @@ defmodule TuistWeb.API.BazelController do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      custom_metadata: %{tags: [], values: invocation.custom_values},
       bazel_version: invocation.bazel_version,
       cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,

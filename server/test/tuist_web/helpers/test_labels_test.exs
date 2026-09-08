@@ -13,6 +13,10 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
   end
 
   describe "modules_label/1" do
+    test "returns Test Targets for bazel projects" do
+      assert TestLabels.modules_label(%Project{build_system: :bazel}) == "Test Targets"
+    end
+
     test "returns Modules for any project" do
       assert TestLabels.modules_label(%Project{build_system: :gradle}) == "Modules"
       assert TestLabels.modules_label(%Project{build_system: :xcode}) == "Modules"
@@ -20,6 +24,10 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
   end
 
   describe "test_modules_label/1" do
+    test "returns Test Targets for bazel projects" do
+      assert TestLabels.test_modules_label(%Project{build_system: :bazel}) == "Test Targets"
+    end
+
     test "returns Test Modules for any project" do
       assert TestLabels.test_modules_label(%Project{build_system: :gradle}) == "Test Modules"
       assert TestLabels.test_modules_label(%Project{build_system: :xcode}) == "Test Modules"

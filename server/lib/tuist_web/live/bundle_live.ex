@@ -18,12 +18,14 @@ defmodule TuistWeb.BundleLive do
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
+  @duplicate_artifacts_limit 20
 
   def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
     bundle = get_selected_bundle(bundle_id, selected_project)
     current_user = socket.assigns[:current_user]
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
+    duplicates = find_duplicates(bundle.artifacts)
 
     artifacts_by_id =
       Enum.reduce(all_artifacts, %{}, fn artifact, acc ->
@@ -51,7 +53,9 @@ defmodule TuistWeb.BundleLive do
       socket
       |> assign(:bundle, bundle)
       |> assign(:can_delete_bundle, Authorization.authorize(:bundle_delete, current_user, selected_project) == :ok)
-      |> assign(:duplicates, find_duplicates(bundle.artifacts))
+      |> assign(:duplicates, duplicates)
+      |> assign(:duplicates_total_size, Enum.reduce(duplicates, 0, &(&1.size + &2)))
+      |> assign(:duplicates_open, false)
       |> assign(
         :head_title,
         "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
@@ -92,6 +96,7 @@ defmodule TuistWeb.BundleLive do
                 "file-breakdown-sort-by",
                 "file-breakdown-filter",
                 "file-breakdown-page",
+                "duplicates-page",
                 "tab",
                 "current-path"
               ] ++ bundle_size_analysis_page_params ++ filter_params
@@ -123,6 +128,7 @@ defmodule TuistWeb.BundleLive do
       |> assign(filter: filter)
       |> assign(uri: uri)
       |> assign(:selected_tab, params["tab"] || "overview")
+      |> assign_duplicates(params)
       |> assign_module_breakdown(params)
       |> assign_file_breakdown(params)
       |> assign(:install_size_deviation, Bundles.install_size_deviation(bundle))
@@ -134,6 +140,33 @@ defmodule TuistWeb.BundleLive do
       |> assign(:bundle_size_analysis_sunburst_chart_selected_artifact, selected_artifact)
 
     {:noreply, socket}
+  end
+
+  defp assign_duplicates(%{assigns: %{duplicates: duplicates}} = socket, params) do
+    page = parse_page(params["duplicates-page"])
+    page_count = max(ceil(length(duplicates) / @table_page_size), 1)
+
+    current_page_duplicates =
+      duplicates
+      |> Enum.slice((page - 1) * @table_page_size, @table_page_size)
+      |> Enum.map(&truncate_duplicate_artifacts/1)
+
+    socket
+    |> assign(:duplicates_page, page)
+    |> assign(:duplicates_page_count, page_count)
+    |> assign(:duplicates_current_page, current_page_duplicates)
+  end
+
+  defp collapsible_state(true), do: "open"
+  defp collapsible_state(_), do: "closed"
+
+  defp truncate_duplicate_artifacts(%{artifacts: artifacts} = duplicate) do
+    count = length(artifacts)
+
+    duplicate
+    |> Map.put(:artifacts, Enum.take(artifacts, @duplicate_artifacts_limit))
+    |> Map.put(:artifacts_count, count)
+    |> Map.put(:hidden_artifacts_count, max(count - @duplicate_artifacts_limit, 0))
   end
 
   defp assign_file_breakdown(
@@ -279,6 +312,10 @@ defmodule TuistWeb.BundleLive do
        to:
          "/#{selected_project.account.name}/#{selected_project.name}/bundles/#{bundle.id}?#{Query.put(uri.query, "filter", filter)}"
      )}
+  end
+
+  def handle_event("duplicates_open_changed", %{"open" => open}, socket) do
+    {:noreply, assign(socket, :duplicates_open, open)}
   end
 
   def handle_event("search-file-breakdown", %{"search" => search}, socket) do

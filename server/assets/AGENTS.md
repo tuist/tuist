@@ -27,6 +27,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   JavaScript rather than a script from a CDN, so the page loads no third-party
   origin and the Content Security Policy stays on `'self'`. Web vitals feed the
   LCP alerts documented in `infra/helm/k8s-monitoring/alerts.md`.
+  Browsers reporting `navigator.webdriver` are not instrumented at all, so
+  crawlers and headless test runners neither emit web vitals nor page views.
 
 ## Related Context
 

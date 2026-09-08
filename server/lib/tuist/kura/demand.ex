@@ -157,9 +157,13 @@ defmodule Tuist.Kura.Demand do
   accepted: a region with no room is an operational problem to be alerted on
   and fixed by adding a machine, not a steady state to design around. The
   `capacity_refused` counter is the signal for it.
+
+  Resolved without reading room and without recording a placement
+  (`AccountPolicies.resolvable?/1`): the answer does not depend on which
+  region, and a request is not where a placement should be taken.
   """
   def instance_expected?(%Account{} = account) do
-    match?({:ok, _resolution}, AccountPolicies.resolve(account))
+    AccountPolicies.resolvable?(account)
   end
 
   @doc """
