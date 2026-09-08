@@ -3243,7 +3243,7 @@ on which is authoritative.
 ### Kura instance provisioned but not serving
 
 ```promql
-sum(tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
+max by (region) (tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0`, so the alert value is how many instances are unroutable
@@ -3251,15 +3251,37 @@ sum(tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
 - Severity: warning
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
-- Summary: `{{ $values.A.Value }} Kura instance(s) have been provisioned but
-  are not serving their account`
-- Description: `Cache resolution offers an account only its active instances,
-  so an instance that never reaches active is one the account is allocated,
-  is paying for, and is not being routed to; it keeps building against the
-  legacy cache lane and nothing errors. Read the instance status on /ops/kura
-  and the reconciler log for "could not converge server". Instances pass
-  through provisioning for a minute or two on creation, so a count that clears
-  on its own is normal and this fires only on one that does not.`
+- Live: rule `dfxnedzs40i68f`, created 2026-09-08.
+- Summary and description: see the deployed rule, which carries the full
+  triage text.
+
+**This rule was documented here for weeks before it existed.** It was written
+up in this file and never created in Grafana, so the 2026-09-08 stall ran for
+over three hours against a rule that looked specified and was not deployed.
+That is the reason nothing fired. Treat a section in this file as a claim
+about intent, not as evidence a rule exists: check
+`alerting_manage_rules` before concluding a rule is broken or missing, and
+record the uid here when one is created.
+
+**Read it with `max`, not `sum`.** Adaptive Metrics has aggregated `instance`
+and `pod` away from this gauge, which a bare selector now reports as an error
+rather than silently. `region` and `cluster` both survive. Every
+`tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
+has to be one that collapses identical values rather than adding them.
+Measured on 2026-09-08 against a ground truth of two stuck instances in
+us-east and one in eu-central:
+
+| query | us-east | eu-central |
+| --- | --- | --- |
+| `sum by (region)` | 10 | 5 |
+| `max by (region)` | 2 | 1 |
+| Postgres | 2 | 1 |
+
+`sum` returns the truth multiplied by the five web replicas, so it tracks
+replica count rather than anything about the fleet. `max` is exact. No
+Adaptive Metrics change is needed for this: the aggregation keeps a max
+variant and rewrites the query onto it, so the correct reducer recovers the
+correct number today.
 
 **Summed rather than read per region.** The gauge carries a `region` label and
 the underlying series is per region, but Adaptive Metrics has already
@@ -3291,33 +3313,22 @@ unroutable for as long as about 52 days while their pods answered `/up` the
 whole time. Nothing errored, no queue grew, and no existing rule moved, so it
 was found by reading the database rather than by an alert.
 
-**The value in the summary is inflated, the firing is not.** This is a PromEx
-polling gauge, so all five `tuist-tuist-server` replicas report the same
-fleet-wide count once a minute, and Adaptive Metrics aggregates the `pod` label
-away by summing them. On 2026-09-08 the rule read 5 while Postgres held exactly
-one non-active instance. `> 0` is unaffected, because five times a true zero is
-still zero, so the rule fires and clears correctly; what is wrong is
-`{{ $values.A.Value }}` in the summary, which reports the replica count times
-the truth. Read the count off `/ops/kura` rather than off the Slack message
-until the aggregation is fixed.
-
-The fix is a Grafana Cloud one and does not live in this repo. Nothing in
-`values.yaml` touches this metric: the drop rules there are anchored on
-`_bucket` and the `labeldrop` list is
+**Nothing in `values.yaml` is involved, and nothing needs excluding.** The
+first instinct on finding an inflated count is to look for a drop or
+aggregation rule in `infra/helm/k8s-monitoring/values.yaml`. There is none that
+touches this metric: the drop rules there are anchored on `_bucket`, which a
+gauge never matches, and the `labeldrop` list is
 `container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid`, which does not
-include `pod`. Editing that file would ship a no-op. Exclude
-`tuist_kura_lifecycle_unroutable_instances_count` and
-`tuist_kura_lifecycle_stalled_instances_count` from `pod` aggregation under
-**Metrics > Adaptive Metrics** in Grafana Cloud (the same recommendations the
-two limits above **Critical alerts** describe), then read both with `max`
-rather than `sum`, which is the correct reducer for a gauge every replica
-reports identically. `max` on its own does not repair it: applied to a
-series Adaptive Metrics has already summed, it returns the same inflated value.
+include `pod`. The deployed `k8s-monitoring-alloy-metrics` configmap does not
+mention the metric either, so editing that file would ship a no-op. The
+aggregation is Adaptive Metrics, on the Grafana Cloud side, and the fix is the
+reducer in the query rather than any change to the aggregation. See the
+measured comparison under the rule at the top of this section.
 
 ### Kura instance stalled in provisioning
 
 ```promql
-max(tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
+max by (region) (tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0`
@@ -3325,8 +3336,11 @@ max(tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
 - Severity: warning
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
-- Summary: `A Kura instance has been provisioning for over 15 minutes without a
-  routable endpoint`
+- **Not deployed yet.** The metric ships with the reconciler stall escalation;
+  create the rule once a release carrying it is in production, or it evaluates
+  No Data and pages immediately. Record its uid here when you do.
+- Summary: `A Kura instance in {{ $labels.region }} has been provisioning for
+  over 15 minutes without a routable endpoint`
 - Description: `The instance holds an allocation its account cannot use and is
   building against the legacy cache lane. The reconciler has already marked the
   server failed and captured the reason to Sentry under "Kura provisioning
