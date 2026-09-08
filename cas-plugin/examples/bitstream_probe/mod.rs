@@ -48,6 +48,8 @@ struct Reader<'a> {
     column_bytes: usize,
     column_cap: u32,
     delta: bool,
+    compact_layout: bool,
+    compact_columns: bool,
 }
 
 impl Reader<'_> {
@@ -122,9 +124,29 @@ impl Reader<'_> {
         self.layout.extend(block.to_le_bytes());
         self.layout.extend(code.to_le_bytes());
         self.layout.extend((self.trace.len() as u32).to_le_bytes());
+        if self.compact_layout {
+            let mut index = 0;
+            while index < self.trace.len() {
+                let operation = self.trace[index];
+                let mut end = index + 1;
+                while end < self.trace.len()
+                    && self.trace[end].kind == operation.kind
+                    && self.trace[end].width == operation.width
+                    && self.trace[end].groups == operation.groups
+                {
+                    end += 1;
+                }
+                self.layout.extend([operation.kind, operation.width]);
+                write_variable(&mut self.layout, operation.groups as u64);
+                write_variable(&mut self.layout, (end - index) as u64);
+                index = end;
+            }
+        }
         for (index, operation) in self.trace.drain(..).enumerate() {
-            self.layout.extend([operation.kind, operation.width]);
-            self.layout.extend(operation.groups.to_le_bytes());
+            if !self.compact_layout {
+                self.layout.extend([operation.kind, operation.width]);
+                self.layout.extend(operation.groups.to_le_bytes());
+            }
             if operation.kind != 2 {
                 let column = self
                     .columns
@@ -136,8 +158,13 @@ impl Reader<'_> {
                     operation.value
                 };
                 column.previous = operation.value;
-                column.bytes.extend(value.to_le_bytes());
-                self.column_bytes += 8;
+                if self.compact_columns {
+                    let value = if self.delta { zigzag(value) } else { value };
+                    self.column_bytes += write_variable(&mut column.bytes, value);
+                } else {
+                    column.bytes.extend(value.to_le_bytes());
+                    self.column_bytes += 8;
+                }
             }
         }
         require(self.columns.len() <= MAX_COLUMNS, "column limit exceeded")?;
@@ -312,6 +339,16 @@ impl Reader<'_> {
 }
 
 pub fn prepare(data: &[u8], delta: bool, column_cap: u32) -> Result<Vec<u8>> {
+    prepare_compact(data, delta, column_cap, false, false)
+}
+
+pub fn prepare_compact(
+    data: &[u8],
+    delta: bool,
+    column_cap: u32,
+    compact_layout: bool,
+    compact_columns: bool,
+) -> Result<Vec<u8>> {
     require(
         data.len() <= MAX_INPUT && data.len() >= 4,
         "input size limit",
@@ -337,6 +374,8 @@ pub fn prepare(data: &[u8], delta: bool, column_cap: u32) -> Result<Vec<u8>> {
         column_bytes: 0,
         column_cap,
         delta,
+        compact_layout,
+        compact_columns,
     };
     reader.bits(32)?;
     reader.finish(-1, -4)?;
@@ -351,14 +390,18 @@ pub fn prepare(data: &[u8], delta: bool, column_cap: u32) -> Result<Vec<u8>> {
             + reader.blobs.len()
             + reader.column_bytes,
     );
-    output.extend(b"BCOL0001");
+    output.extend(if compact_layout || compact_columns {
+        b"BCOL0002"
+    } else {
+        b"BCOL0001"
+    });
     output.extend((data.len() as u64).to_le_bytes());
     for size in [
         reader.layout.len(),
         reader.blobs.len(),
         reader.columns.len(),
         column_cap as usize,
-        delta as usize,
+        delta as usize | (usize::from(compact_layout) << 1) | (usize::from(compact_columns) << 2),
     ] {
         output.extend((size as u32).to_le_bytes());
     }
@@ -381,6 +424,33 @@ struct Cursor<'a> {
     data: &'a [u8],
     at: usize,
 }
+
+fn zigzag(value: u64) -> u64 {
+    (value << 1) ^ ((value as i64 >> 63) as u64)
+}
+
+fn unzigzag(value: u64) -> u64 {
+    (value >> 1) ^ 0u64.wrapping_sub(value & 1)
+}
+
+fn write_variable(output: &mut Vec<u8>, mut value: u64) -> usize {
+    let start = output.len();
+    while value >= 128 {
+        output.push(value as u8 | 128);
+        value >>= 7;
+    }
+    output.push(value as u8);
+    output.len() - start
+}
+
+fn prepared_version(input: &mut Cursor<'_>) -> Result<bool> {
+    match input.take(8)? {
+        b"BCOL0001" => Ok(false),
+        b"BCOL0002" => Ok(true),
+        _ => Err("unknown prepared format".into()),
+    }
+}
+
 impl<'a> Cursor<'a> {
     fn take(&mut self, size: usize) -> Result<&'a [u8]> {
         let end = self.at.checked_add(size).ok_or("cursor overflow")?;
@@ -396,6 +466,19 @@ impl<'a> Cursor<'a> {
     }
     fn u64(&mut self) -> Result<u64> {
         Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+    fn variable(&mut self) -> Result<u64> {
+        let mut value = 0u64;
+        for group in 0..10 {
+            let byte = self.take(1)?[0];
+            require(group < 9 || byte <= 1, "prepared integer overflow")?;
+            value |= ((byte & 127) as u64) << (group * 7);
+            if byte & 128 == 0 {
+                require(group == 0 || byte != 0, "noncanonical prepared integer")?;
+                return Ok(value);
+            }
+        }
+        Err("prepared integer group limit".into())
     }
 }
 
@@ -430,7 +513,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         "restore size limit",
     )?;
     let mut input = Cursor { data, at: 0 };
-    require(input.take(8)? == b"BCOL0001", "unknown prepared format")?;
+    let compact_version = prepared_version(&mut input)?;
     require(
         input.u64()? == expected_size as u64,
         "restored size mismatch",
@@ -439,16 +522,24 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
     let blob_size = input.u32()? as usize;
     let column_count = input.u32()? as usize;
     let column_cap = input.u32()?;
-    let delta = input.u32()?;
+    let flags = input.u32()?;
+    let delta = flags & 1;
+    let compact_layout = flags & 2 != 0;
+    let compact_columns = flags & 4 != 0;
     require(
-        column_count <= MAX_COLUMNS && column_cap <= 1024 && delta <= 1,
+        column_count <= MAX_COLUMNS
+            && column_cap <= 1024
+            && flags <= if compact_version { 7 } else { 1 },
         "invalid prepared parameters",
     )?;
     let mut descriptors = Vec::new();
     for _ in 0..column_count {
         let key = (input.u32()? as i32, input.u32()? as i32, input.u32()?);
         let size = input.u32()? as usize;
-        require(size.is_multiple_of(8), "invalid column size")?;
+        require(
+            compact_columns || size.is_multiple_of(8),
+            "invalid column size",
+        )?;
         descriptors.push((key, size));
     }
     let mut layout = Cursor {
@@ -490,10 +581,24 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         let count = layout.u32()? as usize;
         operations += count;
         require(operations <= MAX_OPERATIONS, "restore operation budget")?;
+        let (mut kind, mut width, mut groups, mut left) = (0, 0, 0, 0usize);
         for index in 0..count {
-            let kind = layout.take(1)?[0];
-            let width = layout.take(1)?[0];
-            let groups = layout.u32()?;
+            if compact_layout {
+                if left == 0 {
+                    kind = layout.take(1)?[0];
+                    width = layout.take(1)?[0];
+                    groups =
+                        u32::try_from(layout.variable()?).map_err(|_| "layout group overflow")?;
+                    left =
+                        usize::try_from(layout.variable()?).map_err(|_| "layout run overflow")?;
+                    require(left > 0 && left <= count - index, "invalid layout run")?;
+                }
+                left -= 1;
+            } else {
+                kind = layout.take(1)?[0];
+                width = layout.take(1)?[0];
+                groups = layout.u32()?;
+            }
             if kind == 2 {
                 require(width == 0 && writer.count == 0, "invalid blob layout")?;
                 require(
@@ -506,7 +611,14 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
             let (column, previous) = columns
                 .get_mut(&(block, code, (index as u32).min(column_cap)))
                 .ok_or("missing column")?;
-            let mut value = column.u64()?;
+            let mut value = if compact_columns {
+                column.variable()?
+            } else {
+                column.u64()?
+            };
+            if compact_columns && delta != 0 {
+                value = unzigzag(value);
+            }
             if delta != 0 {
                 value = previous.wrapping_add(value);
             }
@@ -575,6 +687,81 @@ mod tests {
         let padding = (32 - ((writer.data.len() * 8 + writer.count as usize) % 32)) % 32;
         writer.bits(0, padding as u8).unwrap();
         writer.data
+    }
+
+    #[test]
+    fn compact_representations_preserve_spelling_and_reject_malformed_runs() {
+        let mut bytes = fixture();
+        *bytes.last_mut().unwrap() = 0xa5;
+        for delta in [false, true] {
+            for compact_layout in [false, true] {
+                for compact_columns in [false, true] {
+                    for cap in [0, 32] {
+                        let prepared =
+                            prepare_compact(&bytes, delta, cap, compact_layout, compact_columns)
+                                .unwrap();
+                        assert_eq!(restore(&prepared, bytes.len()).unwrap(), bytes);
+                        for end in 0..prepared.len() {
+                            assert!(restore(&prepared[..end], bytes.len()).is_err());
+                        }
+                        for index in 0..prepared.len() {
+                            let mut changed = prepared.clone();
+                            changed[index] ^= 0xff;
+                            let _ = restore(&changed, bytes.len());
+                        }
+                    }
+                }
+            }
+        }
+        let prepared = prepare_compact(&bytes, true, 32, true, true).unwrap();
+        let count = u32::from_le_bytes(prepared[24..28].try_into().unwrap()) as usize;
+        let first_run = 36 + count * 16 + 15;
+        for invalid in [0, 2] {
+            let mut changed = prepared.clone();
+            changed[first_run] = invalid;
+            assert_eq!(
+                restore(&changed, bytes.len()).unwrap_err(),
+                "invalid layout run"
+            );
+        }
+    }
+
+    #[test]
+    fn compact_integer_extremes_round_trip_without_overflow() {
+        for value in [
+            0,
+            1,
+            127,
+            128,
+            255,
+            u32::MAX as u64,
+            1 << 63,
+            u64::MAX - 1,
+            u64::MAX,
+        ] {
+            assert_eq!(unzigzag(zigzag(value)), value);
+            let mut bytes = Vec::new();
+            let size = write_variable(&mut bytes, value);
+            assert_eq!(size, bytes.len());
+            assert!(size <= 10);
+            assert_eq!(
+                Cursor {
+                    data: &bytes,
+                    at: 0
+                }
+                .variable()
+                .unwrap(),
+                value
+            );
+        }
+        for bytes in [vec![0x80], vec![0x80, 0], vec![0xff; 10], vec![0x80; 11]] {
+            assert!(Cursor {
+                data: &bytes,
+                at: 0
+            }
+            .variable()
+            .is_err());
+        }
     }
 
     #[test]

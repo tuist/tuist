@@ -28,11 +28,26 @@ struct Config {
     residual: bool,
     #[serde(default)]
     fast_hash: bool,
+    #[serde(default)]
+    compact_layout: bool,
+    #[serde(default)]
+    compact_columns: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
     if config.fields {
-        bitstream_probe::prepare(bytes, config.delta, config.column_cap).unwrap()
+        if config.compact_layout || config.compact_columns {
+            bitstream_probe::prepare_compact(
+                bytes,
+                config.delta,
+                config.column_cap,
+                config.compact_layout,
+                config.compact_columns,
+            )
+            .unwrap()
+        } else {
+            bitstream_probe::prepare(bytes, config.delta, config.column_cap).unwrap()
+        }
     } else {
         bytes.to_vec()
     }

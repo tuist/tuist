@@ -40,14 +40,16 @@ fn groups(data: &[u8], limit: usize) -> Result<Vec<(Key, &[u8])>> {
     )?;
     require(data.len() <= MAX_PREPARED, "prepared size limit")?;
     let mut input = Cursor { data, at: 0 };
-    require(input.take(8)? == b"BCOL0001", "unknown prepared format")?;
+    let compact_version = super::prepared_version(&mut input)?;
     require(input.u64()? <= MAX_INPUT as u64, "original size limit")?;
     let layout_size = input.u32()? as usize;
     let blob_size = input.u32()? as usize;
     let count = input.u32()? as usize;
     require(count <= MAX_COLUMNS, "column count limit")?;
+    require(input.u32()? <= 1024, "invalid column cap")?;
+    let flags = input.u32()?;
     require(
-        input.u32()? <= 1024 && input.u32()? <= 1,
+        flags <= if compact_version { 7 } else { 1 },
         "invalid parameters",
     )?;
     let mut descriptors = Vec::with_capacity(count);
@@ -61,7 +63,10 @@ fn groups(data: &[u8], limit: usize) -> Result<Vec<(Key, &[u8])>> {
             0,
         ];
         let size = input.u32()? as usize;
-        require(size.is_multiple_of(8), "invalid column size")?;
+        require(
+            flags & 4 != 0 || size.is_multiple_of(8),
+            "invalid column size",
+        )?;
         require(keys.insert(key), "duplicate column")?;
         descriptors.push((key, size));
     }
