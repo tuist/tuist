@@ -63,46 +63,10 @@ defmodule TuistWeb.Components.BuildTimeline do
           </span>
         </:actions>
         <.card_section data-part="payload-loading">
-          <.skeleton_chart height="532px" />
+          <.skeleton_chart height="652px" />
         </.card_section>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content" hidden>
-          <div data-part="toolbar">
-            <.text_input
-              type="search"
-              id="timeline-search"
-              name="timeline_search"
-              data-control="search"
-              aria-label={dgettext("dashboard_builds", "Search steps or targets")}
-              placeholder={dgettext("dashboard_builds", "Search steps or targets…")}
-              show_suffix={false}
-            />
-            <.select
-              id="timeline-target"
-              name="timeline_target"
-              label={dgettext("dashboard_builds", "All targets")}
-              value="all"
-            >
-              <:item value="all" label={dgettext("dashboard_builds", "All targets")} />
-              <:item
-                :for={entry <- Map.get(@timeline, :targets, [])}
-                value={JSON.encode!([entry.project, entry.target])}
-                label={entry.target <> " · " <> entry.project}
-              />
-            </.select>
-          </div>
-          <div data-part="legend">
-            <span data-kind="compile">{dgettext("dashboard_builds", "Compilation")}</span>
-            <span data-kind="link">{dgettext("dashboard_builds", "Linking")}</span>
-            <span data-kind="script">{dgettext("dashboard_builds", "Scripts")}</span>
-            <span data-kind="resource">{dgettext("dashboard_builds", "Resources")}</span>
-            <span data-kind="other">{dgettext("dashboard_builds", "Other")}</span>
-            <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
-            <output data-part="range"></output>
-          </div>
-          <p data-part="range-error" role="alert" hidden>
-            {dgettext("dashboard_builds", "Unable to load this time range. Try again.")}
-          </p>
           <div data-part="workspace">
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">
@@ -135,6 +99,45 @@ defmodule TuistWeb.Components.BuildTimeline do
                     <canvas data-metric-canvas={key} role="img" aria-label={label}></canvas>
                   </div>
                 </div>
+                <div data-part="build-controls">
+                  <div data-part="toolbar">
+                    <.text_input
+                      type="search"
+                      id="timeline-search"
+                      name="timeline_search"
+                      data-control="search"
+                      aria-label={dgettext("dashboard_builds", "Search steps or targets")}
+                      placeholder={dgettext("dashboard_builds", "Search steps or targets…")}
+                      show_suffix={false}
+                    />
+                    <.select
+                      id="timeline-target"
+                      name="timeline_target"
+                      label={dgettext("dashboard_builds", "All targets")}
+                      value="all"
+                    >
+                      <:item value="all" label={dgettext("dashboard_builds", "All targets")} />
+                      <:item
+                        :for={entry <- Map.get(@timeline, :targets, [])}
+                        value={JSON.encode!([entry.project, entry.target])}
+                        label={entry.target <> " · " <> entry.project}
+                      />
+                    </.select>
+                  </div>
+                  <div data-part="legend">
+                    <span data-kind="compile">{dgettext("dashboard_builds", "Compilation")}</span>
+                    <span data-kind="link">{dgettext("dashboard_builds", "Linking")}</span>
+                    <span data-kind="script">{dgettext("dashboard_builds", "Scripts")}</span>
+                    <span data-kind="resource">{dgettext("dashboard_builds", "Resources")}</span>
+                    <span data-kind="other">{dgettext("dashboard_builds", "Other")}</span>
+                    <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
+                    <output data-part="range"></output>
+                  </div>
+                  <p data-part="range-error" role="alert" hidden>
+                    {dgettext("dashboard_builds", "Unable to load this time range. Try again.")}
+                  </p>
+                </div>
+                <canvas data-part="step-ruler" aria-hidden="true"></canvas>
                 <div data-part="scrollport">
                   <div data-part="tracks">
                     <canvas

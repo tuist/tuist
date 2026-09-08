@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+- Timeline metric plots are 120px tall with square card corners; the build-step viewport stays 600px tall. Search, target selection and the step legend sit between metrics and step lanes, outside chart gesture handling, with a time ruler for each section.
 - `BuildTimelineMetrics.mjs` renders CPU, memory, network and disk tracks using the same viewport and cursor as build steps. Noora-styled chart cards use taller line plots, horizontal gridlines, and purple/blue series. Hover tooltips show the nearest recorded sample's time and values, including both network/disk directions, and disappear in collection gaps. The initial and maximum zoom-out both show the entire build. Samples are loaded once, culled by binary search, and keep stable scales across zooms; missing samples and collection gaps are not shown as zero readings.
 
 - JS/CSS sources built by esbuild.

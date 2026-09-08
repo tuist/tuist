@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- Build timeline machine tracks share its ruler, cursor and focus region; the inspector spans their combined height.
+- Build timeline machine tracks share its time range, cursor and focus region; each section has a ruler and the inspector spans their combined height. Step search and the legend sit directly above the step lanes, below machine metrics.
 - Provide reusable UI components (navigation, auth components, forms).
 - `BuildTimeline` uses Noora cards, search, target selection, and empty states around the Xcode build timeline hook, without embedding step payloads in HTML, with translated controls and accessible step details in a resizable right-hand inspector shown only when a step is selected, including its recorded log loaded on demand.
 - Keep rendering logic here; avoid domain logic.

@@ -1,5 +1,5 @@
 .tuist-build-timeline {
-  --timeline-metrics-height: 0px;
+  --timeline-header-height: 0px;
   --timeline-fill-compile: light-dark(var(--noora-purple-100), var(--noora-purple-300));
   --timeline-fill-link: light-dark(var(--noora-blue-100), var(--noora-blue-300));
   --timeline-fill-script: light-dark(var(--noora-green-100), var(--noora-green-300));
@@ -39,8 +39,23 @@
     }
   }
 
+  & [data-part="build-controls"] {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    z-index: 2;
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5) 12px;
+    user-select: auto;
+  }
+
   & #timeline-target {
     max-width: 320px;
+    & [data-part="content"] {
+      max-height: 320px;
+      overflow-y: auto;
+    }
   }
 
   & [data-part="legend"] {
@@ -116,7 +131,6 @@
   & [data-part="metric-track"] {
     cursor: crosshair;
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding-bottom: var(--noora-spacing-4);
     overflow: hidden;
@@ -144,7 +158,8 @@
       color: var(--noora-chart-secondary);
     }
   }
-  & [data-part="ruler"] {
+  & [data-part="ruler"],
+  & [data-part="step-ruler"] {
     cursor: crosshair;
   }
   & [data-part="focus-region"] {
@@ -273,7 +288,7 @@
     box-sizing: border-box;
     padding: var(--noora-spacing-5) 0;
     min-width: 0;
-    max-height: calc(var(--timeline-viewport-height) + var(--timeline-metrics-height) + 52px);
+    max-height: calc(var(--timeline-viewport-height) + var(--timeline-header-height) + 52px);
     overflow-y: auto;
     & [data-detail="title"] {
       display: block;

@@ -49,6 +49,7 @@ export default {
       write: this.el.dataset.metricWrite,
     });
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
+    this.part("ruler").hidden = !this.metrics.samples.length;
     this.events = normalizeEvents(timeline.events);
     this.search = "";
     this.target = "";
@@ -114,6 +115,7 @@ export default {
         selection.hidden = !range;
         this.focusing = !!range;
         if (!range) return;
+        this.part("focus-duration").style.top = `${this.activeRulerTop() + 5}px`;
         this.hideTooltip();
         this.hideCursor();
         selection.style.left = `${12 + (this.scrollport.clientWidth - 24) * range.left}px`;
@@ -188,6 +190,14 @@ export default {
     on(this.chart, "dblclick", (e) => this.focusStep(this.hit(e)));
     on(this.chart, "mousemove", (e) => this.hover(e));
     on(this.chart, "mouseleave", () => this.hideTooltip());
+    for (const event of ["pointerdown", "keydown"]) {
+      on(this.part("build-controls"), event, (e) => e.stopPropagation());
+    }
+    on(this.part("build-controls"), "pointermove", (e) => {
+      e.stopPropagation();
+      this.hideCursor();
+      this.hideTooltip();
+    });
     for (const canvas of this.el.querySelectorAll("[data-metric-canvas]")) {
       on(canvas, "pointermove", (e) => this.hoverMetric(e));
       on(canvas, "pointerleave", () => this.hideTooltip());
@@ -196,6 +206,7 @@ export default {
     on(this.part("focus-region"), "pointermove", (e) => {
       if (e.pointerType === "touch" || this.focusing) return;
       this.cursorX = e.clientX;
+      this.cursorY = e.clientY;
       this.updateCursor();
     });
     on(this.part("focus-region"), "pointerleave", () => this.hideCursor());
@@ -306,13 +317,13 @@ export default {
   },
 
   syncScroll() {
-    const availableHeight = Math.max(
-      320,
-      Math.min(480, window.innerHeight - this.scrollport.getBoundingClientRect().top - 32),
-    );
+    const availableHeight = 600;
     this.scrollport.style.height = `${availableHeight}px`;
     this.el.style.setProperty("--timeline-viewport-height", `${availableHeight}px`);
-    this.el.style.setProperty("--timeline-metrics-height", `${this.part("machine-metrics").offsetHeight}px`);
+    this.el.style.setProperty(
+      "--timeline-header-height",
+      `${this.part("machine-metrics").offsetHeight + this.part("build-controls").offsetHeight + this.part("ruler").offsetHeight}px`,
+    );
     this.part("tracks").style.height = `${availableHeight}px`;
     const geometry = scrollGeometry(this.scrollport.clientWidth, this.range, this.duration);
     this.part("tracks").style.width = `${geometry.width}px`;
@@ -346,6 +357,11 @@ export default {
     this.updateMetricValues(null);
   },
 
+  activeRulerTop() {
+    const ruler = this.part("step-ruler");
+    return this.part("ruler").hidden || this.cursorY >= ruler.getBoundingClientRect().top ? ruler.offsetTop : 0;
+  },
+
   updateCursor() {
     const cursor = this.part("time-cursor");
     const rect = this.chart.getBoundingClientRect();
@@ -355,6 +371,7 @@ export default {
     const x = Math.max(12, Math.min(rect.width - 12, position));
     this.part("cursor-line").style.left = `${x}px`;
     const label = this.part("cursor-time");
+    label.style.top = `${this.activeRulerTop() + 5}px`;
     const time = cursorTime(x, rect.width, this.range);
     label.textContent = cursorTimeLabel(time);
     this.updateMetricValues(time);
@@ -578,8 +595,8 @@ export default {
     if (!this.metrics?.samples.length) return;
     for (const track of this.metrics.tracks) {
       const canvas = this.el.querySelector(`[data-metric-canvas="${track.key}"]`);
-      const { ctx, width } = this.context(canvas, 88);
-      this.metrics.draw(ctx, width, 88, track, this.range, colors);
+      const { ctx, width } = this.context(canvas, 120);
+      this.metrics.draw(ctx, width, 120, track, this.range, colors);
     }
     this.updateMetricValues(null);
   },
@@ -596,7 +613,14 @@ export default {
   },
 
   drawRuler(labelWidth, plotWidth, colors) {
-    const { ctx, width } = this.context(this.part("ruler"), 32);
+    for (const part of ["ruler", "step-ruler"]) {
+      const canvas = this.part(part);
+      if (!canvas.hidden) this.drawRulerCanvas(canvas, labelWidth, plotWidth, colors);
+    }
+  },
+
+  drawRulerCanvas(canvas, labelWidth, plotWidth, colors) {
+    const { ctx, width } = this.context(canvas, 32);
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, 32);
     ctx.fillStyle = colors.muted;
