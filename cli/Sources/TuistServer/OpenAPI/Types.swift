@@ -21770,6 +21770,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -21897,6 +21913,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -21917,6 +21937,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -21937,6 +21961,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -21958,6 +21986,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -35667,6 +35699,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -35794,6 +35842,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -35814,6 +35866,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -35834,6 +35890,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -35855,6 +35915,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -67529,8 +67593,16 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// Bytes of task outputs downloaded from the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
+                        public var cache_download_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
+                        /// Bytes of task outputs uploaded to the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_upload_bytes`.
+                        public var cache_upload_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
@@ -67784,7 +67856,9 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - artifact_transforms:
+                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - cache_hit_rate:
+                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
                         ///   - cacheable_tasks_count:
                         ///   - configuration_cache_entry_size:
                         ///   - configuration_cache_invalidation_reasons:
@@ -67815,7 +67889,9 @@ public enum Operations {
                         ///   - tasks_up_to_date_count:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            cache_download_bytes: Swift.Int? = nil,
                             cache_hit_rate: Swift.Double? = nil,
+                            cache_upload_bytes: Swift.Int? = nil,
                             cacheable_tasks_count: Swift.Int? = nil,
                             configuration_cache_entry_size: Swift.Int? = nil,
                             configuration_cache_invalidation_reasons: [Swift.String]? = nil,
@@ -67846,7 +67922,9 @@ public enum Operations {
                             tasks_up_to_date_count: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
+                            self.cache_download_bytes = cache_download_bytes
                             self.cache_hit_rate = cache_hit_rate
+                            self.cache_upload_bytes = cache_upload_bytes
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.configuration_cache_entry_size = configuration_cache_entry_size
                             self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
@@ -67878,7 +67956,9 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
+                            case cache_download_bytes
                             case cache_hit_rate
+                            case cache_upload_bytes
                             case cacheable_tasks_count
                             case configuration_cache_entry_size
                             case configuration_cache_invalidation_reasons

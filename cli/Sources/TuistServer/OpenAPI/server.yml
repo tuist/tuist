@@ -10229,6 +10229,26 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  cas_output_download_bytes:
+                    description: Bytes of content-addressable storage outputs downloaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_download_count:
+                    description: Number of content-addressable storage outputs downloaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_upload_bytes:
+                    description: Bytes of content-addressable storage outputs uploaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_upload_count:
+                    description: Number of content-addressable storage outputs uploaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
                   category:
                     description: Build category.
                     enum:
@@ -10351,6 +10371,10 @@ paths:
                   - cacheable_tasks_count
                   - cacheable_task_local_hits_count
                   - cacheable_task_remote_hits_count
+                  - cas_output_download_count
+                  - cas_output_upload_count
+                  - cas_output_download_bytes
+                  - cas_output_upload_bytes
                   - inserted_at
                   - url
                 type: object
@@ -14739,6 +14763,26 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  cas_output_download_bytes:
+                    description: Bytes of content-addressable storage outputs downloaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_download_count:
+                    description: Number of content-addressable storage outputs downloaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_upload_bytes:
+                    description: Bytes of content-addressable storage outputs uploaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cas_output_upload_count:
+                    description: Number of content-addressable storage outputs uploaded by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
                   category:
                     description: Build category.
                     enum:
@@ -14861,6 +14905,10 @@ paths:
                   - cacheable_tasks_count
                   - cacheable_task_local_hits_count
                   - cacheable_task_remote_hits_count
+                  - cas_output_download_count
+                  - cas_output_upload_count
+                  - cas_output_download_bytes
+                  - cas_output_upload_bytes
                   - inserted_at
                   - url
                 type: object
@@ -24969,9 +25017,19 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  cache_download_bytes:
+                    description: Bytes of task outputs downloaded from the remote cache by the build.
+                    type: integer
+                    x-struct:
+                    x-validate:
                   cache_hit_rate:
                     nullable: true
                     type: number
+                    x-struct:
+                    x-validate:
+                  cache_upload_bytes:
+                    description: Bytes of task outputs uploaded to the remote cache by the build.
+                    type: integer
                     x-struct:
                     x-validate:
                   cacheable_tasks_count:

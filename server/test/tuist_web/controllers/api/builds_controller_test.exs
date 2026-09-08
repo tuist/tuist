@@ -336,6 +336,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
         {:ok, build}
       end)
 
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> zero_cas_output_metrics() end)
+
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
 
       response = json_response(conn, 200)
@@ -349,6 +351,64 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["cacheable_tasks_count"] == 10
       assert response["cacheable_task_local_hits_count"] == 3
       assert response["cacheable_task_remote_hits_count"] == 5
+    end
+
+    test "returns the CAS transfer totals for the build", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn build_run_id ->
+        assert build_run_id == build.id
+
+        %{
+          download_count: 90,
+          upload_count: 10,
+          download_bytes: 9000,
+          upload_bytes: 1000,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 90,
+               "cas_output_upload_count" => 10,
+               "cas_output_download_bytes" => 9000,
+               "cas_output_upload_bytes" => 1000
+             } = json_response(conn, 200)
+    end
+
+    test "returns zeroed CAS transfer totals for a build that transferred nothing", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn _build_run_id ->
+        %{
+          download_count: 0,
+          upload_count: 0,
+          download_bytes: 0,
+          upload_bytes: 0,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 0,
+               "cas_output_upload_count" => 0,
+               "cas_output_download_bytes" => 0,
+               "cas_output_upload_bytes" => 0
+             } = json_response(conn, 200)
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
@@ -722,5 +782,16 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["status"] == "success"
       assert response["data"] == %{}
     end
+  end
+
+  defp zero_cas_output_metrics do
+    %{
+      download_count: 0,
+      upload_count: 0,
+      download_bytes: 0,
+      upload_bytes: 0,
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
   end
 end
