@@ -10,6 +10,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
+  alias Tuist.Kura.PlacementProposal
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -189,6 +190,30 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ "kura-#{user.account.id}-us-east-0"
     assert html =~ "12.9 GB of 26.8 GB"
+  end
+
+  test "renders an open placement proposal of every kind", %{conn: conn, user: user} do
+    for {kind, summary} <- [
+          {:relocate, "Placement proposes moving this account from us-east to eu-central."},
+          {:correct, "Placement proposes moving this account off its first region, us-east, to eu-central."},
+          {:expand, "Placement proposes also serving this account from eu-central."},
+          {:retire, "Placement proposes giving up us-east for this account."}
+        ] do
+      Repo.delete_all(PlacementProposal)
+
+      Repo.insert!(%PlacementProposal{
+        account_id: user.account.id,
+        kind: kind,
+        from_region: "us-east",
+        to_region: "eu-central",
+        evidence: %{"share" => 0.82, "window_days" => 7, "runs_per_day" => 20},
+        status: :open
+      })
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ summary
+    end
   end
 
   defp kura_server(user, region) do
