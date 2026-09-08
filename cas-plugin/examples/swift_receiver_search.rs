@@ -119,6 +119,59 @@ fn worker(arguments: &[&str]) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).unwrap()
 }
 
+fn receive(paths: &[String], config: &Config) -> serde_json::Value {
+    assert_eq!(paths.len(), 4);
+    let start = Instant::now();
+    let base = read(&paths[0], bitstream_probe::MAX_INPUT);
+    let patch = read(&paths[1], bitstream_probe::MAX_PREPARED + 8 * 1024 * 1024);
+    let expected: Expected = serde_json::from_slice(&read(&paths[2], 4096)).unwrap();
+    let base_prepared = if config.receiver_segments {
+        bitstream_probe::prepare_segments(
+            &base,
+            config.delta,
+            config.column_cap,
+            config.compact_layout,
+            config.compact_columns,
+        )
+        .unwrap()
+    } else {
+        let mut parts = Segments::default();
+        parts.push(Cow::Owned(prepare(&base, config))).unwrap();
+        parts
+    };
+    let prepare_peak = peak_bytes();
+    if config.receiver_release {
+        drop(base);
+    }
+    let prepared = if config.receiver_segments {
+        bitstream_probe::grouped::decode_segments(&base_prepared, &patch, config.fast_hash).unwrap()
+    } else {
+        let mut parts = Segments::default();
+        let base_bytes = base_prepared.range(0, base_prepared.len()).unwrap();
+        parts
+            .push(Cow::Owned(
+                bitstream_probe::grouped::decode(&base_bytes, &patch, config.fast_hash).unwrap(),
+            ))
+            .unwrap();
+        parts
+    };
+    let restored = bitstream_probe::restore_source(&prepared, expected.size).unwrap();
+    let owned_prepared = base_prepared.owned_bytes() + prepared.owned_bytes();
+    if config.receiver_release {
+        drop(prepared);
+        drop(base_prepared);
+    }
+    assert_eq!(blob_digest(&restored).hash, expected.original_hash);
+    let blob = compressed(&restored);
+    let digest = blob_digest(&blob);
+    assert_eq!(digest.hash, expected.blob_hash);
+    assert_eq!(digest.size_bytes, expected.blob_size);
+    write_new(&paths[3], &restored);
+    serde_json::json!({"receiver_ms":start.elapsed().as_secs_f64()*1000.0,
+        "receiver_peak_bytes":peak_bytes(), "prepare_peak_bytes":prepare_peak,
+        "owned_prepared_bytes":owned_prepared})
+}
+
 fn main() {
     let config: Config = serde_json::from_slice(&read(
         std::env::var("AUTORESEARCH_CONFIG").unwrap_or_else(|_| "autoresearch.swift.json".into()),
@@ -171,62 +224,17 @@ fn main() {
         return;
     }
     if arguments.get(1).map(String::as_str) == Some("receive") {
-        let start = Instant::now();
-        let base = read(&arguments[2], bitstream_probe::MAX_INPUT);
-        let patch = read(
-            &arguments[3],
-            bitstream_probe::MAX_PREPARED + 8 * 1024 * 1024,
-        );
-        let expected: Expected = serde_json::from_slice(&read(&arguments[4], 4096)).unwrap();
-        let base_prepared = if config.receiver_segments {
-            bitstream_probe::prepare_segments(
-                &base,
-                config.delta,
-                config.column_cap,
-                config.compact_layout,
-                config.compact_columns,
-            )
-            .unwrap()
-        } else {
-            let mut parts = Segments::default();
-            parts.push(Cow::Owned(prepare(&base, &config))).unwrap();
-            parts
-        };
-        let prepare_peak = peak_bytes();
-        if config.receiver_release {
-            drop(base);
-        }
-        let prepared = if config.receiver_segments {
-            bitstream_probe::grouped::decode_segments(&base_prepared, &patch, config.fast_hash)
-                .unwrap()
-        } else {
-            let mut parts = Segments::default();
-            let base_bytes = base_prepared.range(0, base_prepared.len()).unwrap();
-            parts
-                .push(Cow::Owned(
-                    bitstream_probe::grouped::decode(&base_bytes, &patch, config.fast_hash)
-                        .unwrap(),
-                ))
-                .unwrap();
-            parts
-        };
-        let restored = bitstream_probe::restore_source(&prepared, expected.size).unwrap();
-        let owned_prepared = base_prepared.owned_bytes() + prepared.owned_bytes();
-        if config.receiver_release {
-            drop(prepared);
-            drop(base_prepared);
-        }
-        assert_eq!(blob_digest(&restored).hash, expected.original_hash);
-        let blob = compressed(&restored);
-        let digest = blob_digest(&blob);
-        assert_eq!(digest.hash, expected.blob_hash);
-        assert_eq!(digest.size_bytes, expected.blob_size);
-        write_new(&arguments[5], &restored);
+        println!("{}", receive(&arguments[2..], &config));
+        return;
+    }
+    if arguments.get(1).map(String::as_str) == Some("receive-many") {
+        let jobs: Vec<[String; 4]> =
+            serde_json::from_slice(&read(&arguments[2], 1024 * 1024)).unwrap();
+        assert!(!jobs.is_empty() && jobs.len() <= 128);
+        let results: Vec<_> = jobs.iter().map(|paths| receive(paths, &config)).collect();
         println!(
             "{}",
-            serde_json::json!({"receiver_ms":start.elapsed().as_secs_f64()*1000.0,
-            "receiver_peak_bytes":peak_bytes(), "prepare_peak_bytes":prepare_peak,
-            "owned_prepared_bytes":owned_prepared})
+            serde_json::json!({"jobs":results, "receiver_peak_bytes":peak_bytes()})
         );
         return;
     }
