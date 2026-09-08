@@ -41,6 +41,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
             "actions_executed" => 10,
             "targets_configured" => 4,
             "packages_loaded" => 2,
+            "custom_values" => %{"environment" => "local", "runner" => "linux-arm64"},
             "build_timeline_duration_ms" => 15_000,
             "build_timeline_lanes" => ["Loading and analysis", "Execution lane 1"],
             "build_timeline_span_lanes" => [0, 1],
@@ -92,6 +93,7 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
       assert invocation.actions_executed == 10
       assert invocation.targets_configured == 4
       assert invocation.packages_loaded == 2
+      assert invocation.custom_values == %{"environment" => "local", "runner" => "linux-arm64"}
       assert invocation.build_timeline_lanes == ["Loading and analysis", "Execution lane 1"]
       assert invocation.build_timeline_span_descriptions == ["Loading and analysis", "Compile //app:app"]
       assert invocation.critical_path_action_descriptions == ["Compile //app:app"]
@@ -112,6 +114,36 @@ defmodule TuistWeb.Webhooks.BazelInvocationsControllerTest do
             "invocation_id" => "invocation-1",
             "command" => "build",
             "status" => "unknown",
+            "exit_code" => 0,
+            "started_at_ms" => 1_700_000_000_000,
+            "finished_at_ms" => 1_700_000_015_000
+          }
+        ]
+      }
+
+      {json_body, signature} = sign_request(body)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/bazel-invocations", json_body)
+
+      assert json_response(conn, 202) == %{"accepted" => 0, "rejected" => 1}
+      assert ClickHouseRepo.all(from(i in Invocation, where: i.project_id == ^project.id)) == []
+    end
+
+    test "does not store more than twenty custom metadata values", %{conn: conn, project: project} do
+      body = %{
+        "events" => [
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "invocation_id" => "invocation-1",
+            "command" => "build",
+            "custom_values" => Map.new(1..21, &{"key-#{&1}", "value"}),
+            "status" => "success",
             "exit_code" => 0,
             "started_at_ms" => 1_700_000_000_000,
             "finished_at_ms" => 1_700_000_015_000

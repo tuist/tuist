@@ -131,21 +131,6 @@ server:
     # done.
     - name: TUIST_KURA_ROLLOUT_PACING
       value: progressive
-    - name: TUIST_KURA_AIR_REGION
-      # Staging has no `us-east` pool, so every Air account would resolve to a
-      # region whose instances could never schedule, and the Air-only 60-day
-      # pressure rule could not be exercised at all. Run the free tier on the
-      # `ca-east` OVH validation box instead. Production omits this and serves
-      # us-east. Only Air moves: a paid account restricted to Europe or the
-      # USA chose that, and no deployment setting may relocate it.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget here, which is what makes
-      # traffic-driven placement observable at all: with one funded region
-      # every Air account resolves to it whatever its traffic says. Production
-      # funds Air in one region and omits this, so the single-region variable
-      # above still decides there.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against
@@ -353,6 +338,12 @@ clickhouse:
     enabled: true
     persistence:
       size: 60Gi
+      localVolume:
+        # Staging's pool is one node, so this changes nothing here today. It is
+        # required rather than optional because the pool-label binding it
+        # replaces is safe only at one node, and an environment that grew a
+        # second one would otherwise regress silently.
+        nodeName: bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
     # Dual writes come before the backfill, not after it. From the moment this
     # is on, every new row reaches both servers; the backfill then copies what
     # was written before a stated cutoff. Doing it the other way round leaves

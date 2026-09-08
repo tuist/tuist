@@ -29,8 +29,10 @@ does not expose a second Build Event Service listener.
 
 - `bazel_invocations` stores completed commands received from Kura.
 - `bazel_invocations` also stores bounded build metrics, retained action spans,
-  and critical-path summaries. Kura keeps no more than 32 action spans or 32
-  critical-path actions for one in-flight invocation.
+  critical-path summaries, and up to 20 custom build-metadata pairs. Kura keeps
+  no more than 32 action spans or 32 critical-path actions for one in-flight
+  invocation, and custom metadata keys and values are limited to 50 and 500
+  bytes respectively.
 - `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
   Build Event Protocol progress output and conventional test logs in
   ClickHouse.

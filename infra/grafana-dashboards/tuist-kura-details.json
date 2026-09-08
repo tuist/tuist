@@ -13,7 +13,7 @@
           "enable": true,
           "hide": true,
           "iconColor": "rgba(0, 211, 255, 1)",
-          "name": "Annotations \u0026 Alerts",
+          "name": "Annotations & Alerts",
           "query": {
             "datasource": {
               "name": "-- Grafana --"
@@ -2256,9 +2256,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_file_descriptor_wait_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_file_descriptor_wait_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_descriptor_wait_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -2277,35 +2277,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_file_descriptor_wait_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_file_descriptor_wait_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_file_descriptor_wait_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -2313,10 +2292,10 @@
               "transformations": []
             }
           },
-          "description": "Time spent waiting to acquire a file descriptor permit\n\nPrometheus name: `kura_file_descriptor_wait_seconds`_bucket/_count/_sum · labels: result",
+          "description": "Time spent waiting to acquire a file descriptor permit\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_file_descriptor_wait_seconds`_count/_sum · labels: result",
           "id": 120,
           "links": [],
-          "title": "file_descriptor_wait_seconds (p50 / p95 / p99)",
+          "title": "file_descriptor_wait_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2351,7 +2330,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -2574,9 +2570,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_file_operation_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -2595,35 +2591,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_file_operation_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_file_operation_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -2631,10 +2606,10 @@
               "transformations": []
             }
           },
-          "description": "File operation latency by operation\n\nPrometheus name: `kura_file_operation_duration_seconds`_bucket/_count/_sum · labels: operation",
+          "description": "File operation latency by operation\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_file_operation_duration_seconds`_count/_sum · labels: operation",
           "id": 123,
           "links": [],
-          "title": "file_operation_duration_seconds (p50 / p95 / p99)",
+          "title": "file_operation_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -2669,7 +2644,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -6315,9 +6307,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_auth_backend_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_auth_backend_request_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_auth_backend_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -6336,35 +6328,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_auth_backend_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_auth_backend_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_auth_backend_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -6372,10 +6343,10 @@
               "transformations": []
             }
           },
-          "description": "Authentication backend request latency by route\n\nPrometheus name: `kura_auth_backend_request_duration_seconds`_bucket/_count/_sum · labels: route",
+          "description": "Authentication backend request latency by route\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_auth_backend_request_duration_seconds`_count/_sum · labels: route",
           "id": 157,
           "links": [],
-          "title": "auth_backend_request_duration_seconds (p50 / p95 / p99)",
+          "title": "auth_backend_request_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -6410,7 +6381,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -6788,9 +6776,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_auth_decision_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_auth_decision_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_auth_decision_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -6809,35 +6797,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_auth_decision_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_auth_decision_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_auth_decision_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -6845,10 +6812,10 @@
               "transformations": []
             }
           },
-          "description": "Authorization decision latency by stage\n\nPrometheus name: `kura_auth_decision_duration_seconds`_bucket/_count/_sum · labels: stage",
+          "description": "Authorization decision latency by stage\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_auth_decision_duration_seconds`_count/_sum · labels: stage",
           "id": 160,
           "links": [],
-          "title": "auth_decision_duration_seconds (p50 / p95 / p99)",
+          "title": "auth_decision_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -6883,7 +6850,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -7106,9 +7090,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_analytics_batch_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_analytics_batch_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_analytics_batch_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -7127,35 +7111,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_analytics_batch_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_analytics_batch_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_analytics_batch_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -7163,10 +7126,10 @@
               "transformations": []
             }
           },
-          "description": "Analytics webhook batch latency by pipeline\n\nPrometheus name: `kura_analytics_batch_duration_seconds`_bucket/_count/_sum · labels: pipeline",
+          "description": "Analytics webhook batch latency by pipeline\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_analytics_batch_duration_seconds`_count/_sum · labels: pipeline",
           "id": 163,
           "links": [],
-          "title": "analytics_batch_duration_seconds (p50 / p95 / p99)",
+          "title": "analytics_batch_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -7201,7 +7164,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -8938,9 +8918,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_internal_backfill_http_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -8959,35 +8939,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_internal_backfill_http_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_internal_backfill_http_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -8995,10 +8954,10 @@
               "transformations": []
             }
           },
-          "description": "Internal backfill HTTP request latency by route\n\nPrometheus name: `kura_internal_backfill_http_request_duration_seconds`_bucket/_count/_sum · labels: route",
+          "description": "Internal backfill HTTP request latency by route\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_internal_backfill_http_request_duration_seconds`_count/_sum · labels: route",
           "id": 18,
           "links": [],
-          "title": "internal_backfill_http_request_duration_seconds (p50 / p95 / p99)",
+          "title": "internal_backfill_http_request_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -9053,7 +9012,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -9129,7 +9105,7 @@
               "transformations": []
             }
           },
-          "description": "kubelet volume stats for the pod's data PVC (data-\u003cpod\u003e). Empty where the CSI driver does not report volume stats.",
+          "description": "kubelet volume stats for the pod's data PVC (data-<pod>). Empty where the CSI driver does not report volume stats.",
           "id": 180,
           "links": [],
           "title": "Cache volume usage",
@@ -9739,7 +9715,7 @@
           "description": "kura_egress_tree_link_reattach_total, _return_attach_failures_total, _sibling_overflow_total rates. Node-level agent series, shown for the node(s) hosting the selected pod(s).",
           "id": 185,
           "links": [],
-          "title": "Attach churn \u0026 map overflow",
+          "title": "Attach churn & map overflow",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -9891,7 +9867,7 @@
               "transformations": []
             }
           },
-          "description": "kura_egress_tree_class_sent_bytes by account and classid — kernel counter exported as a gauge, rate() × 8 — against the rate and ceiling the kernel is enforcing (_class_rate_bytes_per_second, _class_ceil_bytes_per_second, also × 8). A tenant riding its ceiling wants a larger floor; one far under its rate is reserving room it does not use. classid 1:\u003chex\u003e is allocated per account by kura-controller and freed when the account's last instance goes, so the account label is what identifies the tenant over time. Node-level agent series, shown for the node(s) hosting the selected pod(s) — every class on those nodes, neighbours included, since they are what the tenant contends with.",
+          "description": "kura_egress_tree_class_sent_bytes by account and classid — kernel counter exported as a gauge, rate() × 8 — against the rate and ceiling the kernel is enforcing (_class_rate_bytes_per_second, _class_ceil_bytes_per_second, also × 8). A tenant riding its ceiling wants a larger floor; one far under its rate is reserving room it does not use. classid 1:<hex> is allocated per account by kura-controller and freed when the account's last instance goes, so the account label is what identifies the tenant over time. Node-level agent series, shown for the node(s) hosting the selected pod(s) — every class on those nodes, neighbours included, since they are what the tenant contends with.",
           "id": 186,
           "links": [],
           "title": "Class throughput (bits/s)",
@@ -11379,9 +11355,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_artifact_egress_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_artifact_egress_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -11400,35 +11376,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_artifact_egress_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_artifact_egress_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -11436,10 +11391,10 @@
               "transformations": []
             }
           },
-          "description": "Time from artifact response body creation until stream completion, error, or drop\n\nPrometheus name: `kura_artifact_egress_duration_seconds`_bucket/_count/_sum · labels: producer",
+          "description": "Time from artifact response body creation until stream completion, error, or drop\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_artifact_egress_duration_seconds`_count/_sum · labels: producer",
           "id": 24,
           "links": [],
-          "title": "artifact_egress_duration_seconds (p50 / p95 / p99)",
+          "title": "artifact_egress_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -11474,7 +11429,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -11513,9 +11485,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_artifact_egress_throughput_bytes_per_second_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -11534,35 +11506,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_artifact_egress_throughput_bytes_per_second_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_artifact_egress_throughput_bytes_per_second_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -11570,10 +11521,10 @@
               "transformations": []
             }
           },
-          "description": "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding\n\nPrometheus name: `kura_artifact_egress_throughput_bytes_per_second`_bucket/_count/_sum · labels: producer",
+          "description": "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding\n\nMean throughput per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_artifact_egress_throughput_bytes_per_second`_count/_sum · labels: producer",
           "id": 25,
           "links": [],
-          "title": "artifact_egress_throughput_bytes_per_second (p50 / p95 / p99)",
+          "title": "artifact_egress_throughput_bytes_per_second (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -11608,7 +11559,24 @@
                   },
                   "unit": "Bps"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -13710,9 +13678,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_segment_refresh_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_segment_refresh_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_segment_refresh_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -13731,35 +13699,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_segment_refresh_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_segment_refresh_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_segment_refresh_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -13767,10 +13714,10 @@
               "transformations": []
             }
           },
-          "description": "Time spent refreshing artifacts out of old segments, by trigger\n\nPrometheus name: `kura_segment_refresh_duration_seconds`_bucket/_count/_sum · labels: producer, trigger",
+          "description": "Time spent refreshing artifacts out of old segments, by trigger\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_segment_refresh_duration_seconds`_count/_sum · labels: producer, trigger",
           "id": 46,
           "links": [],
-          "title": "segment_refresh_duration_seconds (p50 / p95 / p99)",
+          "title": "segment_refresh_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -13805,7 +13752,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -15016,9 +14980,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_manifest_index_rebuild_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -15037,35 +15001,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_manifest_index_rebuild_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_manifest_index_rebuild_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -15073,10 +15016,10 @@
               "transformations": []
             }
           },
-          "description": "Time spent rebuilding the warm in-memory manifest index from RocksDB\n\nPrometheus name: `kura_manifest_index_rebuild_duration_seconds`_bucket/_count/_sum",
+          "description": "Time spent rebuilding the warm in-memory manifest index from RocksDB\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_manifest_index_rebuild_duration_seconds`_count/_sum",
           "id": 58,
           "links": [],
-          "title": "manifest_index_rebuild_duration_seconds (p50 / p95 / p99)",
+          "title": "manifest_index_rebuild_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -15111,7 +15054,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -18227,9 +18187,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_response_stream_wait_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_response_stream_wait_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_response_stream_wait_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "mean {{pod}}",
                         "range": true
                       },
                       "version": "v0"
@@ -18248,35 +18208,14 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_response_stream_wait_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "sum by (pod) (rate(kura_response_stream_wait_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "rate {{pod}}",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "B"
-                  }
-                },
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_response_stream_wait_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
-                        "instant": false,
-                        "legendFormat": "p99 {{pod}}",
-                        "range": true
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "C"
                   }
                 }
               ],
@@ -18284,10 +18223,10 @@
               "transformations": []
             }
           },
-          "description": "Time spent acquiring response stream admission by protocol\n\nPrometheus name: `kura_response_stream_wait_duration_seconds`_bucket/_count/_sum · labels: protocol",
+          "description": "Time spent acquiring response stream admission by protocol\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_response_stream_wait_duration_seconds`_count/_sum · labels: protocol",
           "id": 89,
           "links": [],
-          "title": "response_stream_wait_duration_seconds (p50 / p95 / p99)",
+          "title": "response_stream_wait_duration_seconds (mean · rate)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -18322,7 +18261,24 @@
                   },
                   "unit": "s"
                 },
-                "overrides": []
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -19753,7 +19709,7 @@
           "description": "ERROR and WARN lines only. Expand a line to read the span fields the runtime stamps on every log (`span_kura_tenant_id`, `span_kura_region`, `trace_id`) and use `trace_id` to jump to the matching trace in the Traces row.",
           "id": 196,
           "links": [],
-          "title": "Errors \u0026 warnings",
+          "title": "Errors & warnings",
           "vizConfig": {
             "group": "logs",
             "kind": "VizConfig",
@@ -19868,7 +19824,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\" } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\" } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -19946,7 +19902,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\"\n  \u0026\u0026 duration \u003e 500ms } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\"\n  && duration > 500ms } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -19963,7 +19919,7 @@
           "description": "Requests that took longer than half a second. Read alongside `public_request_latency_seconds` in the HTTP row: the histogram says the tail exists, this says which routes and payloads are in it.",
           "id": 199,
           "links": [],
-          "title": "Slow traces (\u003e 500 ms)",
+          "title": "Slow traces (> 500 ms)",
           "vizConfig": {
             "group": "table",
             "kind": "VizConfig",
@@ -20024,7 +19980,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 (status = error || span.http.response.status_code \u003e= 500) } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && (status = error || span.http.response.status_code >= 500) } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -20102,7 +20058,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" \u0026\u0026 resource.deployment.environment.name = \"$env\" \u0026\u0026 resource.service.name =~ \"^(${pod})$\"\n  \u0026\u0026 span.http.route =~ \"^/_internal/.*\" } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && span.http.route =~ \"^/_internal/.*\" } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -20119,7 +20075,7 @@
           "description": "Mesh-internal traffic only (`/_internal/*`): peer replication applies, backfill listings and body fetches. This is the row to open when the outbox or backfill panels show work that is not draining.",
           "id": 201,
           "links": [],
-          "title": "Peer replication \u0026 backfill traces",
+          "title": "Peer replication & backfill traces",
           "vizConfig": {
             "group": "table",
             "kind": "VizConfig",
@@ -20260,7 +20216,7 @@
           "description": "Where the selected pods run (white markers, labelled by region) and how much public request traffic each region is taking (amber bubbles, sized and coloured by client req/s). Coordinates are the datacentre cities behind `Tuist.Kura.Regions`; a region with no mapped coordinates is left off the map and shows up only in the table beside it.",
           "id": 202,
           "links": [],
-          "title": "Node locations \u0026 request traffic",
+          "title": "Node locations & request traffic",
           "vizConfig": {
             "group": "geomap",
             "kind": "VizConfig",
@@ -21886,7 +21842,7 @@
                   ]
                 }
               },
-              "title": "HTTP, gRPC \u0026 request admission (10)"
+              "title": "HTTP, gRPC & request admission (10)"
             }
           },
           {
@@ -22056,7 +22012,7 @@
                   ]
                 }
               },
-              "title": "Artifact reads, writes \u0026 egress (12)"
+              "title": "Artifact reads, writes & egress (12)"
             }
           },
           {
@@ -22304,7 +22260,7 @@
                   ]
                 }
               },
-              "title": "Segment store, promotion \u0026 durability (18)"
+              "title": "Segment store, promotion & durability (18)"
             }
           },
           {
@@ -22500,7 +22456,7 @@
                   ]
                 }
               },
-              "title": "Manifest index, manifest cache \u0026 snapshot cache (14)"
+              "title": "Manifest index, manifest cache & snapshot cache (14)"
             }
           },
           {
@@ -22879,7 +22835,7 @@
                   ]
                 }
               },
-              "title": "Memory pressure, admission \u0026 response-stream pool (20)"
+              "title": "Memory pressure, admission & response-stream pool (20)"
             }
           },
           {
@@ -23231,7 +23187,7 @@
                   ]
                 }
               },
-              "title": "Process, container cgroup \u0026 jemalloc memory (26)"
+              "title": "Process, container cgroup & jemalloc memory (26)"
             }
           },
           {
@@ -23349,7 +23305,7 @@
                   ]
                 }
               },
-              "title": "File descriptors \u0026 file operations (8)"
+              "title": "File descriptors & file operations (8)"
             }
           },
           {
@@ -23519,7 +23475,7 @@
                   ]
                 }
               },
-              "title": "Peer replication \u0026 outbox (12)"
+              "title": "Peer replication & outbox (12)"
             }
           },
           {
@@ -23872,7 +23828,7 @@
                   ]
                 }
               },
-              "title": "Membership, readiness \u0026 node identity (10)"
+              "title": "Membership, readiness & node identity (10)"
             }
           },
           {
@@ -24030,7 +23986,7 @@
                   ]
                 }
               },
-              "title": "Authentication \u0026 authorization (5)"
+              "title": "Authentication & authorization (5)"
             }
           },
           {
@@ -24161,7 +24117,7 @@
                   ]
                 }
               },
-              "title": "Usage reporting \u0026 analytics (analytics webhook pipeline is unconfigured in hosted deployments) (9)"
+              "title": "Usage reporting & analytics (analytics webhook pipeline is unconfigured in hosted deployments) (9)"
             }
           },
           {
@@ -24318,7 +24274,7 @@
                   ]
                 }
               },
-              "title": "Kubernetes \u0026 cAdvisor (pod)"
+              "title": "Kubernetes & cAdvisor (pod)"
             }
           },
           {

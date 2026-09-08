@@ -355,7 +355,7 @@ kuraController:
 # and its traffic is node-local runner reads that must not be shaped.
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -819,6 +819,52 @@ dediboxFleet:
   sshExternalSecret:
     enabled: true
     item: DEDIBOX_FLEET_SSH
+
+# Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
+# all have no presence there, which is what put a fourth provider in the fleet.
+vultrFleet:
+  externalSecrets:
+    item: VULTR_API
+
+vultrFleets:
+  # South America West (Santiago), on Vultr because no other provider in the
+  # fleet sells bare metal in South America.
+  #
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # sa-west's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart, and both are worth leaving closed until
+  # kura_volume_quota_enforced reads 1 on the node. It is 0 on a box whose /data
+  # cannot bound anything, which is otherwise invisible right up to the point one
+  # account fills the box and kubelet evicts every tenant on it.
+  sa-west:
+    enabled: true
+    replicas: 1
+    nodePool: kura-sa-west
+    machine:
+      # The env boundary. One Vultr account holds every env's boxes, and
+      # region+plan repeat across envs.
+      adoptTag: tuist-kura-vultr-production
+      region: scl
+      # Exact, not a prefix: the SSD variant of this plan has the same core count
+      # and a cache adopting it would be a silent downgrade to SATA-class disks.
+      plan: vbm-6c-32gb-amd
+      # Ubuntu 24.04 LTS x64. Recorded rather than requested: the reinstall
+      # endpoint takes no OS argument and reimages whatever the box carries.
+      osID: 2284
+      # The plan meters a 10 TB/month transfer quota, so the quota rather than
+      # the 25 Gbit/s the NIC links at is what binds. Provisional until the
+      # region serves enough traffic to measure.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
 
 # Shared OVH config holder. The singular ovhFleet stays disabled in production
 # (it is the ca-east validation fleet); production's OVH regions are the us-east /

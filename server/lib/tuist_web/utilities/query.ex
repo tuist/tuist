@@ -152,6 +152,21 @@ defmodule TuistWeb.Utilities.Query do
   end
 
   @doc """
+  Parses a positive integer query parameter and falls back when it is missing or invalid.
+  """
+  def positive_integer(value, default \\ 1)
+
+  def positive_integer(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _ -> default
+    end
+  end
+
+  def positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+  def positive_integer(_value, default), do: default
+
+  @doc """
   Clears cursor parameters (before/after) that are incompatible with the given
   sort order.
 

@@ -926,6 +926,28 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  defp placement_proposal_summary(%{kind: :relocate} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account from %{from} to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :correct} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account off its first region, %{from}, to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :expand} = proposal) do
+    dgettext("dashboard", "Placement proposes also serving this account from %{to}.", to: proposal.to_region)
+  end
+
+  defp placement_proposal_summary(%{kind: :retire} = proposal) do
+    dgettext("dashboard", "Placement proposes giving up %{from} for this account.", from: proposal.from_region)
+  end
+
   # What the apply actually did, rather than "saved". Nothing moves at the
   # moment a proposal is applied: the lifecycle provisions the destination on
   # the account's next demand, and the source leaves only once it is serving.

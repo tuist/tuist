@@ -658,7 +658,7 @@ defmodule Tuist.VCS do
       #{Enum.map(bundles, fn bundle ->
         {install_size_deviation, download_size_deviation} = project_bundle_size_deviations(project, bundle)
         """
-        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | [#{String.slice(bundle.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{bundle.git_commit_sha}) | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
+        | [#{bundle.name}](#{bundle_url.(%{project: project, bundle: bundle})}) | #{commit_link(bundle.git_commit_sha, git_remote_url_origin)} | <div align="center">#{ByteFormatter.format_bytes(bundle.install_size)}#{install_size_deviation}</div> | <div align="center">#{format_bundle_download_size(bundle.download_size)}#{download_size_deviation}</div> |
         """
       end)}
       """
@@ -704,6 +704,11 @@ defmodule Tuist.VCS do
   defp format_bundle_download_size(nil), do: dgettext("dashboard_account", "Unknown")
   defp format_bundle_download_size(size) when is_integer(size), do: ByteFormatter.format_bytes(size)
 
+  defp commit_link(nil, _git_remote_url_origin), do: ""
+
+  defp commit_link(git_commit_sha, git_remote_url_origin),
+    do: "[#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha})"
+
   defp get_issue_id_from_git_ref(git_ref) do
     [issue_id, _merge] = git_ref |> String.split("/") |> Enum.take(-2)
     issue_id
@@ -747,12 +752,11 @@ defmodule Tuist.VCS do
       | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
       | - | - |#{if contains_ipas, do: " - |", else: ""}
       #{Enum.map(previews, fn preview ->
-        git_commit_sha = preview.git_commit_sha
         preview_url = preview_url.(%{project: project, preview: preview})
         qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
 
         """
-        | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
+        | [#{preview.display_name}](#{preview_url}) | #{commit_link(preview.git_commit_sha, git_remote_url_origin)} |#{qr_code_image}
         """
       end)}
       """
@@ -848,7 +852,6 @@ defmodule Tuist.VCS do
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
 
@@ -857,7 +860,7 @@ defmodule Tuist.VCS do
         skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
         ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
@@ -880,12 +883,11 @@ defmodule Tuist.VCS do
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
         total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Tests | Commit |\n" <>
@@ -907,12 +909,11 @@ defmodule Tuist.VCS do
     rows =
       Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
-        git_commit_sha = test_run.git_commit_sha
         test_url = test_run_url.(%{project: project, test_run: test_run})
         target_patterns = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
         total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+        "| [#{target_patterns}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Target patterns | Status | Tests | Commit |\n" <>
@@ -1276,7 +1277,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration)
 
-        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Scheme | Status | Duration | Commit |\n" <>
@@ -1297,7 +1298,7 @@ defmodule Tuist.VCS do
         url = build_url.(%{project: project, build: %{id: build.id}})
         duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
-        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | #{commit_link(build.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
     "| Project | Status | Duration | Commit |\n" <>

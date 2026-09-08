@@ -114,7 +114,7 @@ struct LaunchctlControllerTests {
             .called(1)
     }
 
-    @Test func isLoaded_returnsTrueWhenLaunchctlPrintSucceeds() async throws {
+    @Test func job_returnsTheRunningProcessWhenLaunchctlPrintReportsOne() async throws {
         // Given
         let label = "tuist.cache.org_project"
         let uid = getuid()
@@ -125,14 +125,15 @@ struct LaunchctlControllerTests {
                 workingDirectory: .any
             )
             .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield(.standardOutput(Array(Self.printOutput(processIdentifier: 4242).utf8)))
                 continuation.finish()
             })
 
         // When
-        let isLoaded = try await subject.isLoaded(label: label)
+        let job = try await subject.job(label: label)
 
         // Then
-        #expect(isLoaded == true)
+        #expect(job == LaunchAgentJob(processIdentifier: 4242))
         verify(commandRunner)
             .run(
                 arguments: .value(
@@ -148,7 +149,7 @@ struct LaunchctlControllerTests {
             .called(1)
     }
 
-    @Test func isLoaded_returnsFalseWhenLaunchctlPrintTerminatesNonZero() async throws {
+    @Test func job_returnsNilWhenLaunchctlPrintTerminatesNonZero() async throws {
         // Given
         let label = "tuist.cache.org_project"
         given(commandRunner)
@@ -166,13 +167,13 @@ struct LaunchctlControllerTests {
             })
 
         // When
-        let isLoaded = try await subject.isLoaded(label: label)
+        let job = try await subject.job(label: label)
 
         // Then
-        #expect(isLoaded == false)
+        #expect(job == nil)
     }
 
-    @Test func isLoaded_returnsFalseWhenLaunchctlPrintCannotFindTheServiceUnderAnotherCode() async throws {
+    @Test func job_returnsNilWhenLaunchctlPrintCannotFindTheServiceUnderAnotherCode() async throws {
         // Given
         let label = "tuist.cache.org_project"
         given(commandRunner)
@@ -190,13 +191,13 @@ struct LaunchctlControllerTests {
             })
 
         // When
-        let isLoaded = try await subject.isLoaded(label: label)
+        let job = try await subject.job(label: label)
 
         // Then
-        #expect(isLoaded == false)
+        #expect(job == nil)
     }
 
-    @Test func isLoaded_propagatesTerminationsThatAreNotAMissingService() async throws {
+    @Test func job_propagatesTerminationsThatAreNotAMissingService() async throws {
         // Given
         let label = "tuist.cache.org_project"
         given(commandRunner)
@@ -215,11 +216,11 @@ struct LaunchctlControllerTests {
 
         // When / Then
         await #expect(throws: CommandError.self) {
-            _ = try await subject.isLoaded(label: label)
+            _ = try await subject.job(label: label)
         }
     }
 
-    @Test func isLoaded_propagatesNonTerminatedErrors() async throws {
+    @Test func job_propagatesNonTerminatedErrors() async throws {
         // Given
         let label = "tuist.cache.org_project"
         struct BoomError: Error {}
@@ -235,7 +236,79 @@ struct LaunchctlControllerTests {
 
         // When / Then
         await #expect(throws: BoomError.self) {
-            _ = try await subject.isLoaded(label: label)
+            _ = try await subject.job(label: label)
         }
+    }
+
+    @Test func job_reportsNoProcessWhenLaunchdHoldsTheLabelWithoutOne() async throws {
+        // Given: launchd prints a loaded job that is waiting to be spawned. It has
+        // no `pid` line at all, which is a different answer from "not loaded" and
+        // has to survive as one.
+        let label = "tuist.cache.org_project"
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield(.standardOutput(Array("""
+                gui/501/\(label) = {
+                \tactive count = 0
+                \tpath = /Users/test/Library/LaunchAgents/\(label).plist
+                \ttype = LaunchAgent
+                \tstate = spawn scheduled
+                }
+                """.utf8)))
+                continuation.finish()
+            })
+
+        // When
+        let job = try await subject.job(label: label)
+
+        // Then
+        #expect(job == LaunchAgentJob(processIdentifier: nil))
+    }
+
+    @Test func job_readsTheJobsOwnProcessAndNotANestedOne() async throws {
+        // Given: the endpoint dictionaries launchd prints after the job carry PIDs
+        // of their own, so only the first `pid` in the report is the job's.
+        let label = "tuist.cache.org_project"
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield(.standardOutput(Array("""
+                gui/501/\(label) = {
+                \tstate = running
+                \tpid = 4242
+                \tendpoints = {
+                \t\t"com.example" = {
+                \t\t\tpid = 99
+                \t\t}
+                \t}
+                }
+                """.utf8)))
+                continuation.finish()
+            })
+
+        // When
+        let job = try await subject.job(label: label)
+
+        // Then
+        #expect(job == LaunchAgentJob(processIdentifier: 4242))
+    }
+
+    private static func printOutput(processIdentifier: Int32) -> String {
+        """
+        gui/501/tuist.cache.org_project = {
+        \tactive count = 1
+        \tstate = running
+        \tpid = \(processIdentifier)
+        }
+        """
     }
 }

@@ -198,17 +198,25 @@ defmodule Tuist.Kura.PlacementProposals do
   defp converge_placeable_account(account, open, plan, inputs, today, policy) do
     placer_rows = Map.get(inputs.placer_regions, account.id, [])
     live = Map.get(inputs.live_regions, account.id, [])
+    serving = serving_from(placer_rows, live)
 
     context = %{
       plan: plan,
       rollups: Map.get(inputs.rollups, account.id, []),
-      permitted: AccountPolicies.placeable_regions(account, plan),
+      # Regions with room, plus the ones the account already holds. Traffic
+      # mapped onto a full region would propose an instance the scheduler
+      # cannot place; mapped onto the region already serving it, it proposes
+      # nothing, which is right for exactly as long as the region is full.
+      permitted: AccountPolicies.placeable_regions_with_room(account, plan, serving),
       primary: primary_from(placer_rows, live),
       # A primary with no placement row behind it was never decided: it came
-      # from the resolution chain, which is a guess. Applying anything records
-      # a row, so this flips once and stays flipped.
-      primary_decided?: Enum.any?(placer_rows, &(&1.role == :primary)),
-      serving: serving_from(placer_rows, live),
+      # from the resolution chain, which is a guess. So is one first placement
+      # steered off a full region (`PlacerRegion.guess?/1`): its row holds the
+      # account against a room reading that moves, not against evidence.
+      # Applying anything records a decision, so this flips once and stays
+      # flipped.
+      primary_decided?: Enum.any?(placer_rows, &(&1.role == :primary and not PlacerRegion.guess?(&1))),
+      serving: serving,
       retiring: for(row <- placer_rows, row.status == :retiring, do: row.region),
       held_since: held_since(placer_rows, Map.get(inputs.instance_ages, account.id, %{})),
       relocations_in_window: Map.get(inputs.relocations, account.id, 0),

@@ -438,54 +438,6 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The region Air instances run in for an account's storage region.
-
-  An account that states no storage region ("All regions") has no residency
-  constraint to uphold, so where its free tier runs is a deployment decision:
-  `us-east` unless `TUIST_KURA_AIR_REGION` names another.
-
-  An account that chose Europe has stated one. "Storage region" in account
-  settings names module cache binaries, which is what a Kura instance holds, so
-  such an account is never placed in the United States: it runs in whichever
-  region `TUIST_KURA_AIR_EUROPE_REGION` names, and is refused while nothing
-  names one. That variable is unset everywhere today, which is why those
-  accounts are refused now, and setting it is what turns Air in Europe on.
-
-  Paid regions are not configurable for the opposite reason: a paid account
-  restricted to Europe or the USA chose that, and no deployment setting may
-  move it.
-
-  Staging has no `us-east` pool, so without this every Air account there
-  resolves to a region whose instances can never schedule, and the Air-only
-  pressure rule cannot be exercised at all.
-  """
-  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", nil)
-
-  def kura_air_region(storage_region) when storage_region in [:all, :usa],
-    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
-
-  @doc """
-  Every region with an Air budget, which is the set Air placement chooses
-  from. Air in a region costs a storage slot on a tier that pays for none, so
-  a region serves Air only once someone funds it; an account whose residency
-  admits no funded region is refused, and the refusal is what quantifies the
-  case for funding one.
-
-  `TUIST_KURA_AIR_REGIONS` names the set. Without it the set is whatever the
-  single-region variables name, so a deployment that has configured neither
-  keeps serving Air exactly where it does today.
-  """
-  def kura_air_region_ids do
-    case System.get_env("TUIST_KURA_AIR_REGIONS") do
-      value when value in [nil, ""] ->
-        Enum.reject([kura_air_region(:all), kura_air_region(:europe)], &is_nil/1)
-
-      value ->
-        value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-    end
-  end
-
-  @doc """
   How many placement proposals the sweep may apply on its own in a day.
 
   Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,
@@ -503,14 +455,6 @@ defmodule Tuist.Environment do
           {count, _rest} when count >= 0 -> count
           _ -> 0
         end
-    end
-  end
-
-  defp air_region_env(variable, default) do
-    case System.get_env(variable) do
-      nil -> default
-      "" -> default
-      region -> region
     end
   end
 

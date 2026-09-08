@@ -49,6 +49,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
@@ -655,6 +656,34 @@ func main() {
 		}
 		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
+	}
+
+	// Vultr bare metal: the South America cache region, on the one provider that
+	// sells there. Gated on VULTR_API_KEY so it stays dormant until an env opts
+	// in. Note the key is useless without its source IP on Vultr's ACL, which the
+	// other providers have no equivalent of: a controller 401 here is usually the
+	// cluster's egress address missing from the allowlist rather than a bad key.
+	if os.Getenv("VULTR_API_KEY") != "" {
+		vultrClient, err := vultr.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "vultr client")
+			os.Exit(1)
+		}
+		if err := (&linux.VultrMachineReconciler{
+			Client:             mgr.GetClient(),
+			APIReader:          mgr.GetAPIReader(),
+			Scheme:             mgr.GetScheme(),
+			VultrClient:        vultrClient,
+			Recorder:           mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager: credsManager,
+			Kubeconfig:         kubeconfigBuilder,
+			KubernetesMinor:    "v1.34",
+			DefaultRegion:      "scl",
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup VultrMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("Vultr machine reconciler enabled")
 	}
 
 	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same

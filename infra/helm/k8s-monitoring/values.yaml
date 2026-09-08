@@ -151,6 +151,16 @@ k8s-monitoring:
           regex = "tuist-(staging|canary|pentest);.+_bucket"
           action = "drop"
         }
+        // Kura histograms whose buckets no dashboard or alert reads. Their
+        // cardinality is pod count x `le`, so it grows with every account
+        // admitted to a region. `_count` and `_sum` survive, and a pod's full
+        // distribution is readable on demand from
+        // /api/ops/kura/pods/:pod/metrics.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
