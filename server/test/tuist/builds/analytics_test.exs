@@ -2043,6 +2043,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert series.cold == [2, 0]
       assert series.changed == [0, 1]
       assert series.upstream == [0, 1]
+      assert series.unchanged == [0, 0]
     end
   end
 
@@ -2091,8 +2092,9 @@ defmodule Tuist.Builds.AnalyticsTest do
 
       assert core.self_changes == 1
       assert core.dependency_induced == 0
-      # The first build has nothing before it, so exactly one miss is cold.
-      assert core.unclassified == 1
+      # The first build has nothing before it, so exactly one miss is first-seen.
+      assert core.cold == 1
+      assert core.unchanged == 0
     end
 
     test "the branch filter reaches the hit rate analytics, not just the module table", %{
@@ -2261,7 +2263,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       page = Analytics.module_build_history(project_id: project.id, name: "Core")
 
       # Newest first.
-      assert Enum.map(page.rows, & &1.reason) == ["cold", "upstream", "changed", "hit", "cold"]
+      assert Enum.map(page.rows, & &1.reason) == ["unchanged", "upstream", "changed", "hit", "cold"]
       assert Enum.map(page.rows, & &1.hit) == ["miss", "miss", "miss", "remote", "miss"]
       assert Enum.all?(page.rows, &(&1.branch == "main"))
       refute page.has_previous_page
@@ -2379,6 +2381,18 @@ defmodule Tuist.Builds.AnalyticsTest do
       cold = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "cold")
       assert Enum.all?(cold.rows, &(&1.reason == "cold"))
       refute Enum.empty?(cold.rows)
+    end
+
+    test "filters the history down to the misses nothing explains", %{project: project, build: build} do
+      build.(~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+      build.(~N[2024-04-02 10:00:00], :miss, "s1", "d1")
+      build.(~N[2024-04-03 10:00:00], :miss, "s2", "d1")
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "unchanged")
+
+      assert Enum.map(page.rows, & &1.reason) == ["unchanged"]
+      assert [%{ran_at: ran_at}] = page.rows
+      assert NaiveDateTime.to_date(ran_at) == ~D[2024-04-02]
     end
 
     test "orders oldest first and pages through it", %{project: project, build: build} do
@@ -2559,7 +2573,8 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert core.invalidations == 3
       assert core.self_changes == 2
       assert core.dependency_induced == 0
-      assert core.unclassified == 1
+      assert core.unchanged == 0
+      assert core.cold == 1
       assert_in_delta core.invalidation_rate, 75.0, 0.1
       # No dependency edges in this graph -> blast radius is unknown.
       assert core.blast_radius == nil
@@ -2569,8 +2584,51 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert networking.invalidations == 3
       assert networking.self_changes == 0
       assert networking.dependency_induced == 2
-      assert networking.unclassified == 1
+      assert networking.unchanged == 0
+      assert networking.cold == 1
       assert_in_delta networking.invalidation_rate, 100.0, 0.1
+    end
+
+    test "separates a miss that repeats identical inputs from a first-seen one", %{project: project} do
+      build = fn created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: "d1"
+        )
+      end
+
+      # Only the first build is genuinely first-seen. The next three ask the
+      # cache for a key nothing changed in and get nothing back, which is what
+      # an artifact that was never stored (or has been evicted) looks like.
+      build.(~N[2024-04-01 10:00:00], :miss, "s1")
+      build.(~N[2024-04-02 10:00:00], :miss, "s1")
+      build.(~N[2024-04-03 10:00:00], :miss, "s1")
+      build.(~N[2024-04-04 10:00:00], :miss, "s1")
+
+      [core] =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert core.invalidations == 4
+      assert core.self_changes == 0
+      assert core.dependency_induced == 0
+      assert core.unchanged == 3
+      assert core.cold == 1
     end
 
     test "compares builds within the same branch only", %{project: project} do
@@ -2610,7 +2668,8 @@ defmodule Tuist.Builds.AnalyticsTest do
       # interleaved feature-branch build (which would look like a self-change).
       assert core.dependency_induced == 1
       assert core.self_changes == 0
-      assert core.unclassified == 2
+      assert core.unchanged == 0
+      assert core.cold == 2
     end
 
     test "filters by branch", %{project: project} do

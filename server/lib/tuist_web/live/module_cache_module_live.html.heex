@@ -167,7 +167,7 @@
         description={
           dgettext(
             "dashboard_cache",
-            "Builds where this module was a cache miss: its own content changed, only an upstream dependency changed, or it had never been cached."
+            "Builds where this module was a cache miss: its own content changed, only an upstream dependency changed, nothing we record changed and it missed anyway, or it was seen for the first time."
           )
         }
         value={
@@ -185,7 +185,8 @@
                 {"all", dgettext("dashboard_cache", "All"), "destructive"},
                 {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
                 {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
-                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
+                {"unchanged", dgettext("dashboard_cache", "Unchanged"), "quaternary"},
+                {"cold", dgettext("dashboard_cache", "First seen"), "tertiary"}
               ]
             }
             value={value}
@@ -400,7 +401,15 @@
             barMaxWidth: 18
           },
           %{
-            name: dgettext("dashboard_cache", "Cold"),
+            name: dgettext("dashboard_cache", "Unchanged"),
+            data: @miss_reasons_series.result.unchanged,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-quaternary",
+            barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "First seen"),
             data: @miss_reasons_series.result.cold,
             type: "bar",
             stack: "total",
@@ -464,7 +473,7 @@
           secondary_text={dgettext("dashboard_cache", "Reason:")}
         >
           <.dropdown_item
-            :for={value <- ~w(any hit changed upstream cold)}
+            :for={value <- ~w(any hit changed upstream unchanged cold)}
             value={value}
             label={builds_reason_label(value)}
             patch={builds_filter_patch(@uri, "builds-reason", value)}

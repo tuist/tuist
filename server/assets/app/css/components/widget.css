@@ -239,6 +239,10 @@
       background-color: var(--noora-chart-tertiary);
     }
 
+    &[data-color="quaternary"] {
+      background-color: var(--noora-chart-quaternary);
+    }
+
     &[data-color="destructive"] {
       background-color: var(--noora-chart-destructive);
     }

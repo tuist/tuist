@@ -127,7 +127,7 @@
         description={
           dgettext(
             "dashboard_cache",
-            "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, or it had never been cached."
+            "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, nothing we record changed and it missed anyway, or it was seen for the first time."
           )
         }
         value={if totals, do: format_number(miss_reason_value(totals, @selected_miss_reason))}
@@ -142,7 +142,8 @@
                 {"all", dgettext("dashboard_cache", "All"), "destructive"},
                 {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
                 {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
-                {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"}
+                {"unchanged", dgettext("dashboard_cache", "Unchanged"), "quaternary"},
+                {"cold", dgettext("dashboard_cache", "First seen"), "tertiary"}
               ]
             }
             value={value}
@@ -306,7 +307,15 @@
             barMaxWidth: 18
           },
           %{
-            name: dgettext("dashboard_cache", "Cold"),
+            name: dgettext("dashboard_cache", "Unchanged"),
+            data: @miss_reasons_series.result.unchanged,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-quaternary",
+            barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "First seen"),
             data: @miss_reasons_series.result.cold,
             type: "bar",
             stack: "total",

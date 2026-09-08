@@ -78,7 +78,7 @@ defmodule TuistWeb.ModulesLive do
   end
 
   def handle_event("select_miss_reason", %{"type" => type}, %{assigns: assigns} = socket)
-      when type in ~w(all changed upstream cold) do
+      when type in ~w(all changed upstream unchanged cold) do
     query_params = Query.put(assigns.uri.query, "miss-reason", type)
     path = "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/module-cache/modules"
 
@@ -195,22 +195,26 @@ defmodule TuistWeb.ModulesLive do
       misses: Enum.sum(timeseries.invalidations),
       changed: Enum.sum(miss_reasons.changed),
       upstream: Enum.sum(miss_reasons.upstream),
+      unchanged: Enum.sum(miss_reasons.unchanged),
       cold: Enum.sum(miss_reasons.cold)
     }
   end
 
   def miss_reason_value(totals, "changed"), do: totals.changed
   def miss_reason_value(totals, "upstream"), do: totals.upstream
+  def miss_reason_value(totals, "unchanged"), do: totals.unchanged
   def miss_reason_value(totals, "cold"), do: totals.cold
   def miss_reason_value(totals, _all), do: totals.misses
 
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
-  def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
+  def miss_reason_title("unchanged"), do: dgettext("dashboard_cache", "Unchanged misses")
+  def miss_reason_title("cold"), do: dgettext("dashboard_cache", "First-seen misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_color("changed"), do: "primary"
   def miss_reason_color("upstream"), do: "secondary"
+  def miss_reason_color("unchanged"), do: "quaternary"
   def miss_reason_color("cold"), do: "tertiary"
   def miss_reason_color(_all), do: "destructive"
 

@@ -120,7 +120,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
         row |> Floki.find("td") |> Enum.at(2) |> Floki.text() |> String.trim()
       end)
 
-    assert reasons == ["Changed", "Cached", "Cold"]
+    assert reasons == ["Changed", "Cached", "First seen"]
 
     results =
       document

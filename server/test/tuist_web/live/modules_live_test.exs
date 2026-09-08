@@ -183,7 +183,7 @@ defmodule TuistWeb.ModulesLiveTest do
     # view and the markup is checked separately.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold) do
+    for reason <- ~w(all changed upstream unchanged cold) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
@@ -197,8 +197,14 @@ defmodule TuistWeb.ModulesLiveTest do
     render_click(lv, "select_miss_reason", %{"type" => "cold"})
     render_async(lv, 2000)
 
-    assert has_element?(lv, "#widget-misses", "Cold misses")
+    assert has_element?(lv, "#widget-misses", "First-seen misses")
     assert has_element?(lv, "#widget-misses", "1")
+
+    render_click(lv, "select_miss_reason", %{"type" => "unchanged"})
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "#widget-misses", "Unchanged misses")
+    assert has_element?(lv, "#widget-misses", "0")
   end
 
   test "pages through the modules table", %{

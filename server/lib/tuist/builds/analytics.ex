@@ -2257,9 +2257,16 @@ defmodule Tuist.Builds.Analytics do
 
   For each cacheable module (keyed by `name` + `product`) it reports how often the
   module was a cache miss ("invalidated"), how often it appeared, and — by comparing
-  each missed build to the module's previous build on the same branch — whether the
-  invalidation was caused by the module's own content changing (`self_changes`) or
-  only by one of its dependencies changing (`dependency_induced`).
+  each missed build to the module's previous build on the same branch — why it
+  missed: its own content changed (`self_changes`), only one of its dependencies
+  changed (`dependency_induced`), nothing we record changed and it missed anyway
+  (`unchanged`), or there was no previous build to compare against (`cold`).
+
+  `unchanged` is the one that says something is wrong rather than expected: the
+  module's recorded hashing inputs are byte-identical to its previous build, so
+  the cache was asked for a key it had already been asked for and had nothing to
+  return. That points at an artifact that was never stored or has been evicted,
+  or at a hashing input the CLI folds into the key but does not report.
 
   The classification window partitions by branch so a `main` build is never compared
   against a feature-branch build, regardless of the `:git_branch` filter.
@@ -2274,8 +2281,9 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
-    `:dependency_induced`, and `:unclassified` (misses with no comparable prior
-    build: first-seen / cold / evicted).
+    `:dependency_induced`, `:unchanged` (every recorded input matched the previous
+    build and it missed anyway) and `:cold` (no prior build on the branch within
+    the window to compare against).
   """
   def module_invalidations(opts \\ []) do
     opts
@@ -2286,7 +2294,8 @@ defmodule Tuist.Builds.Analytics do
   @doc """
   Returns, per module and day, how often it was built and why it missed:
   `appearances`, `misses`, `changed` (its own content differed from its previous
-  build) and `upstream` (only a dependency differed). One pass over the window
+  build), `upstream` (only a dependency differed) and `unchanged` (a previous
+  build exists and every recorded input matched it). One pass over the window
   that `module_invalidations/1` and `module_miss_reasons_timeseries/1` both
   derive from, so a page that needs both runs it once.
 
@@ -2319,7 +2328,10 @@ defmodule Tuist.Builds.Analytics do
       countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
       countIf(
         hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
-      ) AS upstream
+      ) AS upstream,
+      countIf(
+        hit = 'miss' AND rn > 1 AND own = prev_own AND deps = prev_deps AND ext = prev_ext
+      ) AS unchanged
     FROM (
       SELECT
         day, name, product, hit, own, deps, ext,
@@ -2356,7 +2368,7 @@ defmodule Tuist.Builds.Analytics do
 
     %{rows: rows} = ClickHouseRepo.query!(query, params)
 
-    Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream] ->
+    Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, unchanged] ->
       %{
         day: normalize_date(day),
         name: name,
@@ -2364,7 +2376,8 @@ defmodule Tuist.Builds.Analytics do
         appearances: appearances,
         misses: misses,
         changed: changed,
-        upstream: upstream
+        upstream: upstream,
+        unchanged: unchanged
       }
     end)
   end
@@ -2384,6 +2397,7 @@ defmodule Tuist.Builds.Analytics do
       invalidations = rows |> Enum.map(& &1.misses) |> Enum.sum()
       self_changes = rows |> Enum.map(& &1.changed) |> Enum.sum()
       dependency_induced = rows |> Enum.map(& &1.upstream) |> Enum.sum()
+      unchanged = rows |> Enum.map(& &1.unchanged) |> Enum.sum()
 
       %{
         name: name,
@@ -2394,7 +2408,8 @@ defmodule Tuist.Builds.Analytics do
         hit_rate: percentage(appearances - invalidations, appearances),
         self_changes: self_changes,
         dependency_induced: dependency_induced,
-        unclassified: max(invalidations - (self_changes + dependency_induced), 0),
+        unchanged: unchanged,
+        cold: max(invalidations - (self_changes + dependency_induced + unchanged), 0),
         # nil when the latest graph carries no dependency edges (older CLI);
         # an integer (0 for a leaf) once edges are present.
         blast_radius: Map.get(radii, name)
@@ -2422,7 +2437,15 @@ defmodule Tuist.Builds.Analytics do
         misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
         changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
         upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
-        {day, %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
+        unchanged = rows |> Enum.map(& &1.unchanged) |> Enum.sum()
+
+        {day,
+         %{
+           changed: changed,
+           upstream: upstream,
+           unchanged: unchanged,
+           cold: max(misses - changed - upstream - unchanged, 0)
+         }}
       end)
 
     dates =
@@ -2435,6 +2458,7 @@ defmodule Tuist.Builds.Analytics do
       dates: Enum.map(dates, &Date.to_iso8601/1),
       changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
       upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
+      unchanged: Enum.map(dates, fn d -> get_in(by_day, [d, :unchanged]) || 0 end),
       cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
     }
   end
@@ -2596,7 +2620,8 @@ defmodule Tuist.Builds.Analytics do
     * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
     * `:git_branch` - When set, restricts to a single branch
     * `:commit_sha` - When set, matches commit shas starting with it
-    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"` or `"cold"`
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`,
+      `"unchanged"` or `"cold"`
     * `:order` - `"desc"` (default, newest first) or `"asc"`
     * `:limit` - Rows per page (default 25)
 
@@ -2605,7 +2630,7 @@ defmodule Tuist.Builds.Analytics do
     start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
     `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
     `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
-    `"changed"`, `"upstream"` or `"cold"`).
+    `"changed"`, `"upstream"`, `"unchanged"` or `"cold"`).
 
     `:scheme` comes from the build run the command event belongs to and is
     empty for the commands that produce no activity log, such as `generate` and
@@ -2657,7 +2682,7 @@ defmodule Tuist.Builds.Analytics do
           rn = 1, 'cold',
           own != prev_own, 'changed',
           deps != prev_deps OR ext != prev_ext, 'upstream',
-          'cold'
+          'unchanged'
         ) AS reason
       FROM (
         SELECT
@@ -2738,8 +2763,11 @@ defmodule Tuist.Builds.Analytics do
 
   defp build_history_reason_filter(opts) do
     case Keyword.get(opts, :reason) do
-      reason when reason in ~w(hit changed upstream cold) -> {"reason = {reason:String}", %{reason: reason}}
-      _ -> {"", %{}}
+      reason when reason in ~w(hit changed upstream unchanged cold) ->
+        {"reason = {reason:String}", %{reason: reason}}
+
+      _ ->
+        {"", %{}}
     end
   end
 
@@ -3061,8 +3089,10 @@ defmodule Tuist.Builds.Analytics do
 
   @doc """
   Returns a daily breakdown of why a module missed: `changed` (its own content
-  differed from its previous build), `upstream` (only a dependency differed), and
-  `cold` (a miss with no comparable prior build — first-seen or evicted).
+  differed from its previous build), `upstream` (only a dependency differed),
+  `unchanged` (a previous build exists and every recorded input matched it, so
+  the cache had nothing for a key nothing changed in) and `cold` (no prior build
+  on the branch within the window to compare against).
 
   Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
   day instead of by module. Requires `:name`.
