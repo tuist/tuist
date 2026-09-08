@@ -190,6 +190,46 @@
   outline-offset: 2px;
 }
 
+/* Page-to-page navigation between the redesigned pages runs as a
+   cross-document view transition (Chromium and WebKit; engines without it
+   load the page as before). The outgoing page stays on screen until the
+   incoming one has rendered, so a load never flashes, and the navbar — the
+   one element every page shares — is captured on its own and swapped in
+   place with no cross-fade, so it reads as untouched by the switch. Only
+   the page content underneath cross-fades, briefly. */
+@view-transition {
+  navigation: auto;
+}
+
+#marketing-navbar {
+  view-transition-name: marketing-navbar;
+}
+
+/* The pseudo-element tree overlays the page while the transition runs and
+   would swallow clicks (a navbar menu couldn't open until it ended). */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(marketing-navbar),
+::view-transition-old(marketing-navbar),
+::view-transition-new(marketing-navbar) {
+  animation: none;
+}
+
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 body {
   display: flex;
   flex-direction: column;

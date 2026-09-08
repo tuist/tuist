@@ -56,24 +56,21 @@
         align-items: center;
         text-decoration: none;
 
+        /* One inline wordmark (wordmark_new/1): the letters follow the label
+           color, the mark's paths carry data-fill="purple". */
         & > [data-part="logo"] {
           display: block;
-          width: auto;
+          width: 84px;
           height: 32px;
+          color: var(--noora-surface-label-primary);
         }
 
-        /* Light/dark wordmark pair — the theme bootstrap stamps data-theme on
-           <html>, which picks the matching variant. */
-        & > [data-part="logo"][data-theme="dark"] {
+        /* Outline mode's stroked copy of the wordmark. Hidden here rather
+           than with the HTML hidden attribute, which has no effect on inline
+           SVG (the UA rule is namespaced to HTML elements); outline-mode.css
+           shows it with !important. */
+        & > [data-part="logo-outline"] {
           display: none;
-        }
-
-        :root[data-theme="dark"] & > [data-part="logo"][data-theme="light"] {
-          display: none;
-        }
-
-        :root[data-theme="dark"] & > [data-part="logo"][data-theme="dark"] {
-          display: block;
         }
       }
 

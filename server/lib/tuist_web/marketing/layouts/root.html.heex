@@ -5,14 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <%!-- Prerender marketing pages when a link is hovered (moderate
-    eagerness), so the navigation is already rendered by click time.
-    Chromium-only; other engines ignore the script. App, auth, docs and
-    feed URLs are excluded — prerendering those would waste work or open
-    sockets/sessions early. --%>
+    <%!-- Prefetch marketing pages when a link is hovered (moderate
+    eagerness), so the HTML is already in the cache by click time.
+    Chromium-only; other engines ignore the script. Prefetch rather than
+    prerender: Chrome does not rasterize a prerendered page while it is
+    hidden, so activating one starts the cross-document view transition
+    (marketing_new.css) on unpainted white tiles, and heavy pages such as
+    the blog and cache pages flash white under the navbar for the
+    transition's duration. A prefetched page renders on the normal path,
+    where the transition holds the outgoing page until the incoming one
+    is fully painted. App, auth, docs and feed URLs are excluded —
+    fetching those would waste work or open sessions early. --%>
     <script type="speculationrules" nonce={get_csp_nonce()}>
       {
-        "prerender": [
+        "prefetch": [
           {
             "where": {
               "and": [
