@@ -1,4 +1,5 @@
 import { initializeFaro, getWebInstrumentations } from "@grafana/faro-web-sdk";
+import { isAutomatedBrowser } from "./browser-automation.mjs";
 
 // Real user monitoring for the marketing site, docs and dashboard. Web vitals
 // (LCP among them) are captured automatically; page views are pushed on
@@ -13,10 +14,7 @@ export function initAnalytics() {
     return null;
   }
 
-  // Automated browsers report `navigator.webdriver`. Their web vitals measure
-  // the crawler's own request queue rather than the site, so they are not
-  // collected: the percentile alerts describe real visitors.
-  if (navigator.webdriver) {
+  if (isAutomatedBrowser(navigator, window)) {
     return null;
   }
 
