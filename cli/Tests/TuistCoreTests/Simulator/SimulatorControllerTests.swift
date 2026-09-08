@@ -4,7 +4,6 @@ import Mockable
 import Path
 import Testing
 import TSCUtility
-
 @testable import TuistCore
 @testable import TuistSupport
 @testable import TuistTesting
@@ -17,6 +16,38 @@ struct SimulatorControllerTests {
         subject = SimulatorController(
             commandRunner: commandRunner
         )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func launch_after_install_accepts_already_booted_device() async throws {
+        let xcodeController = try #require(XcodeController.mocked)
+        given(xcodeController).selected().willReturn(.test())
+        let device = try #require(createSystemStubs(devices: true, runtimes: true).first?.device)
+        let appPath = try AbsolutePath(validating: "/path/to/App.app")
+        let boot = ["/usr/bin/xcrun", "simctl", "boot", device.udid]
+        commandRunner.succeedCommand(boot)
+        commandRunner.succeedCommand(["/usr/bin/xcrun", "simctl", "install", device.udid, appPath.pathString])
+        try await subject.installApp(at: appPath, device: device)
+        commandRunner.errorCommand(boot, error: "Unable to boot device in current state: Booted")
+        commandRunner.succeedCommand([
+            "/usr/bin/open", "-a", "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app",
+        ])
+        let launch = ["/usr/bin/xcrun", "simctl", "launch", device.udid, "dev.app"]
+        commandRunner.succeedCommand(launch)
+
+        try await subject.launchApp(bundleId: "dev.app", device: device, arguments: [])
+
+        #expect(commandRunner.called(launch))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func boot_propagates_other_failures() async throws {
+        let device = try #require(createSystemStubs(devices: true, runtimes: true).first?.device)
+        commandRunner.errorCommand(["/usr/bin/xcrun", "simctl", "boot", device.udid], error: "Simulator unavailable")
+
+        await #expect(throws: (any Error).self) {
+            try await subject.booted(device: device)
+        }
     }
 
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func devices_should_returnListOfDevicesFromJson() async throws {
@@ -74,7 +105,7 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
-    ) func findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async throws {
+    ) func findAvailableDevice_by_udid_should_throwErrorWhenNoDeviceForPlatform() async {
         // Given
         _ = createSystemStubs(devices: true, runtimes: true)
 
