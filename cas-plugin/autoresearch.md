@@ -252,6 +252,26 @@ This segment is complete. Larger history windows, group-wise streaming, stronger
 compression, more edits, and prepared-base caching are future experiments, not
 shipping behavior. No production source or server protocol changed in this pass.
 
+## Bounded-group patch search (third segment)
+
+Continue on the same branch with a bounded six-run segment. The workload now
+combines the three historical edits, the identical body-only pair, the large
+Xcode Swift module, and the Foundation header. Establish a fresh aggregate
+baseline; do not compare its sum with the small-module-only second segment.
+Primary remains warm_bytes, including serialized group metadata and the outer
+192-byte envelope estimate. Track preparation, patching, inverse, verification,
+expanded bytes, and whole-process peak memory separately.
+
+Hypothesis: groups keyed by container block, record, and operand keep related
+bytes inside a bounded prefix window. Unchanged groups can reference the pinned
+base without a patch. Fixed-size pages bound each group comparison, but may lose
+matches across page boundaries. First measure byte savings with borrowed views
+of the existing prepared format; this does not implement streaming preparation.
+Then measure memory improvements explicitly instead of inferring them from group
+size. Retain exact module and compressed-node identity checks, resource limits,
+malformed-input tests, and fresh compiler-consumer checks. Production negotiation,
+authorization, action validity, and transfer encodings are out of scope.
+
 To repeat with available artifact pairs, run `./autoresearch.swift.sh` with a
 manifest containing the three edits and a body-only pair. Set
 `SWIFT_PATCH_RESTORED_DIR` to an existing empty temporary directory to export
