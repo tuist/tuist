@@ -15,6 +15,9 @@
   cap retries at five. Do not infer target existence from a differently configured query.
 - `--no-quarantine` bypasses the lookup, exclusions, and failure suppression.
 - Keep local event/report reads bounded and reject missing or malformed evidence.
+- Keep report identities aligned with the server using the shared corpus in
+  `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`. Namespace prefixes are ignored;
+  ambiguous attributes with the same local name must fail closed.
 - Warn when a failed case matches an older suite-based mute but now reports a
   different class identity. Do not transfer that policy automatically: multiple
   classes may have shared the old identity.

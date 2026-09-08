@@ -2211,6 +2211,8 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
+            resources: self == .bazelCommand && product == .unitTests
+                ? [.folderReference(path: "cli/Tests/Fixtures/JUnitIdentity")] : nil,
             buildableFolders: [
                 .folder(
                     buildableFolderPath,

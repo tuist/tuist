@@ -173,7 +173,7 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
         attributes: [String: String]
     ) {
         let element = elementName.split(separator: ":").last.map(String.init) ?? elementName
-        if element == "testsuite" { suites.append(field(attributes["name"], fallback: "Unnamed suite")) }
+        if element == "testsuite" { suites.append(field(attribute("name", in: attributes), fallback: "Unnamed suite")) }
         if element == "testcase" {
             guard elements.last == "testsuite", testCase == nil, let suite = suites.last else {
                 invalid = true
@@ -181,13 +181,13 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
             }
             testCase = BazelTestCaseIdentity(
                 target: target,
-                suite: field(attributes["classname"], fallback: suite),
-                name: field(attributes["name"], fallback: "Unnamed test")
+                suite: field(attribute("classname", in: attributes), fallback: suite),
+                name: field(attribute("name", in: attributes), fallback: "Unnamed test")
             )
             legacyTestCase = BazelTestCaseIdentity(
                 target: target,
                 suite: suite,
-                name: field(attributes["name"], fallback: "Unnamed test")
+                name: field(attribute("name", in: attributes), fallback: "Unnamed test")
             )
         }
         if element == "failure" || element == "error" {
@@ -213,6 +213,15 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
         if !elements.isEmpty { elements.removeLast() }
     }
 
+    private func attribute(_ name: String, in attributes: [String: String]) -> String? {
+        let matches = attributes.filter { $0.key.split(separator: ":").last.map(String.init) == name }
+        guard matches.count <= 1 else {
+            invalid = true
+            return nil
+        }
+        return matches.first?.value
+    }
+
     private func field(_ value: String?, fallback: String) -> String {
         let value = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if value.isEmpty { return fallback }
@@ -222,6 +231,6 @@ private final class JunitFailureDelegate: NSObject, XMLParserDelegate {
             guard result.utf8.count + String(character).utf8.count <= 1024 else { break }
             result.append(character)
         }
-        return result
+        return result.isEmpty ? fallback : result
     }
 }

@@ -6,6 +6,32 @@ import Testing
 @testable import TuistBazelCommand
 
 struct BazelTestFailureReaderTests {
+    private struct IdentityFixture: Decodable {
+        struct Identity: Decodable {
+            let suite: String
+            let name: String
+        }
+
+        let file: String
+        let cases: [Identity]
+    }
+
+    @Test func matches_shared_server_identity_fixtures() throws {
+        let directory = try #require(Bundle.module.url(forResource: "JUnitIdentity", withExtension: nil))
+        let fixtures = try JSONDecoder().decode(
+            [IdentityFixture].self, from: Data(contentsOf: directory.appendingPathComponent("expected.json"))
+        )
+        let reports = try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".xml") }
+        #expect(Set(fixtures.map(\.file)) == Set(reports))
+        for fixture in fixtures {
+            let failures = try BazelTestFailureReader.failures(
+                in: Data(contentsOf: directory.appendingPathComponent(fixture.file)), target: "//app:tests"
+            )
+            let expected = Set(fixture.cases.map { BazelTestCaseIdentity(target: "//app:tests", suite: $0.suite, name: $0.name) })
+            #expect(failures == expected, "Identity mismatch in \(fixture.file)")
+        }
+    }
+
     @Test(.inTemporaryDirectory, arguments: [
         "missing", "missing_package", "incomplete", "unknown_target", "configured", "executed", "test_result",
         "different_error", "different_exit", "malformed", "aborted_placeholder",
@@ -70,6 +96,7 @@ struct BazelTestFailureReaderTests {
         "<!DOCTYPE testsuite [<!ENTITY secret SYSTEM 'file:///etc/passwd'>]><testsuite/>",
         "<testsuite><error>runner crashed</error></testsuite>",
         "<testsuite><testcase><failure>",
+        "<testsuite xmlns:ts='urn:test'><testcase name='one' ts:name='two'><failure/></testcase></testsuite>",
     ])
     func rejects_unsafe_incomplete_or_unattributed_reports(report: String) {
         #expect(throws: (any Error).self) {
