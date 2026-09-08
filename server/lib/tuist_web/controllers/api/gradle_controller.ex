@@ -552,6 +552,14 @@ defmodule TuistWeb.API.GradleController do
              tasks_no_source_count: %Schema{type: :integer},
              cacheable_tasks_count: %Schema{type: :integer},
              cache_hit_rate: %Schema{type: :number, nullable: true},
+             cache_download_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of task outputs downloaded from the remote cache by the build."
+             },
+             cache_upload_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of task outputs uploaded to the remote cache by the build."
+             },
              inserted_at: %Schema{type: :string, format: :"date-time"},
              tasks: %Schema{
                type: :array,
@@ -592,6 +600,7 @@ defmodule TuistWeb.API.GradleController do
           tasks = Gradle.list_tasks(build_id)
           configuration_operations = Gradle.list_configuration_operations(build_id)
           artifact_transforms = Gradle.list_artifact_transforms(build_id)
+          cache_aggregates = Gradle.task_cache_aggregates(build_id)
 
           json(conn, %{
             id: build.id,
@@ -642,6 +651,8 @@ defmodule TuistWeb.API.GradleController do
             tasks_no_source_count: build.tasks_no_source_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
             cache_hit_rate: Gradle.cache_hit_rate(build),
+            cache_download_bytes: cache_aggregates.cache_download_bytes,
+            cache_upload_bytes: cache_aggregates.cache_upload_bytes,
             inserted_at: build.inserted_at,
             tasks:
               Enum.map(tasks, fn task ->

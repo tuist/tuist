@@ -66384,8 +66384,16 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// Bytes of task outputs downloaded from the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
+                        public var cache_download_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
+                        /// Bytes of task outputs uploaded to the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_upload_bytes`.
+                        public var cache_upload_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
@@ -66639,7 +66647,9 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - artifact_transforms:
+                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - cache_hit_rate:
+                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
                         ///   - cacheable_tasks_count:
                         ///   - configuration_cache_entry_size:
                         ///   - configuration_cache_invalidation_reasons:
@@ -66670,7 +66680,9 @@ public enum Operations {
                         ///   - tasks_up_to_date_count:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            cache_download_bytes: Swift.Int? = nil,
                             cache_hit_rate: Swift.Double? = nil,
+                            cache_upload_bytes: Swift.Int? = nil,
                             cacheable_tasks_count: Swift.Int? = nil,
                             configuration_cache_entry_size: Swift.Int? = nil,
                             configuration_cache_invalidation_reasons: [Swift.String]? = nil,
@@ -66701,7 +66713,9 @@ public enum Operations {
                             tasks_up_to_date_count: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
+                            self.cache_download_bytes = cache_download_bytes
                             self.cache_hit_rate = cache_hit_rate
+                            self.cache_upload_bytes = cache_upload_bytes
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.configuration_cache_entry_size = configuration_cache_entry_size
                             self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
@@ -66733,7 +66747,9 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
+                            case cache_download_bytes
                             case cache_hit_rate
+                            case cache_upload_bytes
                             case cacheable_tasks_count
                             case configuration_cache_entry_size
                             case configuration_cache_invalidation_reasons
