@@ -19,11 +19,16 @@ defmodule Tuist.Kura.Mesh do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
   alias Tuist.Repo
   alias X509.Certificate.Extension
+
+  require Logger
 
   @kura_namespace "kura"
   # Mesh heartbeat cadence the control plane advertises back to enrolled
@@ -193,6 +198,52 @@ defmodule Tuist.Kura.Mesh do
     end)
     |> Enum.reject(&is_nil/1)
   end
+
+  @doc """
+  The replication roles of the account's managed pods, published beside the
+  peer list in the mesh view (kura/docs/replication-design.md §2.2): one
+  `%{url, region, gateway}` per pod of every managed mesh region, `url` being
+  the pod's internal peer URL exactly as the kura-controller renders its
+  `KURA_NODE_URL`, `region` the region the instance runs in.
+
+  Managed regions only: they are where the server knows something the nodes
+  do not (which pod is the primary, from the `KuraInstance` status the
+  controller publishes). An enrolled self-hosted node derives its own role
+  from the same lowest-URL rule it would be published, so publishing it adds
+  nothing. Roles are an optimisation over that local rule, so a region whose
+  status cannot be read contributes nothing rather than failing the
+  heartbeat that carries the peer list.
+  """
+  def peer_roles(%Account{} = account) do
+    account.id
+    |> Kura.mesh_servers_for_account()
+    |> Enum.flat_map(&server_peer_roles(&1, account))
+  end
+
+  defp server_peer_roles(%Server{region: region_id} = server, %Account{name: handle}) do
+    with %Regions{} = region <- Regions.get(region_id),
+         true <- Regions.mesh?(region) and not Regions.retired?(region),
+         {:ok, roles} <- Provisioner.peer_roles(server) do
+      Enum.map(roles, &%{url: &1.url, region: region.id, gateway: &1.gateway})
+    else
+      {:error, reason} ->
+        Logger.warning(
+          "Kura mesh: peer roles of #{server.provisioner_node_ref} (#{handle}, #{region_id}) unavailable: #{inspect(reason)}"
+        )
+
+        []
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Whether the account's nodes replicate by pulling (design §5.2). Published in
+  the mesh view so enrolled self-hosted nodes flip with the account's managed
+  pods, which get the same flag rendered into their spec.
+  """
+  def replication_pull?(%Account{} = account), do: FeatureFlags.kura_replication_pull_enabled?(account)
 
   @doc """
   Records a mesh heartbeat from an enrolled self-hosted node: refreshes the

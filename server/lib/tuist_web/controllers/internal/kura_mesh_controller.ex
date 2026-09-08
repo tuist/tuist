@@ -60,7 +60,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # membership from being swept as stale and returns the current peer list, so
   # peers refresh at heartbeat cadence rather than at certificate renewal. A
   # withheld node is answered `mesh_member: false` and recovers by
-  # re-enrolling.
+  # re-enrolling. The replication roles and the account's pull flag ride
+  # beside the peer list as additive fields an older node ignores.
   def heartbeat(conn, %{"node_url" => node_url}) when is_binary(node_url) do
     case authorize(conn) do
       {:ok, account} ->
@@ -69,6 +70,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
         json(conn, %{
           mesh_member: view.mesh_member,
           peers: view.peers,
+          peer_roles: Mesh.peer_roles(account),
+          replication_pull: Mesh.replication_pull?(account),
           heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
         })
 
@@ -89,7 +92,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # liveness and their identity is controller-minted), so they must not enter
   # the membership/reactivation state machine — but they consume the same
   # dynamic peer view so a self-hosted peer joining or leaving propagates at
-  # heartbeat cadence instead of through a fleet roll. Accepts the
+  # heartbeat cadence instead of through a fleet roll, and read their
+  # replication role and the account's pull flag from it. Accepts the
   # deployment-level control-plane credential (with a tenant) or a self-hosted
   # client credential, like registration.
   def peers(conn, params) do
@@ -97,6 +101,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
       {:ok, account} ->
         json(conn, %{
           peers: Mesh.self_hosted_peer_urls(account),
+          peer_roles: Mesh.peer_roles(account),
+          replication_pull: Mesh.replication_pull?(account),
           refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
         })
 

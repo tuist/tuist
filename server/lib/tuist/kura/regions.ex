@@ -521,6 +521,13 @@ defmodule Tuist.Kura.Regions do
   def private?(_), do: false
 
   @doc """
+  True iff the region's instances join the controller-managed per-account peer
+  mesh (replicate with the account's other nodes under one per-account CA).
+  """
+  def mesh?(%__MODULE__{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  def mesh?(_), do: false
+
+  @doc """
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature

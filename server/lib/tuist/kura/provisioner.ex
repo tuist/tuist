@@ -135,6 +135,16 @@ defmodule Tuist.Kura.Provisioner do
   @callback rollout_health(ref :: String.t(), Regions.t()) ::
               {:ok, map() | nil} | {:error, term()}
 
+  @doc """
+  The replication roles the backing platform publishes for the server's
+  pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
+  URL — or `{:ok, []}` when the resource exists but has not published any
+  yet. Published to the account's mesh through `Tuist.Kura.Mesh.peer_roles/1`
+  on every mesh heartbeat, so implementations must keep it to one cheap read.
+  """
+  @callback peer_roles(ref :: String.t(), Regions.t()) ::
+              {:ok, [map()]} | {:error, term()}
+
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's provisioner."
@@ -213,6 +223,13 @@ defmodule Tuist.Kura.Provisioner do
   def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `peer_roles/2` on the region's provisioner."
+  def peer_roles(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.peer_roles(ref, region)
     end
   end
 end

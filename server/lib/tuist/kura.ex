@@ -1068,11 +1068,29 @@ defmodule Tuist.Kura do
   self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> select([s], s.region)
+    |> Repo.all()
+  end
+
+  @doc """
+  The account's live steady-state servers without their deployment history:
+  the same rows `server_regions_for_account/1` reduces to regions, for the
+  mesh view that has to address each region's backing resource (the peer
+  roles are read off the `KuraInstance` status, so it needs the
+  `provisioner_node_ref` beside the region).
+  """
+  def mesh_servers_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> Repo.all()
+  end
+
+  defp live_steady_state_servers_query(account_id) do
     Server
     |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
-    |> select([s], s.region)
-    |> Repo.all()
   end
 
   @doc "Fetches a server scoped to the given account."
