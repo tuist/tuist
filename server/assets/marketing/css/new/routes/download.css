@@ -432,9 +432,11 @@
         }
       }
 
-      /* Shared: the tinted "Run" capsule (39×21; Figma exports the
-         button's component padding, so its box is sized from the
-         instance instead). */
+      /* Shared: the tinted "Run" capsule. Figma draws it 39×21 with 8.5px
+         type; it renders larger here (22px tall, 11px type) so the
+         label stays legible at the demo's scale. Purple-500 on the light
+         surface, purple-400 on the dark one, like the site's other purple
+         accents. */
       & [data-part="preview-run"] {
         flex: none;
         box-sizing: border-box;
@@ -447,12 +449,13 @@
       }
 
       & [data-part="preview-run"] {
-        background: color-mix(in srgb, var(--noora-purple-500) 15%, transparent);
-        padding: 5px 11px;
-        height: 21px;
-        color: var(--noora-purple-500);
-        font: var(--noora-font-weight-semibold) 8.5px/11px var(--noora-font-body);
-        letter-spacing: -0.17px;
+        --download-run-accent: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+        background: color-mix(in srgb, var(--download-run-accent) 15%, transparent);
+        padding: 5px 12px;
+        height: 22px;
+        color: var(--download-run-accent);
+        font: var(--noora-font-weight-semibold) 11px/12px var(--noora-font-body);
+        letter-spacing: -0.22px;
         white-space: nowrap;
       }
 
