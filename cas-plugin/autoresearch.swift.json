@@ -1,1 +1,0 @@
-{"fields":true,"delta":true,"column_cap":32,"level":3,"window_log":24,"long_distance":true,"prefix":true,"group_bytes":262144,"residual":true,"fast_hash":true,"compact_layout":true,"compact_columns":true,"receiver_segments":true,"receiver_release":true}

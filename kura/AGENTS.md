@@ -7,6 +7,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Entry points: `src/main.rs`, `src/app.rs`
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol and reader-first rollout. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
+- Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`

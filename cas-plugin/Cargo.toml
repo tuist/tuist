@@ -29,6 +29,7 @@ hyper = "1"
 prost = "0.14.1"
 sha2 = "0.10"
 fastcdc = "3.2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
 # Analytics parity with the Swift `CASAnalyticsDatabase`: the proxy writes
 # cas_analytics.db, read by the server's xcactivitylog NIF. `bundled` compiles
@@ -38,10 +39,6 @@ base64 = "0.22"
 # Formats `created_at` in the exact SQLite.swift `Date` text the shared
 # cas_analytics.db uses; `macros` gives a compile-time-checked format string.
 time = { version = "0.3", features = ["formatting", "macros"] }
-
-[dev-dependencies]
-# Already used by the transport; only the offline patch experiment selects its hash implementation.
-ring = "0.17"
 
 [profile.release]
 opt-level = 2

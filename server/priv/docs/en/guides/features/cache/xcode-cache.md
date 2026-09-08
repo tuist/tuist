@@ -145,7 +145,7 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 
-The Xcode cache can reduce transfers with [content-defined chunking](https://www.buildbuddy.io/blog/content-defined-chunking/). Instead of treating each large output as unrelated to earlier versions, it splits the compressed output at boundaries determined by its contents. After an edit, matching chunks can be reused even when their offsets have changed.
+The Xcode cache can reduce transfers with content-defined chunking. Instead of treating each large output as unrelated to earlier versions, it splits the compressed output at boundaries determined by its contents. After an edit, matching chunks can be reused even when their offsets have changed.
 
 Uploads send only chunks that the server is missing. Downloads first obtain the exact cached action and the output's chunk recipe, then reuse verified chunks stored on the local machine and fetch the missing pieces. The complete reconstructed output is verified before it is restored to the compiler cache.
 
@@ -153,7 +153,7 @@ The transfer-chunk cache is separate from `DerivedData`, so its chunks can survi
 
 The client uses chunked transfers only when the server advertises compatible support. Older clients can still read complete outputs, and clients connected to older or unsupported servers retain ordinary transfers. Small outputs stay on the existing whole-output path.
 
-This reduces transferred bytes, not compiler invalidation. Changing a source file can still require compilation; chunking helps publish or restore the resulting output. Savings depend on the output and the edit, and a cold machine with no matching chunks must download all of the output. Experimental Swift field patches are not part of this transfer path.
+This reduces transferred bytes, not compiler invalidation. Changing a source file can still require compilation; chunking helps publish or restore the resulting output. Savings depend on the output and the edit, and a cold machine with no matching chunks must download all of the output.
 
 ### Continuous integration {#continuous-integration}
 

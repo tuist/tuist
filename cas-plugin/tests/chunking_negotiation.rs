@@ -39,7 +39,10 @@ enum Mode {
     OmittedDigestDownload,
     OmittedResponseDownload,
     TerminalDownload,
+    DeclinedSplit(i32),
+    DeclinedSplice(i32),
     TerminalSplitOne,
+    Latency(u64),
 }
 
 #[derive(Default)]
@@ -52,12 +55,25 @@ struct Calls {
     whole_reads: usize,
     read_digests: Vec<api::Digest>,
     read_bytes: usize,
+    updates: usize,
+    active_splits: usize,
+    max_active_splits: usize,
+    active_splices: usize,
+    max_active_splices: usize,
     blobs: HashMap<String, Vec<u8>>,
 }
 
 struct Server {
     mode: Mode,
     calls: Arc<Mutex<Calls>>,
+}
+
+impl Server {
+    async fn delay(&self) {
+        if let Mode::Latency(millis) = self.mode {
+            tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -95,7 +111,9 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::BatchUpdateBlobsRequest>,
     ) -> Result<Response<api::BatchUpdateBlobsResponse>, Status> {
+        self.delay().await;
         let mut calls = self.calls.lock().unwrap();
+        calls.updates += 1;
         if matches!(self.mode, Mode::Incomplete) {
             return Ok(Response::new(api::BatchUpdateBlobsResponse::default()));
         }
@@ -121,6 +139,7 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::FindMissingBlobsRequest>,
     ) -> Result<Response<api::FindMissingBlobsResponse>, Status> {
+        self.delay().await;
         self.calls.lock().unwrap().missing += 1;
         Ok(Response::new(api::FindMissingBlobsResponse {
             missing_blob_digests: if matches!(self.mode, Mode::Unrequested) {
@@ -132,9 +151,40 @@ impl ContentAddressableStorage for Server {
     }
     async fn splice_blob(
         &self,
-        _: Request<api::SpliceBlobRequest>,
+        request: Request<api::SpliceBlobRequest>,
     ) -> Result<Response<api::SpliceBlobResponse>, Status> {
-        self.calls.lock().unwrap().splice += 1;
+        {
+            let mut calls = self.calls.lock().unwrap();
+            calls.splice += 1;
+            calls.active_splices += 1;
+            calls.max_active_splices = calls.max_active_splices.max(calls.active_splices);
+        }
+        self.delay().await;
+        let mut calls = self.calls.lock().unwrap();
+        calls.active_splices -= 1;
+        if let Mode::DeclinedSplice(code) = self.mode {
+            return Err(Status::new(tonic::Code::from_i32(code), "splice refused"));
+        }
+        if matches!(self.mode, Mode::Latency(_)) {
+            let request = request.into_inner();
+            let digest = request.blob_digest.unwrap();
+            let mut assembled = Vec::new();
+            for chunk in request.chunk_digests {
+                assembled.extend_from_slice(
+                    calls
+                        .blobs
+                        .get(&chunk.hash)
+                        .ok_or_else(|| Status::not_found("chunk not uploaded before splice"))?,
+                );
+            }
+            if blob_digest(&assembled) != digest {
+                return Err(Status::invalid_argument("incorrect splice"));
+            }
+            calls.blobs.insert(digest.hash.clone(), assembled);
+            return Ok(Response::new(api::SpliceBlobResponse {
+                blob_digest: Some(digest),
+            }));
+        }
         if matches!(self.mode, Mode::Evicted) {
             Err(Status::not_found("evicted"))
         } else {
@@ -145,8 +195,18 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::SplitBlobRequest>,
     ) -> Result<Response<api::SplitBlobResponse>, Status> {
+        {
+            let mut calls = self.calls.lock().unwrap();
+            calls.split += 1;
+            calls.active_splits += 1;
+            calls.max_active_splits = calls.max_active_splits.max(calls.active_splits);
+        }
+        self.delay().await;
         let mut calls = self.calls.lock().unwrap();
-        calls.split += 1;
+        calls.active_splits -= 1;
+        if let Mode::DeclinedSplit(code) = self.mode {
+            return Err(Status::new(tonic::Code::from_i32(code), "split refused"));
+        }
         if !matches!(
             self.mode,
             Mode::InvalidRecipe
@@ -161,6 +221,7 @@ impl ContentAddressableStorage for Server {
                 | Mode::OmittedResponseDownload
                 | Mode::TerminalDownload
                 | Mode::TerminalSplitOne
+                | Mode::Latency(_)
         ) {
             return Err(Status::unimplemented("mixed-version server"));
         }
@@ -193,6 +254,7 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::BatchReadBlobsRequest>,
     ) -> Result<Response<api::BatchReadBlobsResponse>, Status> {
+        self.delay().await;
         if matches!(self.mode, Mode::SlowDownload) {
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         }
@@ -288,19 +350,24 @@ fn declined_chunks_do_not_trigger_whole_blob_downloads() {
     ] {
         let status = code as i32;
         let (remote, calls, _stop) = server(Mode::DeclinedDownload(status));
-        let directory = std::env::temp_dir().join(format!(
-            "chunk-declined-{}-{status}",
-            std::process::id()
-        ));
+        let directory =
+            std::env::temp_dir().join(format!("chunk-declined-{}-{status}", std::process::id()));
         remote.enable_chunk_cache(directory.clone(), "tenant/project");
         let bytes = vec![7; 3 * 1024 * 1024];
         let digest = blob_digest(&bytes);
-        calls.lock().unwrap().blobs.insert(digest.hash.clone(), bytes);
+        calls
+            .lock()
+            .unwrap()
+            .blobs
+            .insert(digest.hash.clone(), bytes);
         for attempt in 0..2 {
             let result = remote.batch_read(std::slice::from_ref(&digest));
             let observed = calls.lock().unwrap();
             assert_eq!(observed.whole_reads, 0, "status {status}");
-            if matches!(code, tonic::Code::ResourceExhausted | tonic::Code::Unavailable) {
+            if matches!(
+                code,
+                tonic::Code::ResourceExhausted | tonic::Code::Unavailable
+            ) {
                 assert!(result.unwrap().is_empty());
                 assert_eq!(observed.reads, 3 + attempt);
             } else {
@@ -311,6 +378,174 @@ fn declined_chunks_do_not_trigger_whole_blob_downloads() {
         if directory.exists() {
             std::fs::remove_dir_all(directory).unwrap();
         }
+    }
+}
+
+#[test]
+fn split_pressure_preserves_small_blobs_and_uses_the_parent_retry_budget() {
+    for code in [tonic::Code::ResourceExhausted, tonic::Code::Unavailable] {
+        let (remote, calls, _stop) = server(Mode::DeclinedSplit(code as i32));
+        let directory = std::env::temp_dir().join(format!(
+            "split-pressure-{}-{}",
+            std::process::id(),
+            code as i32
+        ));
+        remote.enable_chunk_cache(directory.clone(), "tenant/project");
+        let large = vec![7; 3 * 1024 * 1024];
+        let large_digest = blob_digest(&large);
+        let small: Vec<_> = (0..5).map(|byte| vec![byte; 1024]).collect();
+        let mut digests = vec![large_digest.clone()];
+        let mut observed = calls.lock().unwrap();
+        observed.blobs.insert(large_digest.hash.clone(), large);
+        for bytes in &small {
+            let digest = blob_digest(bytes);
+            observed.blobs.insert(digest.hash.clone(), bytes.clone());
+            digests.push(digest);
+        }
+        drop(observed);
+        let result = remote.batch_read(&digests).unwrap();
+        assert_eq!(result.len(), 5);
+        for (digest, bytes) in digests[1..].iter().zip(&small) {
+            assert_eq!(&result[&digest.hash], bytes);
+        }
+        assert_eq!(calls.lock().unwrap().split, 3);
+        assert_eq!(calls.lock().unwrap().reads, 1);
+        // Partial success does not arm a node-wide breaker. A fully declined
+        // read does, and the following action-result read gets one attempt.
+        assert!(remote
+            .batch_read(std::slice::from_ref(&large_digest))
+            .unwrap()
+            .is_empty());
+        assert_eq!(calls.lock().unwrap().split, 6);
+        assert!(remote
+            .batch_read_after_action_result(&[large_digest])
+            .unwrap()
+            .is_empty());
+        assert_eq!(calls.lock().unwrap().split, 7);
+        assert_eq!(calls.lock().unwrap().whole_reads, 0);
+        if directory.exists() {
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+}
+
+#[test]
+fn large_reads_pool_missing_chunks_and_overlap_split_requests() {
+    let (remote, calls, _stop) = server(Mode::Latency(300));
+    let directory = std::env::temp_dir().join(format!("chunk-batch-read-{}", std::process::id()));
+    let outputs: Vec<Vec<u8>> = (0..4)
+        .map(|index| {
+            (0..3)
+                .flat_map(|part| vec![index * 4 + part; 1024 * 1024])
+                .collect()
+        })
+        .collect();
+    let digests: Vec<_> = outputs.iter().map(|bytes| blob_digest(bytes)).collect();
+    calls.lock().unwrap().blobs.extend(
+        digests
+            .iter()
+            .zip(&outputs)
+            .map(|(digest, bytes)| (digest.hash.clone(), bytes.clone())),
+    );
+    let start = std::time::Instant::now();
+    let whole = remote.batch_read(&digests).unwrap();
+    let whole_ms = start.elapsed().as_millis();
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    assert!(remote.uses_chunked_compression(3 * 1024 * 1024));
+    let start = std::time::Instant::now();
+    let chunked = remote.batch_read(&digests).unwrap();
+    let chunked_ms = start.elapsed().as_millis();
+    assert_eq!(whole, chunked);
+    let observed = calls.lock().unwrap();
+    println!("BENCH four_outputs_read latency_ms=300 whole_ms={whole_ms} chunked_ms={chunked_ms} chunk_reads={} split_peak={}", observed.reads - 1, observed.max_active_splits);
+    assert_eq!(
+        observed.reads, 2,
+        "one whole read and one pooled missing-chunk read"
+    );
+    assert_eq!(observed.split, 4);
+    assert!(observed.max_active_splits > 1 && observed.max_active_splits <= 8);
+    assert_eq!(observed.read_digests.len(), 4 + 12);
+    drop(observed);
+    assert_eq!(remote.batch_read(&digests).unwrap(), whole);
+    assert_eq!(
+        calls.lock().unwrap().reads,
+        2,
+        "fully local chunks need only recipes"
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn large_uploads_pool_presence_and_updates_before_overlapping_splices() {
+    let (remote, calls, _stop) = server(Mode::Latency(100));
+    let outputs: Vec<_> = (0..6)
+        .map(|index| {
+            let bytes = vec![index; 3 * 1024 * 1024];
+            (blob_digest(&bytes), bytes)
+        })
+        .collect();
+    assert!(remote.uses_chunked_compression(3 * 1024 * 1024));
+    let start = std::time::Instant::now();
+    remote.batch_update(outputs.clone()).unwrap();
+    let elapsed_ms = start.elapsed().as_millis();
+    let observed = calls.lock().unwrap();
+    println!("BENCH six_outputs_upload latency_ms=100 elapsed_ms={elapsed_ms} missing={} updates={} splice_peak={}", observed.missing, observed.updates, observed.max_active_splices);
+    for (digest, bytes) in outputs {
+        assert_eq!(observed.blobs[&digest.hash], bytes);
+    }
+    assert_eq!(observed.missing, 1);
+    assert_eq!(observed.updates, 1);
+    assert_eq!(observed.splice, 6);
+    assert!(observed.max_active_splices > 1 && observed.max_active_splices <= 8);
+}
+
+#[test]
+fn recipe_requests_are_bounded_in_both_directions() {
+    let (remote, calls, _stop) = server(Mode::Latency(30));
+    let directory = std::env::temp_dir().join(format!("recipe-concurrency-{}", std::process::id()));
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    let outputs: Vec<_> = (0..10)
+        .map(|index| {
+            let bytes = vec![index; 3 * 1024 * 1024];
+            (blob_digest(&bytes), bytes)
+        })
+        .collect();
+    remote.batch_update(outputs.clone()).unwrap();
+    let digests: Vec<_> = outputs.iter().map(|(digest, _)| digest.clone()).collect();
+    let restored = remote.batch_read(&digests).unwrap();
+    for (digest, bytes) in outputs {
+        assert_eq!(restored[&digest.hash], bytes);
+    }
+    let observed = calls.lock().unwrap();
+    assert_eq!(observed.max_active_splits, 8);
+    assert_eq!(observed.max_active_splices, 8);
+    assert_eq!(observed.missing, 1);
+    assert_eq!(observed.updates, 1);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn splice_refusals_keep_write_backoff_and_never_fall_back_to_whole_uploads() {
+    for (code, first, second) in [
+        (tonic::Code::ResourceExhausted, 3, 4),
+        (tonic::Code::Unavailable, 3, 6),
+        (tonic::Code::PermissionDenied, 1, 2),
+    ] {
+        let (remote, calls, _stop) = server(Mode::DeclinedSplice(code as i32));
+        let bytes = vec![1; 3 * 1024 * 1024];
+        let digest = blob_digest(&bytes);
+        for attempts in [first, second] {
+            assert!(remote
+                .batch_update(vec![(digest.clone(), bytes.clone())])
+                .is_err());
+            let observed = calls.lock().unwrap();
+            assert_eq!(observed.splice, attempts);
+            assert!(!observed.blobs.contains_key(&digest.hash));
+        }
+        assert_eq!(
+            remote.shedding_writes(),
+            code == tonic::Code::ResourceExhausted
+        );
     }
 }
 
@@ -327,14 +562,16 @@ fn chunk_retries_keep_verified_pieces_and_reject_unrequested_responses() {
     .enumerate()
     {
         let (remote, calls, _stop) = server(mode);
-        let directory = std::env::temp_dir().join(format!(
-            "chunk-response-{}-{index}",
-            std::process::id()
-        ));
+        let directory =
+            std::env::temp_dir().join(format!("chunk-response-{}-{index}", std::process::id()));
         remote.enable_chunk_cache(directory.clone(), "tenant/project");
         let bytes: Vec<u8> = (0..3).flat_map(|n| vec![n; 1024 * 1024]).collect();
         let digest = blob_digest(&bytes);
-        calls.lock().unwrap().blobs.insert(digest.hash.clone(), bytes.clone());
+        calls
+            .lock()
+            .unwrap()
+            .blobs
+            .insert(digest.hash.clone(), bytes.clone());
         let result = remote.batch_read(std::slice::from_ref(&digest));
         let observed = calls.lock().unwrap();
         assert_eq!(observed.whole_reads, 0);
@@ -356,9 +593,7 @@ fn chunk_retries_keep_verified_pieces_and_reject_unrequested_responses() {
 #[test]
 fn terminal_chunk_failures_preserve_other_blobs_without_retry_or_fallback() {
     let (remote, calls, _stop) = server(Mode::TerminalDownload);
-    let directory = std::env::temp_dir().join(format!(
-        "chunk-terminal-{}", std::process::id()
-    ));
+    let directory = std::env::temp_dir().join(format!("chunk-terminal-{}", std::process::id()));
     remote.enable_chunk_cache(directory.clone(), "tenant/project");
     let bad: Vec<u8> = (1..=3).flat_map(|n| vec![n; 1024 * 1024]).collect();
     let good = vec![4; 3 * 1024 * 1024];
@@ -368,23 +603,28 @@ fn terminal_chunk_failures_preserve_other_blobs_without_retry_or_fallback() {
         (bad_digest.hash.clone(), bad),
         (good_digest.hash.clone(), good.clone()),
     ]);
-    let result = remote.batch_read(&[bad_digest.clone(), good_digest.clone()]).unwrap();
+    let result = remote
+        .batch_read(&[bad_digest.clone(), good_digest.clone()])
+        .unwrap();
     assert!(!result.contains_key(&bad_digest.hash));
     assert_eq!(result[&good_digest.hash], good);
     let observed = calls.lock().unwrap();
     assert_eq!(observed.whole_reads, 0);
-    assert_eq!(observed.reads, 2, "terminal errors must not retry pressure-only siblings");
+    assert_eq!(
+        observed.reads, 1,
+        "terminal errors must not retry pressure-only siblings"
+    );
     std::fs::remove_dir_all(directory).unwrap();
 }
 
 #[test]
 fn per_blob_split_failure_preserves_sibling_outputs() {
     // A terminal split_blob failure on one large output must not take down
-    // every other blob in the same batch.
+    // every other blob in the same batch. Regression pin for the outer-loop
+    // abort behaviour.
     let (remote, calls, _stop) = server(Mode::TerminalSplitOne);
-    let directory = std::env::temp_dir().join(format!(
-        "chunk-split-terminal-{}", std::process::id()
-    ));
+    let directory =
+        std::env::temp_dir().join(format!("chunk-split-terminal-{}", std::process::id()));
     remote.enable_chunk_cache(directory.clone(), "tenant/project");
     let bad = vec![1u8; 3 * 1024 * 1024];
     let good = vec![4u8; 3 * 1024 * 1024];
@@ -407,10 +647,13 @@ fn per_blob_split_failure_preserves_sibling_outputs() {
 #[test]
 fn maximum_chunk_descriptors_fit_the_response_limit() {
     let recipe = api::SplitBlobResponse {
-        chunk_digests: vec![api::Digest {
-            hash: "f".repeat(64),
-            size_bytes: 2 * 1024 * 1024,
-        }; 16_384],
+        chunk_digests: vec![
+            api::Digest {
+                hash: "f".repeat(64),
+                size_bytes: 2 * 1024 * 1024,
+            };
+            16_384
+        ],
         chunking_function: api::chunking_function::Value::FastCdc2020 as i32,
     };
     // This overestimates a valid recipe: at the count limit, most chunks
@@ -531,7 +774,10 @@ fn server(
                         mode,
                         calls: calls.clone(),
                     }))
-                    .add_service(ContentAddressableStorageServer::new(Server { mode, calls }))
+                    .add_service(
+                        ContentAddressableStorageServer::new(Server { mode, calls })
+                            .max_decoding_message_size(64 * 1024 * 1024),
+                    )
                     .serve_with_incoming_shutdown(
                         tonic::transport::server::TcpIncoming::from(
                             tokio::net::TcpListener::from_std(listener).unwrap(),

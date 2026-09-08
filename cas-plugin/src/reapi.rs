@@ -25,6 +25,7 @@ use bazel_remote_apis::build::bazel::remote::execution::v2::{
     capabilities_client::CapabilitiesClient,
     content_addressable_storage_client::ContentAddressableStorageClient,
 };
+use futures_util::{stream, StreamExt};
 use sha2::{Digest as _, Sha256};
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
@@ -96,6 +97,7 @@ pub struct ManifestEntry {
 
 // One request must stay under kura's 64MB decoding cap, with headroom.
 const MAX_BATCH_BYTES: i64 = 32 << 20;
+const MAX_CHUNK_REQUESTS: usize = 8;
 // Generous because it is a per-RPC ceiling, not the dead-link detector (h2
 // keepalive reaps dead connections in ~30s regardless): the snapshot fetch
 // legitimately carries tens of MB in one unary response — measured 40s for
@@ -177,7 +179,11 @@ fn retry_write<T>(
     breaker: &AtomicU64,
     mut op: impl FnMut() -> Result<T, tonic::Status>,
 ) -> Result<T, tonic::Status> {
-    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) { 1 } else { ATTEMPTS };
+    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) {
+        1
+    } else {
+        ATTEMPTS
+    };
     for attempt in 0..attempts {
         if attempt > 1 {
             std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
@@ -237,6 +243,17 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<T, tonic::Status>>,
 {
+    retry_call_async_if(&mut op, retryable).await
+}
+
+async fn retry_call_async_if<T, F, Fut>(
+    mut op: F,
+    should_retry: impl Fn(&tonic::Status) -> bool,
+) -> Result<T, tonic::Status>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
+{
     let mut last = None;
     for attempt in 0..ATTEMPTS {
         if attempt > 1 {
@@ -244,11 +261,39 @@ where
         }
         match op().await {
             Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) if should_retry(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
             Err(status) => return Err(status),
         }
     }
     Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
+async fn retry_write_async<T, F, Fut>(breaker: &AtomicU64, mut op: F) -> Result<T, tonic::Status>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
+{
+    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) {
+        1
+    } else {
+        ATTEMPTS
+    };
+    for attempt in 0..attempts {
+        if attempt > 1 {
+            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
+        }
+        match op().await {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < attempts => continue,
+            Err(status) => {
+                if status.code() == tonic::Code::ResourceExhausted {
+                    arm_write_pressure_backoff(breaker);
+                }
+                return Err(status);
+            }
+        }
+    }
+    Err(tonic::Status::unknown("retry attempts exhausted"))
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
@@ -421,6 +466,14 @@ type SharedBlobResult = Result<Arc<Vec<BlobOutcome>>, String>;
 type BlobReadKey = (String, i64);
 const MAX_SHARED_BLOB_READS: usize = 128;
 
+fn blob_read_key(digest: &reapi::Digest) -> BlobReadKey {
+    (digest.hash.clone(), digest.size_bytes)
+}
+
+fn chunk_eligible(digest: &reapi::Digest) -> bool {
+    (2 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&digest.size_bytes)
+}
+
 #[derive(Default)]
 struct BlobRead {
     result: Mutex<Option<SharedBlobResult>>,
@@ -441,6 +494,13 @@ struct BlobReadOwner<'a> {
     flight: Arc<BlobRead>,
 }
 
+impl BlobReadOwner<'_> {
+    fn finish(self, result: SharedBlobResult) -> SharedBlobResult {
+        *self.flight.result.lock().unwrap() = Some(result.clone());
+        result
+    }
+}
+
 impl Drop for BlobReadOwner<'_> {
     fn drop(&mut self) {
         // Worker panics must release waiters too. Never hold either lock while
@@ -456,42 +516,99 @@ impl Drop for BlobReadOwner<'_> {
 }
 
 impl SharedBlobReads {
+    fn fetch_batch(
+        &self,
+        digests: &[reapi::Digest],
+        fetch: impl FnOnce(&[reapi::Digest]) -> Result<Vec<BlobOutcome>, String>,
+    ) -> Result<Vec<BlobOutcome>, String> {
+        let mut owned = Vec::new();
+        let mut owners = Vec::new();
+        let mut followers = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        {
+            let mut active = self.active.lock().unwrap();
+            for digest in digests {
+                let key = blob_read_key(digest);
+                if !seen.insert(key.clone()) {
+                    continue;
+                }
+                if !chunk_eligible(digest) {
+                    owned.push(digest.clone());
+                } else if let Some(flight) = active.get(&key) {
+                    followers.push(flight.clone());
+                } else {
+                    if active.len() < MAX_SHARED_BLOB_READS {
+                        let flight = Arc::new(BlobRead::default());
+                        active.insert(key.clone(), flight.clone());
+                        owners.push(BlobReadOwner {
+                            reads: self,
+                            key,
+                            flight,
+                        });
+                    }
+                    owned.push(digest.clone());
+                }
+            }
+        }
+        // Complete everything this batch owns before waiting on other batches.
+        // Overlapping requests in opposite orders must not wait on one another
+        // while still holding unfinished ownership of their remaining digests.
+        let result = if owned.is_empty() {
+            Ok(Vec::new())
+        } else {
+            fetch(&owned)
+        };
+        let mut outcomes = Vec::new();
+        match result {
+            Ok(fetched) => {
+                let mut by_digest =
+                    std::collections::HashMap::<BlobReadKey, Vec<BlobOutcome>>::new();
+                for outcome in fetched {
+                    if let Some(digest) = &outcome.0 {
+                        by_digest
+                            .entry(blob_read_key(digest))
+                            .or_default()
+                            .push(outcome);
+                    } else {
+                        outcomes.push(outcome);
+                    }
+                }
+                for owner in owners {
+                    let fetched = by_digest.remove(&owner.key).unwrap_or_default();
+                    let shared = owner.finish(Ok(Arc::new(fetched)))?;
+                    outcomes.extend(Arc::unwrap_or_clone(shared));
+                }
+                outcomes.extend(by_digest.into_values().flatten());
+            }
+            Err(message) => {
+                for owner in owners {
+                    let _ = owner.finish(Err(message.clone()));
+                }
+                return Err(message);
+            }
+        }
+        for flight in followers {
+            let shared = {
+                let mut result = flight.result.lock().unwrap();
+                while result.is_none() {
+                    result = flight.ready.wait(result).unwrap();
+                }
+                result.as_ref().unwrap().clone()?
+            };
+            drop(flight);
+            outcomes.extend(Arc::unwrap_or_clone(shared));
+        }
+        Ok(outcomes)
+    }
+
+    #[cfg(test)]
     fn fetch(
         &self,
         digest: &reapi::Digest,
         fetch: impl FnOnce() -> Result<Vec<BlobOutcome>, String>,
     ) -> SharedBlobResult {
-        let key = (digest.hash.clone(), digest.size_bytes);
-        let (flight, leader) = {
-            let mut active = self.active.lock().unwrap();
-            if let Some(flight) = active.get(&key) {
-                (flight.clone(), false)
-            } else if active.len() < MAX_SHARED_BLOB_READS {
-                let flight = Arc::new(BlobRead::default());
-                active.insert(key.clone(), flight.clone());
-                (flight, true)
-            } else {
-                drop(active);
-                return fetch().map(Arc::new);
-            }
-        };
-        if leader {
-            let owner = BlobReadOwner {
-                reads: self,
-                key,
-                flight: flight.clone(),
-            };
-            let result = fetch().map(Arc::new);
-            *flight.result.lock().unwrap() = Some(result.clone());
-            drop(owner);
-            result
-        } else {
-            let mut result = flight.result.lock().unwrap();
-            while result.is_none() {
-                result = flight.ready.wait(result).unwrap();
-            }
-            result.as_ref().unwrap().clone()
-        }
+        self.fetch_batch(std::slice::from_ref(digest), |_| fetch())
+            .map(Arc::new)
     }
 }
 
@@ -671,12 +788,17 @@ impl Remote {
 
     pub fn enable_chunk_cache(&self, directory: std::path::PathBuf, full_handle: &str) {
         let _ = self.chunk_cache.set(crate::chunk_cache::ChunkCache::new(
-            directory, format!("{}\0{full_handle}", self.config.grpc_url),
+            directory,
+            format!("{}\0{full_handle}", self.config.grpc_url),
         ));
     }
 
-    pub fn downloaded_blob_bytes(&self) -> u64 { self.downloaded_blob_bytes.load(Ordering::Relaxed) }
-    pub fn reused_chunk_bytes(&self) -> u64 { self.reused_chunk_bytes.load(Ordering::Relaxed) }
+    pub fn downloaded_blob_bytes(&self) -> u64 {
+        self.downloaded_blob_bytes.load(Ordering::Relaxed)
+    }
+    pub fn reused_chunk_bytes(&self) -> u64 {
+        self.reused_chunk_bytes.load(Ordering::Relaxed)
+    }
 
     pub fn uses_chunked_compression(&self, size: usize) -> bool {
         size >= 2 * 1024 * 1024 && self.supports_chunking()
@@ -831,7 +953,9 @@ impl Remote {
                 inline_output_files: if inline_outputs {
                     if self.chunk_cache.get().is_some() {
                         vec!["*".into(), "tuist-inline-max-bytes:2097151".into()]
-                    } else { vec!["*".into()] }
+                    } else {
+                        vec!["*".into()]
+                    }
                 } else {
                     Vec::new()
                 },
@@ -907,9 +1031,9 @@ impl Remote {
                 .filter(|contents| !contents.is_empty())),
             Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
             Err(status) => {
-                    note_payment_required(&status);
-                    Err(format!("get_snapshot: {status}"))
-                }
+                note_payment_required(&status);
+                Err(format!("get_snapshot: {status}"))
+            }
         }
     }
 
@@ -952,55 +1076,91 @@ impl Remote {
 
     fn batch_read_with_chunks(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
         if self.chunk_cache.get().is_none()
-            || !blobs.iter().any(|blob| {
-                (2 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&blob.size_bytes)
-            })
+            || !blobs.iter().any(chunk_eligible)
             || !self.supports_chunking()
         {
             return self.batch_read_once(blobs);
         }
-        let mut small = Vec::new();
-        let mut outcomes = Vec::new();
-        for blob in blobs {
-            if (2 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&blob.size_bytes) {
-                let result = self.shared_blob_reads.fetch(blob, || {
-                    self.batch_read_with_chunks_once(std::slice::from_ref(blob))
-                })?;
-                outcomes.extend(Arc::unwrap_or_clone(result));
-            } else {
-                small.push(blob.clone());
+        self.shared_blob_reads.fetch_batch(blobs, |owned| {
+            let mut outcomes = Vec::new();
+            // Bound extra recipe/chunk working storage to a normal transfer
+            // batch, or one oversized output, rather than the whole closure.
+            for batch in chunk_digests(owned) {
+                outcomes.extend(self.batch_read_with_chunks_once(batch)?);
             }
-        }
-        outcomes.extend(self.batch_read_with_chunks_once(&small)?);
-        Ok(outcomes)
+            Ok(outcomes)
+        })
     }
 
-    fn batch_read_with_chunks_once(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
-        let Some(cache) = self.chunk_cache.get() else { return self.batch_read_once(blobs); };
-        if !blobs.iter().any(|blob| blob.size_bytes >= 2 * 1024 * 1024) || !self.supports_chunking() {
+    fn batch_read_with_chunks_once(
+        &self,
+        blobs: &[reapi::Digest],
+    ) -> Result<Vec<BlobOutcome>, String> {
+        let Some(cache) = self.chunk_cache.get() else {
+            return self.batch_read_once(blobs);
+        };
+        if !blobs.iter().any(chunk_eligible) || !self.supports_chunking() {
             return self.batch_read_once(blobs);
         }
-        let mut whole = Vec::new();
+        let (large, mut whole): (Vec<_>, Vec<_>) = blobs.iter().cloned().partition(chunk_eligible);
+        let client = self
+            .cas_client()?
+            .max_decoding_message_size(2 * 1024 * 1024);
+        let auth = self.authorization();
+        let splits = runtime().block_on(async {
+            stream::iter(large)
+                .map(|blob| {
+                    let client = client.clone();
+                    let auth = auth.clone();
+                    async move {
+                        let request = reapi::SplitBlobRequest {
+                            instance_name: self.config.instance.clone(),
+                            blob_digest: Some(blob.clone()),
+                            ..Default::default()
+                        };
+                        let result = retry_call_async_if(
+                            || {
+                                let mut client = client.clone();
+                                let request = authed_request(request.clone(), auth.as_ref());
+                                async move { client.split_blob(request).await }
+                            },
+                            |status| {
+                                // Pressure belongs to the original blob's retry budget,
+                                // not a nested per-recipe ladder.
+                                retryable(status) && !retryable_blob_status(status.code() as i32)
+                            },
+                        )
+                        .await;
+                        (blob, result)
+                    }
+                })
+                .buffer_unordered(MAX_CHUNK_REQUESTS)
+                .collect::<Vec<_>>()
+                .await
+        });
+        let mut recipes = Vec::new();
         let mut outcomes = Vec::new();
-        for blob in blobs {
-            if blob.size_bytes < 2 * 1024 * 1024 || blob.size_bytes > 2 * 1024 * 1024 * 1024
-                || now_ms() < self.chunking_disabled_until_ms.load(Ordering::Relaxed) {
-                whole.push(blob.clone());
-                continue;
-            }
-            let mut client = self.cas_client()?.max_decoding_message_size(2 * 1024 * 1024);
-            let request = reapi::SplitBlobRequest {
-                instance_name: self.config.instance.clone(), blob_digest: Some(blob.clone()),
-                ..Default::default()
-            };
-            let recipe = match retry_call(|| runtime().block_on(client.split_blob(self.authed(request.clone())))) {
+        for (blob, result) in splits {
+            let recipe = match result {
                 Ok(response) => response.into_inner(),
                 Err(status) if status.code() == tonic::Code::Unimplemented => {
-                    self.chunking_disabled_until_ms.store(now_ms() + 300_000, Ordering::Relaxed);
-                    whole.push(blob.clone()); continue;
+                    self.chunking_disabled_until_ms
+                        .store(now_ms() + 300_000, Ordering::Relaxed);
+                    whole.push(blob);
+                    continue;
                 }
-                Err(status) if matches!(status.code(), tonic::Code::NotFound | tonic::Code::FailedPrecondition) => {
-                    whole.push(blob.clone()); continue;
+                Err(status)
+                    if matches!(
+                        status.code(),
+                        tonic::Code::NotFound | tonic::Code::FailedPrecondition
+                    ) =>
+                {
+                    whole.push(blob);
+                    continue;
+                }
+                Err(status) if retryable_blob_status(status.code() as i32) => {
+                    outcomes.push((Some(blob), status.code() as i32, Vec::new()));
+                    continue;
                 }
                 Err(status) => {
                     // A per-blob split failure is a per-blob outcome: other
@@ -1009,8 +1169,12 @@ impl Remote {
                     // aborting every sibling.
                     let code = status.code() as i32;
                     outcomes.push((
-                        Some(blob.clone()),
-                        if (0..=16).contains(&code) { code } else { tonic::Code::Internal as i32 },
+                        Some(blob),
+                        if (0..=16).contains(&code) {
+                            code
+                        } else {
+                            tonic::Code::Internal as i32
+                        },
                         Vec::new(),
                     ));
                     continue;
@@ -1018,74 +1182,117 @@ impl Remote {
             };
             let chunks = recipe.chunk_digests;
             if recipe.chunking_function != reapi::chunking_function::Value::FastCdc2020 as i32
-                || chunks.is_empty() || chunks.len() > 16_384
-                || chunks.iter().any(|c| c.size_bytes <= 0 || c.size_bytes > 2 * 1024 * 1024
-                    || c.hash.len() != 64 || !c.hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+                || chunks.is_empty()
+                || chunks.len() > 16_384
+                || chunks.iter().any(|c| {
+                    c.size_bytes <= 0
+                        || c.size_bytes > 2 * 1024 * 1024
+                        || c.hash.len() != 64
+                        || !c
+                            .hash
+                            .bytes()
+                            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                })
                 || chunks.iter().map(|c| c.size_bytes).sum::<i64>() != blob.size_bytes
             {
-                whole.push(blob.clone()); continue;
+                whole.push(blob);
+                continue;
             }
-            let mut local = std::collections::HashMap::new();
-            let mut missing = Vec::new();
-            let mut seen = std::collections::HashSet::new();
-            for chunk in &chunks {
-                if !seen.insert(chunk.hash.clone()) { continue; }
+            recipes.push((blob, chunks));
+        }
+
+        let mut available = std::collections::HashMap::<BlobReadKey, (i32, Vec<u8>)>::new();
+        let mut missing = whole.clone();
+        let mut expected: std::collections::HashSet<_> = whole.iter().map(blob_read_key).collect();
+        let whole_keys = expected.clone();
+        for (_, chunks) in &recipes {
+            for chunk in chunks {
+                let key = blob_read_key(chunk);
+                if available.contains_key(&key) || expected.contains(&key) {
+                    continue;
+                }
                 if let Some(bytes) = cache.get(chunk) {
-                    self.reused_chunk_bytes.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-                    local.insert(chunk.hash.clone(), bytes);
-                } else { missing.push(chunk.clone()); }
-            }
-            let mut expected: std::collections::HashSet<_> = missing
-                .iter()
-                .map(|chunk| (chunk.hash.clone(), chunk.size_bytes))
-                .collect();
-            let mut rejected = None;
-            for (digest, code, bytes) in self.batch_read_once(&missing)? {
-                let digest = digest.ok_or("chunk response omitted a digest")?;
-                if !expected.remove(&(digest.hash.clone(), digest.size_bytes)) {
-                    return Err("chunk response repeated or returned an unrequested digest".into());
+                    self.reused_chunk_bytes
+                        .fetch_add(bytes.len() as u64, Ordering::Relaxed);
+                    available.insert(key, (0, bytes));
+                } else {
+                    expected.insert(key);
+                    missing.push(chunk.clone());
                 }
-                if code == 0 {
-                    if blob_digest(&bytes) == digest {
-                        cache.put(&digest, &bytes);
-                        local.insert(digest.hash, bytes);
+            }
+        }
+        // Small outputs and missing chunks from every recipe share the same
+        // size-bounded batch read. Deduplicate chunks shared by several outputs.
+        for (digest, code, bytes) in self.batch_read_once(&missing)? {
+            let digest = digest.ok_or("chunk response omitted a digest")?;
+            let key = blob_read_key(&digest);
+            if !expected.remove(&key) {
+                return Err("chunk response repeated or returned an unrequested digest".into());
+            }
+            if code == tonic::Code::PermissionDenied as i32
+                || code == tonic::Code::Unauthenticated as i32
+                || !(0..=16).contains(&code)
+            {
+                return Err(format!("chunk read rejected with status {code}"));
+            }
+            if code == 0 {
+                if blob_digest(&bytes) != digest {
+                    if whole_keys.contains(&key) {
+                        return Err("whole-blob fallback failed its integrity check".into());
                     }
-                } else if code == tonic::Code::PermissionDenied as i32
-                    || code == tonic::Code::Unauthenticated as i32
-                    || !(0..=16).contains(&code)
-                {
-                    return Err(format!("chunk read rejected with status {code}"));
-                } else if code != tonic::Code::NotFound as i32
-                    && rejected.is_none_or(retryable_blob_status)
-                {
-                    rejected = Some(code);
+                    continue;
+                }
+                if !whole_keys.contains(&key) {
+                    cache.put(&digest, &bytes);
                 }
             }
-            if !expected.is_empty() {
-                return Err("chunk response omitted requested digests".into());
+            available.insert(key, (code, bytes));
+        }
+        if !expected.is_empty() {
+            return Err("chunk response omitted requested digests".into());
+        }
+        let mut fallback = Vec::new();
+        for (blob, chunks) in recipes {
+            let mut rejected = None;
+            for chunk in &chunks {
+                if let Some((code, _)) = available.get(&blob_read_key(chunk)) {
+                    if *code != 0
+                        && *code != tonic::Code::NotFound as i32
+                        && rejected.is_none_or(retryable_blob_status)
+                    {
+                        rejected = Some(*code);
+                    }
+                }
             }
-            // Keep one retry budget at the parent blob level. Verified chunks
-            // survive retries in the local cache, but a pressure decline must
-            // never trigger a larger whole-blob request to the same server.
-            // Terminal per-blob failures also stay per-blob: other independent
-            // outputs in the same batch can still be restored successfully.
             if let Some(code) = rejected {
-                outcomes.push((Some(blob.clone()), code, Vec::new()));
+                outcomes.push((Some(blob), code, Vec::new()));
                 continue;
             }
             let mut assembled = Vec::new();
-            for chunk in &chunks {
-                let Some(bytes) = local.get(&chunk.hash).filter(|bytes| blob_digest(bytes) == *chunk) else { break; };
+            for chunk in chunks {
+                let Some((0, bytes)) = available.get(&blob_read_key(&chunk)) else {
+                    break;
+                };
                 assembled.extend_from_slice(bytes);
             }
-            if blob_digest(&assembled) == *blob {
-                outcomes.push((Some(blob.clone()), 0, assembled));
+            if blob_digest(&assembled) == blob {
+                outcomes.push((Some(blob), 0, assembled));
             } else {
-                whole.push(blob.clone());
+                fallback.push(blob);
             }
         }
-        for outcome in self.batch_read_once(&whole)? {
-            if outcome.1 == 0 && outcome.0.as_ref().is_none_or(|digest| blob_digest(&outcome.2) != *digest) {
+        for blob in whole {
+            if let Some((code, bytes)) = available.remove(&blob_read_key(&blob)) {
+                outcomes.push((Some(blob), code, bytes));
+            }
+        }
+        for outcome in self.batch_read_once(&fallback)? {
+            if outcome.1 == 0
+                && outcome
+                    .0
+                    .as_ref()
+                    .is_none_or(|digest| blob_digest(&outcome.2) != *digest)
+            {
                 return Err("whole-blob fallback failed its integrity check".into());
             }
             outcomes.push(outcome);
@@ -1100,7 +1307,9 @@ impl Remote {
     /// bytes)`: the RPC itself is retried inside, but a per-blob status rides
     /// out for `batch_read_retrying` to interpret and selectively re-request.
     fn batch_read_once(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
-        if blobs.is_empty() { return Ok(Vec::new()); }
+        if blobs.is_empty() {
+            return Ok(Vec::new());
+        }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
         let auth = self.authorization();
@@ -1144,11 +1353,16 @@ impl Remote {
         Ok(responses
             .into_iter()
             .map(|response| {
-                self.downloaded_blob_bytes.fetch_add(response.data.len() as u64, Ordering::Relaxed);
+                self.downloaded_blob_bytes
+                    .fetch_add(response.data.len() as u64, Ordering::Relaxed);
                 // The loop owns each response; move the bytes out rather than
                 // deep-copying every fetched blob (batches run to 32MB while
                 // the requesting compiler blocks on the resolve).
-                let code = response.status.as_ref().map(|status| status.code).unwrap_or(-1);
+                let code = response
+                    .status
+                    .as_ref()
+                    .map(|status| status.code)
+                    .unwrap_or(-1);
                 (response.digest, code, response.data)
             })
             .collect())
@@ -1176,17 +1390,149 @@ impl Remote {
 
     /// Uploads blobs in size-bounded batches.
     pub fn batch_update(&self, items: Vec<(reapi::Digest, Vec<u8>)>) -> Result<(), String> {
+        if !items
+            .iter()
+            .any(|(_, bytes)| bytes.len() >= 2 * 1024 * 1024)
+            || !self.supports_chunking()
+        {
+            return self.batch_update_whole(items, false);
+        }
+        let mut batch = Vec::new();
+        let mut size = 0;
+        for item in items {
+            if !batch.is_empty() && size + item.1.len() > MAX_BATCH_BYTES as usize {
+                self.batch_update_with_chunks(std::mem::take(&mut batch))?;
+                size = 0;
+            }
+            size += item.1.len();
+            batch.push(item);
+        }
+        self.batch_update_with_chunks(batch)
+    }
+
+    fn batch_update_with_chunks(&self, items: Vec<(reapi::Digest, Vec<u8>)>) -> Result<(), String> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        if !self.supports_chunking() {
+            return self.batch_update_whole(items, false);
+        }
         let mut whole = Vec::new();
-        for (digest, data) in items {
-            if data.len() >= 2 * 1024 * 1024
-                && self.supports_chunking()
-                && self.upload_chunked(&digest, &data)?
-            {
+        let mut recipes = Vec::new();
+        let mut chunks = std::collections::HashMap::new();
+        for (digest, data) in &items {
+            if data.len() < 2 * 1024 * 1024 {
+                whole.push((digest.clone(), data.clone()));
                 continue;
             }
-            whole.push((digest, data));
+            if blob_digest(data) != *digest {
+                return Err("chunked upload digest does not match its bytes".into());
+            }
+            let selected: Vec<_> = fastcdc::v2020::FastCDC::with_level(
+                data,
+                128 * 1024,
+                512 * 1024,
+                2 * 1024 * 1024,
+                fastcdc::v2020::Normalization::Level2,
+            )
+            .map(|chunk| {
+                let bytes = &data[chunk.offset..chunk.offset + chunk.length];
+                (blob_digest(bytes), bytes)
+            })
+            .collect();
+            if selected.len() < 2 || selected.len() > 16_384 {
+                whole.push((digest.clone(), data.clone()));
+                continue;
+            }
+            let mut recipe = Vec::new();
+            for (chunk, bytes) in selected {
+                recipe.push(chunk.clone());
+                chunks
+                    .entry(blob_read_key(&chunk))
+                    .or_insert((chunk, bytes));
+            }
+            recipes.push((digest.clone(), recipe));
         }
-        self.batch_update_whole(whole, false)
+        if recipes.is_empty() {
+            return self.batch_update_whole(items, false);
+        }
+        if let Some(cache) = self.chunk_cache.get() {
+            for (digest, bytes) in chunks.values() {
+                cache.put(digest, bytes);
+            }
+        }
+        // The closure probe tests whole outputs, not their chunks. Pool this
+        // second, finer-grained presence query across the missing outputs.
+        let missing =
+            self.find_missing(chunks.values().map(|(digest, _)| digest.clone()).collect())?;
+        let mut seen = std::collections::HashSet::new();
+        for digest in missing {
+            let key = blob_read_key(&digest);
+            let (_, bytes) = chunks
+                .get(&key)
+                .ok_or("chunk presence response contained an unrequested digest")?;
+            if seen.insert(key) {
+                whole.push((digest, bytes.to_vec()));
+            }
+        }
+        self.batch_update_whole(whole, true)?;
+        let client = self.cas_client()?;
+        let auth = self.authorization();
+        let splices = runtime().block_on(async {
+            stream::iter(recipes)
+                .map(|(digest, chunk_digests)| {
+                    let client = client.clone();
+                    let auth = auth.clone();
+                    async move {
+                        let request = reapi::SpliceBlobRequest {
+                            instance_name: self.config.instance.clone(),
+                            blob_digest: Some(digest.clone()),
+                            chunk_digests,
+                            chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
+                            ..Default::default()
+                        };
+                        let result =
+                            retry_write_async(&self.write_pressure_backoff_until_ms, || {
+                                let mut client = client.clone();
+                                let request = authed_request(request.clone(), auth.as_ref());
+                                async move { client.splice_blob(request).await }
+                            })
+                            .await;
+                        (digest, result)
+                    }
+                })
+                .buffer_unordered(MAX_CHUNK_REQUESTS)
+                .collect::<Vec<_>>()
+                .await
+        });
+        let mut fallback = std::collections::HashSet::new();
+        for (digest, result) in splices {
+            match result {
+                Ok(response) if response.get_ref().blob_digest.as_ref() == Some(&digest) => {}
+                Ok(_) => return Err("splice response did not confirm the uploaded digest".into()),
+                Err(status) if status.code() == tonic::Code::Unimplemented => {
+                    self.chunking_disabled_until_ms
+                        .store(now_ms() + 300_000, Ordering::Relaxed);
+                    fallback.insert(blob_read_key(&digest));
+                }
+                Err(status)
+                    if matches!(
+                        status.code(),
+                        tonic::Code::NotFound | tonic::Code::FailedPrecondition
+                    ) =>
+                {
+                    fallback.insert(blob_read_key(&digest));
+                }
+                Err(status) => return Err(format!("splice_blob: {status}")),
+            }
+        }
+        self.batch_update_whole(
+            items
+                .into_iter()
+                .filter(|(digest, _)| fallback.contains(&blob_read_key(digest)))
+                .collect(),
+            false,
+        )
     }
 
     // Only enable the algorithm/parameters this implementation understands. A
@@ -1227,92 +1573,6 @@ impl Remote {
         })();
         *cached = Some((Instant::now(), supported));
         supported
-    }
-
-    fn upload_chunked(&self, digest: &reapi::Digest, data: &[u8]) -> Result<bool, String> {
-        if blob_digest(data) != *digest {
-            return Err("chunked upload digest does not match its bytes".into());
-        }
-        let chunks: Vec<_> = fastcdc::v2020::FastCDC::with_level(
-            data,
-            128 * 1024,
-            512 * 1024,
-            2 * 1024 * 1024,
-            fastcdc::v2020::Normalization::Level2,
-        )
-        .map(|chunk| {
-            let bytes = &data[chunk.offset..chunk.offset + chunk.length];
-            (blob_digest(bytes), bytes)
-        })
-        .collect();
-        if let Some(cache) = self.chunk_cache.get() {
-            for (digest, bytes) in &chunks { cache.put(digest, bytes); }
-        }
-        if chunks.len() < 2 || chunks.len() > 16_384 {
-            return Ok(false);
-        }
-        let missing =
-            self.find_missing(chunks.iter().map(|(digest, _)| digest.clone()).collect())?;
-        let requested: std::collections::HashSet<_> = chunks
-            .iter()
-            .map(|(digest, _)| (digest.hash.as_str(), digest.size_bytes))
-            .collect();
-        if missing
-            .iter()
-            .any(|digest| !requested.contains(&(digest.hash.as_str(), digest.size_bytes)))
-        {
-            return Err("chunk presence response contained an unrequested digest".into());
-        }
-        let mut missing: std::collections::HashSet<_> = missing
-            .into_iter()
-            .map(|digest| (digest.hash, digest.size_bytes))
-            .collect();
-        self.batch_update_whole(
-            chunks
-                .iter()
-                .filter_map(|(digest, bytes)| {
-                    missing
-                        .remove(&(digest.hash.clone(), digest.size_bytes))
-                        .then(|| (digest.clone(), bytes.to_vec()))
-                })
-                .collect(),
-            true,
-        )?;
-        let mut client = self.cas_client()?;
-        let request = reapi::SpliceBlobRequest {
-            instance_name: self.config.instance.clone(),
-            blob_digest: Some(digest.clone()),
-            chunk_digests: chunks.into_iter().map(|(digest, _)| digest).collect(),
-            chunking_function: reapi::chunking_function::Value::FastCdc2020 as i32,
-            ..Default::default()
-        };
-        match retry_write(&self.write_pressure_backoff_until_ms, || {
-            runtime().block_on(client.splice_blob(self.authed(request.clone())))
-        }) {
-            Ok(response) => {
-                if response.into_inner().blob_digest.as_ref() == Some(digest) {
-                    Ok(true)
-                } else {
-                    Err("splice response did not confirm the uploaded digest".into())
-                }
-            }
-            Err(status) if status.code() == tonic::Code::Unimplemented => {
-                self.chunking_disabled_until_ms
-                    .store(now_ms() + 300_000, Ordering::Relaxed);
-                Ok(false)
-            }
-            // Eviction between presence checking and publication is a cache
-            // miss, not a failed build. The whole upload is independently valid.
-            Err(status)
-                if matches!(
-                    status.code(),
-                    tonic::Code::NotFound | tonic::Code::FailedPrecondition
-                ) =>
-            {
-                Ok(false)
-            }
-            Err(status) => Err(format!("splice_blob: {status}")),
-        }
     }
 
     fn batch_update_whole(
@@ -1565,16 +1825,23 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
 
+    fn shared_test_digest(bytes: &[u8]) -> super::Digest {
+        super::Digest {
+            size_bytes: 3 * 1024 * 1024,
+            ..super::blob_digest(bytes)
+        }
+    }
+
     fn wait_for_blob_read_follower(reads: &super::SharedBlobReads, digest: &super::Digest) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
-            // The map, leader, and its unwind guard own three references.
+            // The map and the batch's unwind guard own two references.
             let joined = reads
                 .active
                 .lock()
                 .unwrap()
                 .get(&(digest.hash.clone(), digest.size_bytes))
-                .is_some_and(|flight| std::sync::Arc::strong_count(flight) > 3);
+                .is_some_and(|flight| std::sync::Arc::strong_count(flight) > 2);
             if joined {
                 return;
             }
@@ -1587,7 +1854,7 @@ mod tests {
     fn shared_blob_read_errors_and_panics_release_waiters_and_allow_retry() {
         for panic in [false, true] {
             let reads = super::SharedBlobReads::default();
-            let digest = super::blob_digest(b"shared");
+            let digest = shared_test_digest(b"shared");
             let (started_tx, started_rx) = std::sync::mpsc::channel();
             let (release_tx, release_rx) = std::sync::mpsc::channel();
             std::thread::scope(|scope| {
@@ -1628,7 +1895,7 @@ mod tests {
     #[test]
     fn shared_blob_reads_do_not_serialize_other_digests_or_retain_results() {
         let reads = super::SharedBlobReads::default();
-        let digest = super::blob_digest(b"first");
+        let digest = shared_test_digest(b"first");
         let result = reads
             .fetch(&digest, || {
                 // Even the same hash with a different size must not join this read.
@@ -1658,9 +1925,68 @@ mod tests {
                 .insert((index.to_string(), 1), std::sync::Arc::default());
         }
         assert!(reads
-            .fetch(&super::blob_digest(b"overflow"), || Ok(Vec::new()))
+            .fetch(&shared_test_digest(b"overflow"), || Ok(Vec::new()))
             .is_ok());
-        assert_eq!(reads.active.lock().unwrap().len(), super::MAX_SHARED_BLOB_READS);
+        assert_eq!(
+            reads.active.lock().unwrap().len(),
+            super::MAX_SHARED_BLOB_READS
+        );
+    }
+
+    #[test]
+    fn overlapping_batches_finish_owned_reads_before_waiting_on_shared_reads() {
+        let reads = super::SharedBlobReads::default();
+        let first = shared_test_digest(b"first");
+        let shared = shared_test_digest(b"shared");
+        let last = shared_test_digest(b"last");
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let (second_tx, second_rx) = std::sync::mpsc::channel();
+        std::thread::scope(|scope| {
+            let reads = &reads;
+            let first = &first;
+            let shared = &shared;
+            let last = &last;
+            let one = scope.spawn(move || {
+                reads
+                    .fetch_batch(&[first.clone(), shared.clone()], |owned| {
+                        assert_eq!(owned, &[first.clone(), shared.clone()]);
+                        started_tx.send(()).unwrap();
+                        release_rx
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                        Ok(owned
+                            .iter()
+                            .map(|digest| (Some(digest.clone()), 0, vec![1]))
+                            .collect())
+                    })
+                    .unwrap()
+            });
+            started_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            let two = scope.spawn(move || {
+                reads
+                    .fetch_batch(&[last.clone(), shared.clone()], |owned| {
+                        assert_eq!(owned, std::slice::from_ref(last));
+                        second_tx.send(()).unwrap();
+                        Ok(vec![(Some(last.clone()), 0, vec![2])])
+                    })
+                    .unwrap()
+            });
+            second_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            wait_for_blob_read_follower(&reads, &shared);
+            release_tx.send(()).unwrap();
+            assert_eq!(one.join().unwrap().len(), 2);
+            let result = two.join().unwrap();
+            assert_eq!(result.len(), 2);
+            assert!(result
+                .iter()
+                .any(|outcome| outcome.0 == Some(shared.clone()) && outcome.2 == [1]));
+        });
+        assert!(reads.active.lock().unwrap().is_empty());
     }
 
     #[test]
@@ -1678,8 +2004,12 @@ mod tests {
     // access, must not be reported as a billing problem.
     #[test]
     fn does_not_mistake_an_ordinary_refusal_for_an_exhausted_plan() {
-        assert!(!super::is_payment_required(&tonic::Status::permission_denied("nope")));
-        assert!(!super::is_payment_required(&tonic::Status::unavailable("node down")));
+        assert!(!super::is_payment_required(
+            &tonic::Status::permission_denied("nope")
+        ));
+        assert!(!super::is_payment_required(&tonic::Status::unavailable(
+            "node down"
+        )));
     }
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1766,7 +2096,10 @@ mod tests {
         // Before this fix that first decline was dropped as a miss and the
         // build failed on the (present) object.
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest { hash: "aa".into(), size_bytes: 3 };
+        let digest = super::Digest {
+            hash: "aa".into(),
+            size_bytes: 3,
+        };
         let mut round = 0;
         let served =
             super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
@@ -1778,15 +2111,26 @@ mod tests {
                 }
             })
             .unwrap();
-        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the retry delivered the byte");
+        assert_eq!(
+            served.get("aa"),
+            Some(&vec![1, 2, 3]),
+            "the retry delivered the byte"
+        );
         assert_eq!(round, 2, "it took exactly one retry");
-        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a recovery does not arm the backoff");
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            0,
+            "a recovery does not arm the backoff"
+        );
     }
 
     #[test]
     fn persistent_backpressure_arms_the_backoff_then_fails_fast() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest { hash: "bb".into(), size_bytes: 1 };
+        let digest = super::Digest {
+            hash: "bb".into(),
+            size_bytes: 1,
+        };
 
         let mut first_calls = 0;
         let served =
@@ -1796,45 +2140,67 @@ mod tests {
             })
             .unwrap();
         assert!(served.is_empty(), "a declined blob is never served");
-        assert_eq!(first_calls, super::BLOB_STATUS_ATTEMPTS, "the first read exhausts its retries");
-        assert!(breaker.load(Ordering::Relaxed) > 0, "a sustained decline arms the backoff");
+        assert_eq!(
+            first_calls,
+            super::BLOB_STATUS_ATTEMPTS,
+            "the first read exhausts its retries"
+        );
+        assert!(
+            breaker.load(Ordering::Relaxed) > 0,
+            "a sustained decline arms the backoff"
+        );
 
         let mut second_calls = 0;
-        let _ = super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
-            second_calls += 1;
-            exhausted(pending)
-        })
-        .unwrap();
-        assert_eq!(second_calls, 1, "within the backoff window the next read makes one fail-fast pass");
+        let _ =
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
+                second_calls += 1;
+                exhausted(pending)
+            })
+            .unwrap();
+        assert_eq!(
+            second_calls, 1,
+            "within the backoff window the next read makes one fail-fast pass"
+        );
     }
 
     #[test]
     fn not_found_is_skipped_without_retry_or_backoff() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest { hash: "cc".into(), size_bytes: 1 };
+        let digest = super::Digest {
+            hash: "cc".into(),
+            size_bytes: 1,
+        };
         let mut calls = 0;
         let served =
             super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), false, |pending| {
                 calls += 1;
-                Ok(vec![(Some(pending[0].clone()), tonic::Code::NotFound as i32, Vec::new())])
+                Ok(vec![(
+                    Some(pending[0].clone()),
+                    tonic::Code::NotFound as i32,
+                    Vec::new(),
+                )])
             })
             .unwrap();
         assert!(served.is_empty(), "an evicted blob is not served");
         assert_eq!(calls, 1, "a genuine miss is not retried");
-        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a miss does not arm the backoff");
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            0,
+            "a miss does not arm the backoff"
+        );
     }
 
     #[test]
     fn action_result_materialization_retries_a_transient_not_found_without_backoff() {
         let breaker = AtomicU64::new(0);
-        let digest = super::Digest { hash: "dd".into(), size_bytes: 1 };
+        let digest = super::Digest {
+            hash: "dd".into(),
+            size_bytes: 1,
+        };
         let mut calls = 0;
 
-        let served = super::batch_read_retrying(
-            &breaker,
-            std::slice::from_ref(&digest),
-            true,
-            |pending| {
+        let served =
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), true, |pending| {
                 calls += 1;
                 if calls == 1 {
                     Ok(vec![(
@@ -1845,9 +2211,8 @@ mod tests {
                 } else {
                     Ok(vec![(Some(pending[0].clone()), 0, vec![1])])
                 }
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
 
         assert_eq!(served.get("dd"), Some(&vec![1]));
         assert_eq!(calls, 2);
@@ -1863,8 +2228,14 @@ mod tests {
         // only a decline of the *whole* set (nothing served) counts as pressure.
         let breaker = AtomicU64::new(0);
         let pending = [
-            super::Digest { hash: "aa".into(), size_bytes: 3 },
-            super::Digest { hash: "bb".into(), size_bytes: 1 },
+            super::Digest {
+                hash: "aa".into(),
+                size_bytes: 3,
+            },
+            super::Digest {
+                hash: "bb".into(),
+                size_bytes: 1,
+            },
         ];
         let mut calls = 0;
         let served = super::batch_read_retrying(&breaker, &pending, false, |pending| {
@@ -1875,15 +2246,30 @@ mod tests {
                     if digest.hash == "aa" {
                         (Some(digest.clone()), 0, vec![1, 2, 3])
                     } else {
-                        (Some(digest.clone()), tonic::Code::ResourceExhausted as i32, Vec::new())
+                        (
+                            Some(digest.clone()),
+                            tonic::Code::ResourceExhausted as i32,
+                            Vec::new(),
+                        )
                     }
                 })
                 .collect())
         })
         .unwrap();
-        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the served blob is delivered");
-        assert!(!served.contains_key("bb"), "the declined blob falls through to recompile");
-        assert_eq!(calls, super::BLOB_STATUS_ATTEMPTS, "the declined subset is still retried");
+        assert_eq!(
+            served.get("aa"),
+            Some(&vec![1, 2, 3]),
+            "the served blob is delivered"
+        );
+        assert!(
+            !served.contains_key("bb"),
+            "the declined blob falls through to recompile"
+        );
+        assert_eq!(
+            calls,
+            super::BLOB_STATUS_ATTEMPTS,
+            "the declined subset is still retried"
+        );
         assert_eq!(
             breaker.load(Ordering::Relaxed),
             0,
