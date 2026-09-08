@@ -1,3 +1,4 @@
+import { TimelineCache } from "./BuildTimelineCache.mjs";
 import { densityLayout } from "./BuildTimelineDensity.mjs";
 import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
 import { bindInspectorResize } from "./BuildTimelineResize.mjs";
@@ -47,10 +48,13 @@ export default {
       (end, event) => Math.max(end, event.end),
       Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
     );
-    this.maxSpan = timeline.max_span || Math.min(this.duration, 30_000);
+    this.maxSpan = timeline.max_span || Math.min(this.duration, 120_000);
     this.range = timeline.range || { start: 0, span: Math.min(this.duration, 10_000) };
     this.initialRange = { ...this.range };
-    this.loadedRange = timeline.loaded_range || { ...this.range };
+    this.cache = new TimelineCache();
+    this.cache.add(timeline.loaded_range || this.range, this.events);
+    this.rangeInFlight = false;
+    this.resetRange = false;
     this.logRequest = ++nextLogRequest;
     this.palette = null;
     this.part("payload-loading").hidden = true;
@@ -59,7 +63,7 @@ export default {
     this.part("summary").hidden = false;
     this.requestLog = debounce((event, request) => this.loadLog(event, request), 150, this.abort.signal);
     this.rangeRequest = ++nextRangeRequest;
-    this.requestRange = debounce(() => this.loadRange(), 150, this.abort.signal);
+    this.requestRange = () => this.loadRange();
     this.navigationRequest = ++nextNavigationRequest;
     this.stepHandler = this.handleEvent("timeline-step", ({ request_id, step }) => {
       if (request_id !== this.navigationRequest || !step || this.abort.signal.aborted) return;
@@ -211,7 +215,9 @@ export default {
     this.search = this.control("search").value;
     this.select(null);
     this.range = { ...this.initialRange };
-    this.loadedRange = null;
+    this.cache = new TimelineCache();
+    this.rangeRequest = ++nextRangeRequest;
+    this.rangeInFlight = false;
     this.resetRange = true;
     this.events = [];
     this.filtered = [];
@@ -222,21 +228,18 @@ export default {
     this.cancelFocus();
     this.layoutDirty = true;
     this.hideTooltip();
-    if (fetch) {
-      this.rangeRequest = ++nextRangeRequest;
-      const cached =
-        this.loadedRange &&
-        this.range.start >= this.loadedRange.start &&
-        this.range.start + this.range.span <= this.loadedRange.start + this.loadedRange.span;
-      this.chart.setAttribute("aria-busy", String(!cached));
-      if (!cached) this.requestRange();
-    }
+    this.chart.setAttribute("aria-busy", String(!this.cache.contains(this.range)));
+    const margin = Math.min(30_000, Math.max(15_000, this.range.span / 2));
+    const start = Math.max(0, this.range.start - margin);
+    const end = Math.min(this.duration, this.range.start + this.range.span + margin);
+    if (fetch && !this.cache.contains({ start, span: end - start })) this.requestRange();
     this.scheduleDraw();
   },
 
   loadRange() {
-    if (this.chart.getAttribute("aria-busy") !== "true") return;
-    const request = this.rangeRequest;
+    if (this.rangeInFlight) return;
+    this.rangeInFlight = true;
+    const request = (this.rangeRequest = ++nextRangeRequest);
     this.part("range-error").hidden = true;
     this.pushEvent("load-timeline-range", {
       version: Number(this.payload),
@@ -255,18 +258,21 @@ export default {
 
   receiveRange({ request_id, timeline, error }) {
     if (this.abort.signal.aborted || request_id !== this.rangeRequest) return;
-    this.chart.setAttribute("aria-busy", "false");
+    this.rangeInFlight = false;
     this.part("range-error").hidden = !error;
-    if (error) return;
-    this.loadedRange = timeline.loaded_range || timeline.range;
+    if (error) {
+      this.relayout(false);
+      return;
+    }
     if (this.resetRange) {
       this.range = timeline.range;
       this.initialRange = { ...this.range };
       this.resetRange = false;
     }
-    this.events = normalizeEvents(timeline.events);
+    this.cache.add(timeline.loaded_range || timeline.range, normalizeEvents(timeline.events));
+    this.events = this.cache.events;
     this.filtered = this.events;
-    this.relayout(false);
+    this.relayout();
   },
 
   syncScroll() {
@@ -429,6 +435,21 @@ export default {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+    for (const missing of this.cache.missing(this.range)) {
+      const left = Math.max(inset, x(missing.start));
+      const right = Math.min(width - inset, x(missing.start + missing.span));
+      const size = right - left;
+      ctx.fillStyle = colors.secondary;
+      ctx.fillRect(left, 0, size, height);
+      ctx.fillStyle = colors.border;
+      ctx.globalAlpha = 0.3;
+      for (let row = 0; row < 5; row++) {
+        ctx.beginPath();
+        ctx.roundRect(left + 4, 10 + row * 26, Math.max(0, (size - 8) * (0.8 - (row % 3) * 0.15)), 18, 3);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
     this.rectsByLane = [];
     for (const event of this.layout.events) {
       const gap = Math.min(2, event.rowHeight * 0.1);

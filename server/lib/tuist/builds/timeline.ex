@@ -7,8 +7,8 @@ defmodule Tuist.Builds.Timeline do
   alias Tuist.Builds.Step
   alias Tuist.ClickHouseRepo
 
-  @max_span 30_000
-  @buffer 30_000
+  @max_span 120_000
+  @buffer 60_000
 
   def load(build_id, opts \\ []) do
     search = opts |> Keyword.get(:search, "") |> String.slice(0, 512)

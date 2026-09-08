@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { TimelineCache } from "./BuildTimelineCache.mjs";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
 // scheduling and transport without mounting Noora's DOM controls.
@@ -20,11 +21,14 @@ loader.deregister();
 function fixture() {
   const parts = new Map();
   const attributes = new Map();
+  const cache = new TimelineCache();
+  cache.add({ start: 0, span: 300_000 }, []);
   return {
     ...hook,
     range: { start: 100_000, span: 10_000 },
-    loadedRange: { start: 70_000, span: 70_000 },
-    maxSpan: 30_000,
+    cache,
+    abort: new AbortController(),
+    maxSpan: 120_000,
     duration: 900_000,
     filtered: [],
     cancelFocus() {},
@@ -70,8 +74,8 @@ test("zoom out clamps around its anchor and requests missing neighboring data", 
   let queries = 0;
   view.requestRange = () => queries++;
   view.zoom(100);
-  assert.equal(view.range.span, 30_000);
-  assert.equal(view.range.start, 90_000);
+  assert.equal(view.range.span, 120_000);
+  assert.equal(view.range.start, 45_000);
   assert.equal(queries, 0);
   view.setRange(850_000, 30_000);
   assert.equal(queries, 1);
@@ -109,4 +113,83 @@ test("redrawing at unchanged dimensions reuses canvas storage and resets its tra
     [2, 0, 0, 2, 0, 0],
     [2, 0, 0, 2, 0, 0],
   ]);
+});
+
+test("scrolling prefetches before reaching uncached time without marking loaded work busy", () => {
+  const view = fixture();
+  view.scheduleDraw = () => {};
+  let queries = 0;
+  view.requestRange = () => queries++;
+  view.setRange(275_000, 10_000);
+  assert.equal(queries, 0);
+  view.setRange(280_000, 10_000);
+  assert.equal(queries, 1);
+  assert.equal(view.chart.getAttribute("aria-busy"), "false");
+});
+
+test("continuous scrolling accepts in-flight responses and then fetches the current viewport", () => {
+  const view = fixture();
+  view.scheduleDraw = () => {};
+  const requests = [];
+  view.pushEvent = (_name, request) => {
+    requests.push(request);
+    return Promise.resolve({});
+  };
+  view.requestRange = () => view.loadRange();
+  view.setRange(290_000, 10_000);
+  const first = requests[0].request_id;
+  for (let start = 310_000; start < 450_000; start += 1000) view.setRange(start, 10_000);
+  assert.equal(requests.length, 1);
+  assert.equal(view.rangeRequest, first);
+  view.receiveRange({
+    request_id: first,
+    timeline: {
+      events: [],
+      range: { start: 290_000, span: 10_000 },
+      loaded_range: { start: 230_000, span: 130_000 },
+    },
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].start, 449_000);
+  assert.ok(view.cache.contains({ start: 250_000, span: 100_000 }));
+  view.receiveRange({
+    request_id: requests[1].request_id,
+    timeline: {
+      events: [],
+      range: { start: 449_000, span: 10_000 },
+      loaded_range: { start: 389_000, span: 130_000 },
+    },
+  });
+  assert.equal(view.chart.getAttribute("aria-busy"), "false");
+  assert.equal(requests.length, 2);
+});
+
+test("filter changes reject old in-flight data", () => {
+  const view = fixture();
+  view.scheduleDraw = () => {};
+  view.requestRange = () => {};
+  view.select = () => {};
+  view.control = () => ({ value: "new target" });
+  view.initialRange = { ...view.range };
+  const stale = view.rangeRequest;
+  view.filter();
+  view.receiveRange({
+    request_id: stale,
+    timeline: { events: [{ event_id: 99 }], loaded_range: { start: 0, span: 900_000 } },
+  });
+  assert.equal(view.cache.events.length, 0);
+  assert.equal(view.resetRange, true);
+});
+
+test("wide zoom retains headroom after prefetch rather than reloading on every small scroll", () => {
+  const view = fixture();
+  view.cache = new TimelineCache();
+  view.cache.add({ start: 100_000, span: 240_000 }, []);
+  view.scheduleDraw = () => {};
+  let queries = 0;
+  view.requestRange = () => queries++;
+  for (let start = 160_000; start < 190_000; start += 1000) view.setRange(start, 120_000);
+  assert.equal(queries, 0);
+  view.setRange(191_000, 120_000);
+  assert.equal(queries, 1);
 });

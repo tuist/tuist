@@ -102,13 +102,13 @@ defmodule Tuist.BuildsTest do
 
       assert %{
                range: %{start: 100_000.0, span: 10_000},
-               max_span: 30_000,
-               loaded_range: %{start: 70_000.0, span: 70_000.0},
+               max_span: 120_000,
+               loaded_range: %{start: 40_000.0, span: 130_000.0},
                events: events
              } = Builds.build_timeline(build.id)
 
       assert Enum.map(events, & &1.event_id) == [2, 3]
-      assert %{range: %{span: 30_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 900_000)
+      assert %{range: %{span: 120_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 900_000)
       assert Enum.map(late, & &1.event_id) == [4]
     end
 
