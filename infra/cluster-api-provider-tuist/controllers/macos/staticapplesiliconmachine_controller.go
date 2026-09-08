@@ -245,6 +245,20 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileNormal(
 		return result, err
 	}
 
+	// The operator has no direct route to a rack host: it sits on a LAN behind a
+	// subnet router, reachable only through the tailnet egress ProxyGroup. So
+	// the Service that fronts it has to exist before the first dial, not as a
+	// fallback after one fails the way the rented fleet's does.
+	if err := r.reconcileRackEgress(ctx, machine, host); err != nil {
+		if apierrors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
+		conditions.MarkFalse(machine, BootstrappedCondition, "RackEgressUnavailable",
+			clusterv1.ConditionSeverityWarning, "%v", err)
+		logger.Error(err, "reconcile rack host egress Service; will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	bootstrapCreds, err := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -395,7 +409,7 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 	// primary address stops answering, so it accepts the same limitation the
 	// rented fleet lives with.
 	if err != nil && fingerprint == "" {
-		if egressHost := r.egressHost(machine.Name); egressHost != "" && egressHost != host.Spec.Address {
+		if egressHost := r.egressHost(machine.Name); egressHost != "" && egressHost != r.dialTarget(host) {
 			logger.Info("host-address config push failed; retrying over the tailnet",
 				"machine", machine.Name, "egressHost", egressHost, "cause", err.Error())
 			updateCfg.IP = egressHost
@@ -766,6 +780,10 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
+	// Captured before Stage 1, which clears it: the egress Service is named
+	// after the host, and releasing first would leave nothing to name it by.
+	heldHost := machine.Status.RackHost
+
 	// Stage 1: release the claim so the box is immediately re-claimable.
 	//
 	// Nothing is reinstalled or wiped, unlike every other adopt-style kind
@@ -815,18 +833,29 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// Stage 5: drop the egress Service. Cross-namespace OwnerRefs aren't
-	// allowed, so it cannot cascade.
+	// Stage 5: drop both egress Services. Cross-namespace OwnerRefs aren't
+	// allowed, so neither cascades.
+	//
+	// Two of them, because a rack host is reached two different ways over its
+	// life: the Machine-named Service fronts the mini's own tailnet identity
+	// for scraping, and the host-named one fronts its LAN address for the SSH
+	// the operator needs before that identity exists.
 	if r.EgressProxyGroup != "" {
-		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-			Name:      machine.Name,
-			Namespace: r.EgressNamespace,
-		}}
-		if err := r.Client.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
-			logger.Error(err, "delete egress Service; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
-				"delete egress Service %s/%s: %v (will retry)", r.EgressNamespace, machine.Name, err)
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		names := []string{machine.Name}
+		if heldHost != "" {
+			names = append(names, rackEgressServiceName(heldHost))
+		}
+		for _, name := range names {
+			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: r.EgressNamespace,
+			}}
+			if err := r.Client.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
+				logger.Error(err, "delete egress Service; will retry", "service", name)
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+					"delete egress Service %s/%s: %v (will retry)", r.EgressNamespace, name, err)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
 		}
 	}
 
@@ -875,7 +904,7 @@ func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
 	}
 
 	return bootstrap.PerHost{
-		IP:                   host.Spec.Address,
+		IP:                   r.dialTarget(host),
 		SSHUser:              host.Spec.SSHUser,
 		UserPassword:         sudoPassword,
 		SSHPrivateKey:        sshKey,
@@ -910,6 +939,29 @@ func (r *StaticAppleSiliconMachineReconciler) fleetName(machine *infrav1.StaticA
 		return machine.Spec.FleetName
 	}
 	return machine.Namespace + "-" + machine.Name
+}
+
+// dialTarget is what the operator opens SSH to for this host: the egress
+// Service when the tailnet egress is wired, and the host's own address
+// otherwise (the OSS shape, or a cluster that sits on the same network as the
+// rack and needs no proxy).
+//
+// It is a pure dial target. HostConfigHash strips PerHost.IP, so switching
+// between the two does not drift a host's config.
+func (r *StaticAppleSiliconMachineReconciler) dialTarget(host *infrav1.RackHost) string {
+	if h := rackEgressHost(r.egressConfig(), host.Name); h != "" {
+		return h
+	}
+	return host.Spec.Address
+}
+
+func (r *StaticAppleSiliconMachineReconciler) reconcileRackEgress(
+	ctx context.Context,
+	machine *infrav1.StaticAppleSiliconMachine,
+	host *infrav1.RackHost,
+) error {
+	return reconcileRackEgressService(ctx, r.Client, r.egressConfig(),
+		host.Name, host.Spec.Address, machine.Spec.FleetName)
 }
 
 func (r *StaticAppleSiliconMachineReconciler) egressConfig() egressConfig {

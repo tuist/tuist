@@ -25,6 +25,7 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
@@ -963,5 +964,158 @@ func TestCAPIMachineMappingIgnoresOtherKinds(t *testing.T) {
 		if got := len(staticMachineForCAPIMachine(context.Background(), m)); got != tc.want {
 			t.Errorf("kind %s mapped to %d requests, want %d", tc.kind, got, tc.want)
 		}
+	}
+}
+
+// --- rack egress (the first-dial path) --------------------------------------
+
+func withEgress(r *StaticAppleSiliconMachineReconciler) *StaticAppleSiliconMachineReconciler {
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	return r
+}
+
+// The operator has no route to a rack host: it is on a LAN behind a subnet
+// router, reachable only through the egress ProxyGroup. So the dial has to go
+// to the Service, not the address. Verified against staging on 2026-09-09: a
+// pod dialling 192.168.0.41 directly gets nothing but its default route.
+func TestRackHostIsDialledThroughItsEgressService(t *testing.T) {
+	host := rackHost("mini-01")
+	r := withEgress(newStaticReconciler(t, host))
+
+	want := "rack-mini-01.tailscale-operator.svc.cluster.local"
+	if got := r.dialTarget(host); got != want {
+		t.Fatalf("dial target = %q, want the egress Service %q", got, want)
+	}
+}
+
+// Without a tailnet egress there is nothing to proxy through, so the raw
+// address is the only option: the OSS shape, or a cluster sitting on the rack's
+// own network.
+func TestRackHostFallsBackToItsAddressWithoutEgress(t *testing.T) {
+	host := rackHost("mini-01")
+	r := newStaticReconciler(t, host)
+
+	if got := r.dialTarget(host); got != "192.168.0.41" {
+		t.Fatalf("dial target = %q, want the raw address", got)
+	}
+}
+
+// The Service fronts the host's LAN address with `tailnet-ip`, NOT a MagicDNS
+// name: a rack mini has no tailnet identity until bootstrap gives it one, so
+// the FQDN annotation the rented fleet uses would point at nothing.
+func TestRackEgressServiceFrontsTheAddressNotAnFQDN(t *testing.T) {
+	machine := staticMachine("ber1-0")
+	host := rackHost("mini-01")
+	r := withEgress(newStaticReconciler(t, host, machine))
+
+	if err := r.reconcileRackEgress(context.Background(), machine, host); err != nil {
+		t.Fatalf("reconcileRackEgress: %v", err)
+	}
+
+	svc := &corev1.Service{}
+	if err := r.Get(context.Background(), types.NamespacedName{
+		Namespace: "tailscale-operator", Name: "rack-mini-01",
+	}, svc); err != nil {
+		t.Fatalf("get rack egress Service: %v", err)
+	}
+	if got := svc.Annotations["tailscale.com/tailnet-ip"]; got != "192.168.0.41" {
+		t.Fatalf("tailnet-ip = %q, want the host address", got)
+	}
+	if _, wrong := svc.Annotations["tailscale.com/tailnet-fqdn"]; wrong {
+		t.Fatal("annotated with tailnet-fqdn; a rack host has no tailnet identity before bootstrap")
+	}
+	if svc.Annotations["tailscale.com/proxy-group"] != "macmini-egress" {
+		t.Fatalf("proxy-group = %q", svc.Annotations["tailscale.com/proxy-group"])
+	}
+	// Alloy discovers scrape targets by this label. This Service exposes only
+	// SSH, so carrying it would add a target that fails every scrape.
+	if _, scraped := svc.Labels["tuist.dev/macmini-egress"]; scraped {
+		t.Fatal("labelled for alloy discovery; it exposes only :22 and would fail every scrape")
+	}
+	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 22 {
+		t.Fatalf("ports = %+v, want only :22", svc.Spec.Ports)
+	}
+}
+
+// Both Services are named differently and must both be cleaned up: one after
+// the Machine, one after the host it held.
+func TestDeleteRemovesBothEgressServices(t *testing.T) {
+	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+		m.Status.RackHost = "mini-01"
+		m.Finalizers = []string{StaticMachineFinalizer}
+		m.DeletionTimestamp = ptr.To(metav1.Now())
+	})
+	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	r := withEgress(newStaticReconciler(t, host, machine))
+	ctx := context.Background()
+
+	for _, n := range []string{"ber1-0", "rack-mini-01"} {
+		if err := r.Create(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+			Name: n, Namespace: "tailscale-operator",
+		}}); err != nil {
+			t.Fatalf("seed Service %s: %v", n, err)
+		}
+	}
+
+	if _, err := r.reconcileDelete(ctx, machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	for _, n := range []string{"ber1-0", "rack-mini-01"} {
+		err := r.Get(ctx, types.NamespacedName{Namespace: "tailscale-operator", Name: n}, &corev1.Service{})
+		if !apierrors.IsNotFound(err) {
+			t.Fatalf("Service %s survived the delete (err=%v); it would strand an egress proxy binding", n, err)
+		}
+	}
+}
+
+// Testing dialTarget() alone proves nothing: what matters is that the value
+// bootstrap actually receives is the egress name. An earlier version of this
+// suite asserted only the helper, and a mutation swapping `IP:` back to
+// host.Spec.Address passed it — the host would then be dialled at an address
+// the operator has no route to, and every bootstrap would time out.
+//
+// The credential machinery is real here rather than stubbed; the token Secret
+// is pre-seeded so EnsureNodeIdentity returns without waiting for a controller
+// that does not exist in a fake client.
+func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
+	machine := staticMachine("ber1-0")
+	host := rackHost("mini-01")
+	tokenSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tart-kubelet-ber1-0-token",
+			Namespace: testNamespace,
+		},
+		Data: map[string][]byte{"token": []byte("tok"), "ca.crt": []byte("ca")},
+	}
+	tailscaleSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "ts", Namespace: testNamespace},
+		Data:       map[string][]byte{"auth-key": []byte("tskey-abc")},
+	}
+	r := withEgress(newStaticReconciler(t, host, machine, tokenSecret, tailscaleSecret))
+	r.CredentialsManager.NodeIdentityClusterRole = "tart-kubelet"
+	r.CredentialsManager.TailscaleAuthKeySecretName = "ts"
+	r.Kubeconfig = &kubeconfig.Builder{APIServerURL: "https://api.staging.example:6443"}
+
+	perHost, prepErr := r.perHostConfig(context.Background(), machine, host, []byte("key"), "pw", "")
+	if prepErr != nil {
+		t.Fatalf("perHostConfig: %v", prepErr.err)
+	}
+
+	want := "rack-mini-01.tailscale-operator.svc.cluster.local"
+	if perHost.IP != want {
+		t.Fatalf("bootstrap would dial %q, want the egress Service %q; the operator has no route to the raw address", perHost.IP, want)
+	}
+	if perHost.SSHUser != "tuist" {
+		t.Fatalf("SSHUser = %q, want the host's service account", perHost.SSHUser)
+	}
+
+	// And the dial target must NOT reach the host-config hash, or two hosts
+	// with identical config would drift each other.
+	withEgressTarget := r.hostConfig(machine, perHost)
+	if bootstrap.HostConfigHash(withEgressTarget) != r.desiredHostConfigHash(machine) {
+		t.Fatal("the dial target changed the host-config hash; it is transport, not config")
 	}
 }

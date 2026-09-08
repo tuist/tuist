@@ -314,6 +314,31 @@ personal device in the house. The cost of a /32 is that the address becomes
 load-bearing in two places, the grant and `RackHost.spec.address`, so give each
 host a DHCP reservation and update both together.
 
+**The cluster reaches that address through an egress Service, not directly.**
+A Pod has no route to a subnet-routed address; only the Tailscale proxies do.
+So the machine reconciler creates a second egress Service per host, named
+`rack-<rackhost>`, annotated `tailscale.com/tailnet-ip` with the host's address,
+and dials that. It is the mirror of the per-Machine Service beside it: that one
+carries `tailscale.com/tailnet-fqdn` and only works once the mini IS a tailnet
+node, which is exactly what bootstrap has not done yet.
+
+**And the ProxyGroup has to accept routes**, which is the part with no obvious
+symptom. A proxy that does not answers `no matching peer` for a subnet-routed
+address while the Service still resolves to a ClusterIP, so every connection
+hangs and nothing anywhere names a route as the cause. That is what the
+`macminiEgress.proxyGroup.acceptRoutes` ProxyClass in
+`infra/helm/tailscale-operator` is for. Every other egress target in the cluster
+is a tailnet node reached by its own FQDN, which is why no fleet before this one
+needed it. Diagnose with:
+
+```bash
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale debug prefs | grep RouteAll
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 192.168.0.41
+```
+
+`RouteAll: false` or `no matching peer` is this, not a host fault and not the
+ACL.
+
 Routing it separately from the host's own tailnet identity is deliberate:
 `installTailscale` stops and replaces tailscaled, which over a session
 transported by the host's own tailnet identity would drop the tunnel it is

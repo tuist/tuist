@@ -434,3 +434,90 @@ func nodeMissingAfterBootstrap(
 	}
 	return false, nil
 }
+
+// rackEgressServiceName is the egress Service fronting one rack host's own
+// address. Named after the RackHost rather than the Machine because what it
+// fronts is a piece of hardware at a fixed address, and a name that survives
+// the Machine is what lets it be inspected before and after a claim.
+func rackEgressServiceName(rackHostName string) string {
+	return "rack-" + rackHostName
+}
+
+// rackEgressHost is the in-cluster DNS name of that Service, empty when the
+// tailnet egress is not configured.
+func rackEgressHost(cfg egressConfig, rackHostName string) string {
+	if !cfg.enabled() {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s.svc.cluster.local", rackEgressServiceName(rackHostName), cfg.Namespace)
+}
+
+// reconcileRackEgressService fronts a rack host's own address so a cluster Pod
+// can open SSH to it.
+//
+// This is the FIRST-DIAL path, and it is a different problem from the
+// per-Machine egress Service next to it. That one is annotated with the mini's
+// MagicDNS name and only works once the mini is a tailnet node; a rack mini is
+// not one until bootstrap makes it one. So this Service is annotated with
+// `tailscale.com/tailnet-ip` and points at the host's LAN address, which the
+// ProxyGroup reaches through a subnet router in the rack.
+//
+// Two things have to be true for it to carry traffic, and neither is obvious
+// from this code. The route must be approved on the advertising node, and the
+// ProxyGroup must ACCEPT routes: a proxy that does not answers `no matching
+// peer` for a subnet-routed address while the Service still resolves, so the
+// symptom is every connection hanging rather than any error naming a route.
+// The accept side is the `acceptRoutes` ProxyClass in
+// infra/helm/tailscale-operator.
+//
+// Only :22 is declared. Everything else a mini serves is scraped over its own
+// tailnet identity once it has one, and the labels here deliberately omit
+// `tuist.dev/macmini-egress` so alloy's Service discovery does not pick this up
+// and try to scrape a host that exposes nothing but SSH.
+func reconcileRackEgressService(
+	ctx context.Context,
+	c client.Client,
+	cfg egressConfig,
+	rackHostName, address, fleetName string,
+) error {
+	if !cfg.enabled() {
+		return nil
+	}
+	if address == "" {
+		return fmt.Errorf("rack host %s has no address to front", rackHostName)
+	}
+
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name:      rackEgressServiceName(rackHostName),
+		Namespace: cfg.Namespace,
+	}}
+	_, err := controllerutil.CreateOrUpdate(ctx, c, svc, func() error {
+		if svc.Labels == nil {
+			svc.Labels = map[string]string{}
+		}
+		svc.Labels["app.kubernetes.io/managed-by"] = cfg.ManagedBy
+		svc.Labels["app.kubernetes.io/component"] = "rack-host-egress"
+		svc.Labels["tuist.dev/rack-host"] = rackHostName
+		if fleetName != "" {
+			svc.Labels["tuist.dev/fleet"] = fleetName
+		} else {
+			delete(svc.Labels, "tuist.dev/fleet")
+		}
+
+		if svc.Annotations == nil {
+			svc.Annotations = map[string]string{}
+		}
+		svc.Annotations["tailscale.com/tailnet-ip"] = address
+		svc.Annotations["tailscale.com/proxy-group"] = cfg.ProxyGroup
+
+		svc.Spec.Type = corev1.ServiceTypeExternalName
+		if svc.Spec.ExternalName == "" {
+			svc.Spec.ExternalName = "placeholder." + cfg.Namespace + ".svc.cluster.local"
+		}
+		svc.Spec.Ports = []corev1.ServicePort{
+			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
+		}
+		return nil
+	})
+	return err
+}

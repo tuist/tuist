@@ -25,6 +25,44 @@
 # 100.x.y.z IP can change. Pinning the Service to the FQDN avoids
 # needing to roll the chart values every time the CAPI controller
 # replaces a machine.
+#
+# The exception is a rack-owned mini (StaticAppleSiliconMachine),
+# which has no tailnet identity until bootstrap gives it one. Those
+# are reached at their LAN address behind a subnet router, with
+# `tailscale.com/tailnet-ip` instead of the FQDN annotation, and the
+# CAPI provider creates that Service per RackHost. It only works if
+# the ProxyGroup accepts routes — see the ProxyClass below.
+{{- if .Values.macminiEgress.proxyGroup.acceptRoutes }}
+---
+# Makes the egress proxies install subnet routes advertised by other tailnet
+# nodes, rather than only reaching nodes' own tailnet addresses.
+#
+# Needed because a rack-owned Mac mini is NOT on the tailnet when the operator
+# first has to reach it: bootstrap is what puts it there. Until then the only
+# path is its LAN address behind a subnet router, and a proxy that does not
+# accept routes answers `no matching peer` for it. Every other egress target
+# here is a tailnet node, which is why this was not needed before.
+#
+# Scoped to this ProxyGroup rather than set as a default ProxyClass: accepting
+# routes changes what an egress proxy will forward to, and the Connector and
+# the pg-pooler proxies have no reason to gain that.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ .Values.macminiEgress.proxyGroup.name }}-accept-routes
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: macmini-egress
+  annotations:
+    # Same hook ordering as the ProxyGroup below: the CRD ships in the
+    # subchart's templates/, so a CR applied in the main pass races it.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "4"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  tailscale:
+    acceptRoutes: true
+{{- end }}
 ---
 apiVersion: tailscale.com/v1alpha1
 kind: ProxyGroup
@@ -44,6 +82,9 @@ metadata:
 spec:
   type: egress
   replicas: {{ .Values.macminiEgress.proxyGroup.replicas }}
+  {{- if .Values.macminiEgress.proxyGroup.acceptRoutes }}
+  proxyClass: {{ .Values.macminiEgress.proxyGroup.name }}-accept-routes
+  {{- end }}
   tags:
     {{- toYaml .Values.macminiEgress.proxyGroup.tags | nindent 4 }}
 {{- range .Values.macminiEgress.machines }}

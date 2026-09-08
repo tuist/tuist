@@ -166,6 +166,21 @@ macminiEgress:
     # cluster-env tag dialing the matching `tag:tuist-macmini-<env>`.
     tags:
       - "tag:tuist-k8s-staging"
+    # Renders a ProxyClass that makes these proxies install subnet routes
+    # advertised by other tailnet nodes (`--accept-routes`), and binds the
+    # ProxyGroup to it.
+    #
+    # Only needed by an env that runs RACK-owned Mac minis
+    # (StaticAppleSiliconMachine). Those are not on the tailnet when the
+    # operator first has to reach them, since bootstrap is what puts them
+    # there, so the only path is a LAN address behind a subnet router. A proxy
+    # that does not accept routes answers `no matching peer` for such an
+    # address. Every rented mini is a tailnet node reached by its own FQDN,
+    # which is why this stayed off for so long.
+    #
+    # Off by default: it widens what these proxies will forward to, so an env
+    # with no rack hardware should not carry it.
+    acceptRoutes: false
   # Per-mini ExternalName Services. The standard path is to leave
   # this list empty: the CAPI provider's
   # ScalewayAppleSiliconMachine reconciler materialises one
