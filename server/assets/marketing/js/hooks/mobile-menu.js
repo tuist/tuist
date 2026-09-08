@@ -8,6 +8,8 @@
  * Preserves open/closed state across LiveView DOM patches so that periodic server
  * updates (e.g. live counters) don't collapse an open menu.
  */
+import { closeOnNavigation } from "../lib/close-on-navigation.js";
+
 export const MobileMenu = {
   mounted() {
     this.initMenu();
@@ -22,6 +24,11 @@ export const MobileMenu = {
   },
 
   cleanup() {
+    if (this.stopClosingOnNavigation) {
+      this.stopClosingOnNavigation();
+      this.stopClosingOnNavigation = null;
+    }
+
     if (this.listeners) {
       this.listeners.forEach(({ element, event, handler }) => {
         element.removeEventListener(event, handler);
@@ -90,6 +97,12 @@ export const MobileMenu = {
 
     addListener(button, "click", toggleMenu);
     addListener(document, "keydown", handleEscape);
+
+    // Following any link in the navbar closes the menu (and releases the
+    // scroll lock) before the page changes.
+    this.stopClosingOnNavigation = closeOnNavigation(navbar, () => {
+      if (this.isOpen) setOpenState(false);
+    });
 
     // Force-close when the viewport grows past the mobile breakpoint (e.g.
     // leaving responsive mode in devtools), so the open state and the body

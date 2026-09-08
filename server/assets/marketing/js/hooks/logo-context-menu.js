@@ -9,6 +9,8 @@
  * the pointer moves into the navbar's other menus (so it never overlaps
  * the mega-menu panels).
  */
+import { closeOnNavigation } from "../lib/close-on-navigation.js";
+
 export const LogoContextMenu = {
   mounted() {
     this.listeners = [];
@@ -96,9 +98,15 @@ export const LogoContextMenu = {
     menu.querySelectorAll('a[data-part="item"]').forEach((link) => {
       addListener(link, "click", () => setOpen(false));
     });
+    // Same-tab navigations close it instantly, before the page changes.
+    this.stopClosingOnNavigation = closeOnNavigation(menu, () => setOpen(false));
   },
 
   destroyed() {
+    if (this.stopClosingOnNavigation) {
+      this.stopClosingOnNavigation();
+      this.stopClosingOnNavigation = null;
+    }
     if (this.copyTimers) {
       this.copyTimers.forEach((timer) => clearTimeout(timer));
       this.copyTimers.clear();

@@ -832,6 +832,15 @@
    there is no dead zone anywhere between the bar, the seam, and the
    panel's outer edges — including the rounded corners, whose hit-test
    notches were what killed the menu on edge contact. */
+/* Set by closeOnNavigation (js/lib) for the synchronous close that follows
+   a link click, so the menu is gone before the page starts to change
+   instead of fading through the navigation. */
+#marketing-navbar[data-instant],
+#marketing-navbar[data-instant] * {
+  transition: none !important;
+  animation: none !important;
+}
+
 #marketing-navbar > [data-part="viewport"] {
   display: none;
   position: absolute;
