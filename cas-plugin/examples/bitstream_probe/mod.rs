@@ -3,6 +3,8 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+pub mod grouped;
+
 type Result<T> = std::result::Result<T, String>;
 type Key = (i32, i32, u32);
 type Abbreviation = Arc<Vec<(u8, u64)>>;
@@ -343,7 +345,12 @@ pub fn prepare(data: &[u8], delta: bool, column_cap: u32) -> Result<Vec<u8>> {
         reader.position == data.len() * 8 && reader.trace.is_empty(),
         "unconsumed input",
     )?;
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity(
+        36 + reader.columns.len() * 16
+            + reader.layout.len()
+            + reader.blobs.len()
+            + reader.column_bytes,
+    );
     output.extend(b"BCOL0001");
     output.extend((data.len() as u64).to_le_bytes());
     for size in [
@@ -472,6 +479,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
     }
     require(input.at == data.len(), "trailing prepared bytes")?;
     let mut writer = Writer {
+        data: Vec::with_capacity(expected_size),
         limit: expected_size,
         ..Default::default()
     };

@@ -22,6 +22,8 @@ struct Config {
     long_distance: bool,
     #[serde(default)]
     prefix: bool,
+    #[serde(default)]
+    group_bytes: usize,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -81,7 +83,9 @@ fn main() {
     .unwrap();
     assert!(config.window_log == 0 || (19..=25).contains(&config.window_log));
     assert!((1..=9).contains(&config.level));
+    assert!(config.group_bytes == 0 || config.fields);
     let (mut warm, mut cold, mut prepared_bytes) = (0usize, 0usize, 0usize);
+    let (mut group_count, mut copied_bytes, mut metadata_bytes) = (0, 0, 0);
     let (mut base_ms, mut target_ms, mut patch_ms, mut restore_ms, mut verify_ms) =
         (0.0, 0.0, 0.0, 0.0, 0.0);
     for fixture in fixtures {
@@ -106,40 +110,61 @@ fn main() {
         let mut patch_size = 0;
         let mut prepared_size = 0;
         let mut selected = 0;
+        let (mut groups, mut copied, mut metadata) = (0, 0, 0);
         for repetition in 0..3 {
             let start = Instant::now();
             let base_prepared = prepare(&base, &config);
             samples[0].push(elapsed(start));
+            if repetition == 0 && config.fields {
+                assert_eq!(
+                    bitstream_probe::restore(&base_prepared, base.len()).unwrap(),
+                    base
+                );
+            }
             let start = Instant::now();
             let next_prepared = prepare(&next, &config);
             samples[1].push(elapsed(start));
             prepared_size = next_prepared.len();
             let start = Instant::now();
-            let mut compressor = zstd::zstd_safe::CCtx::create();
-            compressor
-                .set_parameter(zstd::zstd_safe::CParameter::CompressionLevel(config.level))
+            let patch = if config.group_bytes != 0 {
+                let patch = bitstream_probe::grouped::encode(
+                    &base_prepared,
+                    &next_prepared,
+                    config.group_bytes,
+                    config.level,
+                )
                 .unwrap();
-            if !config.prefix {
-                compressor.load_dictionary(&base_prepared).unwrap();
-            }
-            if config.window_log != 0 {
+                groups = patch.groups;
+                copied = patch.copied_bytes;
+                metadata = patch.metadata_bytes();
+                patch.bytes
+            } else {
+                let mut compressor = zstd::zstd_safe::CCtx::create();
                 compressor
-                    .set_parameter(zstd::zstd_safe::CParameter::WindowLog(config.window_log))
+                    .set_parameter(zstd::zstd_safe::CParameter::CompressionLevel(config.level))
                     .unwrap();
-            }
-            compressor
-                .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(
-                    config.long_distance,
-                ))
-                .unwrap();
-            if config.prefix {
-                compressor.ref_prefix(&base_prepared).unwrap();
-            }
-            let mut patch =
-                Vec::with_capacity(zstd::zstd_safe::compress_bound(next_prepared.len()));
-            compressor.compress2(&mut patch, &next_prepared).unwrap();
+                if !config.prefix {
+                    compressor.load_dictionary(&base_prepared).unwrap();
+                }
+                if config.window_log != 0 {
+                    compressor
+                        .set_parameter(zstd::zstd_safe::CParameter::WindowLog(config.window_log))
+                        .unwrap();
+                }
+                compressor
+                    .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(
+                        config.long_distance,
+                    ))
+                    .unwrap();
+                if config.prefix {
+                    compressor.ref_prefix(&base_prepared).unwrap();
+                }
+                let mut patch =
+                    Vec::with_capacity(zstd::zstd_safe::compress_bound(next_prepared.len()));
+                compressor.compress2(&mut patch, &next_prepared).unwrap();
+                patch
+            };
             samples[2].push(elapsed(start));
-            drop(compressor);
             if repetition != 0 {
                 assert_eq!(patch_size, patch.len());
             }
@@ -147,16 +172,22 @@ fn main() {
             // Account for a conservative fixed envelope estimate: base/target
             // digests, sizes, codec parameters. This is not a deployed protocol.
             selected = (patch.len() + 192).min(expected_blob.len());
+            drop(next_prepared);
             let start = Instant::now();
-            let mut decoder = zstd::zstd_safe::DCtx::create();
-            if config.prefix {
-                decoder.ref_prefix(&base_prepared).unwrap();
+            let prepared = if config.group_bytes != 0 {
+                bitstream_probe::grouped::decode(&base_prepared, &patch).unwrap()
             } else {
-                decoder.load_dictionary(&base_prepared).unwrap();
-            }
-            let mut prepared = Vec::with_capacity(next_prepared.len());
-            decoder.decompress(&mut prepared, &patch).unwrap();
-            assert_eq!(prepared.len(), next_prepared.len());
+                let mut decoder = zstd::zstd_safe::DCtx::create();
+                if config.prefix {
+                    decoder.ref_prefix(&base_prepared).unwrap();
+                } else {
+                    decoder.load_dictionary(&base_prepared).unwrap();
+                }
+                let mut prepared = Vec::with_capacity(prepared_size);
+                decoder.decompress(&mut prepared, &patch).unwrap();
+                prepared
+            };
+            assert_eq!(prepared.len(), prepared_size);
             let restored = if config.fields {
                 bitstream_probe::restore(&prepared, next.len()).unwrap()
             } else {
@@ -170,12 +201,6 @@ fn main() {
             assert_eq!(blob_digest(&blob), expected_digest);
             assert_eq!(blob, expected_blob);
             samples[4].push(elapsed(start));
-            if repetition == 0 && config.fields {
-                assert_eq!(
-                    bitstream_probe::restore(&base_prepared, base.len()).unwrap(),
-                    base
-                );
-            }
             if repetition == 0 {
                 if let Ok(directory) = std::env::var("SWIFT_PATCH_RESTORED_DIR") {
                     use std::io::Write;
@@ -204,7 +229,15 @@ fn main() {
         verify_ms += timings[4];
         warm += selected;
         prepared_bytes += prepared_size;
+        group_count += groups;
+        copied_bytes += copied;
+        metadata_bytes += metadata;
         println!("CASE {} whole_bytes={} patch_bytes={} selected_bytes={} prepared_bytes={} base_ms={:.3} target_ms={:.3} patch_ms={:.3} restore_ms={:.3} verify_ms={:.3}", fixture.name, expected_blob.len(), patch_size, selected, prepared_size, timings[0], timings[1], timings[2], timings[3], timings[4]);
+        println!(
+            "GROUPS {} count={groups} copied_bytes={copied} metadata_bytes={metadata}",
+            fixture.name
+        );
     }
     println!("METRIC warm_bytes={warm}\nMETRIC cold_bytes={cold}\nMETRIC prepared_bytes={prepared_bytes}\nMETRIC base_prepare_ms={base_ms}\nMETRIC target_prepare_ms={target_ms}\nMETRIC patch_ms={patch_ms}\nMETRIC restore_ms={restore_ms}\nMETRIC verify_ms={verify_ms}\nMETRIC peak_rss_bytes={}", peak_bytes());
+    println!("METRIC group_count={group_count}\nMETRIC copied_bytes={copied_bytes}\nMETRIC metadata_bytes={metadata_bytes}");
 }
