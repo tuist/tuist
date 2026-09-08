@@ -97,6 +97,8 @@ Large downloads negotiate split support, reuse `src/chunk_cache.rs`'s bounded pe
 
 `autoresearch.md` records the bounded offline compression search and its retained research-only object-section candidate. `examples/chunking_search.rs` accepts named artifact pairs, checks exact reconstruction, and reports each output separately. Its whole-cache overlap model does not simulate bounded local eviction or network scheduling; do not present its totals as a real Xcode download benchmark or ship its experimental parser without broader evidence.
 
+`examples/swift_patch_search.rs` measures the native bitstream preparation and dictionary-patch research, including reconstruction of the compressed node identity. Its parser lives in `examples/bitstream_probe/`, with separate [research guardrails](examples/bitstream_probe/AGENTS.md). Nothing in that directory is linked into the production plugin or advertised as ordinary chunking.
+
 Use `examples/cache_output_inventory.rs` with an idle disposable compiler store and Xcode's output remarks to investigate outputs individually. It measures actual reachable nodes before any proposed format-specific transformation; a standalone object file is not evidence that the compiler caches it as one opaque node. Decode printed identifiers with the upstream plugin, not by treating their base64 payload as the full internal digest. Keep experimental Swift/Clang field transforms separate from the negotiated production format until exact reconstruction, resource bounds, and old-client reads are covered.
 
 A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:

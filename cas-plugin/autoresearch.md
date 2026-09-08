@@ -126,3 +126,35 @@ Next worthwhile experiments: more real object edits before adopting section
 resets; native, separately negotiated Swift field/dictionary transforms; and
 duplicate chunks shared by different large nodes. The last needs a dependency-
 safe design so concurrent overlapping recipes cannot wait on each other.
+
+## Native Swift patch search (second segment)
+
+The next bounded eight-run segment measures three historical ProjectDescription
+public edits plus a body-only edit. It does not mix their totals with the previous
+ten-output chunking corpus. Run `./autoresearch.swift.sh`, using
+`AUTORESEARCH_FIXTURES` with the same named-pair manifest shape and configuration
+`autoresearch.swift.json`. The production encoder and protocol remain unchanged.
+
+The baseline is a dictionary patch of the original output bytes. Candidates
+separate container fields natively, optionally difference successive values in
+each column, and vary the compression history window, strength, and column key.
+All original integer values, padding, and variable-integer group counts survive.
+The benchmark checks both module bytes and the complete compressed node identity,
+including synthetic nonempty graph references. The parser supports only bounded
+recognized bitstream containers and is not part of the shipping library.
+
+Primary: warm_bytes, the smaller of the patch plus 192 estimated envelope bytes
+and the original compressed node. Identical outputs cost zero without a patch.
+Cold readers keep the original whole transfer, so cold_bytes is unchanged.
+Secondary: base_prepare_ms, target_prepare_ms, patch_ms, restore_ms, verify_ms,
+prepared_bytes, and peak_rss_bytes. Times are sums of per-pair three-sample medians.
+Receiver cold-base cost includes base_prepare_ms as well as restore_ms and
+verify_ms; do not describe inverse-transform time as total download cost.
+Disk access, networking, base discovery, and authorization are not modeled.
+
+Research guardrails for this workload: exact reconstruction, at most 512 mebibytes
+process peak memory, and at most 150 milliseconds receiver work per two-megabyte
+module. Any retained candidate must save bytes after the envelope estimate.
+These are exploratory budgets, not service guarantees. Prepared data expands,
+and caching it would require its own storage budget. Larger real-action outputs
+are a separate scale check after the bounded search, not a change to its metric.
