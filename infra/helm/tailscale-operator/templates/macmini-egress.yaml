@@ -31,7 +31,7 @@
 # are reached at their LAN address behind a subnet router, with
 # `tailscale.com/tailnet-ip` instead of the FQDN annotation, and the
 # CAPI provider creates that Service per RackHost. It only works if
-# the ProxyGroup accepts routes — see the ProxyClass below.
+# the ProxyGroup accepts routes; see the ProxyClass below.
 {{- if .Values.macminiEgress.proxyGroup.acceptRoutes }}
 ---
 # Makes the egress proxies install subnet routes advertised by other tailnet

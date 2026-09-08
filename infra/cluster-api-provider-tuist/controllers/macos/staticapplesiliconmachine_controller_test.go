@@ -1074,7 +1074,7 @@ func TestDeleteRemovesBothEgressServices(t *testing.T) {
 // Testing dialTarget() alone proves nothing: what matters is that the value
 // bootstrap actually receives is the egress name. An earlier version of this
 // suite asserted only the helper, and a mutation swapping `IP:` back to
-// host.Spec.Address passed it — the host would then be dialled at an address
+// host.Spec.Address passed it. The host would then be dialled at an address
 // the operator has no route to, and every bootstrap would time out.
 //
 // The credential machinery is real here rather than stubbed; the token Secret
