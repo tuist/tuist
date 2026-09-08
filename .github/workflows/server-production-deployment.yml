@@ -50,13 +50,27 @@ concurrency:
   # Queue rather than cancel: a run pushes component tags, publishes GitHub
   # Releases, and runs the production deploy as side effects, so each must
   # complete atomically — cancelling mid-run could tear a release or a
-  # helm --atomic deploy. GitHub keeps only the latest pending run, so a
-  # burst of merges collapses into one run that covers them all via
-  # cumulative check-releases.
+  # helm --atomic deploy. Never set cancel-in-progress here: it would kill an
+  # in-flight production deploy mid-`helm upgrade`.
+  #
+  # The cost of queueing is that GitHub holds at most ONE pending run per
+  # group. A third push arriving while one run is executing and one is pending
+  # evicts the pending run outright — cancelled with zero jobs created, so
+  # nothing in it ever inspects its commits. A burst of merges therefore
+  # collapses into one surviving run, and that is only lossless because every
+  # gate here is cumulative rather than per-push: check-releases resolves each
+  # component from its last release tag, and the `deployable` gate diffs
+  # against the last commit deployed to production (PRODUCTION_DEPLOYED_REF),
+  # not against this push. Any new gate added here has to be cumulative too.
   group: release-workflow-${{ github.ref }}
   cancel-in-progress: false
 
 env:
+  # Pipeline state: the commit this workflow last shipped to production.
+  # Written by record-production-deploy, read by check-releases' `deployable`
+  # gate. A plain ref rather than a tag so it doesn't land in everyone's
+  # `git tag -l` or need force-fetching in every clone.
+  PRODUCTION_DEPLOYED_REF: refs/deployments/server-production
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
@@ -166,18 +180,70 @@ jobs:
         # metrics-server) deploy on merge via platform-install — without it a
         # platform-only change skips build and the whole cascade, merging green
         # but never reaching the cluster.
-        env:
-          BEFORE: ${{ github.event.before }}
+        #
+        # The base of the diff is the last commit this pipeline actually
+        # shipped to production, NOT `github.event.before`. `before` reads as
+        # the obviously correct base and is not: it is the tip before one
+        # push, while this gate has to answer for every commit that has not
+        # reached the cluster yet.
+        #
+        # The two diverge because the workflow queues rather than cancels
+        # (see the concurrency block) and GitHub holds at most one pending run
+        # per group. A push arriving while one run is executing and one is
+        # pending evicts the pending run — cancelled with zero jobs, so no run
+        # ever diffs it. The next run's `before` is the evicted run's head, so
+        # the evicted push falls into a gap no diff covers. check-releases
+        # survives the same eviction only because it resolves each component
+        # from its last release tag, which is cumulative by construction.
+        #
+        # This is not hypothetical. On 2026-09-08 runs 34229774764 and
+        # 34229958421 were both evicted; the surviving run 34231117032 diffed
+        # only its own push (a Grafana dashboard) and skipped the cascade, so
+        # #12994's infra/helm/tuist/crds change merged green and never reached
+        # the cluster. It was the contract-version label on the generated
+        # infrastructure CRDs, without which the production CAPI controller
+        # loops on `cannot find any versions matching contract` and the
+        # sa-west MachineDeployment builds no MachineSet at all — found by
+        # reading cluster state by hand, because CI was green.
+        #
+        # Anchoring to what was last deployed makes the window cumulative over
+        # every undeployed commit, which is what makes the burst-collapse
+        # behaviour correct instead of lossy: the surviving run's diff spans
+        # the whole burst, including the pushes whose runs were evicted.
         run: |
           set -euo pipefail
-          base="$BEFORE"
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            # No reliable base (new branch / force-push): deploy to be safe.
+
+          # Fetching (rather than ls-remote) also guarantees the object is
+          # local, so a marker left dangling by a history rewrite resolves
+          # instead of blowing up the diff below.
+          base=""
+          if git fetch --no-tags --quiet origin "$PRODUCTION_DEPLOYED_REF"; then
+            base="$(git rev-parse FETCH_HEAD 2>/dev/null || true)"
+          fi
+
+          if [ -z "$base" ]; then
+            # No record of what production runs (the marker is missing, or the
+            # fetch failed). Deploy: over-deploying costs one redundant
+            # cascade, under-deploying is the bug this gate exists to prevent.
+            echo "::warning::Could not resolve ${PRODUCTION_DEPLOYED_REF}; deploying rather than guessing what production is already running."
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+
+          if [ "$base" = "$GITHUB_SHA" ]; then
+            echo "Production already runs ${GITHUB_SHA}."
+            echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Undeployed window: ${base}..${GITHUB_SHA} ($(git rev-list --count "${base}..${GITHUB_SHA}" 2>/dev/null || echo '?') commits since the last production deploy)"
+          # grep drains the stream instead of `-q`-ing out on the first match.
+          # Under `pipefail` an early exit here SIGPIPEs git, and the pipeline
+          # then reports 141 for a diff that did match — reading as "nothing to
+          # deploy". A single push rarely fills the 64K pipe buffer, but the
+          # window this gate now spans routinely can.
+          if git diff --name-only "$base" "$GITHUB_SHA" \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' >/dev/null; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -2393,3 +2459,35 @@ jobs:
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
+
+  # --------------------------------------------------------------------------
+  # Records what production is running, for the `deployable` gate in
+  # check-releases to diff against on the next run. Both production legs feed
+  # it, since either one is a real production deploy.
+  #
+  # The marker moves only after a leg reports success, so every way this can go
+  # wrong leaves it pointing at an older commit: the next run's window is then
+  # wider than it needed to be and re-deploys work that already shipped, which
+  # is a wasted cascade rather than a change silently stranded off the cluster.
+  #
+  # It deliberately does not track the manual re-promotes and rollbacks that go
+  # through server-deployment.yml's own workflow_dispatch. Those pin an image
+  # tag rather than move main forward, and having a rollback advance the marker
+  # would let the next merge conclude the reverted commits are deployed.
+  # --------------------------------------------------------------------------
+  record-production-deploy:
+    name: Record the deployed production commit
+    needs: [production, production-hotfix]
+    if: ${{ always() && (needs.production.result == 'success' || needs.production-hotfix.result == 'success') }}
+    # GitHub-hosted on purpose: `tuist-linux` runs on the fleet this pipeline
+    # just deployed, so a deploy that degrades it could lose the record of
+    # itself and send the next run round again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move the production deploy marker to this commit
+        # --force because the marker is a pointer being updated in place, not
+        # history: it must land even when the previous value is not an
+        # ancestor (a revert-and-reland, or a rewritten main).
+        run: git push --force origin "${GITHUB_SHA}:${PRODUCTION_DEPLOYED_REF}"
