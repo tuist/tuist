@@ -82,7 +82,6 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
-  alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
   require Logger
@@ -876,6 +875,12 @@ defmodule Tuist.Runners.Claims do
   re-claimed row carries a NULL `pod_missing_since`, so the handle no
   longer matches and nothing is deleted. Same reason `release/2` keys on
   `claimed_at`.
+
+  The re-queue is `claimed_at`-guarded for the same reason `release/2`'s
+  is: the job this claim names may be running on a *different* Pod, the
+  one GitHub actually placed it on. Dispatch can hand a second claim to
+  a job the runner shuffle already started elsewhere, and this Pod
+  vanishing says nothing about that execution.
   """
   def release_pod_missing(pod_name, %DateTime{} = pod_missing_since) when is_binary(pod_name) do
     {:ok, outcome} =
@@ -884,7 +889,7 @@ defmodule Tuist.Runners.Claims do
           Repo.delete_all(
             from(c in Claim,
               where: c.pod_name == ^pod_name and c.pod_missing_since == ^pod_missing_since,
-              select: c.workflow_job_id
+              select: {c.workflow_job_id, c.claimed_at}
             )
           )
 
@@ -902,8 +907,8 @@ defmodule Tuist.Runners.Claims do
   # A displaced claim names no job: `record_execution/3` handed it back to
   # the queue the moment GitHub proved the Pod was running a different one,
   # so there is nothing left here to re-queue.
-  defp requeue_released_job([workflow_job_id]) when is_integer(workflow_job_id) do
-    WorkflowJobs.requeue(workflow_job_id)
+  defp requeue_released_job([{workflow_job_id, %DateTime{} = claimed_at}]) when is_integer(workflow_job_id) do
+    WorkflowJobs.requeue_by_handle(workflow_job_id, claimed_at)
   end
 
   defp requeue_released_job(_released), do: :ok
@@ -939,47 +944,6 @@ defmodule Tuist.Runners.Claims do
     Repo.exists?(
       from(c in Claim,
         where: c.workflow_job_id == ^workflow_job_id and not is_nil(c.executed_workflow_job_id)
-      )
-    )
-  end
-
-  @doc """
-  Lifecycle rows still reading `queued` that a live claim proves are
-  executing: the claim records this row as its `executed_workflow_job_id`
-  and the row already carries that runner's name. Up to `limit` of them,
-  oldest arrival first, in the shape
-  `Tuist.Runners.WorkflowJobs.transition_executing/3` needs.
-
-  The backstop for `record_execution/3`. That path starts the executed
-  job in the same transaction as the detach, but only for deliveries it
-  sees: a row stranded before the transition existed, or by an
-  `in_progress` that never landed and was recovered by the `completed`
-  attribution instead, has nothing left to move it. Both leave the same
-  provable shape — a queued row bound to a runner whose claim is holding
-  a slot for it — so it is recoverable without asking GitHub anything.
-
-  Driven from the claim side because that table is bounded by concurrent
-  Pods (hundreds), where the lifecycle table is bounded by the queue.
-  `runner_name` has to agree on both rows: it is the only evidence that
-  the binding on the lifecycle row came from this claim's runner, and a
-  runner name is unique per account by 32 bits of randomness alone.
-  """
-  def list_executing_queued(limit) when is_integer(limit) and limit > 0 do
-    Repo.all(
-      from(c in Claim,
-        join: j in WorkflowJob,
-        on: j.workflow_job_id == c.executed_workflow_job_id and j.account_id == c.account_id,
-        where: c.lifecycle_state == "running" and j.status == "queued" and j.runner_name == c.runner_name,
-        order_by: [asc: j.enqueued_at, asc: j.workflow_job_id],
-        limit: ^limit,
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: j.account_id,
-          fleet_name: j.fleet_name,
-          enqueued_at: j.enqueued_at,
-          runner_name: c.runner_name,
-          pod_name: c.pod_name
-        }
       )
     )
   end

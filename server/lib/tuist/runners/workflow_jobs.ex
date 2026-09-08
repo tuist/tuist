@@ -26,9 +26,11 @@ defmodule Tuist.Runners.WorkflowJobs do
     * `Tuist.Runners.Claims.mark_running/3` → `transition_running/3`
     * `Tuist.Runners.Claims.record_execution/3` (webhook `in_progress`,
       same transaction as the claim detach) → `transition_executing/3`
-    * `Tuist.Runners.Claims.release/2` (same transaction as the claim
-      delete) → `requeue_by_handle/2`, and `release_pod_missing/2` →
-      `requeue/1`
+    * `Tuist.Runners.Claims.release/2` and `release_pod_missing/2`
+      (same transaction as the claim delete) → `requeue_by_handle/2`
+    * `Tuist.Runners.Workers.UnstartedExecutionsWorker` (backstop sweep)
+      → `start_executing_queued/1`
+    * `Tuist.Runners.Buildkite` reservation expiry → `requeue/1`
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
       plus the recovery workers' force-completes) → `record_completed/3`
 
@@ -41,6 +43,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
@@ -254,6 +257,98 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   defp finish_executing(:noop), do: :noop
+
+  @doc """
+  Batch `queued → running` for every row a live claim already records as
+  the job its runner is executing, up to `limit`, oldest arrival first.
+  Returns the rows it started.
+
+  The backstop arm of `transition_executing/3`, for rows the webhook
+  path left behind. `Tuist.Runners.Claims.record_execution/3` starts the
+  executed job in the transaction that moves the claim, but that CAS can
+  miss — the row was `claimed` by another Pod at the time, or the
+  `queued` webhook had not arrived yet and there was no row to move —
+  and rows stranded before that transition existed have nothing coming
+  at all.
+
+  The claim is the whole evidence. `executed_workflow_job_id` is written
+  only from a delivery where GitHub named this runner running that job,
+  scoped to the account, and the claim is deleted on completion, so a
+  live one still naming the job proves the job is still running. The
+  row's own `runner_name` is *not* required to agree: it is stamped by a
+  separate write that a re-queue clears and that never ran at all when
+  the row arrived after the execution did, so requiring it would exclude
+  exactly the rows this sweep is for.
+
+  One statement rather than one transaction per row: the values come
+  from the claim, so Postgres joins to it and copies them across, and
+  the outbox events for the whole batch insert together. The guards are
+  re-applied in the write, so a row that moved between the candidate
+  read and the update is left alone.
+  """
+  def start_executing_queued(limit) when is_integer(limit) and limit > 0 do
+    now = DateTime.utc_now()
+
+    {:ok, started} =
+      Repo.transaction(fn ->
+        case Repo.all(executing_queued_candidates(limit)) do
+          [] ->
+            []
+
+          workflow_job_ids ->
+            {_count, rows} = Repo.update_all(start_executing_query(workflow_job_ids, now), [])
+            rows = rows || []
+
+            emit_transition_events(rows, now)
+            broadcast_running(rows)
+
+            rows
+        end
+      end)
+
+    started
+  end
+
+  # Bounded and ordered here because `update_all` takes neither.
+  defp executing_queued_candidates(limit) do
+    from(c in Claim,
+      join: j in WorkflowJob,
+      on: j.workflow_job_id == c.executed_workflow_job_id and j.account_id == c.account_id,
+      where: c.lifecycle_state == "running" and c.runner_name != "" and j.status == "queued",
+      order_by: [asc: j.enqueued_at, asc: j.workflow_job_id],
+      limit: ^limit,
+      select: j.workflow_job_id
+    )
+  end
+
+  defp start_executing_query(workflow_job_ids, %DateTime{} = now) do
+    from(j in WorkflowJob,
+      join: c in Claim,
+      on: c.executed_workflow_job_id == j.workflow_job_id and c.account_id == j.account_id,
+      where:
+        j.workflow_job_id in ^workflow_job_ids and j.status == "queued" and c.lifecycle_state == "running" and
+          c.runner_name != "",
+      select: j,
+      update: [
+        set: [
+          status: "running",
+          runner_name: c.runner_name,
+          pod_name: c.pod_name,
+          executed_workflow_job_id: j.workflow_job_id,
+          claimed_at: ^now,
+          started_at: ^now,
+          updated_at: ^DateTime.truncate(now, :second)
+        ]
+      ]
+    )
+  end
+
+  defp broadcast_running(rows) do
+    rows
+    |> Enum.map(& &1.account_id)
+    |> Enum.uniq()
+    |> Enum.each(&Tuist.PubSub.broadcast(%{status: "running"}, Jobs.topic(&1), :runner_jobs_status_changed))
+  end
 
   @doc """
   CAS `claimed | running → queued` — the claim-release transition.

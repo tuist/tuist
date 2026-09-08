@@ -1,9 +1,11 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.Claim
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -189,6 +191,126 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       assert :noop = WorkflowJobs.requeue_by_handle(910_028, minting_claimed_at)
       assert get_row!(910_028).status == "running"
+    end
+  end
+
+  describe "start_executing_queued/1" do
+    # The claim carries the whole proof, so the strand is built the way
+    # the webhook path leaves it: the claim records the execution, and
+    # the row it names never moved out of `queued`.
+    defp strand_executing!(account, workflow_job_id, pod_name, runner_name) do
+      Repo.insert_all(Claim, [
+        %{
+          workflow_job_id: nil,
+          account_id: account.id,
+          fleet_name: "fleet-a",
+          pod_name: pod_name,
+          claimed_at: DateTime.utc_now(),
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 16,
+          lifecycle_state: "running",
+          runner_name: runner_name,
+          executed_workflow_job_id: workflow_job_id
+        }
+      ])
+    end
+
+    test "starts the rows a live claim proves are executing" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_060))
+      strand_executing!(account, 910_060, "pod-1", "runner-stuck")
+
+      assert [started] = WorkflowJobs.start_executing_queued(10)
+      assert started.workflow_job_id == 910_060
+
+      row = get_row!(910_060)
+      assert row.status == "running"
+      assert row.runner_name == "runner-stuck"
+      assert row.pod_name == "pod-1"
+      assert %DateTime{} = row.started_at
+      assert %DateTime{} = row.claimed_at
+    end
+
+    # The row's own `runner_name` is stamped by a separate write that
+    # never ran when the `queued` webhook arrived after the execution
+    # did. Requiring the two to agree would exclude exactly this row.
+    test "starts a row that never learned the runner's name" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_061))
+      strand_executing!(account, 910_061, "pod-1", "runner-late")
+
+      assert [_started] = WorkflowJobs.start_executing_queued(10)
+
+      row = get_row!(910_061)
+      assert row.status == "running"
+      assert row.runner_name == "runner-late"
+    end
+
+    test "leaves a row another Pod has since claimed alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_062))
+      strand_executing!(account, 910_062, "pod-1", "runner-raced")
+      :ok = WorkflowJobs.transition_claimed(910_062, "pod-other", DateTime.utc_now())
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_062).status == "claimed"
+    end
+
+    test "cannot resurrect a row a completion already settled" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_063))
+      strand_executing!(account, 910_063, "pod-1", "runner-done")
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_063), "success", DateTime.utc_now())
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_063).status == "completed"
+    end
+
+    test "does not cross accounts" do
+      account = account_fixture()
+      other_account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_064))
+      strand_executing!(other_account, 910_064, "pod-1", "runner-foreign")
+
+      assert WorkflowJobs.start_executing_queued(10) == []
+      assert get_row!(910_064).status == "queued"
+    end
+
+    test "honours the per-tick limit, oldest arrival first" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_065, enqueued_at: DateTime.add(now, -60, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_066, enqueued_at: DateTime.add(now, -600, :second)))
+      strand_executing!(account, 910_065, "pod-1", "runner-newer")
+      strand_executing!(account, 910_066, "pod-2", "runner-older")
+
+      assert [started] = WorkflowJobs.start_executing_queued(1)
+      assert started.workflow_job_id == 910_066
+      assert get_row!(910_065).status == "queued"
+    end
+
+    # One statement for the batch, one outbox insert alongside it — the
+    # ClickHouse replay has to see every row this moved.
+    test "emits one transition event per started row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_067))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_068))
+      strand_executing!(account, 910_067, "pod-1", "runner-a")
+      strand_executing!(account, 910_068, "pod-2", "runner-b")
+
+      Repo.delete_all(WorkflowJobTransitionEvent)
+
+      assert length(WorkflowJobs.start_executing_queued(10)) == 2
+
+      events = Repo.all(WorkflowJobTransitionEvent)
+      assert length(events) == 2
+      assert Enum.all?(events, &(&1.payload["status"] == "running"))
+      assert Enum.sort(Enum.map(events, & &1.workflow_job_id)) == [910_067, 910_068]
+    end
+
+    test "returns an empty list when nothing is stranded" do
+      assert WorkflowJobs.start_executing_queued(10) == []
     end
   end
 

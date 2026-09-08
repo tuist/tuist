@@ -265,56 +265,6 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "list_executing_queued/1" do
-    test "returns queued rows a live claim proves are executing" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2020))
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2021))
-      {:ok, _} = Claims.attempt(2020, account.id, "fleet-a", "pod-1", @linux_resources)
-      :ok = mark_running!(2020, "runner-stuck")
-
-      # The strand this sweep exists for: the claim records the execution
-      # and the row learned the runner, but nothing moved the row out of
-      # `queued`.
-      :ok = WorkflowJobs.record_execution("runner-stuck", 2021, account.id)
-      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2021])
-
-      assert [candidate] = Claims.list_executing_queued(10)
-      assert candidate.workflow_job_id == 2021
-      assert candidate.runner_name == "runner-stuck"
-      assert candidate.pod_name == "pod-1"
-      assert candidate.fleet_name == "fleet-a"
-    end
-
-    # A runner name is unique per account by 32 bits of randomness alone,
-    # so agreement on both rows is the evidence that this claim's runner
-    # is the one holding the job.
-    test "skips a queued row whose runner_name does not match the claim's" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2030))
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2031))
-      {:ok, _} = Claims.attempt(2030, account.id, "fleet-a", "pod-1", @linux_resources)
-      :ok = mark_running!(2030, "runner-a")
-
-      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2031])
-
-      assert Claims.list_executing_queued(10) == []
-    end
-
-    test "skips a row that is no longer queued" do
-      account = account_fixture()
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2040))
-      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 2041))
-      {:ok, _} = Claims.attempt(2040, account.id, "fleet-a", "pod-1", @linux_resources)
-      :ok = mark_running!(2040, "runner-done")
-      :ok = WorkflowJobs.record_execution("runner-done", 2041, account.id)
-      Repo.update_all(from(c in Claim, where: c.pod_name == "pod-1"), set: [executed_workflow_job_id: 2041])
-      :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 2041), "success", DateTime.utc_now())
-
-      assert Claims.list_executing_queued(10) == []
-    end
-  end
-
   describe "counts_per_account/0" do
     test "returns per-account inflight counts across ALL fleets" do
       a = account_fixture()
@@ -1044,6 +994,39 @@ defmodule Tuist.Runners.ClaimsTest do
 
       assert :ok = Claims.release_pod_missing("pod-1", handle)
       refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7402))
+    end
+
+    test "re-queues the job when the row still belongs to the vanished Pod" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7403))
+
+      assert {:ok, _} = Claims.attempt(7403, account.id, "fleet-a", "pod-1", @linux_resources)
+      Repo.update_all(from(c in Claim, where: c.workflow_job_id == 7403), set: [pod_missing_since: handle])
+
+      assert :ok = Claims.release_pod_missing("pod-1", handle)
+      assert Repo.get!(WorkflowJob, 7403).status == "queued"
+    end
+
+    # The same door `release/2` closes, reached from the other side. This
+    # Pod vanishing says nothing about the Pod GitHub actually placed the
+    # job on, so re-queueing here would send a job that is burning CPU
+    # back through dispatch.
+    test "does not re-queue a job running under another Pod's handle" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7404))
+      :ok = WorkflowJobs.transition_executing(7404, "runner-elsewhere", "pod-elsewhere")
+
+      assert {:ok, _} = Claims.attempt(7404, account.id, "fleet-a", "pod-late", @linux_resources)
+      Repo.update_all(from(c in Claim, where: c.workflow_job_id == 7404), set: [pod_missing_since: handle])
+
+      assert :ok = Claims.release_pod_missing("pod-late", handle)
+
+      row = Repo.get!(WorkflowJob, 7404)
+      assert row.status == "running"
+      assert row.pod_name == "pod-elsewhere"
+      assert Claims.counts_per_account() == %{}
     end
   end
 

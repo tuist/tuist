@@ -1,7 +1,7 @@
 defmodule Tuist.Runners.Workers.UnstartedExecutionsWorker do
   @moduledoc """
-  Starts lifecycle rows stuck in `status = 'queued'` while GitHub is
-  already running them.
+  Starts lifecycle rows stuck in `status = 'queued'` while a live claim
+  already records GitHub running them.
 
   ## How a row gets stuck
 
@@ -13,38 +13,48 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorker do
   claimed here, so no mint transitions it, and GitHub announces nothing
   further about a job it has already started.
 
-  So a delivery that never lands strands B in `queued` for its whole
-  runtime. The `completed` attribution path
-  (`Claims.complete_by_runner_name/3`) recovers the claim in that case
-  but not the row, and rows stranded before the webhook path started
-  moving them have nothing coming at all.
+  That CAS can still miss. B may be `claimed` by another Pod at the
+  time, so the transition is refused and the later release drops B back
+  to `queued`; or B's own `queued` webhook may not have arrived yet, so
+  there is no row to move and the one inserted afterwards starts life
+  `queued` under a runner that is already executing it. Rows stranded
+  before that transition existed have nothing coming at all.
 
   ## The evidence
 
-  A `queued` row whose `runner_name` matches a live claim that names it
-  as `executed_workflow_job_id` is running. GitHub told us so when it
-  reported the runner, the claim is still holding that account's slot,
-  and both rows agree on the runner. Nothing needs to be asked of
-  GitHub, which is why this sweep carries no age gate: a row is stuck
-  the moment it has this shape, and every minute it stays that way is a
-  minute the dashboard shows a live build as Queued and the queue
-  gauges — and the autoscaler reading them — provision for work that is
-  already running.
+  The claim, and only the claim. `executed_workflow_job_id` is written
+  from a delivery where GitHub named this runner running that job,
+  scoped to the account, and a claim is deleted on completion — so a
+  live claim still naming a `queued` row proves that row is running.
+  Nothing needs to be asked of GitHub, which is why this sweep has no
+  age gate: a row is stuck the moment it has this shape, and every
+  minute it stays that way is a minute the dashboard shows a live build
+  as Queued and the queue gauges — and the autoscaler reading them —
+  provision for work already running.
+
+  ## What it does not cover
+
+  An `in_progress` delivery that never lands at all. Nothing then writes
+  `executed_workflow_job_id`, so no claim carries the evidence, and the
+  `completed` webhook deletes the claim while flipping the row terminal
+  (`Claims.complete_by_runner_name/3`). Those rows end as phantom
+  terminals — `started_at` NULL with a `runner_name` — and closing that
+  class needs the durable `runner_sessions` binding, which outlives the
+  Pod, rather than this sweep.
 
   ## Safety
 
-  `Tuist.Runners.WorkflowJobs.transition_executing/3` CASes from
-  `queued` only, so a row a Pod has since claimed, or one a completion
-  has settled, is left where it is. The per-tick cap bounds a
-  wrong-but-plausible read the same way the other sweeps do; a
-  sustained `tuist_runners_recovery_count{kind="unstarted_execution"}`
-  means `in_progress` deliveries are being lost, which is the thing to
-  fix rather than this.
+  `Tuist.Runners.WorkflowJobs.start_executing_queued/1` re-applies its
+  guards in the write and moves rows out of `queued` only, so a row a
+  Pod has since claimed, or one a completion has settled, is left where
+  it is. A sustained
+  `tuist_runners_recovery_count{kind="unstarted_execution"}` means
+  `in_progress` deliveries are being lost, which is the thing to fix
+  rather than this.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
-  alias Tuist.Runners.Claims
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJobs
 
@@ -54,32 +64,23 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    started =
-      @max_starts_per_tick
-      |> Claims.list_executing_queued()
-      |> Enum.count(&start_one/1)
+    started = WorkflowJobs.start_executing_queued(@max_starts_per_tick)
 
-    if started > 0 do
-      Logger.warning("runners: started rows stuck queued while executing", count: started)
+    Enum.each(started, &report_started/1)
+
+    if started != [] do
+      Logger.warning("runners: started rows stuck queued while executing", count: length(started))
     end
 
     :ok
   end
 
-  defp start_one(%{workflow_job_id: workflow_job_id, runner_name: runner_name, pod_name: pod_name} = row) do
-    case WorkflowJobs.transition_executing(workflow_job_id, runner_name, pod_name) do
-      :ok ->
-        :telemetry.execute(
-          Telemetry.event_name_recovery(),
-          %{count: 1, stranded_ms: stranded_ms(row.enqueued_at)},
-          %{kind: "unstarted_execution", fleet: row.fleet_name || ""}
-        )
-
-        true
-
-      :noop ->
-        false
-    end
+  defp report_started(row) do
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1, stranded_ms: stranded_ms(row.enqueued_at)},
+      %{kind: "unstarted_execution", fleet: row.fleet_name || ""}
+    )
   end
 
   defp stranded_ms(%DateTime{} = enqueued_at) do

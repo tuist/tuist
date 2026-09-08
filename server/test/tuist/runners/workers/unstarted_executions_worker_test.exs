@@ -1,11 +1,9 @@
 defmodule Tuist.Runners.Workers.UnstartedExecutionsWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
-  alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Workers.UnstartedExecutionsWorker
   alias Tuist.Runners.WorkflowJob
@@ -25,21 +23,20 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorkerTest do
     }
   end
 
-  # The strand this sweep exists for, built the way the webhook path left
-  # it before it started the executed job: the claim records the
-  # execution and the executed job's row learned the runner, but nothing
-  # moved that row out of `queued`, so it reads Queued while the build
-  # runs.
+  # The runner shuffle, end to end through the real claim path: a Pod is
+  # minted for one job and GitHub places another on it. `record_execution/3`
+  # starts the executed job itself, so the sweep is exercised by putting
+  # that row back to `queued` afterwards — the state the transition left
+  # behind before it existed, and the state a Pod's release still produces
+  # when it was `claimed` elsewhere at the time.
   defp strand_executing!(account, claimed_job_id, executed_job_id, pod_name, runner_name) do
     :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, claimed_job_id))
     :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, executed_job_id))
     {:ok, claim} = Claims.attempt(claimed_job_id, account.id, "fleet-a", pod_name, @linux_resources)
     :ok = Claims.mark_running(claimed_job_id, runner_name, claim.claimed_at)
-    :ok = WorkflowJobs.record_execution(runner_name, executed_job_id, account.id)
 
-    Repo.update_all(from(c in Claim, where: c.pod_name == ^pod_name),
-      set: [executed_workflow_job_id: executed_job_id]
-    )
+    {:mismatch, _displaced} = Claims.record_execution(runner_name, executed_job_id, account.id)
+    :ok = WorkflowJobs.requeue(executed_job_id)
 
     :ok
   end
@@ -48,6 +45,7 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorkerTest do
     test "starts a queued row a live claim proves is executing" do
       account = account_fixture()
       strand_executing!(account, 8001, 8002, "pod-1", "runner-stuck")
+      assert Repo.get!(WorkflowJob, 8002).status == "queued"
 
       assert :ok = perform_job(UnstartedExecutionsWorker, %{})
 
@@ -65,7 +63,7 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorkerTest do
       assert :ok = perform_job(UnstartedExecutionsWorker, %{})
 
       assert Claims.counts_per_account() == %{account.id => 1}
-      assert Repo.get!(WorkflowJob, 8011).status == "running"
+      assert Repo.get!(WorkflowJob, 8011).status == "queued"
     end
 
     test "does nothing when every row already agrees with its claim" do
@@ -88,6 +86,21 @@ defmodule Tuist.Runners.Workers.UnstartedExecutionsWorkerTest do
       assert :ok = perform_job(UnstartedExecutionsWorker, %{})
 
       assert Repo.get!(WorkflowJob, 8032).status == "completed"
+    end
+
+    # The boundary the moduledoc claims. Without the `in_progress`
+    # delivery no claim carries `executed_workflow_job_id`, so there is
+    # no evidence to sweep on and the row waits for its completion.
+    test "cannot reach a row whose in_progress delivery never landed" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 8041))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 8042))
+      {:ok, claim} = Claims.attempt(8041, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(8041, "runner-silent", claim.claimed_at)
+
+      assert :ok = perform_job(UnstartedExecutionsWorker, %{})
+
+      assert Repo.get!(WorkflowJob, 8042).status == "queued"
     end
   end
 end
