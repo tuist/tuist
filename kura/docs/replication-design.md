@@ -130,6 +130,14 @@ lowest-ordinal tie-break and an ordered handover (`demoteEvacuatingPods` runs
 before the Services reconcile). Deriving the gateway from it costs no new
 controller state and stops the two roles developing contradictory hysteresis.
 
+The instance's public peer Service is pinned to the gateway pod, the way the
+client Services pin to the primary. It selected every pod, so a remote
+gateway's listing pages could alternate between the two replicas; pinned, the
+served listing is one node's, both directions of the region's WAN traffic stay
+on the standby, and the selector doubles as the persisted designation the
+controller reads back for stickiness — no new status field for that. The
+headless Service keeps the broad selector (D-18).
+
 But the controller cannot reach self-hosted instances, so it cannot be the
 distribution path. **The server is the authority instances consume.** The
 controller publishes what it knows (primary, rollout state) into the
@@ -163,7 +171,10 @@ ones, which is the whole migration story for the topology.
 Per-entry, not a bare boolean. A scalar tells a node its own role but not which
 peer is its region's gateway or which remote peers are gateways, both of which
 it needs in order to know who to pull from. One document then lets every node
-derive the whole topology, which also makes it observable and testable.
+derive the whole topology, which also makes it observable and testable. A
+published role is used only while the node it names is present as a pulling
+candidate; otherwise the local rule of §2.4 decides, which is what gives
+overlap over a gap (D-7).
 
 Rules the server holds to:
 
@@ -217,13 +228,14 @@ the WAN. Worth knowing, even where the physical topology does not allow it.
 Two shapes, and they degrade differently.
 
 **Enrolled self-hosted nodes** — those that talk to the server — need no special
-handling. They fetch the same peer list over the mesh heartbeat and read their
-role from it exactly as a managed pod does. The controller is absent, so the
-server resolves roles from what it can see (registered endpoints, their reported
-`traffic_state`, their liveness) rather than from a `KuraInstance` status. There
-is no primary designation to take the complement of, so the rule is the one the
-serverless mode uses: the gateway is the lowest node URL among the region's
-Ready, non-draining members.
+handling. They fetch the same peer list over the mesh heartbeat and read the
+managed regions' roles from it exactly as a managed pod does. The controller
+is absent and there is no primary designation to take the complement of, so
+their own rule is the one the serverless mode uses — the gateway is the lowest
+node URL among the region's Ready, non-draining members — and because every
+node already applies that rule locally from the `traffic_state` and liveness
+it probes, the server publishes nothing for them: `peer_roles` carries managed
+regions only, where the server knows what the nodes cannot, the primary (D-7).
 
 **Fully self-hosted meshes with no server** have no authority at all, so each
 instance acts as its own, from the same inputs every node already has:
@@ -235,7 +247,12 @@ instance acts as its own, from the same inputs every node already has:
 - **Membership and Ready.** Static `KURA_PEERS` plus DNS discovery, filtered
   by the liveness the peer health tracking already maintains.
 - **Roles.** Group Ready peers by region; the gateway is the lowest node URL
-  in each group. Roles are re-derived on every membership change.
+  in each group. Roles are re-derived on every membership tick: the
+  coordinator diffs the links the roles ask for (siblings; remote gateways
+  while this node holds its region's gateway role) against the tasks running
+  and opens or cancels the difference, so a role move costs one cancelled pass
+  and one new bootstrap on the new holder — the brief pause §2.1 budgets for
+  (D-15).
 - **Overlap over gaps.** A node that sees no Ready gateway for its own region
   takes the role until it sees one. Two gateways cost one duplicate
   cross-region fetch and self-correct; zero cuts the region off.
@@ -296,7 +313,13 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   during migration — never does: its only consumer already has it, and without
   this rule the two replicas would echo every record back and forth forever.
   Nor does an apply that changed nothing (last-writer-wins kept the local
-  record).
+  record). A push received on the legacy routes *does* earn a row: it names
+  no region and may have crossed a boundary, so it is treated as
+  cross-region. That cannot loop — an apply that arrived over the feed writes
+  no row on the receiving side, and a same-region old-binary pusher never
+  reads the feed, which is off until a pulling sibling asks. In a two-replica
+  region the row is never even written; with more replicas it costs one
+  redundant delivery that last-writer-wins absorbs (D-1).
 - **Activated by its consumer.** The feed is off until a same-region peer's
   first `{head}` request, which switches it on and returns the head in the
   same operation — activation and snapshot are one event, so there is no
@@ -304,7 +327,10 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   forward read. It stays on while the peer list names a sibling, and turns
   off, dropping its rows, once no sibling has been listed for longer than
   the mesh's stale-peer window. A region of one therefore carries no feed at
-  all.
+  all. Activation is persisted (`sync/meta/enabled`), so a restart brings the
+  feed back as it was instead of silently switching it off under a sibling
+  still reading forward; deactivation after the stale window clears it
+  (D-10).
 - **Trimmed from below.** Every request carries the sibling's cursor, and the
   source deletes rows at or below it in a batched trim — with one consumer per
   direction, that position is a single number. Trims are range deletes and
@@ -326,11 +352,21 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   the forward read is only a different lister feeding an existing pipeline,
   a page stays small and bounded however large the entries behind it, and the
   receiver applies its own admission before bytes move. The extra round trip
-  is sub-millisecond on loopback.
+  is sub-millisecond on loopback. Each forward page is applied as one
+  backfill pass — claim set, byte-bounded bodies batches, group commits, all
+  reused as they are — and the cursor advances when that pass completes.
+  Fetching page N+1 while page N applies is lost; pages are small on a
+  long-poll link and a catching-up sibling is bounded by loopback, so the
+  simplicity wins, and pipelining across pages is the first optimisation to
+  revisit if the lag gauge says otherwise (D-9).
 
-The endpoint is `GET /_internal/sync/forward?after={inc}:{seq}&wait=30s`, under the
-same peer authentication as every other `/_internal/*` route, and its contract
-is four cases:
+The endpoint is
+`GET /_internal/sync/forward?peer={url}&region={region}&after={inc}:{seq}&wait=25s`,
+under the same peer authentication as every other `/_internal/*` route. The
+request names the requester: `region` is checked, because the feed is
+intra-region only, and `peer` keys the consumer cursor that trimming and the
+drain gate read (D-3). The contract is four cases, plus one the
+implementation added:
 
 - **`after` at or above the floor** — returns `{entries, next, head}`,
   blocking up to `wait` when nothing is above the cursor, so a sibling
@@ -342,6 +378,12 @@ is four cases:
   between were dropped; the sibling has fallen off the feed.
 - **`after` from another incarnation** — the same `410`. The cursor names a
   store that no longer exists.
+- **`after` above the head** — the same `410`, reason `ahead`. Rows are
+  visible to the sibling before the WAL fsync that makes them durable, so a
+  crash can lose a tail the sibling already consumed and restart the counter
+  below its cursor. Rather than track durability per row, the source treats
+  any cursor above its head as foreign; the sibling re-bootstraps, and the
+  backward pass covers the lost tail (D-2).
 
 The `{head}` response also carries the region watermark map of §4.3. The
 puller adopts it only when the backward pass that follows completes — by then
@@ -411,7 +453,11 @@ grace window has already been through the action-cache cascade, which removes
 entries whose blobs were evicted, so only entries *younger* than the window
 are checked at serve time. The cost is one manifest point lookup per
 referenced blob, on young entries only — microseconds against cached blocks,
-and zero for the steady-state hit.
+and zero for the steady-state hit. This needed no new code: `GetActionResult`
+already inspects every referenced blob's presence before answering (the
+composite presence gate #12937 extended to chunk recipes), answers `not_found`
+when one is gone, and deletes the entry only past the cascade grace window
+(D-17).
 
 Content-defined chunking (#12937) already works this way, and is the second
 dependency class the gate covers. A recipe under `blob_chunks/{hash}/{size}`
@@ -449,6 +495,10 @@ requests rejected, `/_internal/*` still served), and then **waits until the
 sibling's cursor reaches its head, or until the termination grace period less
 a margin runs out**, before it exits. With the sibling long-polling
 continuously, the wait is normally nothing: the cursor is already at head.
+The gate runs before the internal listener stops accepting — the e2e drain
+scenario caught the other order, in which the sibling could never report the
+cursor the gate was waiting for — and long-polls are held for at most 250 ms
+while draining, so the sibling re-asks at once with its new cursor.
 
 Three cases are decided rather than left to the implementer. A region of one
 has no sibling and exits at once. A sibling that has not yet taken a forward
@@ -473,7 +523,10 @@ wait on before moving to the next ordinal.
 
 `/ready` latches when the replica bootstrap settles: the backward pass against
 the sibling completed and the forward cursor is within one page of the
-sibling's head. Without a sibling it settles immediately; with a sibling that
+sibling's head. The link settles the moment its bootstrap completes: the
+cursor then sits at the snapshot head, within one page by construction, and
+waiting for the first forward page would hold readiness for up to one
+long-poll wait with nothing to show for it (D-19). Without a sibling it settles immediately; with a sibling that
 cannot be reached it settles when the pass exhausts the failure budget the
 backfill already has, ready-but-cold exactly as today; and the existing
 ring-fullness latch is kept as the cold-but-useful escape it is.
@@ -514,7 +567,11 @@ inverted `version_ms`, one row per live artifact. No new structure.
   first, from whoever holds it. That is also what makes a *departed* origin
   harmless: after a relocation (#12956) nobody lists that region's records
   forward, but every backward pass still delivers them from whichever gateway
-  holds them.
+  holds them. The origin filter is a manifest lookup per row (manifest cache
+  first), not a field in the index row: the `backfill/idx/` value is exactly
+  eight bytes and an older binary rejects any other length, so widening it
+  would break the listing under rollback. The cost is bounded by the page and
+  paid only by forward region reads (D-5).
 
 On a full ring the ascending read applies the marginal trade
 `capacity_complete` already makes, per entry: an entry older than the next
@@ -525,10 +582,17 @@ into the range that is worth fetching.
 
 Long-polling applies here too — the forward read blocks until the peer has rows
 above the watermark — so cross-region convergence is bounded by transfer time
-rather than by a poll interval. The maximum blocking window is the same 30
-seconds as the replica link; a failed read retries on the backoff the backfill
+rather than by a poll interval. The maximum blocking window is the same 25
+seconds as the replica link (D-8); a failed read retries on the backoff the backfill
 already uses (250 ms doubling to 5 s). Every listing response carries the
 peer's `now`, a new field on `/_internal/backfill/entries`.
+
+The ascending read also carries a settle guard. A record's `version_ms` is
+stamped before its batch commits, and batches commit in any order, so a puller
+that lists up to the newest committed entry could skip a lower entry whose
+batch is still landing. The serving node therefore never lists an entry
+younger than `now − KURA_SYNC_REGION_SETTLE_MS` (default 2 s) — the ascending
+read's equivalent of the feed's contiguous head (D-6).
 
 **The page cursor is the full index key, the watermark is only its
 `version_ms`.** `version_ms` has millisecond granularity and a busy region
@@ -776,6 +840,21 @@ Three steps, of which only the middle one changes behaviour.
   by the pass. Reverting the flag is the same handover in reverse: the outbox
   has no rows for the window pull was active, so a revert arms one backward
   pass per peer before push resumes.
+
+  Two rules the code and the lab added. The legacy scheduler steps aside *per
+  peer*: peers that advertise pulling leave the backfill lifecycle's view
+  (never passed over, never part of its initial cycle) while this node pulls,
+  peers that do not keep today's passes and pushes, and readiness combines
+  both — the legacy cycle settled *and* the pull links settled (§3.6), or the
+  ring-fullness escape (D-16). And a peer's pull flag is remembered while it
+  is unreachable: the push targets are rebuilt from the membership view, and
+  a pulling peer that stops answering its status probe leaves the view, which
+  read as "not pulling" and put it back on push, queueing an outbox row per
+  write for as long as it was down. A node now keeps the set of peers that
+  last advertised pulling (in memory, like the discovered-only history) and
+  keeps them off the push targets until they come back saying otherwise; a
+  rolled-back peer that returns with `pulling: false` is pushed to again from
+  its next tick (D-20).
 - **Remove.** Delete the outbox code once no account has a non-pulling peer.
   `ROCKSDB_CF_OUTBOX` stays, empty, for the same reason no CF is ever added —
   a binary that expects it must still open the store.
@@ -783,7 +862,9 @@ Three steps, of which only the middle one changes behaviour.
 The region watermarks live under a new prefix, `sync/wm/{region}`, seeded on
 first use from the highest of the old per-peer `backfill/wm/` rows for that
 region's nodes — or the horizon when there are none — and the old rows are
-left for the rolled-back binary that still reads them.
+left for the rolled-back binary that still reads them. The seed is taken
+lazily, by the region task, the first time it needs a watermark it does not
+have (D-4).
 
 What the single flip gives up is the window in which pull could be watched
 running while push still did the work. The per-account flag replaces it: flip
@@ -819,7 +900,8 @@ pod times labels (#12969 dropped every histogram bucket family no alert
 reads, at ~750 series per two-replica instance): nothing below adds a
 bucket family, the one duration is exported as `_sum` and `_count`, and the
 labels are bounded — `region` by the plan's region count, `peer` by one
-sibling.
+sibling. The panels are the "Pull replication" row of that dashboard; the
+names below are the shipped ones.
 
 ### 6.1 Retained, retired, reframed
 
@@ -843,12 +925,18 @@ sibling.
   loopback this should be approximately never, so it is an alert, not a gauge to
   watch.
 
-- `kura_sync_forward_fell_behind_total{reason="floor|incarnation"}` — the
-  puller's side of the same event: a `410` received. One per drop event is
+- `kura_sync_forward_fell_behind_total{reason="floor|incarnation|ahead"}` —
+  the puller's side of the same event: a `410` received. One per drop event is
   expected; a climb during recovery means the cap is smaller than the sizing
-  rule requires. `incarnation` names a sibling rebuilt on an empty volume.
+  rule requires. `incarnation` names a sibling rebuilt on an empty volume;
+  `ahead` a cursor above the sibling's head after a crash lost an unsynced
+  tail (D-2).
 - `kura_sync_forward_drain_timeout_total` — a departing node exited before the
   sibling reached its head (§3.5). Recent writes lagged for the restart.
+- `kura_sync_pull_links{link="replica|region"}` — open pull links by kind. A
+  gateway holds one region link per remote region plus its replica links; a
+  non-gateway holds replica links only, so a region link on a non-gateway is
+  INV-4 violated.
 
 **Region sync**
 
@@ -857,8 +945,8 @@ sibling.
   inter-region health signal (§2.2).
 - `kura_region_watermark_age_seconds{region}` — lag, meaningful while the
   remote region is writing; not a health signal on its own.
-- `kura_region_sync_cycle_duration_seconds`, `_entries_listed`,
-  `_bytes_fetched{region}` — cost and progress per cycle.
+- `kura_region_sync_last_cycle_duration_seconds`, `_entries_listed_total`,
+  `_bytes_fetched_total{region}` — cost and progress per cycle.
 - `kura_peer_clock_skew_seconds{peer}` — peer `now` minus local `now` from
   each listing response (§4.6).
 
@@ -1082,9 +1170,13 @@ to re-check when a measurement disagrees.
 
 | Parameter | Default | Rule |
 | --- | --- | --- |
-| Pass-start buffer (§4.4) | 10 min | Covers the origin region's own lag when the watermark last advanced; the tail is that region's rollout. Cost is listing only, horizon-floored. Re-check against the observed distribution of (arrival at the origin's gateway − `version_ms`). |
-| Feed cap (§3.1) | 1,000,000 rows (~100 MB) | Must hold the writes that land during the longest backward pass a sibling can need, or recovery loops. Re-check against peak write rate × cold-pass duration. |
-| Long-poll wait (§3.1, §4.1) | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8); bounds how long a cleanly idle link goes without a proof of life. |
+| Pass-start buffer (§4.4) — `KURA_SYNC_PASS_START_BUFFER_MS` | 10 min | Covers the origin region's own lag when the watermark last advanced; the tail is that region's rollout. Cost is listing only, horizon-floored. Re-check against the observed distribution of (arrival at the origin's gateway − `version_ms`). |
+| Feed cap (§3.1) — `KURA_SYNC_FEED_MAX_ROWS` | 1,000,000 rows (~100 MB) | Must hold the writes that land during the longest backward pass a sibling can need, or recovery loops. Re-check against peak write rate × cold-pass duration. |
+| Long-poll wait (§3.1, §4.1) — `KURA_SYNC_LONG_POLL_SECS` | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8). Idle polls re-check every second, bounding a missed wake; the ceiling is 60 s. Bounds how long a cleanly idle link goes without a proof of life. |
+| Settle guard on ascending reads (§4.1) — `KURA_SYNC_REGION_SETTLE_MS` | 2 s | The serving node never lists an entry younger than this: batches commit in any order after their `version_ms` is stamped, and a lower entry still landing would be skipped by a puller that read past it (D-6). Re-check against the observed commit latency under load. |
+| Feed stale-peer window (§3.1) — `KURA_SYNC_FEED_STALE_PEER_SECS` | 30 min | The feed turns off, dropping its rows, once no sibling has asked for this long; the mesh's own stale-peer window, so a sibling that is merely restarting never loses its feed. |
+| Drain margin (§3.5) — `KURA_SYNC_DRAIN_MARGIN_MS` | 5 s | Subtracted from the termination grace period to leave the process time to exit cleanly after the gate; the gate itself is the drain wait below. |
+| The flip (§5.2) — `KURA_REPLICATION_PULL`, account flag `kura_replication_pull` | off | Per node by env, per account by the server flag rendered into each managed instance's spec and its manifest revision, so the flip rolls; either source makes the node advertise `pulling`. |
 | Retry backoff after a failed read (§4.1) | 250 ms → 5 s | The backfill's existing constants. |
 | Staleness alert threshold (§2.2) | 5 min | Ten consecutive failed long-polls; short enough to matter, long enough that a slow transfer is not a failure. |
 | Overlap window on a role move (§2.2) | 2 heartbeat periods | Long enough for every node to have fetched the new list; costs one duplicate listing. |
