@@ -1160,8 +1160,6 @@ and the one case those miss (Ready and heartbeating, WAN broken) is shared by
 both replicas of the region, so no node-side choice fixes it either; it is an
 alert. A bypass would put topology decisions in two places at once. §2.2.
 
----
-
 **GossipSub (libp2p pubsub) as the inter-region forward link.** Proposed in
 review as a sparse alternative to the gateway clique. Transport is not the
 objection: a spike showed a libp2p PeerId derives identically from the
