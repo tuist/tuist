@@ -595,8 +595,9 @@ defmodule Tuist.Kura.Capacity do
   included, whoever owns that pod. Each node takes as many
   replicas as its free resources cover, and the instance has room when the
   nodes together take all of them. The controller's affinity only prefers
-  co-location, so replicas that cannot share a node split across two, and a
-  pool that can take them split is a pool the scheduler will place them in.
+  co-location for public regions, so replicas can split across two nodes.
+  Private NodePort caches require co-location to preserve the address handed
+  to runner jobs; one node must have room for both replicas.
 
   The request is the plan's, not the account's: the plan's starting claim
   rather than one sizing has already grown, and the region's egress floor for
@@ -624,7 +625,13 @@ defmodule Tuist.Kura.Capacity do
          %{nodes: [_ | _] = nodes} = pool <- node_headroom(region) do
       request = pod_request(region, plan, pool)
 
-      nodes |> Enum.map(&replicas_fitting(&1, request)) |> Enum.sum() >= replicas(region)
+      fitting = Enum.map(nodes, &replicas_fitting(&1, request))
+
+      if Regions.private?(region) and Regions.node_port_data_plane?(region) do
+        Enum.max(fitting) >= replicas(region)
+      else
+        Enum.sum(fitting) >= replicas(region)
+      end
     else
       _ -> nil
     end

@@ -429,6 +429,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_BACKFILL_ENABLED"] == "true"
+      assert manifest["spec"]["replicas"] == 2
+      assert manifest["spec"]["storageSize"] == "50Gi"
+      assert manifest["spec"]["exposeNodePort"] == true
+
+      stub(Mesh, :self_hosted_peer_urls, fn _account -> [] end)
+      server = %Server{account: %Account{id: 1, name: "tuist"}}
+      revision = KubernetesController.manifest_revision(server, region)
+      legacy_region = %{region | provisioner_config: Map.put(region.provisioner_config, :replicas, 1)}
+
+      assert String.ends_with?(revision, "+replicas2")
+      assert revision != KubernetesController.manifest_revision(server, legacy_region)
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
     end
 
     test "hands the pod the country and subdivision its region's datacenter sits in" do

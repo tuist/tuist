@@ -66,6 +66,12 @@ const (
 // replacement joins the pool.
 func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	logger := log.FromContext(ctx)
+	if privateRolloutEnabled(instance) && instance.Spec.ExposeNodePort {
+		// These replicas must remain on one host to preserve addresses already
+		// handed to jobs. Host migration needs a separate overlapping endpoint;
+		// deleting a local claim here would strand its self-affine replacement.
+		return nil
+	}
 
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {

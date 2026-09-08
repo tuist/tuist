@@ -215,12 +215,10 @@ type runtimeStatus struct {
 	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
 	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
 	// BackfillInitialCycle reports whether a pod's initial peer catch-up has
-	// settled. Primary selection deliberately does NOT consume it (see
-	// primaryPodHealth): a rolling deploy has to promote a caught-up standby
-	// immediately to stay gapless, and readiness plus ring membership is the
-	// right gate there. Node evacuation does consume it, because moving a
-	// replica destroys the peer the next one would refill from, so "ready" is
-	// not enough to justify the next move.
+	// settled. Ordinary failover uses routability (see primaryPodHealth).
+	// Private two-replica planned handovers and node evacuation additionally
+	// require this completeness signal before retiring a warm source; a pod
+	// can be Ready while its backfill is still pending or degraded.
 	BackfillInitialCycle string `json:"backfill_initial_cycle"`
 	// BackfillBudgetExhaustedRealPeers counts peers whose backfill passes are
 	// blocked by real failures, as opposed to the benign capability variant.
@@ -474,6 +472,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePrivateRollout(ctx, instance, time.Now()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
@@ -1752,8 +1753,13 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 	// Only when something else can actually serve. If every pod is on the way
 	// out there is no better primary, and dropping the role would replace a
 	// short gap with no endpoint at all.
-	if err := r.demoteEvacuatingPods(ctx, pods, health, caughtUp); err != nil {
-		return "", err
+	if !(privateRolloutEnabled(instance) && instance.Spec.ExposeNodePort) {
+		if err := r.demoteEvacuatingPods(ctx, pods, health, caughtUp); err != nil {
+			return "", err
+		}
+	}
+	if privateRolloutEnabled(instance) {
+		return r.privateRolloutPrimary(ctx, instance, current, pods, samples, health)
 	}
 	return choosePrimaryPod(current, instance.Name, pods, health), nil
 }
@@ -2608,6 +2614,13 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Labels = labels(instance)
 		sts.Spec.ServiceName = headlessServiceName(instance)
 		sts.Spec.Replicas = ptr(replicas(instance))
+		if privateRolloutEnabled(instance) {
+			// Set the strategy in the SAME update as scale-up and the template:
+			// the old primary must survive until its new sibling has caught up.
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}
+		} else if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
+			sts.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
+		}
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		binPackCeiling, err := r.ceilingBudgetAdvertised(ctx, instance)
@@ -2644,6 +2657,9 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 // image. This makes the operation safe across retries without repeatedly
 // restarting a new pod that is still bootstrapping.
 func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if privateRolloutEnabled(instance) {
+		return nil // The paced rollout owns all pod replacements for this topology.
+	}
 	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
 		return nil
 	}
@@ -3124,7 +3140,8 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	updatedReplicas := sts.Status.UpdatedReplicas
 	observedImage := instance.Status.ObservedImage
 	observedGeneration := sts.Status.ObservedGeneration >= sts.Generation
-	revisionsMatch := sts.Status.UpdateRevision != "" && sts.Status.CurrentRevision == sts.Status.UpdateRevision
+	revisionsMatch := sts.Status.UpdateRevision != "" && (sts.Status.CurrentRevision == sts.Status.UpdateRevision ||
+		(privateRolloutEnabled(instance) && sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType))
 
 	if observedGeneration && revisionsMatch && readyReplicas >= replicas && updatedReplicas >= replicas {
 		observedImage = instance.Spec.Image
@@ -3133,7 +3150,7 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 			phase:         "Ready",
 			observedImage: observedImage,
 			readyReplicas: readyReplicas,
-			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.CurrentRevision),
+			message:       fmt.Sprintf("%d/%d replicas ready on revision %s", readyReplicas, replicas, sts.Status.UpdateRevision),
 		}
 	}
 
@@ -3745,11 +3762,19 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 // from a same-box replica. Different accounts still spread across a region's
 // boxes via the egress (tuist.dev/egress-mbps) + cpu/memory bin-packing.
 //
-// Soft (preferred), not required: a required self-referential podAffinity would
-// deadlock the first replica — no pod matching the selector exists yet, so no
-// node satisfies the term and the pod stays Pending forever. Preferred
-// co-locates in practice while letting the first pod schedule anywhere.
+// Public regions prefer co-location but can evacuate onto another host.
+// Private NodePort replicas require it: externalTrafficPolicy Local means
+// moving the primary off-host invalidates addresses already handed to jobs.
+// Kubernetes permits the first pod of a self-affine set to schedule.
 func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
+	if privateRolloutEnabled(instance) && instance.Spec.ExposeNodePort {
+		return &corev1.Affinity{PodAffinity: &corev1.PodAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{{
+				TopologyKey:   "kubernetes.io/hostname",
+				LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			}},
+		}}
+	}
 	return &corev1.Affinity{
 		PodAffinity: &corev1.PodAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{

@@ -497,7 +497,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress)
+      egress_revision_suffix(egress) <>
+      private_replicas_revision_suffix(region)
+  end
+
+  # Existing private instances must scale up too: reconciliation compares this
+  # revision before applying the manifest. Leave unrelated regions unchanged.
+  defp private_replicas_revision_suffix(region) do
+    if Regions.private?(region), do: "+replicas#{replicas(region)}", else: ""
   end
 
   # Keyed on the pair the manifest renders rather than on the override alone: the

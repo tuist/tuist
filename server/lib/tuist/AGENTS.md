@@ -14,6 +14,12 @@ This directory contains the core business logic and domain modules for the serve
   Its query options suppress application SQL logging without overriding managed
   ClickHouse logging policy; server password masking requires valid dictionary DDL.
 
+- Kura private runner caches use two independently budgeted, same-host replicas.
+  `kura/regions.ex` declares the shape, the Kubernetes provisioner's manifest
+  revision drives migration of existing instances, and `kura/capacity.ex`
+  requires both NodePort replicas to fit one host. The controller owns rollout
+  sequencing; see `infra/kura-controller/private-runner-rollouts.md`.
+
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
 - `Processor.XCActivityLogParser` runs the MuonTrap executable through

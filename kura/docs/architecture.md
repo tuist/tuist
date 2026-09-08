@@ -204,6 +204,20 @@ The pieces:
 - A **Kubernetes adapter** (`ops/helm/kura/rollout.sh`) stages the new revision behind a `StatefulSet` partition, rolls the highest ordinal first, and delegates health gating to the generic gate. The adapter is a thin transport layer; it does not own rollout semantics.
 - An **adjacent-version compatibility harness** (`test/e2e/kura_compatibility_rollout.sh`) validates `PREVIOUS_REF → HEAD → PREVIOUS_REF` on the same persistent Docker volumes for the artifact CAS path.
 
+Controller-managed private runner caches use two same-host processes with
+independent PVCs and the existing peer mesh. Their `OnDelete` rollout replaces
+the standby first, waits for completed backfill and empty outboxes, repoints the
+existing internal and NodePort Services, observes the successor's ready
+EndpointSlices, and lets the old primary drain before replacement. Required
+co-location preserves the Private Network address already handed to jobs.
+The controller installs this strategy atomically with one-to-two scale-up so
+the original cache stays available while the new claim fills. Each replica
+retains its full 50 GiB disk budget and memory/CPU reservation. See the
+[controller migration runbook](../../infra/kura-controller/private-runner-rollouts.md).
+This covers process deployment overlap; host replacement needs separate host
+and endpoint overlap. Replication remains asynchronous, so catch-up does not
+promise strict read-after-write consistency across a handover.
+
 The rollout gate explicitly assumes only that it can fetch `/status/rollout` from each node. It does not depend on Kubernetes probes or Prometheus.
 
 Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (outbox replication deliveries and bootstrap runs that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions.

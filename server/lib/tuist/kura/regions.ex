@@ -350,12 +350,12 @@ defmodule Tuist.Kura.Regions do
       country: "SG"
     }
   ]
-  # Private runner-cache regions. Both share the same model: a single-
-  # replica `KuraInstance` pinned to a specific node pool of the umbrella
-  # cluster, exposed only as a `ClusterIP` Service (no public host, no
-  # ingress, no certificate, no LoadBalancer). The runner pool reaches
-  # the cache pod by Kubernetes Service DNS, so cache traffic never
-  # leaves the cluster. The control plane provisions exactly one of
+  # Private runner-cache regions use two independently stored replicas per
+  # `KuraInstance`, pinned to the runner-adjacent pool. The private NodePort
+  # stays on one host through process rollouts; host replacement needs separate
+  # overlap and endpoint migration. Each replica reserves the full storage and
+  # memory profile, so adding the standby cannot spend the primary's budget.
+  # The control plane provisions exactly one of
   # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
   # and the runner dispatch hands the URL back as `cache_endpoint_url`.
   #
@@ -948,7 +948,7 @@ defmodule Tuist.Kura.Regions do
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
-        replicas: 1,
+        replicas: 2,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
         # over the in-cluster peer mesh (cache content stays coherent; the

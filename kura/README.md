@@ -537,6 +537,11 @@ That script is the Kubernetes adapter. The rollout gate itself lives in `ops/rol
 
 If the Kura container listens on a non-default HTTP port, set `KURA_HTTP_PORT=<port>` when invoking the rollout helper so the adapter samples the correct loopback endpoint inside each pod.
 
+Managed private runner caches use the controller's two-replica rollout, keeping
+independent PVCs and the same NodePort address through process replacement.
+The standby must finish backfill before planned handover; host replacement
+needs separate overlap. See the [migration and capacity runbook](../infra/kura-controller/private-runner-rollouts.md).
+
 For adjacent-version mixed rollout and rollback validation on the same persistent Docker volumes, use:
 
 ```bash

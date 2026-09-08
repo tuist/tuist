@@ -1327,6 +1327,9 @@ capi:
 # `kubectl scale machinedeployment <name> --replicas=N`.
 kuraFleet:
   enabled: false
+  # Host count. Each private KuraInstance runs two same-host processes with
+  # independent 50Gi claims (100Gi/account total), declared by the server region
+  # catalog. Raising this does not provide overlap for an existing NodePort.
   replicas: 1
   # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
   # region's nodeSelector pins the cache pods here.

@@ -51,6 +51,11 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   Note that counters scrape with a doubled suffix (a counter registered as `foo_total` is served as
   `foo_total_total`) — panels must query the scraped name, not the name in the source.
 
+- Managed private runner-cache process rollouts are paced by
+  `infra/kura-controller/controllers/private_rollout.go`, using the runtime's
+  existing backfill status and drain signals. See the
+  [migration runbook](../infra/kura-controller/private-runner-rollouts.md).
+
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:
 - Keep changes backward and forward compatible across one version skew. New nodes must interoperate with old nodes on the peer replication and membership protocols, and clients must keep working against either version. Prefer additive, negotiated changes (for example, offering HTTP/2 while still accepting HTTP/1) over flag-day switches.

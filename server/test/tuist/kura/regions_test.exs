@@ -534,7 +534,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
       assert scw_config.storage_class == "scw-local-nvme"
-      assert scw_config.replicas == 1
+      assert scw_config.replicas == 2
 
       # No disk_envelope_size override: the ring derives from storage_size like
       # every managed region, so a per-account node here sizes its CAS ring the

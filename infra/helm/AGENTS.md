@@ -22,6 +22,10 @@ This node covers Helm assets under `infra/helm/`.
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
 
+- `tuist/values.yaml`'s `kuraFleet.replicas` counts runner-cache hosts. Private
+  instance process replicas come from the server's region catalog; budget both
+  same-host claims and memory reservations when sizing this fleet.
+
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
