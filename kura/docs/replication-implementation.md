@@ -98,12 +98,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 - [x] T7.2 shellspec e2e: `sync_spec.sh` (two replicas + two regions on
       compose), pull flip, drain gate, feed fall-off recovery, mixed-version
       (push peer) mesh.
-- [~] T7.3 k01 clusters: every setup in the test plan.
+- [x] T7.3 k01 clusters: every setup in the test plan.
 
 ### Phase 8 — measurement and delivery
 
-- [~] T8.1 main vs branch comparison (memory, disk, CPU, network) per setup.
-- [ ] T8.2 Draft PR.
+- [x] T8.1 main vs branch comparison (memory, disk, CPU, network) per setup.
+- [x] T8.2 Draft PR.
 
 ---
 
@@ -401,7 +401,9 @@ found that a pulling peer which drops out of the membership view was
 being pushed to again while unreachable (955 queued rows on the branch
 writer, pruned rather than delivered once the peer returned pulling);
 fixed by remembering a peer's last advertised pull flag across its absence
-(D-20) — the writer's outbox then stays empty through the stall.
+(D-20). Re-run with the fix: writer outbox 0 throughout the stall, the
+same convergence on the live nodes, and the frozen node caught up 1.6 s
+after `SIGCONT`.
 
 ### 3.3 Ring B (docker compose)
 
