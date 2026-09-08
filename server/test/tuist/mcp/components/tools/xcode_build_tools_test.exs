@@ -92,6 +92,51 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
   end
 
   describe "get_xcode_build" do
+    test "returns the CAS transfer totals for the build" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok,
+         %{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+
+      expect(Builds, :cas_output_metrics, fn "build-1" ->
+        cas_output_metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert result["cas_output_download_count"] == 90
+      assert result["cas_output_upload_count"] == 10
+      assert result["cas_output_download_bytes"] == 9000
+      assert result["cas_output_upload_bytes"] == 1000
+    end
+
     test "returns build details and an archive download URL" do
       project = %{id: 1, name: "app", account: %{name: "acme"}}
 
@@ -130,6 +175,8 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       end)
 
       reject(&Storage.get_object_size/2)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
 
       result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
@@ -403,8 +450,6 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
-
       result = ListXcodeBuildCASOutputs.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
@@ -412,47 +457,6 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       assert length(result["outputs"]) == 1
       assert hd(result["outputs"])["node_id"] == "node-1"
       assert hd(result["outputs"])["size"] == 1024
-    end
-
-    test "returns the totals for the whole build run when the outputs are filtered to one operation" do
-      project = %{id: 1, name: "app"}
-
-      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
-      stub(Projects, :get_project_by_id, fn 1 -> project end)
-      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
-
-      expect(Builds, :list_cas_outputs, fn attrs ->
-        assert %{field: :operation, op: :==, value: "upload"} in attrs.filters
-
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           total_count: 0,
-           total_pages: 0,
-           current_page: 1,
-           page_size: 20
-         }}
-      end)
-
-      expect(Builds, :cas_output_metrics, fn "build-1" ->
-        cas_output_metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
-      end)
-
-      result =
-        ListXcodeBuildCASOutputs.call(conn_with_subject(), %{
-          "build_run_id" => "build-1",
-          "operation" => "upload"
-        })
-
-      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
-
-      assert JSON.decode!(text)["totals"] == %{
-               "download_count" => 90,
-               "upload_count" => 10,
-               "download_bytes" => 9000,
-               "upload_bytes" => 1000
-             }
     end
   end
 

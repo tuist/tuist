@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   @moduledoc """
-  List content-addressable storage outputs for a specific Xcode build run, along with the aggregate transfer totals for the whole run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
+  List content-addressable storage outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
   use Tuist.MCP.Tool,
@@ -61,22 +61,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
             "additionalProperties" => false
           }
         },
-        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema(),
-        "totals" => %{
-          "type" => "object",
-          "description" =>
-            "Aggregate transfer totals for the whole build run. Not narrowed by the operation or type filters, and not scoped to the current page.",
-          "properties" => %{
-            "download_count" => %{"type" => "integer"},
-            "upload_count" => %{"type" => "integer"},
-            "download_bytes" => %{"type" => "integer"},
-            "upload_bytes" => %{"type" => "integer"}
-          },
-          "required" => ["download_count", "upload_count", "download_bytes", "upload_bytes"],
-          "additionalProperties" => false
-        }
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
       },
-      "required" => ["outputs", "pagination_metadata", "totals"],
+      "required" => ["outputs", "pagination_metadata"],
       "additionalProperties" => false
     }
 
@@ -86,7 +73,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   @impl EMCP.Tool
   def description,
     do:
-      "List content-addressable storage outputs for a specific Xcode build run, along with the aggregate transfer totals for the whole run. The totals cover every output regardless of the operation and type filters, so a single call yields both the download and upload counts and bytes. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+      "List content-addressable storage outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
@@ -121,8 +108,6 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
           page_size: page_size
         })
 
-      totals = Builds.cas_output_metrics(build_run_id)
-
       {:ok,
        %{
          outputs:
@@ -137,13 +122,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
                type: to_string(output.type)
              }
            end),
-         pagination_metadata: MCPTool.pagination_metadata(meta),
-         totals: %{
-           download_count: totals.download_count,
-           upload_count: totals.upload_count,
-           download_bytes: totals.download_bytes,
-           upload_bytes: totals.upload_bytes
-         }
+         pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
     end
   end

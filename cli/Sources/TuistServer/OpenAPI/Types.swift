@@ -20561,6 +20561,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -20688,6 +20704,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -20708,6 +20728,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -20728,6 +20752,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -20749,6 +20777,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -33418,74 +33450,21 @@ public enum Operations {
                         public var outputs: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.outputsPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/pagination_metadata`.
                         public var pagination_metadata: Components.Schemas.PaginationMetadata
-                        /// The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals`.
-                        public struct totalsPayload: Codable, Hashable, Sendable {
-                            /// The number of bytes downloaded.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals/download_bytes`.
-                            public var download_bytes: Swift.Int
-                            /// The number of CAS outputs downloaded.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals/download_count`.
-                            public var download_count: Swift.Int
-                            /// The number of bytes uploaded.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals/upload_bytes`.
-                            public var upload_bytes: Swift.Int
-                            /// The number of CAS outputs uploaded.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals/upload_count`.
-                            public var upload_count: Swift.Int
-                            /// Creates a new `totalsPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - download_bytes: The number of bytes downloaded.
-                            ///   - download_count: The number of CAS outputs downloaded.
-                            ///   - upload_bytes: The number of bytes uploaded.
-                            ///   - upload_count: The number of CAS outputs uploaded.
-                            public init(
-                                download_bytes: Swift.Int,
-                                download_count: Swift.Int,
-                                upload_bytes: Swift.Int,
-                                upload_count: Swift.Int
-                            ) {
-                                self.download_bytes = download_bytes
-                                self.download_count = download_count
-                                self.upload_bytes = upload_bytes
-                                self.upload_count = upload_count
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case download_bytes
-                                case download_count
-                                case upload_bytes
-                                case upload_count
-                            }
-                        }
-                        /// The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals`.
-                        public var totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - outputs:
                         ///   - pagination_metadata:
-                        ///   - totals: The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                         public init(
                             outputs: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.outputsPayload,
-                            pagination_metadata: Components.Schemas.PaginationMetadata,
-                            totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload
+                            pagination_metadata: Components.Schemas.PaginationMetadata
                         ) {
                             self.outputs = outputs
                             self.pagination_metadata = pagination_metadata
-                            self.totals = totals
                         }
                         public enum CodingKeys: String, CodingKey {
                             case outputs
                             case pagination_metadata
-                            case totals
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/application\/json`.
@@ -34511,6 +34490,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -34638,6 +34633,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -34658,6 +34657,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -34678,6 +34681,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -34699,6 +34706,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata

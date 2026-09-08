@@ -107,21 +107,9 @@ defmodule TuistWeb.API.BuildCASOutputsController do
                  required: [:node_id, :checksum, :size, :compressed_size, :duration, :operation]
                }
              },
-             pagination_metadata: PaginationMetadata,
-             totals: %Schema{
-               type: :object,
-               description:
-                 "The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.",
-               properties: %{
-                 download_count: %Schema{type: :integer, description: "The number of CAS outputs downloaded."},
-                 upload_count: %Schema{type: :integer, description: "The number of CAS outputs uploaded."},
-                 download_bytes: %Schema{type: :integer, description: "The number of bytes downloaded."},
-                 upload_bytes: %Schema{type: :integer, description: "The number of bytes uploaded."}
-               },
-               required: [:download_count, :upload_count, :download_bytes, :upload_bytes]
-             }
+             pagination_metadata: PaginationMetadata
            },
-           required: [:outputs, :pagination_metadata, :totals]
+           required: [:outputs, :pagination_metadata]
          }},
       not_found: {"Build not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
@@ -154,8 +142,6 @@ defmodule TuistWeb.API.BuildCASOutputsController do
             page_size: page_size
           })
 
-        totals = Builds.cas_output_metrics(build_id)
-
         json(conn, %{
           outputs:
             Enum.map(outputs, fn output ->
@@ -176,12 +162,6 @@ defmodule TuistWeb.API.BuildCASOutputsController do
             page_size: meta.page_size,
             total_count: meta.total_count,
             total_pages: meta.total_pages
-          },
-          totals: %{
-            download_count: totals.download_count,
-            upload_count: totals.upload_count,
-            download_bytes: totals.download_bytes,
-            upload_bytes: totals.upload_bytes
           }
         })
 
