@@ -51,6 +51,11 @@ spec:
                   name: {{ $fullname }}-runtime
                   key: push-topic
                   optional: true
+            - name: ENROLLER_WEBHOOK_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: webhook-hmac-key
             - name: ENROLLER_SCEP_CHALLENGE
               valueFrom:
                 secretKeyRef:

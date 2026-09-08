@@ -13,6 +13,7 @@ runtimeSecrets:
     nanomdmAPIKey: validation
     nanodepAPIKey: validation
     scepChallenge: validation
+    webhookHMACKey: validation
     scepCACertPEM: |
       -----BEGIN CERTIFICATE-----
       validation

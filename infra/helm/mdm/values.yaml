@@ -150,6 +150,7 @@ runtimeSecrets:
     nanomdmAPIKey: ""
     nanodepAPIKey: ""
     scepChallenge: ""
+    webhookHMACKey: ""
     pushTopic: ""
     enrollToken: ""
     svcAccountPasswordHashB64: ""

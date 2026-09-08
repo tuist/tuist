@@ -27,22 +27,20 @@ spec:
         - name: depserver
           image: "{{ .Values.images.nanodep.repository }}:{{ .Values.images.nanodep.tag }}"
           imagePullPolicy: {{ .Values.images.nanodep.pullPolicy }}
+          # Secrets by environment rather than argv; depserver maps
+          # NANODEP_<FLAG> onto every flag.
           args:
             - -listen
             - :9001
-            - -api
-            - $(NANODEP_API_KEY)
             - -storage
             - pgsql
-            - -storage-dsn
-            - $(STORAGE_DSN)
           env:
-            - name: NANODEP_API_KEY
+            - name: NANODEP_API
               valueFrom:
                 secretKeyRef:
                   name: {{ $fullname }}-runtime
                   key: nanodep-api-key
-            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+            {{- include "mdm.storageDSNEnv" (dict "root" . "name" "NANODEP_STORAGE_DSN") | nindent 12 }}
           ports:
             - name: http
               containerPort: 9001
@@ -82,6 +80,14 @@ spec:
 {{- /* depsyncer polls Apple's DEP sync endpoint and auto-assigns the
 stored assigner profile UUID to newly added devices. Same image and
 storage as depserver, different entrypoint. */}}
+{{- /*
+Deliberately one replica and no probes, unlike the rest of the chart.
+depsyncer holds a sync cursor per DEP name: a second replica would fetch
+and assign the same devices twice. It also serves no HTTP, so there is
+nothing for a readiness or liveness probe to ask — a crash-looping
+syncer shows up as the pod restarting and as the absence of "device
+sync" lines, not as an unready endpoint.
+*/}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -111,6 +117,11 @@ spec:
           image: "{{ .Values.images.nanodep.repository }}:{{ .Values.images.nanodep.tag }}"
           imagePullPolicy: {{ .Values.images.nanodep.pullPolicy }}
           command: ["/app/depsyncer"]
+          # Unlike depserver, depsyncer does not read flags from the
+          # environment upstream, so the DSN has to stay on the command
+          # line here. Its password is the same one the depserver and
+          # nanomdm pods hold, so this is the weakest link in that
+          # treatment rather than an independent exposure.
           args:
             - -storage
             - pgsql
@@ -120,7 +131,7 @@ spec:
             # arguments and exits non-zero without at least one.
             - {{ required "nanodep.depName is required" .Values.nanodep.depName | quote }}
           env:
-            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+            {{- include "mdm.storageDSNEnv" (dict "root" . "name" "STORAGE_DSN") | nindent 12 }}
           resources:
             {{- toYaml .Values.nanodep.resources | nindent 12 }}
 {{- end }}

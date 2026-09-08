@@ -28,17 +28,17 @@ spec:
         - name: nanomdm
           image: "{{ .Values.images.nanomdm.repository }}:{{ .Values.images.nanomdm.tag }}"
           imagePullPolicy: {{ .Values.images.nanomdm.pullPolicy }}
+          # The API key and the DSN (which carries the database password)
+          # are passed as environment variables, not flags: argv is world
+          # readable through /proc and shows up in any sidecar or debug
+          # container. NanoMDM maps NANOMDM_<FLAG> onto every flag.
           args:
             - -listen
             - :9000
-            - -api
-            - $(NANOMDM_API_KEY)
             - -ca
             - /scep-ca/ca.pem
             - -storage
             - pgsql
-            - -storage-dsn
-            - $(STORAGE_DSN)
             {{- with .Values.nanomdm.storageOptions }}
             - -storage-options
             - {{ . | quote }}
@@ -46,12 +46,17 @@ spec:
             - -webhook-url
             - http://{{ $fullname }}-enroller:9004/webhook
           env:
-            - name: NANOMDM_API_KEY
+            - name: NANOMDM_API
               valueFrom:
                 secretKeyRef:
                   name: {{ $fullname }}-runtime
                   key: nanomdm-api-key
-            {{- include "mdm.storageDSNEnv" . | nindent 12 }}
+            - name: NANOMDM_WEBHOOK_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullname }}-runtime
+                  key: webhook-hmac-key
+            {{- include "mdm.storageDSNEnv" (dict "root" . "name" "NANOMDM_STORAGE_DSN") | nindent 12 }}
           ports:
             - name: http
               containerPort: 9000

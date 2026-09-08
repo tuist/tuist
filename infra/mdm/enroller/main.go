@@ -20,10 +20,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -32,8 +34,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"howett.net/plist"
@@ -221,7 +226,7 @@ func newCommandUUID() string {
 	}
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 func commandPlist(requestType string, fields map[string]any) ([]byte, error) {
@@ -312,6 +317,19 @@ type server struct {
 	enrollProfile []byte
 	usbProfile    []byte
 	bootstrapPkg  []byte
+
+	// Enroll sequences run outside the request, because NanoMDM's webhook
+	// is fire-and-forget and holding it open buys nothing. Shutdown waits
+	// on this so a rollout mid-sequence does not strand a device at
+	// "awaiting configuration", which NanoMDM will never retry.
+	inFlight sync.WaitGroup
+}
+
+func skipIf(cond bool, reason string) string {
+	if cond {
+		return reason
+	}
+	return ""
 }
 
 // webhookEvent is the subset of NanoMDM's webhook body we care about
@@ -396,14 +414,26 @@ func (s *server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		log.Printf("webhook: TokenUpdate without an enrollment id")
 		return
 	}
-	// Tally 1 is the enrollment TokenUpdate; anything later is a push
-	// token rotation on an already-configured device.
-	if ce.TokenUpdateTally != nil && *ce.TokenUpdateTally > 1 {
+	// Only tally 1 is the enrollment TokenUpdate. A missing tally is
+	// treated as "not an enrollment" rather than "probably one": replaying
+	// the sequence re-runs AccountConfiguration and the bootstrap
+	// postinstall against a machine already in service, so the failure
+	// mode of guessing wrong is worse in that direction than in the other,
+	// where the remedy is re-enrolling a device that never finished.
+	if ce.TokenUpdateTally == nil {
+		log.Printf("webhook: TokenUpdate for %s carries no tally; refusing to assume this is an enrollment", id)
+		return
+	}
+	if *ce.TokenUpdateTally != 1 {
 		log.Printf("webhook: TokenUpdate tally %d for %s, not an enrollment; skipping", *ce.TokenUpdateTally, id)
 		return
 	}
 
-	go s.runEnrollSequence(id)
+	s.inFlight.Add(1)
+	go func() {
+		defer s.inFlight.Done()
+		s.runEnrollSequence(id)
+	}()
 }
 
 func (s *server) runEnrollSequence(id string) {
@@ -413,10 +443,14 @@ func (s *server) runEnrollSequence(id string) {
 		build func() ([]byte, error)
 		skip  string
 	}
+	// Each step carries its own precondition. Binding them positionally
+	// meant a reorder could silently suppress AccountConfiguration or aim
+	// the package guard at the wrong command.
 	steps := []step{
 		{
 			name:  "AccountConfiguration",
 			build: func() ([]byte, error) { return accountConfigurationCommand(s.cfg) },
+			skip:  skipIf(len(s.cfg.svcPasswordHash) == 0, "no service-account password hash configured"),
 		},
 		{
 			name:  "InstallProfile(usb)",
@@ -425,17 +459,12 @@ func (s *server) runEnrollSequence(id string) {
 		{
 			name:  "InstallEnterpriseApplication(bootstrap)",
 			build: func() ([]byte, error) { return installBootstrapPkgCommand(s.cfg, s.bootstrapPkg) },
+			skip:  skipIf(len(s.bootstrapPkg) == 0, "no bootstrap package present in the assets secret"),
 		},
 		{
 			name:  "DeviceConfigured",
 			build: func() ([]byte, error) { return commandPlist("DeviceConfigured", nil) },
 		},
-	}
-	if len(s.cfg.svcPasswordHash) == 0 {
-		steps[0].skip = "no service-account password hash configured"
-	}
-	if len(s.bootstrapPkg) == 0 {
-		steps[2].skip = "no bootstrap package present in the assets secret"
 	}
 	for i, st := range steps {
 		if st.skip != "" {
@@ -460,9 +489,16 @@ func (s *server) runEnrollSequence(id string) {
 }
 
 func (s *server) handleEnroll(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.enrollToken != "" && r.URL.Query().Get("token") != s.cfg.enrollToken {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
+	// Constant time: this endpoint is internet-facing and the profile it
+	// returns carries the SCEP challenge, so a timing oracle on the token
+	// would hand over the ability to enrol.
+	if s.cfg.enrollToken != "" {
+		got := []byte(r.URL.Query().Get("token"))
+		want := []byte(s.cfg.enrollToken)
+		if subtle.ConstantTimeCompare(got, want) != 1 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/x-apple-aspen-config")
 	w.Header().Set("Content-Disposition", `attachment; filename="tuist-enroll.mobileconfig"`)
@@ -513,6 +549,40 @@ func main() {
 	mux.HandleFunc("/static/bootstrap.pkg", s.handlePkg)
 	mux.HandleFunc("/webhook", s.handleWebhook)
 
-	log.Printf("mdm-enroller listening on %s", cfg.listen)
-	log.Fatal(http.ListenAndServe(cfg.listen, mux))
+	srv := &http.Server{Addr: cfg.listen, Handler: mux}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		log.Printf("mdm-enroller listening on %s", cfg.listen)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	<-stop
+	log.Printf("shutting down; waiting for in-flight enroll sequences")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("http shutdown: %v", err)
+	}
+
+	// A device held at "awaiting configuration" is only released by
+	// DeviceConfigured, and NanoMDM does not retry a webhook it has
+	// already delivered, so exiting mid-sequence strands that machine
+	// until a human notices. Wait, bounded by the pod's grace period.
+	done := make(chan struct{})
+	go func() {
+		s.inFlight.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		log.Printf("in-flight enroll sequences finished")
+	case <-time.After(25 * time.Second):
+		log.Printf("WARNING: gave up waiting on in-flight enroll sequences; a device may be stranded at awaiting-configuration")
+	}
 }

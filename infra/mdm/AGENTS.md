@@ -29,7 +29,7 @@ MDM.
 ## Deployment
 
 Helm chart in `infra/helm/mdm` (nanomdm, nanodep depserver+depsyncer,
-scepserver, enroller, CNPG Postgres), deployed to the staging cluster
+scepserver, enroller, CNPG Postgres), deployed to the production cluster
 namespace `mdm` by `.github/workflows/mdm-deployment.yml`. The
 NanoMDM/NanoDEP pgsql schemas are vendored under the chart's
 `files/schema/` from the pinned upstream tags and applied once at CNPG

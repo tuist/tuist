@@ -17,9 +17,20 @@ data:
 {{ .Files.Get "files/schema/nanomdm-pgsql-schema.sql" | indent 4 }}
   02-nanodep.sql: |
 {{ .Files.Get "files/schema/nanodep-pgsql-schema.sql" | indent 4 }}
+  # Rendered rather than read from files/ so the role always matches
+  # .Values.postgresql.owner. Hardcoding it meant overriding the owner
+  # produced an initdb script referencing a role that does not exist,
+  # and the cluster would never finish bootstrapping.
   03-grants.sql: |
-{{ .Files.Get "files/schema/grants.sql" | indent 4 }}
+    -- The schema files above run as the superuser at initdb, so the
+    -- objects are postgres-owned; grant the application role what it
+    -- needs.
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO {{ .Values.postgresql.owner }};
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {{ .Values.postgresql.owner }};
 ---
+{{- if and .Values.postgresql.backup.enabled (not .Values.runtimeSecrets.externalSecret.enabled) }}
+{{- fail "postgresql.backup.enabled requires runtimeSecrets.externalSecret.enabled: the barman ObjectStore references a credentials Secret that only the ExternalSecret path creates, and CNPG would wait on it forever while WAL archiving stalls" }}
+{{- end }}
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:

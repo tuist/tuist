@@ -21,9 +21,21 @@ WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 mkdir -p "$WORK_DIR/scripts"
-sed -e "s|@SVC_ACCOUNT@|$SVC_ACCOUNT|g" \
-    -e "s|@AUTHORIZED_KEYS@|$(cat "$KEY_FILE")|g" \
-    "$SRC_DIR/postinstall.tmpl" > "$WORK_DIR/scripts/postinstall"
+# Substituted with python rather than sed: a real authorized_keys file
+# holds several keys, and sed treats the embedded newline as the end of
+# the substitution and dies with "unterminated `s' command". Key comments
+# containing the delimiter would break it too.
+SVC_ACCOUNT="$SVC_ACCOUNT" KEY_FILE="$KEY_FILE" python3 - \
+    "$SRC_DIR/postinstall.tmpl" "$WORK_DIR/scripts/postinstall" <<'PYEOF'
+import os, sys
+
+template, out = sys.argv[1], sys.argv[2]
+keys = open(os.environ["KEY_FILE"]).read().strip()
+body = open(template).read()
+body = body.replace("@SVC_ACCOUNT@", os.environ["SVC_ACCOUNT"])
+body = body.replace("@AUTHORIZED_KEYS@", keys)
+open(out, "w").write(body)
+PYEOF
 chmod 755 "$WORK_DIR/scripts/postinstall"
 
 pkgbuild --nopayload \

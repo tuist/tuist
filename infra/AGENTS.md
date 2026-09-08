@@ -16,8 +16,8 @@ Two grace-period garbage collectors live here, both off or in dry-run by default
 ### `helm/noora-storybook/` — standalone Noora Storybook chart
 Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys independently from the Tuist server so Noora Storybook changes do not have to share the server release boundary.
 
-### `helm/mdm/` — fleet MDM chart (staging, managed only)
-Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program): NanoMDM + SCEP CA + NanoDEP + a small enrollment-orchestration service, backed by its own CNPG Postgres. Deployed to the staging cluster (namespace `mdm`) via `.github/workflows/mdm-deployment.yml`. Sources, operator runbook, and the manual Apple ceremonies live in [`mdm/`](mdm/AGENTS.md).
+### `helm/mdm/` — fleet MDM chart (managed only)
+Self-hosted Apple MDM for the Mac runner fleet (BER1 rack program): NanoMDM + SCEP CA + NanoDEP + a small enrollment-orchestration service, backed by its own CNPG Postgres. One instance owns every Mac we own whatever cluster that Mac ends up serving, because the MDM manages a host before it joins anything; there is deliberately no per-cluster MDM. Deployed to the production cluster (namespace `mdm`) via `.github/workflows/mdm-deployment.yml`, alongside `tuist-ops` and for the same reason: it provisions the fleet, so it does not belong in the cluster we treat as disposable. Sources, operator runbook, and the manual Apple ceremonies live in [`mdm/`](mdm/AGENTS.md).
 
 ### `helm/slack/` — standalone Slack invitation chart
 Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.

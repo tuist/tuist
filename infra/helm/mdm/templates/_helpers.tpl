@@ -38,10 +38,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 emits a `<cluster>-app` Secret whose `uri` key is a ready
 postgresql:// URL for the bootstrap database/owner. */ -}}
 {{- define "mdm.storageDSNEnv" -}}
-- name: STORAGE_DSN
+- name: {{ .name }}
   valueFrom:
     secretKeyRef:
-      name: {{ include "mdm.pgClusterName" . }}-app
+      name: {{ include "mdm.pgClusterName" .root }}-app
       key: uri
 {{- end -}}
 

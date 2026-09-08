@@ -18,9 +18,9 @@ converged by the operator SSH bootstrap (`infra/macos-host-bootstrap`).
 | Postgres | CNPG cluster in the same namespace | Storage for nanomdm + nanodep (schemas vendored in the chart, applied at initdb) |
 
 Deployed by `.github/workflows/mdm-deployment.yml` from
-`infra/helm/mdm` into the staging cluster, namespace `mdm`.
+`infra/helm/mdm` into the production cluster, namespace `mdm`.
 
-Public endpoints (staging):
+Public endpoints:
 
 Public, because a Mac fetches them from home, office or colo:
 
@@ -96,7 +96,8 @@ certificate can serve the bench and the fleet instance both.
 ## Manual ceremonies
 
 All secret material lives in a single 1Password item **`MDM`** in the
-env's vault, synced into the cluster by ESO. Create it first.
+production vault (`tuist-k8s-production`), synced into the cluster by
+ESO. Create it first.
 
 **Editing a field in 1Password does not reach the running pods on its
 own, and nothing reports that.** ESO refreshes hourly, and a changed
@@ -195,7 +196,7 @@ the MDM server link. The nanodep "DEP name" used below is `tuist`.
 
 2. In [business.apple.com](https://business.apple.com): your name in
    the sidebar → **Preferences** → **MDM Server Assignment / Your MDM
-   Servers** → **Add**. Name it (e.g. `tuist-staging-mdm`), check
+   Servers** → **Add**. Name it `tuist-mdm`, check
    *Allow this MDM Server to release devices*, upload `tuist-mdm.pem`.
 3. Download the server token (`.p7m`). **It also expires after 1 year —
    calendar this too** (renew in ABM, re-run this step).
