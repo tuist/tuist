@@ -5,343 +5,341 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
   name: vultrmachines.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
     categories:
-    - cluster-api
+      - cluster-api
     kind: VultrMachine
     listKind: VultrMachineList
     plural: vultrmachines
     shortNames:
-    - vum
+      - vum
     singular: vultrmachine
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .status.phase
-      name: Phase
-      type: string
-    - jsonPath: .spec.providerID
-      name: ProviderID
-      type: string
-    - jsonPath: .status.ready
-      name: Ready
-      type: boolean
-    - jsonPath: .status.converted.quotaEnforced
-      name: Quota
-      type: boolean
-    - jsonPath: .status.converted.dataDevice
-      name: Data
-      priority: 1
-      type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: VultrMachine is one Vultr bare-metal server in the cluster.
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: |-
-              VultrMachineSpec is the desired state of one Vultr bare-metal server backing
-              a customer-facing Kura cache region. It joins as an ordinary Linux worker Node
-              via the provider-generated self-join cloud-init, and it adopts a pre-ordered
-              server rather than ordering one inline, like the OVH and Dedibox kinds.
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .spec.providerID
+          name: ProviderID
+          type: string
+        - jsonPath: .status.ready
+          name: Ready
+          type: boolean
+        - jsonPath: .status.converted.quotaEnforced
+          name: Quota
+          type: boolean
+        - jsonPath: .status.converted.dataDevice
+          name: Data
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: VultrMachine is one Vultr bare-metal server in the cluster.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                VultrMachineSpec is the desired state of one Vultr bare-metal server backing
+                a customer-facing Kura cache region. It joins as an ordinary Linux worker Node
+                via the provider-generated self-join cloud-init, and it adopts a pre-ordered
+                server rather than ordering one inline, like the OVH and Dedibox kinds.
 
-              Vultr is here because South America has no OVH, Scaleway or Hetzner presence,
-              and it differs from the other Linux kinds in two ways that shape this type.
+                Vultr is here because South America has no OVH, Scaleway or Hetzner presence,
+                and it differs from the other Linux kinds in two ways that shape this type.
 
-              Adoption is by TAG, not by a name prefix. `GET /v2/bare-metals` filters
-              server-side on label, tag and region, but the label filter matches exactly:
-              querying the label `tuist-kura-vultr-production` returns nothing for a box
-              labelled `tuist-kura-vultr-production-sa-west`. So there is no server-side
-              equivalent of the OVH displayName prefix, and the fleet marker is a tag, which
-              is the Dedibox shape.
+                Adoption is by TAG, not by a name prefix. `GET /v2/bare-metals` filters
+                server-side on label, tag and region, but the label filter matches exactly:
+                querying the label `tuist-kura-vultr-production` returns nothing for a box
+                labelled `tuist-kura-vultr-production-sa-west`. So there is no server-side
+                equivalent of the OVH displayName prefix, and the fleet marker is a tag, which
+                is the Dedibox shape.
 
-              The install cannot produce the disk layout. Vultr exposes no partitioning
-              control and its installer offers only RAID 1 across both disks or no RAID,
-              neither of which is the mirrored root plus separate XFS /data the cluster
-              gates on. The box is therefore converted after install, which is a lifecycle
-              stage the other kinds do not have. See docs/vultr-baremetal-support.md.
-            properties:
-              adoptTag:
-                description: |-
-                  AdoptTag is the tag a pre-ordered server must carry for the controller to
-                  claim it for this fleet. It is the ENVIRONMENT BOUNDARY: one Vultr account
-                  holds every env's boxes and region+plan repeat across envs, so this marker,
-                  set by prep as its final step, is what keeps a staging fleet from adopting
-                  a prod box. Enforced as required by the fleet helm template rather than the
-                  CRD: a required CRD field breaks helm rollbacks to revisions predating it.
-                type: string
-              egressBudgetMbps:
-                description: |-
-                  EgressBudgetMbps is the throughput, in Mbps, this box may assign across the
-                  Kura pods it hosts. When set, the controller advertises it as the Node's
-                  `tuist.dev/egress-mbps` extended resource so the scheduler bin-packs cache
-                  pods by assigned peak throughput and never oversubscribes the box. Zero
-                  leaves the resource unadvertised.
-
-                  Unlike OVH there is no discovery path: Vultr exposes no per-box egress
-                  reading, and what actually binds is the plan's monthly transfer quota (10 TB
-                  on vbm-6c-32gb-amd) rather than the 25 Gbit/s the NIC links at. So this is
-                  always the configured value.
-                format: int32
-                type: integer
-              fleetName:
-                description: |-
-                  FleetName groups Machines that share one SSH key. Set by the MachineTemplate
-                  so every Machine the MachineDeployment clones derives the SAME fleet key the
-                  operator authorized on the pre-ordered pool boxes; without it the
-                  per-Machine-name key would not match a pre-ordered box, and the bootstrap
-                  SSH would fail.
-                type: string
-              nodeTaints:
-                description: |-
-                  NodeTaints are passed to the kubelet's `--register-with-taints` in the
-                  generated self-join. Cache regions leave this empty; the region's
-                  nodeSelector and pool label do the placement.
-                items:
+                The install cannot produce the disk layout. Vultr exposes no partitioning
+                control and its installer offers only RAID 1 across both disks or no RAID,
+                neither of which is the mirrored root plus separate XFS /data the cluster
+                gates on. The box is therefore converted after install, which is a lifecycle
+                stage the other kinds do not have. See docs/vultr-baremetal-support.md.
+              properties:
+                adoptTag:
                   description: |-
-                    The node this Taint is attached to has the "effect" on
-                    any pod that does not tolerate the Taint.
-                  properties:
-                    effect:
-                      description: |-
-                        Required. The effect of the taint on pods
-                        that do not tolerate the taint.
-                        Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
-                      type: string
-                    key:
-                      description: Required. The taint key to be applied to a node.
-                      type: string
-                    timeAdded:
-                      description: |-
-                        TimeAdded represents the time at which the taint was added.
-                        It is only written for NoExecute taints.
-                      format: date-time
-                      type: string
-                    value:
-                      description: The taint value corresponding to the taint key.
-                      type: string
-                  required:
-                  - effect
-                  - key
-                  type: object
-                type: array
-              osID:
-                default: 2284
-                description: |-
-                  OSID is the Vultr numeric OS id the controller reinstalls with (2284 is
-                  Ubuntu 24.04 LTS x64). Numeric rather than a label because the reinstall
-                  endpoint takes no OS argument at all: it reinstalls whatever the box
-                  already carries, so this records what the pool was ordered with and lets
-                  the controller refuse a box that does not match.
-                format: int32
-                type: integer
-              plan:
-                description: |-
-                  Plan is the Vultr bare-metal plan adoption is restricted to (e.g.
-                  `vbm-6c-32gb-amd`), so a fleet only claims boxes of the intended shape.
-                  Empty adopts any free box carrying the tag in the region. Worth setting:
-                  the plans differ in whether their disks are NVMe or SSD, and the cache
-                  wants NVMe.
-                type: string
-              providerID:
-                description: |-
-                  ProviderID, set by the controller after the self-join completes, takes the
-                  shape `vultr://<region>/<instance-id>`. A foreign providerID host
-                  (`vultr`) so the Hetzner CCM never reaps the node, the same guard the other
-                  bare-metal kinds use. CAPI core expects this to populate, or the parent
-                  Machine never goes Ready.
-                type: string
-              region:
-                default: scl
-                description: |-
-                  Region is the Vultr region code the server lives in (`scl` for Santiago).
-                  Scopes adoption and composes the providerID.
-                type: string
-            type: object
-          status:
-            description: VultrMachineStatus is the observed state of the Machine.
-            properties:
-              addresses:
-                description: |-
-                  Addresses surfaces the server's public address and hostname for kubectl
-                  describe and event correlation.
-                items:
-                  description: MachineAddress contains information for the node's
-                    address.
-                  properties:
-                    address:
-                      description: The machine address.
-                      type: string
-                    type:
-                      description: Machine address type, one of Hostname, ExternalIP,
-                        InternalIP, ExternalDNS or InternalDNS.
-                      type: string
-                  required:
-                  - address
-                  - type
-                  type: object
-                type: array
-              bootstrapAttempts:
-                description: |-
-                  BootstrapAttempts counts consecutive bootstrap failures on the current
-                  server. Reset on a successful bootstrap or whenever InstanceID changes.
-                format: int32
-                type: integer
-              bootstrapRebootIssued:
-                description: |-
-                  BootstrapRebootIssued records that a recovery reboot has already been
-                  triggered for the current server, so retries do not re-reboot it. Cleared
-                  when InstanceID changes or on a successful bootstrap.
-                type: boolean
-              conditions:
-                description: Conditions are CAPI-style condition entries (Provisioned,
-                  NodeReady).
-                items:
-                  description: Condition defines an observation of a Cluster API resource
-                    operational state.
-                  properties:
-                    lastTransitionTime:
-                      description: |-
-                        Last time the condition transitioned from one status to another.
-                        This should be when the underlying condition changed. If that is not known, then using the time when
-                        the API field changed is acceptable.
-                      format: date-time
-                      type: string
-                    message:
-                      description: |-
-                        A human readable message indicating details about the transition.
-                        This field may be empty.
-                      type: string
-                    reason:
-                      description: |-
-                        The reason for the condition's last transition in CamelCase.
-                        The specific API may choose whether or not this field is considered a guaranteed API.
-                        This field may be empty.
-                      type: string
-                    severity:
-                      description: |-
-                        severity provides an explicit classification of Reason code, so the users or machines can immediately
-                        understand the current situation and act accordingly.
-                        The Severity field MUST be set only when Status=False.
-                      type: string
-                    status:
-                      description: status of the condition, one of True, False, Unknown.
-                      type: string
-                    type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
-                        can be useful (see .node.status.conditions), the ability to deconflict is important.
-                      type: string
-                  required:
-                  - lastTransitionTime
-                  - status
-                  - type
-                  type: object
-                type: array
-              converted:
-                description: |-
-                  Converted records that this box has been through the disk conversion and
-                  its /data can carry project quotas. Keyed by InstanceID so a machine that
-                  moves to another box, or a box that has since been reinstalled, is never
-                  credited with its predecessor's conversion.
-                properties:
-                  attemptedAt:
-                    format: date-time
-                    type: string
-                  attempts:
-                    description: |-
-                      Attempts counts consecutive failed conversions on this box. Reset on
-                      success.
-                    format: int32
-                    type: integer
-                  convertedAt:
-                    description: |-
-                      ConvertedAt is when the conversion last completed; AttemptedAt the last
-                      attempt, successful or not, which bounds the next one.
-                    format: date-time
-                    type: string
-                  dataDevice:
-                    description: |-
-                      DataDevice is the leg handed to /data, and DataFilesystem what it was
-                      formatted as. Recorded so an operator can see which disk the cache lives on
-                      without reaching the box.
-                    type: string
-                  dataFilesystem:
-                    type: string
-                  instanceID:
-                    description: |-
-                      InstanceID is the box this status describes. A status recorded against
-                      another box is discarded, so a re-adopted machine is never credited with
-                      its predecessor's conversion.
-                    type: string
-                  quotaEnforced:
-                    description: |-
-                      QuotaEnforced is whether /data came back as a separate XFS filesystem
-                      mounted with project quotas. False means the box will host cache volumes
-                      that nothing bounds, which is the condition the self-join refuses on.
-                    type: boolean
-                required:
-                - instanceID
-                type: object
-              failureMessage:
-                type: string
-              failureReason:
-                description: FailureReason / FailureMessage are set on terminal failures.
-                type: string
-              instanceID:
-                description: |-
-                  InstanceID is the Vultr-assigned bare-metal id (a UUID), used for install
-                  polling, the conversion, release and status.
-                type: string
-              phase:
-                description: |-
-                  Phase tracks lifecycle: Pending | Adopting | Installing | Converting |
-                  Provisioning | Bootstrapping | Ready | Deleting | Failed. Operator-facing
-                  only; CAPI core drives off Ready and Conditions.
+                    AdoptTag is the tag a pre-ordered server must carry for the controller to
+                    claim it for this fleet. It is the ENVIRONMENT BOUNDARY: one Vultr account
+                    holds every env's boxes and region+plan repeat across envs, so this marker,
+                    set by prep as its final step, is what keeps a staging fleet from adopting
+                    a prod box. Enforced as required by the fleet helm template rather than the
+                    CRD: a required CRD field breaks helm rollbacks to revisions predating it.
+                  type: string
+                egressBudgetMbps:
+                  description: |-
+                    EgressBudgetMbps is the throughput, in Mbps, this box may assign across the
+                    Kura pods it hosts. When set, the controller advertises it as the Node's
+                    `tuist.dev/egress-mbps` extended resource so the scheduler bin-packs cache
+                    pods by assigned peak throughput and never oversubscribes the box. Zero
+                    leaves the resource unadvertised.
 
-                  Converting has no counterpart in the other Linux kinds. It is where the box
-                  is given the mirrored-root-plus-XFS-/data layout the install cannot produce.
-                type: string
-              ready:
-                description: |-
-                  Ready is true once the server has joined the cluster and its Node reports
-                  Ready=True. CAPI core reads this to mark the parent Machine Ready.
-                type: boolean
-              releaseReinstallStartedAt:
-                description: |-
-                  ReleaseReinstallStartedAt is when the release reinstall was requested. It
-                  exists because `active` is not a state: a box reports it both before a
-                  reinstall begins and after it finishes, so without a marker the release
-                  path cannot tell "the wipe has not started" from "the wipe is done" and
-                  would hand a still-running box back to the pool.
-                format: date-time
-                type: string
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                    Unlike OVH there is no discovery path: Vultr exposes no per-box egress
+                    reading, and what actually binds is the plan's monthly transfer quota (10 TB
+                    on vbm-6c-32gb-amd) rather than the 25 Gbit/s the NIC links at. So this is
+                    always the configured value.
+                  format: int32
+                  type: integer
+                fleetName:
+                  description: |-
+                    FleetName groups Machines that share one SSH key. Set by the MachineTemplate
+                    so every Machine the MachineDeployment clones derives the SAME fleet key the
+                    operator authorized on the pre-ordered pool boxes; without it the
+                    per-Machine-name key would not match a pre-ordered box, and the bootstrap
+                    SSH would fail.
+                  type: string
+                nodeTaints:
+                  description: |-
+                    NodeTaints are passed to the kubelet's `--register-with-taints` in the
+                    generated self-join. Cache regions leave this empty; the region's
+                    nodeSelector and pool label do the placement.
+                  items:
+                    description: |-
+                      The node this Taint is attached to has the "effect" on
+                      any pod that does not tolerate the Taint.
+                    properties:
+                      effect:
+                        description: |-
+                          Required. The effect of the taint on pods
+                          that do not tolerate the taint.
+                          Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                        type: string
+                      key:
+                        description: Required. The taint key to be applied to a node.
+                        type: string
+                      timeAdded:
+                        description: |-
+                          TimeAdded represents the time at which the taint was added.
+                          It is only written for NoExecute taints.
+                        format: date-time
+                        type: string
+                      value:
+                        description: The taint value corresponding to the taint key.
+                        type: string
+                    required:
+                      - effect
+                      - key
+                    type: object
+                  type: array
+                osID:
+                  default: 2284
+                  description: |-
+                    OSID is the Vultr numeric OS id the controller reinstalls with (2284 is
+                    Ubuntu 24.04 LTS x64). Numeric rather than a label because the reinstall
+                    endpoint takes no OS argument at all: it reinstalls whatever the box
+                    already carries, so this records what the pool was ordered with and lets
+                    the controller refuse a box that does not match.
+                  format: int32
+                  type: integer
+                plan:
+                  description: |-
+                    Plan is the Vultr bare-metal plan adoption is restricted to (e.g.
+                    `vbm-6c-32gb-amd`), so a fleet only claims boxes of the intended shape.
+                    Empty adopts any free box carrying the tag in the region. Worth setting:
+                    the plans differ in whether their disks are NVMe or SSD, and the cache
+                    wants NVMe.
+                  type: string
+                providerID:
+                  description: |-
+                    ProviderID, set by the controller after the self-join completes, takes the
+                    shape `vultr://<region>/<instance-id>`. A foreign providerID host
+                    (`vultr`) so the Hetzner CCM never reaps the node, the same guard the other
+                    bare-metal kinds use. CAPI core expects this to populate, or the parent
+                    Machine never goes Ready.
+                  type: string
+                region:
+                  default: scl
+                  description: |-
+                    Region is the Vultr region code the server lives in (`scl` for Santiago).
+                    Scopes adoption and composes the providerID.
+                  type: string
+              type: object
+            status:
+              description: VultrMachineStatus is the observed state of the Machine.
+              properties:
+                addresses:
+                  description: |-
+                    Addresses surfaces the server's public address and hostname for kubectl
+                    describe and event correlation.
+                  items:
+                    description: MachineAddress contains information for the node's address.
+                    properties:
+                      address:
+                        description: The machine address.
+                        type: string
+                      type:
+                        description: Machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        type: string
+                    required:
+                      - address
+                      - type
+                    type: object
+                  type: array
+                bootstrapAttempts:
+                  description: |-
+                    BootstrapAttempts counts consecutive bootstrap failures on the current
+                    server. Reset on a successful bootstrap or whenever InstanceID changes.
+                  format: int32
+                  type: integer
+                bootstrapRebootIssued:
+                  description: |-
+                    BootstrapRebootIssued records that a recovery reboot has already been
+                    triggered for the current server, so retries do not re-reboot it. Cleared
+                    when InstanceID changes or on a successful bootstrap.
+                  type: boolean
+                conditions:
+                  description: Conditions are CAPI-style condition entries (Provisioned, NodeReady).
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                converted:
+                  description: |-
+                    Converted records that this box has been through the disk conversion and
+                    its /data can carry project quotas. Keyed by InstanceID so a machine that
+                    moves to another box, or a box that has since been reinstalled, is never
+                    credited with its predecessor's conversion.
+                  properties:
+                    attemptedAt:
+                      format: date-time
+                      type: string
+                    attempts:
+                      description: |-
+                        Attempts counts consecutive failed conversions on this box. Reset on
+                        success.
+                      format: int32
+                      type: integer
+                    convertedAt:
+                      description: |-
+                        ConvertedAt is when the conversion last completed; AttemptedAt the last
+                        attempt, successful or not, which bounds the next one.
+                      format: date-time
+                      type: string
+                    dataDevice:
+                      description: |-
+                        DataDevice is the leg handed to /data, and DataFilesystem what it was
+                        formatted as. Recorded so an operator can see which disk the cache lives on
+                        without reaching the box.
+                      type: string
+                    dataFilesystem:
+                      type: string
+                    instanceID:
+                      description: |-
+                        InstanceID is the box this status describes. A status recorded against
+                        another box is discarded, so a re-adopted machine is never credited with
+                        its predecessor's conversion.
+                      type: string
+                    quotaEnforced:
+                      description: |-
+                        QuotaEnforced is whether /data came back as a separate XFS filesystem
+                        mounted with project quotas. False means the box will host cache volumes
+                        that nothing bounds, which is the condition the self-join refuses on.
+                      type: boolean
+                  required:
+                    - instanceID
+                  type: object
+                failureMessage:
+                  type: string
+                failureReason:
+                  description: FailureReason / FailureMessage are set on terminal failures.
+                  type: string
+                instanceID:
+                  description: |-
+                    InstanceID is the Vultr-assigned bare-metal id (a UUID), used for install
+                    polling, the conversion, release and status.
+                  type: string
+                phase:
+                  description: |-
+                    Phase tracks lifecycle: Pending | Adopting | Installing | Converting |
+                    Provisioning | Bootstrapping | Ready | Deleting | Failed. Operator-facing
+                    only; CAPI core drives off Ready and Conditions.
+
+                    Converting has no counterpart in the other Linux kinds. It is where the box
+                    is given the mirrored-root-plus-XFS-/data layout the install cannot produce.
+                  type: string
+                ready:
+                  description: |-
+                    Ready is true once the server has joined the cluster and its Node reports
+                    Ready=True. CAPI core reads this to mark the parent Machine Ready.
+                  type: boolean
+                releaseReinstallStartedAt:
+                  description: |-
+                    ReleaseReinstallStartedAt is when the release reinstall was requested. It
+                    exists because `active` is not a state: a box reports it both before a
+                    reinstall begins and after it finishes, so without a marker the release
+                    path cannot tell "the wipe has not started" from "the wipe is done" and
+                    would hand a still-running box back to the pool.
+                  format: date-time
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
