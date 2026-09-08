@@ -7,10 +7,9 @@
 # would buy nothing and cost a second push certificate, a second ABM
 # server row and a migration.
 #
-# "production" here names the instance, not the cluster: this is the
-# real MDM rather than a bench. It is currently HOSTED in the staging
-# cluster while the prototype is validated, and moves to the production
-# cluster before real hardware enrolls.
+# It runs in the production cluster, alongside tuist-ops: this is the
+# plane that provisions the fleet, so it does not belong in the cluster
+# we treat as disposable.
 #
 # The hostname is effectively permanent. The MDM protocol has no way to
 # move an enrollment's ServerURL, so changing it means DFU-reprovisioning
@@ -29,8 +28,8 @@ runtimeSecrets:
 
 # ---------------------------------------------------------------------
 # Cluster-coupled settings. These follow the cluster the release is
-# hosted in, NOT the instance, and every one of them must change together
-# when it moves. Each fails differently and none fails loudly:
+# hosted in rather than the instance, and both must change together if it
+# ever moves. Each fails differently and neither fails loudly:
 #
 #   tailnet.tags        the Tailscale operator may only mint tags its own
 #                       OAuth client is scoped to. A foreign tag means the
@@ -38,18 +37,14 @@ runtimeSecrets:
 #                       quietly have no tailnet address.
 #   backup destination  the Tigris credentials are bucket-scoped. Pointing
 #                       at another cluster's bucket fails every WAL archive
-#                       with AccessDenied, which does not surface as an
-#                       alert but does grow pg_wal until the volume fills.
-#
-# Currently: staging cluster.
+#                       with AccessDenied, which raises no alert but does
+#                       grow pg_wal until the volume fills.
 # ---------------------------------------------------------------------
 tailnet:
   enabled: true
-  tags: "tag:tuist-k8s-staging"
+  tags: "tag:tuist-k8s-production"
 
 postgresql:
   backup:
     enabled: true
-    # barman writes a directory per cluster name underneath this prefix,
-    # so the release lands in <bucket>/mdm-pg.
-    destinationPath: s3://tuist-stag-pg-backups/
+    destinationPath: s3://tuist-prod-pg-backups/mdm
