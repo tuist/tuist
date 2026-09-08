@@ -827,14 +827,17 @@ vultrFleet:
     item: VULTR_API
 
 vultrFleets:
-  # South America West (Santiago). DISABLED until the region is switched on:
-  # an enabled fleet whose box the controller cannot adopt sits at MD 0/1 and
-  # wedges `helm --wait` for every production deploy, not just this region.
-  # Turning it on is: confirm the box carries the adoptTag and has been through
-  # `mise run baremetal:prep-vultr`, flip this to true, then add sa-west to
-  # TUIST_KURA_AVAILABLE_REGIONS once the node reports Ready.
+  # South America West (Santiago). Enabled: the box is pre-ordered, carries the
+  # adoptTag, and has been through `mise run baremetal:prep-vultr`, so the
+  # controller has something to claim. That matters because an enabled fleet with
+  # no adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy, not just this region; flipping this back to false is the rollback.
+  #
+  # The region is still not served. sa-west stays out of
+  # TUIST_KURA_AVAILABLE_REGIONS and its ingress controller stays disabled until
+  # the node reports Ready and kura_volume_quota_enforced reads 1 on it.
   sa-west:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-sa-west
     machine:
