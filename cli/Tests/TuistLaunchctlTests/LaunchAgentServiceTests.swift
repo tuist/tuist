@@ -15,12 +15,12 @@ import TuistTesting
 /// Hands out one answer per call so a test can drive a poll to completion. The
 /// last answer repeats, so an over-eager poll fails on `consumed` rather than
 /// running off the end.
-private final class AnswerSequence: @unchecked Sendable {
+private final class AnswerSequence<Answer: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private let answers: [Bool]
+    private let answers: [Answer]
     private var index = 0
 
-    init(answers: [Bool]) {
+    init(answers: [Answer]) {
         self.answers = answers
     }
 
@@ -28,7 +28,7 @@ private final class AnswerSequence: @unchecked Sendable {
         lock.withLock { index }
     }
 
-    func next() -> Bool {
+    func next() -> Answer {
         lock.withLock {
             defer { index += 1 }
             return answers[min(index, answers.count - 1)]
@@ -48,8 +48,8 @@ struct LaunchAgentServiceTests {
             bootoutTimeout: .milliseconds(500)
         )
         given(launchctlController)
-            .isLoaded(label: .any)
-            .willReturn(false)
+            .job(label: .any)
+            .willReturn(nil)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -159,8 +159,8 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
 
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
@@ -200,14 +200,17 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
 
         given(launchctlController)
             .bootout(label: .any)
             .willThrow(NSError(domain: "test", code: 1))
 
-        await #expect(throws: NSError.self) {
+        // Typed, not the raw launchctl failure: `bootout` fails for benign reasons
+        // (the job already leaving, a removal still in progress) that reach the
+        // user as an unreadable `CommandError` dump otherwise.
+        await #expect(throws: LaunchAgentServiceError.self) {
             try await subject.setupLaunchAgent(
                 label: "tuist.test",
                 plistFileName: "tuist.test.plist",
@@ -228,8 +231,8 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
             .willReturn()
@@ -332,8 +335,8 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
 
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
@@ -361,8 +364,8 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(false)
+            .job(label: .value("tuist.test"))
+            .willReturn(nil)
 
         try await subject.teardownLaunchAgent(
             label: "tuist.test",
@@ -392,8 +395,8 @@ struct LaunchAgentServiceTests {
 
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(true)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
 
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
@@ -414,8 +417,8 @@ struct LaunchAgentServiceTests {
     func teardownLaunchAgent_succeedsWhenPlistIsMissing() async throws {
         launchctlController.reset()
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
-            .willReturn(false)
+            .job(label: .value("tuist.test"))
+            .willReturn(nil)
 
         try await subject.teardownLaunchAgent(
             label: "tuist.test",
@@ -456,14 +459,16 @@ struct LaunchAgentServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_succeedsWhenBootstrapIsRefusedAndTheLabelIsInTheDomain() async throws {
+    func setupLaunchAgent_succeedsWhenBootstrapIsRefusedAndAFreshProcessOwnsTheLabel() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
+        // A process launchd spawned after this setup booted nothing out owns the
+        // label, so the refusal really is the redundant bootstrap it looks like.
         launchctlController.reset()
-        let answers = AnswerSequence(answers: [false, true])
+        let answers = AnswerSequence<LaunchAgentJob?>(answers: [nil, LaunchAgentJob(processIdentifier: 7)])
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
+            .job(label: .value("tuist.test"))
             .willProduce { _ in answers.next() }
         given(launchctlController)
             .bootstrap(plistPath: .any)
@@ -514,9 +519,11 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         launchctlController.reset()
-        let answers = AnswerSequence(answers: [true, true, false])
+        let answers = AnswerSequence<LaunchAgentJob?>(
+            answers: [LaunchAgentJob(processIdentifier: 4242), LaunchAgentJob(processIdentifier: 4242), nil]
+        )
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
+            .job(label: .value("tuist.test"))
             .willProduce { _ in answers.next() }
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
@@ -548,9 +555,9 @@ struct LaunchAgentServiceTests {
             bootoutTimeout: .milliseconds(250)
         )
         launchctlController.reset()
-        let answers = AnswerSequence(answers: [true])
+        let answers = AnswerSequence<LaunchAgentJob?>(answers: [LaunchAgentJob(processIdentifier: 4242)])
         given(launchctlController)
-            .isLoaded(label: .value("tuist.test"))
+            .job(label: .value("tuist.test"))
             .willProduce { _ in answers.next() }
         given(launchctlController)
             .bootout(label: .value("tuist.test"))
@@ -581,5 +588,123 @@ struct LaunchAgentServiceTests {
         verify(launchctlController)
             .kickstart(label: .value("tuist.test"))
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_throwsWhenBootstrapIsRefusedAndTheOutgoingAgentStillOwnsTheLabel() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        // Given: the agent booted out above outlives the wait, so the label is
+        // still in the domain under the SAME process when the bootstrap is
+        // refused. Nothing bootstrapped the plist just written, and the outgoing
+        // process is about to exit.
+        launchctlController.reset()
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 4242))
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+        let bootstrapError = CommandError.terminated(
+            5,
+            stderr: "Bootstrap failed: 5: Input/output error",
+            command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+        )
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willThrow(bootstrapError)
+
+        // When / Then
+        await #expect(throws: LaunchAgentServiceError.self) {
+            try await subject.setupLaunchAgent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: ["test-start"]
+            )
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_throwsWhenBootstrapIsRefusedAndLaunchdHoldsTheLabelWithoutAProcess() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        // Given: the label is in the domain but nothing is running under it. The
+        // presence of the label says the bootstrap was redundant; the missing
+        // process says no configuration is serving anything.
+        launchctlController.reset()
+        let answers = AnswerSequence<LaunchAgentJob?>(
+            answers: [nil, LaunchAgentJob(processIdentifier: nil)]
+        )
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willThrow(
+                CommandError.terminated(
+                    5,
+                    stderr: "Bootstrap failed: 5: Input/output error",
+                    command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+                )
+            )
+
+        // When / Then
+        await #expect(throws: LaunchAgentServiceError.self) {
+            try await subject.setupLaunchAgent(
+                label: "tuist.test",
+                plistFileName: "tuist.test.plist",
+                programArguments: ["test-start"]
+            )
+        }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_returnsTheProcessItDisplaced() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        launchctlController.reset()
+        let answers = AnswerSequence<LaunchAgentJob?>(answers: [LaunchAgentJob(processIdentifier: 4242), nil])
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willReturn()
+
+        let displaced = try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["test-start"]
+        )
+
+        // The caller's readiness check needs it: whatever answers on the agent's
+        // endpoint right after setup could still be this process.
+        #expect(displaced == 4242)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func runningProcessIdentifier_reportsTheProcessBehindTheLabel() async throws {
+        launchctlController.reset()
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willReturn(LaunchAgentJob(processIdentifier: 7))
+
+        #expect(await subject.runningProcessIdentifier(label: "tuist.test") == 7)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func runningProcessIdentifier_isNilWhenTheLabelIsNotInTheDomain() async throws {
+        launchctlController.reset()
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willReturn(nil)
+
+        #expect(await subject.runningProcessIdentifier(label: "tuist.test") == nil)
     }
 }
