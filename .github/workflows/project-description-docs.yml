@@ -49,9 +49,34 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0"
+          install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0 caddy"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      # Swift 6.2's FoundationNetworking traps on a redirect served over HTTP/2
+      # (see #12229), and the registry answers 303 to storage over h2. Terminating
+      # the first hop as plaintext HTTP/1.1 removes the precondition; the redirect
+      # target negotiates http/1.1 on its own, so only this hop needs forcing.
+      - name: Front the registry with an HTTP/1.1 proxy
+        shell: bash
+        run: |
+          nohup mise exec caddy -- caddy reverse-proxy \
+            --from :8080 --to https://tuist.dev --change-host-header \
+            > /tmp/registry-proxy.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+              exec 3>&-
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::registry proxy did not start listening on :8080"
+          cat /tmp/registry-proxy.log || true
+          exit 1
+      - name: Point SwiftPM at the proxy
+        run: >-
+          mise exec swift@6.2.4 --
+          swift package-registry set --allow-insecure-http
+          http://localhost:8080/api/registry/swift
       - name: Build ProjectDescription documentation
         run: >-
           MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" mise exec swift@6.2.4 --
