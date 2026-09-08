@@ -1376,6 +1376,18 @@ pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
     zstd::stream::encode_all(frame, 1).unwrap_or_default()
 }
 
+/// Small compressed outputs cannot reuse transfer chunks. Keep their original
+/// encoding, and return the actual choice for the publication's digest memo.
+pub fn compress_frame_for_transfer(frame: &[u8], chunking: bool) -> (Vec<u8>, bool) {
+    if chunking && frame.len() >= 2 * 1024 * 1024 {
+        let chunked = compress_frame_in_chunks(frame);
+        if chunked.len() >= 2 * 1024 * 1024 {
+            return (chunked, true);
+        }
+    }
+    (compress_frame(frame), false)
+}
+
 /// Independent compression histories preserve content-defined boundaries after
 /// edits. The concatenated frames decode to the original bytes with the existing
 /// decoder, including in clients released before chunked transfers existed.

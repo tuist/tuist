@@ -54,12 +54,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
         return TuistBuildCacheService(
             httpClient = httpClient,
-            isPushEnabled = configuration.isPush,
-            chunkCacheDirectory = java.io.File(
-                System.getenv("XDG_CACHE_HOME")?.takeIf { java.io.File(it).isAbsolute }
-                    ?: java.io.File(System.getProperty("user.home"), ".cache").path,
-                "tuist/gradle-download-chunks-v1"
-            )
+            isPushEnabled = configuration.isPush
         )
     }
 }
@@ -153,29 +148,13 @@ class DefaultConfigurationProvider(
  * When a 401 Unauthorized response is received, this service automatically
  * refreshes the configuration and retries the request.
  */
-class TuistBuildCacheService @JvmOverloads constructor(
+class TuistBuildCacheService(
     private val httpClient: TuistHttpClient,
-    private val isPushEnabled: Boolean,
-    chunkCacheDirectory: java.io.File? = null
+    private val isPushEnabled: Boolean
 ) : BuildCacheService {
-    private val chunkedUpload = ChunkedCacheUpload(httpClient, chunkCacheDirectory)
-    private val chunkedDownload = chunkCacheDirectory?.let { ChunkedCacheDownload(chunkedUpload, it) }
 
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
         return httpClient.execute { config ->
-            val assembled = chunkedDownload?.download(config, key.hashCode)
-            if (assembled != null) {
-                try {
-                    assembled.inputStream().use { reader.readFrom(it) }
-                    return@execute true
-                } catch (error: Throwable) {
-                    if (looksLikeInvalidCompressedCacheEntry(error)) {
-                        logger.warn("Tuist ignored an invalid compressed chunked cache entry for key {}", key.hashCode)
-                        return@execute false
-                    }
-                    throw cacheFailure("load", key.hashCode, buildCacheUrl(config, key.hashCode), "Failed to read assembled cache entry", cause = error)
-                } finally { assembled.delete() }
-            }
             val url = buildCacheUrl(config, key.hashCode)
             val cacheKey = key.hashCode
 
@@ -226,68 +205,50 @@ class TuistBuildCacheService @JvmOverloads constructor(
         if (!isPushEnabled) return
 
         httpClient.execute<Unit> { config ->
-            if (writer.size in ContentDefinedChunking.MAX_BYTES..100L * 1024 * 1024 && chunkedUpload.supported(config)) {
-                val staged = java.nio.file.Files.createTempFile("tuist-cache-upload-", ".bin").toFile()
-                try {
-                    staged.outputStream().use { writer.writeTo(it) }
-                    if (chunkedUpload.upload(config, key.hashCode, staged)) return@execute
-                    storeWhole(config, key, object : BuildCacheEntryWriter {
-                        override fun getSize() = staged.length()
-                        override fun writeTo(output: java.io.OutputStream) { staged.inputStream().use { it.copyTo(output) } }
-                    })
-                    return@execute
-                } finally {
-                    staged.delete()
+            val url = buildCacheUrl(config, key.hashCode)
+            val cacheKey = key.hashCode
+
+            val connection = try {
+                httpClient.openConnection(url, config).also {
+                    it.requestMethod = "PUT"
+                    it.doOutput = true
+                    it.setRequestProperty("Content-Type", "application/octet-stream")
                 }
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
             }
-            storeWhole(config, key, writer)
-        }
-    }
 
-    private fun storeWhole(config: CacheConfiguration, key: BuildCacheKey, writer: BuildCacheEntryWriter) {
-        val url = buildCacheUrl(config, key.hashCode)
-        val cacheKey = key.hashCode
-
-        val connection = try {
-            httpClient.openConnection(url, config).also {
-                it.requestMethod = "PUT"
-                it.doOutput = true
-                it.setRequestProperty("Content-Type", "application/octet-stream")
+            try {
+                connection.outputStream.use { output -> writer.writeTo(output) }
+            } catch (e: Throwable) {
+                throw cacheFailure(
+                    "store", cacheKey, url,
+                    "Failed to write cache entry body (size=${runCatching { writer.size }.getOrNull()})",
+                    cause = e
+                )
             }
-        } catch (e: Throwable) {
-            throw cacheFailure("store", cacheKey, url, "Failed to open connection", cause = e)
-        }
 
-        try {
-            connection.outputStream.use { output -> writer.writeTo(output) }
-        } catch (e: Throwable) {
-            throw cacheFailure(
-                "store", cacheKey, url,
-                "Failed to write cache entry body (size=${runCatching { writer.size }.getOrNull()})",
-                cause = e
-            )
-        }
+            val responseCode = try {
+                connection.responseCode
+            } catch (e: Throwable) {
+                throw cacheFailure("store", cacheKey, url, "Failed to read HTTP response status", cause = e)
+            }
 
-        val responseCode = try {
-            connection.responseCode
-        } catch (e: Throwable) {
-            throw cacheFailure("store", cacheKey, url, "Failed to read HTTP response status", cause = e)
-        }
-
-        when (responseCode) {
-            HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> {}
-            HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-            else -> throw cacheFailure(
-                "store", cacheKey, url,
-                "Server returned unexpected HTTP status",
-                status = responseCode,
-                body = readErrorBodySnippet(connection)
-            )
+            when (responseCode) {
+                HttpURLConnection.HTTP_OK, HttpURLConnection.HTTP_CREATED, HttpURLConnection.HTTP_NO_CONTENT -> {}
+                HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                else -> throw cacheFailure(
+                    "store", cacheKey, url,
+                    "Server returned unexpected HTTP status",
+                    status = responseCode,
+                    body = readErrorBodySnippet(connection)
+                )
+            }
         }
     }
 
     override fun close() {
-        chunkedDownload?.close()
+        // No resources to clean up
     }
 
     internal fun buildCacheUrl(config: CacheConfiguration, cacheKey: String): URI {

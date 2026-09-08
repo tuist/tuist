@@ -19,12 +19,16 @@ import time
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--proxy-socket", help="Also generate an XcodeGen project for a real compilation-cache restore check")
+    parser.add_argument("--sources-only", action="store_true", help="Generate revision sources without standalone compilation")
+    parser.add_argument("--types", type=int, default=16000, help="Number of generated structs (default: 16000)")
     args = parser.parse_args()
+    if args.types < 2:
+        parser.error("--types must be at least 2")
     directory = Path(tempfile.mkdtemp(prefix="tuist-swift-chunking-"))
     randomizer = random.Random(20260907)
     declarations = []
     first_type = first_property = None
-    for index in range(16000):
+    for index in range(args.types):
         name = f"Type_{randomizer.getrandbits(96):024x}"
         properties = [f"p_{randomizer.getrandbits(96):024x}" for _ in range(6)]
         if index == 0:
@@ -36,12 +40,19 @@ def main():
     consumer = directory / "Consumer.swift"
     consumer.write_text(f"import SwiftChunkFixture\nfunc read(_ value: {first_type}) -> Int {{ value.{first_property} }}\n")
     paths = []
+    source_paths = []
     timings = []
     for revision in range(2):
         selected = declarations.copy()
         if revision:
-            selected[8000] = selected[8000].replace("public var p_", "public var edited_", 1)
+            midpoint = args.types // 2
+            selected[midpoint] = selected[midpoint].replace("public var p_", "public var edited_", 1)
         source.write_text("".join(selected))
+        revision_source = directory / f"revision-{revision}.swift"
+        shutil.copyfile(source, revision_source)
+        source_paths.append(str(revision_source))
+        if args.sources_only:
+            continue
         module = directory / "SwiftChunkFixture.swiftmodule"
         start = time.monotonic()
         subprocess.run(["xcrun", "swiftc", "-emit-module", "-parse-as-library", "-module-name", "SwiftChunkFixture",
@@ -75,7 +86,8 @@ targets:
     sources:
       - path: Fixture.swift
 """)
-    print(json.dumps({"directory": str(directory), "swift_modules": paths, "compile_seconds": timings}, indent=2))
+    print(json.dumps({"directory": str(directory), "swift_modules": paths,
+                      "source_revisions": source_paths, "compile_seconds": timings}, indent=2))
 
 
 if __name__ == "__main__":

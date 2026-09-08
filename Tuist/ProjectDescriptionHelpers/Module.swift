@@ -1009,7 +1009,6 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
-                    .external(name: "Crypto"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),

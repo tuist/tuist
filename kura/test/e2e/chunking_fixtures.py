@@ -9,10 +9,8 @@ import argparse
 import json
 from pathlib import Path
 import random
-import shutil
 import subprocess
 import tempfile
-import zipfile
 
 
 def main():
@@ -28,28 +26,17 @@ def main():
             f"unsigned long fixture_{index}(unsigned long x) {{ return "
             f"((x ^ {constants[0]}UL) * {constants[1] | 1}UL) + {constants[2]}UL; }}\n"
         )
-    paths = {"objects": [], "modules": []}
-    archive_input = directory / "archive-input"
-    archive_input.mkdir()
+    paths = {"objects": []}
     for revision in range(2):
-        source = directory / f"revision-{revision}.c"
+        source = directory / "Fixture.c"
         selected = functions.copy()
         if revision:
             selected[40000] = selected[40000].replace("(x ^", "((x + 17UL) ^")
         source.write_text("".join(selected))
+        (directory / f"revision-{revision}.c").write_text("".join(selected))
         artifact = directory / f"revision-{revision}.o"
         subprocess.run(["xcrun", "clang", "-O1", "-c", str(source), "-o", str(artifact)], check=True)
-        library = directory / f"revision-{revision}.a"
-        member = archive_input / "Fixture.o"
-        shutil.copyfile(artifact, member)
-        subprocess.run(["xcrun", "libtool", "-static", "-D", "-o", str(library), str(member)], check=True)
-        module = directory / f"revision-{revision}.zip"
-        with zipfile.ZipFile(module, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-            entry = zipfile.ZipInfo("Fixture.framework/Fixture", date_time=(2026, 1, 1, 0, 0, 0))
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            archive.writestr(entry, library.read_bytes())
         paths["objects"].append(str(artifact))
-        paths["modules"].append(str(module))
     if args.proxy_socket:
         plugin = Path(__file__).resolve().parents[3] / "cas-plugin/target/release/libtuist_cas_plugin.dylib"
         (directory / "Marker.swift").write_text("public func fixtureMarker() -> Int { 1 }\n")
@@ -65,7 +52,7 @@ settings:
     COMPILATION_CACHE_PLUGIN_PATH: {json.dumps(str(plugin))}
     COMPILATION_CACHE_REMOTE_SERVICE_PATH: {json.dumps(args.proxy_socket)}
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS: YES
-    OTHER_SWIFT_FLAGS: "-cas-plugin-option tuist-instance=chunking-test/xcode-build"
+    OTHER_SWIFT_FLAGS: "-cas-plugin-option tuist-instance=chunking-test/{directory.name}"
     SWIFT_ENABLE_EXPLICIT_MODULES: YES
     GCC_OPTIMIZATION_LEVEL: "1"
 targets:

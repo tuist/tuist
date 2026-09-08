@@ -93,6 +93,8 @@ Large publications negotiate the existing chunk capabilities before using missin
 
 Large downloads negotiate split support, reuse `src/chunk_cache.rs`'s bounded persistent transfer cache beside the proxy registry, and verify chunks plus assembled nodes before materialization. Keep the small-node inline fast path and the additive large-node inline limit; never move chunk reads or negotiation onto the action lookup/task-setup thread. Transfer chunks do not establish a valid action hit or replace the root-last closure guards. `batch_download_bytes` and `reused_chunk_bytes` in proxy stats describe transport work, not compilation avoided.
 
+Use `examples/cache_output_inventory.rs` with an idle disposable compiler store and Xcode's output remarks to investigate outputs individually. It measures actual reachable nodes before any proposed format-specific transformation; a standalone object file is not evidence that the compiler caches it as one opaque node. Decode printed identifiers with the upstream plugin, not by treating their base64 payload as the full internal digest. Keep experimental Swift/Clang field transforms separate from the negotiated production format until exact reconstruction, resource bounds, and old-client reads are covered.
+
 A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:
 
 ```sh

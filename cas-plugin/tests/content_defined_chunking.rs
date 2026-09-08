@@ -5,7 +5,8 @@ use std::{
 };
 use tuist_cas_plugin::{
     reapi::{
-        blob_digest, compress_frame, compress_frame_in_chunks, encode_frame, Remote, RemoteConfig,
+        blob_digest, compress_frame, compress_frame_for_transfer, compress_frame_in_chunks,
+        encode_frame, Remote, RemoteConfig,
     },
     token::TokenProvider,
 };
@@ -20,6 +21,27 @@ fn corpus() -> Vec<u8> {
             state as u8
         })
         .collect()
+}
+
+#[test]
+fn highly_compressible_outputs_keep_the_whole_encoding_and_memo_choice() {
+    let frame = encode_frame(&[], &vec![b'x'; 4 * 1024 * 1024]);
+    let (encoded, chunked) = compress_frame_for_transfer(&frame, true);
+    assert!(!chunked);
+    assert_eq!(encoded, compress_frame(&frame));
+    assert_eq!(encoded, compress_frame_for_transfer(&frame, chunked).0);
+}
+
+#[test]
+fn large_outputs_only_use_independent_compression_when_enabled() {
+    let frame = encode_frame(&[], &corpus());
+    let (encoded, chunked) = compress_frame_for_transfer(&frame, true);
+    assert!(chunked);
+    assert_eq!(encoded, compress_frame_in_chunks(&frame));
+    assert_eq!(zstd::stream::decode_all(encoded.as_slice()).unwrap(), frame);
+    let (legacy, chunked) = compress_frame_for_transfer(&frame, false);
+    assert!(!chunked);
+    assert_eq!(legacy, compress_frame(&frame));
 }
 
 #[test]

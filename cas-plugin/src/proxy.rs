@@ -4489,11 +4489,7 @@ fn encode_node_blob_accounted(
     // Negotiation is network work, and must not inflate the local-store timer.
     let chunked = chunked.unwrap_or_else(|| remote.uses_chunked_compression(frame.len()));
     let started = Instant::now();
-    let blob = if chunked {
-        reapi::compress_frame_in_chunks(&frame)
-    } else {
-        reapi::compress_frame(&frame)
-    };
+    let (blob, chunked) = reapi::compress_frame_for_transfer(&frame, chunked);
     state
         .us_publish_local
         .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);

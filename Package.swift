@@ -1596,7 +1596,6 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCache",
         dependencies: [
-            .product(name: "Crypto", package: "apple.swift-crypto"),
             "TuistAlert",
             "TuistCore",
             "TuistSupport",
