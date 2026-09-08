@@ -291,9 +291,28 @@
 		// (node_exporter, tart-kubelet, the VNC relay) is reached over the
 		// per-machine egress Service once the host has joined the tailnet, the
 		// same as for a rented one.
+		//
+		// A /32 PER HOST, never the rack's whole prefix, and that is load-bearing
+		// while the catch-all grant at the top of this list still exists. A
+		// catch-all of `*->*` subsumes the narrowing below, so what an advertised
+		// route actually exposes today is every address in it, on every port, to
+		// every device on the tailnet: three clusters' nodes, the rented Mac mini
+		// fleet, ops laptops, and every Tart runner VM that holds a tailnet
+		// identity. For the BER1 prototype the router is a machine on a HOME
+		// network, so a /24 there would hand CI runner VMs the router admin page
+		// and every personal device in the house. A /32 bounds that to the one
+		// lab box we are about to give cluster credentials to anyway.
+		//
+		// The cost is that the address is now load-bearing in two places: this
+		// grant and the RackHost's `spec.address`. Give the host a DHCP
+		// reservation; a lease change needs both updated and the route
+		// re-advertised.
+		//
+		// Widen to the rack's real prefix only once the catch-all above is gone
+		// and this file is the thing that actually decides reachability.
 		{
 			"src": ["tag:tuist-k8s-staging"],
-			"dst": ["192.168.0.0/24"],
+			"dst": ["192.168.0.41/32"],
 			"ip":  ["tcp:22"],
 		},
 

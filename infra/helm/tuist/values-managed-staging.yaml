@@ -737,9 +737,12 @@ ovhFleets:
 # it. Scale to 1 once the first dial works.
 #
 # The address is a home-LAN address, not a public one, and reaching it needs a
-# tailnet subnet router advertising 192.168.0.0/24 plus the matching grant in
-# infra/tailscale/acls.json. Without that the claim succeeds and bootstrap then
-# fails on a dial timeout, which is loud but wasteful.
+# tailnet subnet router advertising 192.168.0.41/32 plus the matching grant in
+# infra/tailscale/acls.json. A /32, not the /24: the tailnet still carries a
+# catch-all `*->*` grant that subsumes every narrowing, so advertising the whole
+# home prefix would expose every device on it, on every port, to every machine
+# on the tailnet including CI runner VMs. Without the route the claim succeeds
+# and bootstrap then fails on a dial timeout, which is loud but wasteful.
 rackFleet:
   enabled: true
   pool: ber1-staging

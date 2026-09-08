@@ -300,8 +300,19 @@ mode behind it:
 A rented mini has a public IP the operator can reach before anything is
 installed. A rack mini does not, and it is not on the tailnet yet either: 
 bootstrap is what puts it there. So `RackHost.spec.address` is the in-rack LAN
-address, reached through a **subnet router in the rack** that advertises that
-prefix, with a matching `tcp:22` grant in `infra/tailscale/acls.json`.
+address, reached through a **subnet router in the rack** that advertises it,
+with a matching `tcp:22` grant in `infra/tailscale/acls.json`.
+
+**Advertise a /32 per host, not the rack's prefix**, for as long as the
+catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
+subsumes every narrowing below it, so what an advertised route actually exposes
+today is every address in it, on every port, to every device on the tailnet:
+three clusters' nodes, the rented Mac mini fleet, ops laptops, and every Tart
+runner VM holding a tailnet identity. The BER1 prototype's router sits on a HOME
+network, where a /24 would hand CI runner VMs the router admin page and every
+personal device in the house. The cost of a /32 is that the address becomes
+load-bearing in two places, the grant and `RackHost.spec.address`, so give each
+host a DHCP reservation and update both together.
 
 Routing it separately from the host's own tailnet identity is deliberate:
 `installTailscale` stops and replaces tailscaled, which over a session
