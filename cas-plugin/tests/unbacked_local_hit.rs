@@ -93,33 +93,54 @@ fn the_caller_never_receives_an_id_that_cannot_be_loaded() {
     );
 }
 
-/// The limitation, as an assertion rather than a paragraph: the probe covers the
-/// ROOT. A value whose root is present but whose child is gone passes the guard
-/// and still fails at load time, on the child.
+/// Persisted incomplete graphs from older proxies must become cache misses,
+/// including when the hole is below an otherwise-present intermediate node.
 #[test]
-fn a_present_root_with_a_missing_child_still_passes_the_guard() {
-    let Some(env) = Fixture::new("deep-node") else { return };
-    let absent_child = env.absent_value_digest();
-    let child_id = env.cas.objectid_for(&absent_child);
-    let root = env.cas.store_object_with_refs(b"a root whose child was never stored", &[child_id]);
-    let key = env.cas.key_digest(b"deep-node");
-    env.cas.actioncache_put(&key, root).expect("seeding put");
-    env.proxy.answer_resolve_with_miss();
+fn a_present_root_with_a_missing_descendant_is_not_served() {
+    for depth in [1, 3] {
+        let Some(env) = Fixture::new(&format!("deep-node-{depth}")) else {
+            return;
+        };
+        let absent_child = env.absent_value_digest();
+        let child_id = env.cas.objectid_for(&absent_child);
+        let mut root = child_id;
+        for level in 0..depth {
+            root = env
+                .cas
+                .store_object_with_refs(format!("ancestor-{level}").as_bytes(), &[root]);
+        }
+        let key = env.cas.key_digest(b"deep-node");
+        env.cas.actioncache_put(&key, root).expect("seeding put");
+        assert_eq!(env.cas.load(root), LLCAS_LOOKUP_RESULT_SUCCESS);
+        env.proxy.answer_resolve_with_miss();
+        assert_eq!(
+            env.cas.actioncache_get(&key).0,
+            LLCAS_LOOKUP_RESULT_NOTFOUND
+        );
+        assert_eq!(
+            env.proxy.resolves_for(&key),
+            1,
+            "the full manifest can repair an old local hole"
+        );
+        let (result, callbacks) = env.cas.actioncache_get_async(&key);
+        assert_eq!(result, LLCAS_LOOKUP_RESULT_NOTFOUND);
+        assert_eq!(callbacks, 1);
+        assert_eq!(env.proxy.resolves_for(&key), 2);
 
-    let (result, served) = env.cas.actioncache_get(&key);
-
-    assert_eq!(
-        result, LLCAS_LOOKUP_RESULT_SUCCESS,
-        "the root is present, so the guard passes it -- verifying the whole graph \
-         would put a walk on the serial task-setup path"
-    );
-    assert_eq!(env.cas.load(served), LLCAS_LOOKUP_RESULT_SUCCESS, "and the root loads");
-    assert_eq!(
-        env.cas.load(child_id),
-        LLCAS_LOOKUP_RESULT_NOTFOUND,
-        "while the child does not: the same `missing object` failure, one node deeper, \
-         which the write-through ordering fixes rather than this guard"
-    );
+        // Publication/remote availability is irrelevant once the local graph
+        // is complete. No cached negative verdict may survive this repair.
+        env.cas.store_object(ABSENT_VALUE_CONTENT);
+        assert_eq!(env.cas.actioncache_get(&key).0, LLCAS_LOOKUP_RESULT_SUCCESS);
+        assert_eq!(
+            env.cas.actioncache_get_async(&key).0,
+            LLCAS_LOOKUP_RESULT_SUCCESS
+        );
+        assert_eq!(
+            env.proxy.resolves_for(&key),
+            2,
+            "healthy local-only graphs need no remote validation"
+        );
+    }
 }
 
 /// The other limitation: a REMOTE hit is served unverified on purpose, because it
@@ -154,7 +175,7 @@ fn a_remote_hit_whose_blobs_are_gone_is_served_and_fails_at_load() {
 /// arrive -- and nothing can retract it. Reproduced on a real build over an EMPTY
 /// store, which ended it holding 9 dangling roots.
 ///
-/// So the association is recorded only once the root is actually present.
+/// So the association is recorded only once the graph is actually present.
 #[test]
 fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
     let Some(env) = Fixture::new("write-through-ordering") else { return };
@@ -202,6 +223,23 @@ fn a_resolve_hit_whose_graph_never_arrived_records_no_association() {
         2,
         "and it resolves again rather than answering from a record naming nothing"
     );
+}
+
+#[test]
+fn a_remote_hit_with_a_present_root_and_missing_child_records_no_association() {
+    let Some(env) = Fixture::new("write-through-deep-hole") else { return };
+    let child = env.cas.objectid_for(&env.absent_value_digest());
+    let root = env.cas.store_object_with_refs(b"remote root over a missing child", &[child]);
+    let key = env.cas.key_digest(b"write-through-deep-hole");
+    env.proxy.answer_resolve_with_hit(&env.cas.digest_of(root));
+    assert_eq!(env.cas.actioncache_get(&key).0, LLCAS_LOOKUP_RESULT_SUCCESS);
+
+    // Once the child lands, a wrongly recorded association would pass even a
+    // closure check. Requiring another resolve proves the earlier put was deferred.
+    env.cas.store_object(ABSENT_VALUE_CONTENT);
+    env.proxy.answer_resolve_with_miss();
+    assert_eq!(env.cas.actioncache_get(&key).0, LLCAS_LOOKUP_RESULT_NOTFOUND);
+    assert_eq!(env.proxy.resolves_for(&key), 2);
 }
 
 /// The other half: the deferral must not stop associations being recorded at all,
@@ -437,46 +475,57 @@ fn a_remote_value_that_contradicts_a_stale_association_is_still_served() {
     );
 }
 
-/// Not an assertion -- the record of what the verification costs, and the reason
-/// there is no memoization of the verdict behind it.
-///
-/// Measured on an M-series Mac with Xcode 26.3, release profile: a served local
-/// hit is ~50ns end to end, of which the probe is ~12ns. At the ~13.5k hits of a
-/// warm runner build that is a sixth of a millisecond for the whole build, so
-/// caching the verdict would buy nothing measurable while putting a mutex on the
-/// serial task-setup path and introducing a stale-positive window (another
-/// process pruning the shared store does not clear this process's cache).
-///
-/// Re-run with `cargo test --release -- --ignored --nocapture probe_cost` if the
-/// verification ever grows beyond a single root probe.
+/// Measure the serial local-hit guard against the former root-only probe, for
+/// both a leaf and a representative 41-node output graph. No verdict is cached:
+/// another process can rotate the shared store between lookups.
+/// Run with `cargo test --release --test unbacked_local_hit probe_cost -- --ignored --nocapture`.
 #[test]
 #[ignore = "a measurement, not an assertion"]
 fn probe_cost() {
-    let Some(env) = Fixture::new("probe-cost") else { return };
-    let key = env.cas.key_digest(b"probe-cost");
-    let value = env.cas.store_object(b"a value that is really here");
-    env.cas.actioncache_put(&key, value).expect("seeding put");
-    let id = env.cas.objectid_for(&env.cas.digest_of(value));
-
-    const ITERATIONS: u32 = 20_000;
-    for _ in 0..1_000 {
-        let _ = env.cas.actioncache_get(&key);
+    let Some(env) = Fixture::new("probe-cost") else {
+        return;
+    };
+    for outputs in [0, 8] {
+        let mut refs = Vec::new();
+        for output in 0..outputs {
+            let leaves: Vec<_> = (0..4)
+                .map(|chunk| {
+                    env.cas
+                        .store_object(format!("output-{output}-chunk-{chunk}").as_bytes())
+                })
+                .collect();
+            refs.push(
+                env.cas
+                    .store_object_with_refs(format!("output-{output}").as_bytes(), &leaves),
+            );
+        }
+        let value = env.cas.store_object_with_refs(b"probe graph", &refs);
+        let key = env
+            .cas
+            .key_digest(format!("probe-cost-{outputs}").as_bytes());
+        env.cas.actioncache_put(&key, value).expect("seeding put");
+        const ITERATIONS: u32 = 20_000;
+        for _ in 0..1_000 {
+            assert_eq!(env.cas.actioncache_get(&key).0, LLCAS_LOOKUP_RESULT_SUCCESS);
+        }
+        let started = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            let _ = env.cas.actioncache_get(&key);
+        }
+        let served = started.elapsed();
+        let started = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            let _ = env.cas.contains(value);
+        }
+        let probe = started.elapsed();
+        eprintln!(
+            "{} nodes: verified get {:?}/op; root probe {:?}/op",
+            1 + outputs * 5,
+            served / ITERATIONS,
+            probe / ITERATIONS
+        );
+        assert_eq!(env.proxy.resolves_for(&key), 0);
     }
-
-    let started = std::time::Instant::now();
-    for _ in 0..ITERATIONS {
-        let _ = env.cas.actioncache_get(&key);
-    }
-    let served = started.elapsed();
-
-    let started = std::time::Instant::now();
-    for _ in 0..ITERATIONS {
-        let _ = env.cas.contains(id);
-    }
-    let probe = started.elapsed();
-
-    eprintln!("verified get: {:?}/op", served / ITERATIONS);
-    eprintln!("probe alone:  {:?}/op", probe / ITERATIONS);
 }
 
 // --- Fixture -------------------------------------------------------------------

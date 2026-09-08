@@ -1202,8 +1202,8 @@ unsafe fn actioncache_get_impl(
             // materialized root persists on disk, so the next build's resolve
             // finds it present and records the association then. On the warm
             // snapshot path the graph is already materialized, the probe passes,
-            // and nothing changes. The same ROOT-only probe as the read guard —
-            // an interior node still needs the load path's FETCH_OBJECT.
+            // and nothing changes. Use the same local closure check as the
+            // read guard, including for roots written by an older proxy.
             if value_graph_is_available(state, value_id) {
                 let mut put_error: *mut c_char = std::ptr::null_mut();
                 if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
@@ -1236,21 +1236,48 @@ unsafe fn actioncache_get_impl(
     }
 }
 
-/// The ROOT only, and a probe rather than a load: this runs on the thread that
-/// schedules every task in the build, so its cost is multiplied by every lookup
-/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
-/// write-through ordering, not to a graph walk here.
-///
-/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
-/// condition. A probe that errors counts as unavailable — falling through costs a
-/// resolve, serving an unbacked hit costs a build.
+/// Validate the local closure without consulting the remote. Root containment
+/// alone accepts graphs written incompletely by older proxies. Do not memoize a
+/// positive result: another process can rotate the shared store between gets.
 unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
+    local_graph_is_available(state.up, state.cas, value)
+}
+
+/// The ids and loaded references must belong to the same live CAS handle.
+unsafe fn local_graph_is_available(
+    up: &Upstream,
+    cas: llcas_cas_t,
+    root: llcas_objectid_t,
+) -> bool {
+    const MAX_NODES: usize = 100_000;
+    let mut visited = std::collections::HashSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id.opaque) {
+            continue;
+        }
+        if visited.len() > MAX_NODES {
+            return false;
+        }
+        let mut loaded = llcas_loaded_object_t { opaque: 0 };
+        let mut error = std::ptr::null_mut();
+        let result = (up.llcas_cas_load_object)(cas, id, &mut loaded, &mut error);
+        if !error.is_null() {
+            (up.llcas_string_dispose)(error);
+        }
+        if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+            return false;
+        }
+        let refs = (up.llcas_loaded_object_get_refs)(cas, loaded);
+        let count = (up.llcas_object_refs_get_count)(cas, refs);
+        if count > MAX_NODES.saturating_sub(pending.len()) {
+            return false;
+        }
+        for index in 0..count {
+            pending.push((up.llcas_object_refs_get_id)(cas, refs, index));
+        }
     }
-    result == LLCAS_LOOKUP_RESULT_SUCCESS
+    true
 }
 
 /// The upstream local lookup, with a hit verified before it is served.
@@ -1262,7 +1289,7 @@ unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) ->
 /// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
 ///
 /// The write-side invariants keep this guard from being the only defense: an
-/// association is recorded only once its root is present, and materialization
+/// association is recorded only once its closure is present, and materialization
 /// publishes a root only over a complete closure. This still runs, because a
 /// prune remains an author no writer controls.
 ///
