@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+- Timeline summary values (elapsed time, step count and target count) use small decorative separator dots.
 - Timeline metrics use a responsive 2×2 grid with independent 120px plots and subtle 2px card corners; the build-step viewport stays 600px tall. Search and the step legend sit above the step lanes below the metric grid, outside chart gesture handling, with a time ruler for each section.
 - The inspector and its resize divider align with the top of the step chart section (including search and legend) and span that section only, keeping details below the metric grid. Step and metric charts share the same Noora border with a 2px radius.
 - `BuildTimelineMetrics.mjs` renders CPU, memory, network and disk tracks using the same time range as build steps; each plot has its own time ruler, synchronized cursor and range-selection overlay, with coordinates scaled to its own width. Noora-styled chart cards use taller line plots, horizontal gridlines, and purple/blue series. Metric hover values appear only in each chart’s top-right readout, including both network/disk directions; floating tooltips are reserved for build steps. The initial and maximum zoom-out both show the entire build. Samples are loaded once, culled by binary search, and keep stable scales across zooms; missing samples and collection gaps are not shown as zero readings.

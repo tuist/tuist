@@ -25,6 +25,16 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     font-variant-numeric: tabular-nums;
+    & > span + span::before {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: var(--noora-spacing-5);
+      border-radius: 50%;
+      background: var(--noora-surface-label-tertiary);
+      width: 3px;
+      height: 3px;
+      content: "";
+    }
   }
 
   & [data-part="toolbar"] {
