@@ -50,6 +50,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "tasks_no_source_count" => %{"type" => "integer"},
         "cacheable_tasks_count" => %{"type" => "integer"},
         "cache_hit_rate" => %{"type" => ["number", "null"]},
+        "cache_download_bytes" => %{"type" => "integer"},
+        "cache_upload_bytes" => %{"type" => "integer"},
         "inserted_at" => %{"type" => "string"}
       },
       "required" => [
@@ -75,6 +77,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "tasks_no_source_count",
         "cacheable_tasks_count",
         "cache_hit_rate",
+        "cache_download_bytes",
+        "cache_upload_bytes",
         "inserted_at"
       ],
       "additionalProperties" => false
@@ -100,6 +104,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
              :build,
              "Gradle build not found: #{build_run_id}"
            ) do
+      cache_aggregates = Gradle.task_cache_aggregates(build.id)
+
       {:ok,
        %{
          id: build.id,
@@ -124,6 +130,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          tasks_no_source_count: build.tasks_no_source_count,
          cacheable_tasks_count: build.cacheable_tasks_count,
          cache_hit_rate: Gradle.cache_hit_rate(build),
+         cache_download_bytes: cache_aggregates.cache_download_bytes,
+         cache_upload_bytes: cache_aggregates.cache_upload_bytes,
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
        }}
     end
