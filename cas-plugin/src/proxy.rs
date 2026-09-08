@@ -18,8 +18,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PRUNE,
-    OP_PUBLISH, OP_RESOLVE,
+    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PREPARE_ACTION,
+    OP_PRUNE, OP_PUBLISH, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -354,7 +354,10 @@ const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 
 /// A cached resolve outcome for a key.
 enum Resolution {
-    /// A value digest, kept indefinitely (content-addressed, always valid).
+    /// Lookup metadata cannot suppress a replacement upload after a failed
+    /// restore. Its bytes must still be prepared before a compiler hit.
+    Candidate(Vec<u8>),
+    /// A completed publication, which can suppress a duplicate spool record.
     Hit(Vec<u8>),
     /// A miss, with the time it was cached so it can expire (see NEGATIVE_TTL).
     Miss(Instant),
@@ -420,7 +423,7 @@ fn fast_path(
     let value = {
         let map = resolved.lock().unwrap();
         match map.get(key) {
-            Some(Resolution::Hit(value)) => value.clone(),
+            Some(Resolution::Hit(value) | Resolution::Candidate(value)) => value.clone(),
             Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => return FastPath::Miss,
             _ => return FastPath::Resolve,
         }
@@ -1776,10 +1779,9 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
-        // A value that is not on disk but has registered fetch instructions is
-        // as good as present: the materializer is filling it in and demand
-        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
-        // (a duplicate action lookup on the engine thread).
+        // Registered fetch instructions let us return the same candidate
+        // without another action lookup. The plugin still checks readiness
+        // before turning it into a compiler hit.
         match fast_path(
             &state.resolved,
             key,
@@ -1818,7 +1820,7 @@ impl Proxy {
                 // Verify presence before serving; on absence fall through and
                 // resolve it ourselves.
                 let peeked = match state.resolved.lock().unwrap().get(key) {
-                    Some(Resolution::Hit(value)) => Some(value.clone()),
+                    Some(Resolution::Hit(value) | Resolution::Candidate(value)) => Some(value.clone()),
                     // A fresh miss answers without a round-trip; a stale one
                     // falls through to re-resolve so a key published later
                     // (by another machine) can still land.
@@ -1909,12 +1911,10 @@ impl Proxy {
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
 
-    /// Answers a resolve from a known manifest: commit the Hit, register every
-    /// node's fetch instructions, then materialize — in the background for a
-    /// the background — the caller is the build engine's serial task-setup
-    /// thread, where every millisecond spent here is a millisecond no other
-    /// task gets scheduled. Shared by the action-lookup path and the snapshot
-    /// path.
+    /// Registers the complete graph before returning a remote candidate. Local
+    /// task-setup probes never wait for downloads; the plugin's global query
+    /// prepares the guarded root before advertising a compiler hit. Both the
+    /// per-key lookup and snapshot path use this same registration order.
     fn commit_and_materialize(
         &self,
         remote: &Arc<Remote>,
@@ -1924,24 +1924,20 @@ impl Proxy {
         observed: u64,
     ) -> Result<Option<Vec<u8>>, String> {
         let value = manifest[0].llcas_digest.clone();
-        // Commit BEFORE materialization; only if no wipe/prune advanced the
-        // generation while the answer was being produced.
-        let committed = {
-            let mut resolved = state.resolved.lock().unwrap();
-            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
-                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
-                true
-            } else {
-                false
-            }
-        };
-        if !committed {
-            return Ok(None);
+        // A global query can ask for the root immediately after this reply,
+        // before the materializer starts. Install its closure guard before
+        // making the root's fetch instruction visible to that demand worker.
+        if !state.load_present(&value) {
+            state.withheld_roots.lock().unwrap()
+                .entry(value.clone())
+                .or_insert_with(|| {
+                    manifest.iter().skip(1).map(|entry| entry.llcas_digest.clone()).collect()
+                });
         }
-        // Register fetch instructions for every graph node BEFORE answering, so
-        // a consumer can never observe a served Hit without a way to produce
-        // its objects: a demand load that runs ahead of the materializer
-        // fetches per object through OP_FETCH_OBJECT using these.
+        // Register fetch instructions for every graph node BEFORE answering.
+        // They describe how to prepare the candidate, not a promise that remote
+        // bytes will remain available. A demand load ahead of the materializer
+        // uses these instructions together with the closure guard above.
         {
             let mut pending = state.pending_objects.lock().unwrap();
             for entry in &manifest {
@@ -1952,6 +1948,15 @@ impl Proxy {
                         contents: entry.contents.clone(),
                     });
             }
+        }
+        // Make the candidate visible to concurrent resolves only after its
+        // closure guard and fetch instructions are installed.
+        {
+            let mut resolved = state.resolved.lock().unwrap();
+            if !committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                return Ok(None);
+            }
+            resolved.insert(key.to_vec(), Resolution::Candidate(value.clone()));
         }
         self.enqueue_materialize(state, remote, manifest, observed);
         Ok(Some(value))
@@ -2818,12 +2823,11 @@ impl Proxy {
             remove_record(&record_path);
             return;
         };
-        // The client re-puts replayed results at the end of its job, so a warm
-        // build spools thousands of records whose (key, value) this proxy
-        // resolved FROM the remote minutes earlier. `publish` would discover
-        // that with a get_action round trip per record; the resolved map
-        // already knows, so drop those records here for free. A Hit with a
-        // DIFFERENT value (a genuine local recompute) still publishes.
+        // Only a completed publication can suppress another matching record.
+        // A remote Candidate may have failed to restore, in which case this
+        // record repairs the missing remote bytes after a safe recompile.
+        // Revalidate candidates in `publish`; lookup metadata alone is not
+        // enough to discard the only durable replacement upload.
         //
         // But `resolved` remembers the value, not the tag it carries remotely,
         // and a trunk build's re-put is the reclaim path: the entry it matches
@@ -4116,7 +4120,7 @@ impl Proxy {
                     None => write_response(&mut stream, STATUS_MISS, &[]),
                 }
             }
-            OP_FETCH_OBJECT => {
+            OP_FETCH_OBJECT | OP_PREPARE_ACTION => {
                 // Bind the path when the request is routable: a proxy that
                 // restarted under a persistent local action cache must still
                 // produce pruned objects (fetch_object reconstructs the
@@ -4144,6 +4148,13 @@ impl Proxy {
                     None => Ok(None),
                 };
                 let outcome = state.and_then(|state| match state {
+                    Some(state)
+                        if request.op == OP_PREPARE_ACTION
+                            && !state.load_present(&request.payload)
+                            && !state.withheld_roots.lock().unwrap().contains_key(&request.payload) =>
+                    {
+                        Ok(false)
+                    }
                     Some(state) => self.fetch_object(
                         state,
                         &request.cas_path,
@@ -6547,6 +6558,60 @@ mod tests {
             state.stats_withheld_roots_refused.load(Ordering::Relaxed),
             1
         );
+    }
+
+    #[test]
+    fn a_resolve_withholds_its_root_before_the_materializer_starts() {
+        let dir = TempCasDir::new("resolve-before-materializer");
+        let state = path_state_for(&dir.path());
+        let seed_dir = TempCasDir::new("resolve-root-seed");
+        let seed = path_state_for(&seed_dir.path());
+        let root = store_probe_object(seed, b"root");
+        let child = store_probe_object(seed, b"child");
+        let proxy = test_proxy();
+        proxy.materializer.drain_stop_timeout(Duration::ZERO);
+        let remote = proxy.remote_for("tuist/resolve-before-materializer");
+        let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+
+        assert_eq!(proxy.commit_and_materialize(&remote, state, b"key", manifest, 0).unwrap(), Some(root.clone()));
+        assert_eq!(state.withheld_roots.lock().unwrap().get(&root), Some(&vec![child]));
+        assert!(!proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+        assert!(!state.load_present(&root), "the demand path must not store a partial graph's root");
+
+        let reopened = path_state_for(&dir.path());
+        assert!(reopened.withheld_roots.lock().unwrap().is_empty());
+        assert!(!reopened.load_present(&root), "a fresh process must not find a persistent partial root");
+    }
+
+    #[test]
+    fn snapshot_candidates_install_the_same_closure_guard() {
+        use sha2::{Digest, Sha256};
+        let dir = TempCasDir::new("snapshot-candidate-guard");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        proxy.materializer.drain_stop_timeout(Duration::ZERO);
+        let remote = proxy.remote_for("tuist/snapshot-candidate-guard");
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let key = b"snapshot-candidate";
+        let hash: [u8; 32] = Sha256::digest(key).into();
+        let snapshot = Snapshot {
+            nodes: vec![
+                (root.clone(), reapi::blob_digest(b"root")),
+                (child.clone(), reapi::blob_digest(b"child")),
+            ],
+            node_index: HashMap::new(),
+            keys: HashMap::from([(hash, vec![0, 1])]),
+            key_order: vec![hash],
+            watermark: 0,
+        };
+        for _ in 0..2 {
+            assert_eq!(proxy.resolve(&remote, "tuist/snapshot-candidate-guard", state, key, Some(&snapshot)).unwrap(), Some(root.clone()));
+            assert_eq!(state.withheld_roots.lock().unwrap().get(&root), Some(&vec![child.clone()]));
+            assert!(!state.load_present(&root));
+        }
+        assert_eq!(state.stats_snapshot_hits.load(Ordering::Relaxed), 1);
+        assert_eq!(state.stats_remote_hits.load(Ordering::Relaxed), 0);
     }
 
     /// The other half, or the guard would turn a recoverable graph into a

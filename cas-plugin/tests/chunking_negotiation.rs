@@ -43,6 +43,7 @@ enum Mode {
     DeclinedSplice(i32),
     TerminalSplitOne,
     Latency(u64),
+    HoldLaterBatch,
 }
 
 #[derive(Default)]
@@ -60,6 +61,8 @@ struct Calls {
     max_active_splits: usize,
     active_splices: usize,
     max_active_splices: usize,
+    later_batch_waiting: bool,
+    release_later_batch: bool,
     blobs: HashMap<String, Vec<u8>>,
 }
 
@@ -195,6 +198,18 @@ impl ContentAddressableStorage for Server {
         &self,
         request: Request<api::SplitBlobRequest>,
     ) -> Result<Response<api::SplitBlobResponse>, Status> {
+        if matches!(self.mode, Mode::HoldLaterBatch)
+            && request.get_ref().blob_digest.as_ref().unwrap().size_bytes == 30 * 1024 * 1024
+        {
+            self.calls.lock().unwrap().later_batch_waiting = true;
+            tokio::time::timeout(std::time::Duration::from_secs(30), async {
+                while !self.calls.lock().unwrap().release_later_batch {
+                    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                }
+            })
+            .await
+            .map_err(|_| Status::deadline_exceeded("test did not release later batch"))?;
+        }
         {
             let mut calls = self.calls.lock().unwrap();
             calls.split += 1;
@@ -222,6 +237,7 @@ impl ContentAddressableStorage for Server {
                 | Mode::TerminalDownload
                 | Mode::TerminalSplitOne
                 | Mode::Latency(_)
+                | Mode::HoldLaterBatch
         ) {
             return Err(Status::unimplemented("mixed-version server"));
         }
@@ -699,6 +715,63 @@ fn background_and_demand_reads_share_large_downloads() {
     );
     assert_eq!(observed.read_bytes, bytes.len());
     assert_eq!(observed.split, 1);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn completed_download_does_not_wait_for_a_later_working_batch() {
+    use std::time::{Duration, Instant};
+
+    let (remote, calls, _stop) = server(Mode::HoldLaterBatch);
+    let directory =
+        std::env::temp_dir().join(format!("chunk-batch-release-{}", std::process::id()));
+    remote.enable_chunk_cache(directory.clone(), "tenant/project");
+    let first = vec![7; 3 * 1024 * 1024];
+    let later = vec![9; 30 * 1024 * 1024];
+    let first_digest = blob_digest(&first);
+    let later_digest = blob_digest(&later);
+    calls.lock().unwrap().blobs.extend([
+        (first_digest.hash.clone(), first.clone()),
+        (later_digest.hash.clone(), later.clone()),
+    ]);
+
+    std::thread::scope(|scope| {
+        let background = scope.spawn(|| {
+            remote.batch_read_after_action_result(&[first_digest.clone(), later_digest.clone()])
+        });
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !calls.lock().unwrap().later_batch_waiting && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // The second split starts only after the first working batch has been
+        // reconstructed and verified. Hold it until the independent read ends.
+        let waiting = calls.lock().unwrap().later_batch_waiting;
+        let (finished, result) = std::sync::mpsc::channel();
+        let demand_remote = &remote;
+        let demand_digest = &first_digest;
+        let demand = scope.spawn(move || {
+            let bytes = demand_remote
+                .batch_read(std::slice::from_ref(demand_digest))
+                .unwrap();
+            finished.send(bytes).unwrap();
+        });
+        let started = Instant::now();
+        let completed = result.recv_timeout(Duration::from_secs(3));
+        println!("completed output demand read: {} ms", started.elapsed().as_millis());
+        calls.lock().unwrap().release_later_batch = true;
+        demand.join().unwrap();
+        let restored = background.join().unwrap().unwrap();
+        assert!(
+            waiting,
+            "the test must cross the 32-mebibyte working-batch boundary"
+        );
+        assert_eq!(restored[&first_digest.hash], first);
+        assert_eq!(restored[&later_digest.hash], later);
+        assert_eq!(
+            completed.expect("verified output waited for an unrelated batch")[&first_digest.hash],
+            first
+        );
+    });
     std::fs::remove_dir_all(directory).unwrap();
 }
 

@@ -1081,15 +1081,16 @@ impl Remote {
         {
             return self.batch_read_once(blobs);
         }
-        self.shared_blob_reads.fetch_batch(blobs, |owned| {
-            let mut outcomes = Vec::new();
-            // Bound extra recipe/chunk working storage to a normal transfer
-            // batch, or one oversized output, rather than the whole closure.
-            for batch in chunk_digests(owned) {
-                outcomes.extend(self.batch_read_with_chunks_once(batch)?);
-            }
-            Ok(outcomes)
-        })
+        let mut outcomes = Vec::new();
+        // Release verified results before starting the next working batch, so
+        // a demand reader never waits for unrelated outputs later in the graph.
+        for batch in chunk_digests(blobs) {
+            outcomes.extend(
+                self.shared_blob_reads
+                    .fetch_batch(batch, |owned| self.batch_read_with_chunks_once(owned))?,
+            );
+        }
+        Ok(outcomes)
     }
 
     fn batch_read_with_chunks_once(

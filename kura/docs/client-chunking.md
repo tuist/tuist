@@ -20,7 +20,15 @@ Deploy recipe-aware readers before enabling writes, following the existing [read
 
 ## Local download reuse
 
-The exact action result is looked up first. Nodes already present in Apple's compiler store win before transfer work. For a large missing node, the proxy obtains its recipe, checks persistent chunks, downloads missing pieces, and verifies each piece and the complete compressed blob. It then uses the existing decoder and graph materializer. Corrupt, missing, or evicted chunks cannot become successful cache hits. Root-last materialization and incomplete-closure guards remain unchanged. Network reads never move onto Xcode's serial task-setup path.
+The exact action result is looked up first. Nodes already present in Apple's compiler store win before transfer work. For a large missing node, the proxy obtains its recipe, checks persistent chunks, downloads missing pieces, and verifies each piece and the complete compressed blob. It then uses the existing decoder and root-last graph materializer. Corrupt, missing, or evicted transfer chunks cannot become successful cache hits. Chunk downloads never move onto Xcode's serial task-setup path.
+
+A remote action result, including one from a cached snapshot, is only a candidate. The plugin advertises a compiler hit and records the local association only once its root is present over a complete local graph. Xcode's [task-setup probes](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBTaskExecution/TaskActions/ClangCachingMaterializeKeyTaskAction.swift) are local-only and never wait for chunk downloads. Its separate [global cache-query tasks](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBTaskExecution/TaskActions/ClangCachingKeyQueryTaskAction.swift) may prepare the graph before answering. Missing or failed transfers return a miss while recompilation is still possible, rather than failing Clang after committing to replay. The proxy installs the root's closure guard before exposing its fetch instructions, including before the background materializer starts.
+
+Whole-blob fallback is not an independent backup for recipe-only storage: it needs the same chunks. Server presence checks and best-effort lifetime extension reduce eviction races but are not a retention lease. Compiler-hit readiness therefore relies on verified local materialization, not on those checks or transfer chunks alone.
+
+Preparation uses an additive local proxy operation, `PREPARE_ACTION`. An older proxy rejects it and the new plugin returns a miss for an unready graph, without falling back to an unguarded root fetch. Older plugins still work with the new proxy. Kura's network protocol, capability negotiation, and ordinary full-blob reads are unchanged.
+
+The proxy also distinguishes a lookup candidate from a completed publication. Candidates cannot suppress a recompiled output's durable upload. Their first publication rechecks the remote action, repairing missing bytes when needed; later identical publications can be skipped. A replay from another process can therefore incur one extra action probe, but an existing valid action still avoids a graph upload.
 
 Overloaded chunk reads share the original blob's bounded retry budget and retain verified pieces between attempts. Persistent pressure engages the existing fail-fast backoff. Authorization failures stop the read, and omitted or unexpected response digests are rejected. Terminal storage errors stay per-blob, leaving independent successful outputs available. These failures do not trigger whole-blob downloads; that fallback is reserved for missing, corrupt, or unsupported chunk representations.
 
@@ -32,7 +40,7 @@ Cold readers fetch all bytes and pay for recipe requests. Smaller chunks can red
 
 Background materialization and compiler-demand workers share active large-node reads against the same remote/project. Otherwise both can observe missing chunks before either finishes downloading them. The table is keyed by hash and size, capped at 128 active reads, and retains no completed-output cache. Waiters receive the same verified result; failures and worker panics wake them and release the entry for retry. Small-node batching and each caller's absence-retry policy remain unchanged. This is worker-side coordination, never a wait on Xcode's task-setup thread.
 
-Each read reserves its batch's large digests together and completes the reads it owns before waiting for another batch. Split requests run with at most eight in flight; the batch's missing chunks and small outputs share one size-bounded read. Publication similarly pools chunk presence and uploads before issuing up to eight splices concurrently. Extra working storage is limited to a normal 32-mebibyte batch or one oversized output, rather than expanding the whole closure at once. Split-request overload uses the parent blob's retry budget and preserves independently successful outputs; it never triggers a larger whole-blob fallback.
+Each read reserves one working batch's large digests together and completes the reads it owns before waiting for shared reads. It releases those results before starting the next working batch, so an already verified output never waits for unrelated later downloads. Split requests run with at most eight in flight; the batch's missing chunks and small outputs share one size-bounded read. Publication similarly pools chunk presence and uploads before issuing up to eight splices concurrently. Extra working storage is limited to a normal 32-mebibyte batch or one oversized output, rather than expanding the whole closure at once. Split-request overload uses the parent blob's retry budget and preserves independently successful outputs; it never triggers a larger whole-blob fallback.
 
 ## Output-by-output investigation
 
@@ -55,7 +63,7 @@ mise run clippy
 Run local Kura with `KURA_REAPI_BLOB_CHUNKING_ENABLED=true`. From `cas-plugin/`, export `TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765` and optional colon-separated compiled artifact paths as `TUIST_CHUNKING_ARTIFACTS`:
 
 ```sh
-mise exec -- cargo test --lib --test chunking_negotiation --test batch_read_backpressure --test publish_write_backpressure
+mise exec -- cargo test --lib --test chunking_negotiation --test batch_read_backpressure --test publish_write_backpressure --test unbacked_local_hit
 mise exec -- cargo test --release --test content_defined_chunking -- --include-ignored --nocapture
 mise exec -- cargo build --release --example cache_output_inventory
 mise exec -- cargo test --example cache_output_inventory
@@ -93,34 +101,57 @@ Reproduce current measurements from `cas-plugin/` with:
 ```sh
 mise exec -- cargo test --release --test chunking_negotiation large_reads_pool_missing_chunks_and_overlap_split_requests -- --exact --nocapture
 mise exec -- cargo test --release --test chunking_negotiation large_uploads_pool_presence_and_updates_before_overlapping_splices -- --exact --nocapture
+mise exec -- cargo test --release --test chunking_negotiation completed_download_does_not_wait_for_a_later_working_batch -- --exact --nocapture
 ```
 
 The serial baseline used the pre-fix client at `94455e7378` with the same regression harness; its request-count assertions fail as expected. Individual download samples were 2,864 / 2,798 / 2,755 milliseconds before and 1,075 / 1,141 / 882 after. Upload samples were 2,312 / 2,305 / 2,204 before and 856 / 1,220 / 858 after. Host scheduling contributes noise, so the request counts are the primary regression check.
 
+The working-batch regression uses three- and thirty-mebibyte outputs to cross the batch boundary. It holds the second output's split until a demand read for the already verified first output completes. That demand read took 45 milliseconds in one release-mode run. The assertion checks independence from the held request, not a performance guarantee; overlapping-reader deadlock checks remain separate.
+
 ### Actual Xcode action restores
 
-Build the release plugin and proxy first. On an Apple silicon Mac with Xcode 26 and the repository's pinned Tuist version available, start local Kura with chunking enabled, then run from `kura/`:
+Build the release plugin, proxy, and fault gate first, from `cas-plugin/`:
 
 ```sh
-KURA_E2E_XCODE=1 TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765 mise exec -- shellspec spec/e2e/xcode_chunking_spec.sh --format documentation
+mise exec -- cargo build --release --lib --bin tuist-cas-proxy --example chunking_fault_gate
+```
+
+On an Apple silicon Mac with Xcode 26 and the repository's pinned Tuist version available, start local Kura with chunking enabled, then run from `kura/`:
+
+```sh
+KURA_E2E_XCODE=1 TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765 mise exec -- shellspec spec/e2e/xcode_chunking_spec.sh spec/e2e/clang_chunking_spec.sh --no-quick --fail-no-examples --format documentation
 ```
 
 The suite generates a 4,000-struct Swift fixture from the readable assets in `spec/fixtures/xcode-chunking/`. Its `Project.swift` defines a macOS static library and the isolated plugin settings; `Tuist.swift` enables compilation caching through Tuist's generation options. The suite runs `tuist generate --no-open --cache-profile none` and builds the resulting workspace. It compiles the base and a single-property rename at the same source and derived-data paths, then independently tests cold restoration, a restarted reader retaining chunks, and cross-revision reuse. Each remote restore must hit every cacheable action and reproduce twelve output files byte-for-byte. It checks positive reuse and reduced downloads after restart, using post-build transport counters. Writers and readers have separate transfer caches. The suite stops its proxies and retains its isolated directory of compiler stores and logs for inspection.
 
 The suite is skipped unless explicitly enabled on a supported Mac. It does not start or stop the Kura server, change launch agents, or modify a developer's existing compiler cache. The standalone artifact payloads above are historical fixture measurements; regenerating fixture names changes the corpus and can change compressed byte counts.
 
-The ShellSpec run on 2026-09-08 passed all three examples with the Tuist-generated workspace in 112.39 seconds, including fixture compilation and waiting for transport statistics. The initial build had zero of four hits; the property rename reused two imported-module actions and recompiled the two Swift actions. All five subsequent restores hit all four actions and reproduced twelve output files byte-for-byte.
+The combined ShellSpec run on 2026-09-08 passed all six examples in 173.11 seconds, including fixture compilation, fault injection, and waiting for transport statistics. The Swift initial build had zero of four hits; the property rename reused two imported-module actions and recompiled the two Swift actions. All five subsequent restores hit all four actions and reproduced twelve output files byte-for-byte.
 
 | Empty-store restore | Batch payload downloaded | Locally reused chunk bytes |
 | --- | ---: | ---: |
-| Base, cold reader | 18,293,091 | 0 |
-| Base, restarted reader retaining chunks | 1,464 | 18,291,627 |
-| Property rename, reader retaining base chunks | 16,134,197 | 2,200,883 |
+| Base, cold reader | 18,291,636 | 0 |
+| Base, restarted reader retaining chunks | 576 | 18,291,636 |
+| Property rename, reader retaining base chunks | 16,133,752 | 2,200,883 |
 
-Each scenario uses an independent reader cache. The restart scenario seeds its own cache with 18,292,655 downloaded bytes; the edit scenario seeds another with 18,293,091. Small-output request timing can change aggregate counters slightly. The unchanged restore demonstrates reuse after cleanup, not reuse across edits. The property rename achieves much less reuse than the standalone large-module fixture.
+Each scenario uses an independent reader cache seeded from the base revision. Small-output request timing can change aggregate counters slightly. The unchanged restore demonstrates reuse after cleanup, not reuse across edits. The property rename achieves much less reuse than the standalone large-module fixture.
 
 Counters exclude inline outputs, action metadata, and recipe metadata, and are not build-time measurements. A fresh source or derived-data path can change compressed sizes. The suite asserts correctness, cache hits, positive reuse, and reduced restarted-reader downloads rather than pinning byte counts to one machine.
 
 The selected compression also keeps smaller compiler outputs efficient: in the previous fixture, independent compression grew a Swift dependency node from 1,165,671 to 1,272,457 bytes while remaining below the transfer threshold. Retaining its original encoding avoids that 9.2% growth. This size-based decision applies to any output without a format-specific parser.
+
+### Clang interruption and dependency-loss checks
+
+`clang_chunking_spec.sh` generates a separate C static-library workspace through Tuist. Its deterministic object exceeds the chunking threshold. The loopback-only Rust fault gate forwards requests to real Kura; it does not implement its own storage. ShellSpec controls upload interruption and deletion of each test's isolated namespace. Writers and fresh readers use separate compiler and transfer caches.
+
+| Scenario | Required result |
+| --- | --- |
+| Commit one upload chunk, then abort the response and remaining transfer | The durable publication remains pending, no action is published, and a fresh reader compiles with zero of one hits. |
+| Return the action and recipe, hold the chunk read, then delete the test namespace | Both chunk and whole-output reads fail. The compiler gets a miss, recompiles successfully, and produces byte-identical output. Its replacement upload completes, and another empty-store reader restores with one of one hits. |
+| Complete a healthy cold restore, delete the remote namespace, restart the proxy, and remove build outputs while retaining the compiler store | Both the cold restore and restarted build hit the one cacheable action and reproduce its object exactly. |
+
+The dependency-loss case reproduces a real Clang `missing object` build failure with the prior client at `ca0a8c84e4`; it passes with guarded preparation. This demonstrates a replay-availability failure, not silent corruption. Deleting the isolated namespace is deterministic dependency loss, not a claim that every server eviction schedule has been simulated.
+
+Plugin regressions also cover snapshot candidates, demand reads before the materializer starts, absent roots after reopening the store, failed global preparation, and an older proxy rejecting the additive operation. These checks protect newly restored graphs; they do not promise recovery from arbitrary pruning of a previously complete local graph during an active build.
 
 Kura's strict Clippy check passed. The plugin tests passed; its Clippy check still reports existing warnings, including raw-pointer safety diagnostics in `llcas_get_plugin_version`. Allowing only that existing lint on the command line permits the check to complete; no source suppression was added.
