@@ -12,7 +12,12 @@ defmodule TuistWeb.SSOLoginLive do
     email = Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
 
-    socket = assign(socket, :form, form)
+    socket =
+      socket
+      |> assign(:form, form)
+      # Same rationale as UserLoginLive: skip Faro on the SSO log in page so
+      # crawler visits do not drag the LCP tail metric.
+      |> assign(:analytics_disabled?, true)
 
     {
       :ok,

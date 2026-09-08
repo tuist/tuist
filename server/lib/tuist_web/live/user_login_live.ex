@@ -25,6 +25,10 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
       |> assign(:email_auth_enabled?, Environment.email_auth_enabled?())
       |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
+      # Crawlers following `Log in` links on every localised docs page have
+      # been dominating the tuist-web LCP tail from `/users/log_in`, where
+      # LCP has no product meaning. Skip Faro on this page.
+      |> assign(:analytics_disabled?, true)
 
     {
       :ok,
