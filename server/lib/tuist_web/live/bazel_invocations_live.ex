@@ -528,7 +528,18 @@ defmodule TuistWeb.BazelInvocationsLive do
                 end
               }
             >
-              <:col :let={invocation} label={dgettext("dashboard_projects", "Targets")}>
+              <:col
+                :let={invocation}
+                :if={@bazel_resource_kind == :builds}
+                label={dgettext("dashboard_projects", "Invocation")}
+              >
+                <.text_cell label={requested_command(invocation)} />
+              </:col>
+              <:col
+                :let={invocation}
+                :if={@bazel_resource_kind != :builds}
+                label={dgettext("dashboard_projects", "Targets")}
+              >
                 <.text_cell label={target_patterns_label(invocation.target_patterns)} />
               </:col>
               <:col

@@ -80,6 +80,13 @@ defmodule TuistWeb.BazelOverviewLive do
          has_any_builds: Enum.any?(builds) || Bazel.invocations_present?(project.id, ["build"])
        }}
     end)
+    |> assign_async(:builds_duration_analytics, fn ->
+      {:ok,
+       %{
+         builds_duration_analytics:
+           Bazel.duration_analytics(project.id, Keyword.put(invocations_opts, :commands, ["build"]))
+       }}
+    end)
     |> assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
       recent_test_runs = Tests.latest_completed_test_runs(project.id)
 
@@ -296,13 +303,6 @@ defmodule TuistWeb.BazelOverviewLive do
         data-part="builds-card"
       >
         <:actions>
-          <.button
-            variant="secondary"
-            label={dgettext("dashboard_projects", "View more")}
-            size="medium"
-            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-            disabled={!@recent_builds.ok? || Enum.empty?(@recent_builds.result)}
-          />
           <.dropdown
             id="bazel-overview-builds-environment-dropdown"
             label={@invocations_environment_label}
@@ -403,6 +403,77 @@ defmodule TuistWeb.BazelOverviewLive do
               />
             </:image>
           </.empty_card_section>
+          <.card_section
+            :if={!@builds_duration_analytics.ok?}
+            data-part="average-build-time-card-section"
+          >
+            <div data-part="average-build-time-chart">
+              <div data-part="legends"><.skeleton_legend /></div>
+              <.skeleton_chart />
+            </div>
+          </.card_section>
+          <.card_section
+            :if={
+              @builds_duration_analytics.ok? &&
+                @builds_duration_analytics.result.total_average_duration != 0
+            }
+            data-part="average-build-time-card-section"
+          >
+            <div data-part="average-build-time-chart">
+              <.button
+                data-part="view-more"
+                label={dgettext("dashboard_projects", "View more")}
+                size="small"
+                variant="secondary"
+                navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+              />
+              <div data-part="legends">
+                <.legend
+                  title={dgettext("dashboard_projects", "Average build time")}
+                  value={
+                    DateFormatter.format_duration_from_milliseconds(
+                      @builds_duration_analytics.result.total_average_duration
+                    )
+                  }
+                  style="secondary"
+                />
+              </div>
+              <.chart
+                data-lazy="true"
+                id="bazel-overview-average-build-time-chart"
+                type="line"
+                extra_options={
+                  %{
+                    grid: %{width: "95%", left: "0.4%", height: "88%", top: "5%"},
+                    xAxis:
+                      chart_x_axis(
+                        @builds_duration_analytics.result.dates,
+                        @invocations_granularity
+                      ),
+                    yAxis: chart_y_axis("fn:formatSeconds"),
+                    tooltip: chart_tooltip("fn:formatSeconds", @invocations_granularity),
+                    legend: %{show: false}
+                  }
+                }
+                series={[
+                  %{
+                    color: "var:noora-chart-secondary",
+                    data:
+                      Enum.zip(
+                        @builds_duration_analytics.result.dates,
+                        Enum.map(@builds_duration_analytics.result.values, &(&1 / 1000))
+                      )
+                      |> Enum.map(&Tuple.to_list/1),
+                    name: dgettext("dashboard_projects", "Average build time"),
+                    type: "line",
+                    smooth: 0.1,
+                    symbol: "none"
+                  }
+                ]}
+                y_axis_min={0}
+              />
+            </div>
+          </.card_section>
         </div>
       </.card>
 

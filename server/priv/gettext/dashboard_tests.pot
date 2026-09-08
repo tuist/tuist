@@ -116,7 +116,7 @@ msgstr ""
 msgid "Avg. test case run duration"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_overview_live.ex:196
+#: lib/tuist_web/live/bazel_overview_live.ex:203
 #: lib/tuist_web/live/test_runs_live.ex:339
 #: lib/tuist_web/live/test_runs_live.html.heex:135
 #: lib/tuist_web/live/tests_live.html.heex:174
@@ -1640,7 +1640,7 @@ msgstr ""
 msgid "Arguments"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_overview_live.ex:198
+#: lib/tuist_web/live/bazel_overview_live.ex:205
 #: lib/tuist_web/live/xcode_overview_live.html.heex:178
 #, elixir-autogen, elixir-format
 msgid "The average test run duration."

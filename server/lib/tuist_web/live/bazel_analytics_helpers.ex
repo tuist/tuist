@@ -76,6 +76,8 @@ defmodule TuistWeb.BazelAnalyticsHelpers do
     end
   end
 
+  def requested_command(invocation), do: Enum.join(["bazel", invocation.command | invocation.target_patterns], " ")
+
   def parse_page(value), do: Query.positive_integer(value)
 
   def period_opts({start_datetime, end_datetime}) do

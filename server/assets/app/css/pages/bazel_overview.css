@@ -46,6 +46,7 @@
   }
 
   & [data-part="build-runs-chart"],
+  & [data-part="average-build-time-chart"],
   & [data-part="test-runs-chart"] {
     display: flex;
     flex-direction: column;
@@ -68,5 +69,30 @@
     padding-left: var(--noora-spacing-7);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+  }
+
+  & [data-part="builds-card-sections"] {
+    display: flex;
+    position: relative;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+
+    & > .noora-card__section {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    & [data-part="build-runs-chart"] .noora-chart,
+    & [data-part="average-build-time-chart"] .noora-chart {
+      width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
   }
 }

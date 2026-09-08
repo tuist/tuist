@@ -72,6 +72,8 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-average-test-run-duration", "Avg. test run duration")
     assert has_element?(live_view, "[data-part='builds-card']", "Builds")
     assert has_element?(live_view, "#bazel-recent-builds-chart")
+    assert has_element?(live_view, "#bazel-overview-average-build-time-chart")
+    assert has_element?(live_view, "[data-part='average-build-time-card-section']", "Average build time")
     assert has_element?(live_view, "[data-part='tests-card']", "Tests")
     assert has_element?(live_view, "#bazel-recent-test-runs-chart")
 
@@ -103,8 +105,8 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-total-invocations", "1")
     assert has_element?(live_view, "#bazel-success-rate", "100.0%")
     assert has_element?(live_view, "#bazel-invocations-table", "Succeeded")
-    refute has_element?(live_view, "#bazel-invocations-table", "Command")
-    assert has_element?(live_view, "#bazel-invocations-table", "//App:App")
+    assert has_element?(live_view, "#bazel-invocations-table", "Invocation")
+    assert has_element?(live_view, "#bazel-invocations-table", "bazel build //App:App")
     assert has_element?(live_view, "#bazel-invocations-table", "100.0%")
     assert has_element?(live_view, "#bazel-invocations-table", "Downloaded")
     assert has_element?(live_view, "#bazel-invocations-table", "Uploaded")
@@ -182,7 +184,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs")
 
     assert has_element?(live_view, "[data-part='bazel-invocations-card']", "Build Runs")
-    assert has_element?(live_view, "#bazel-invocations-table", "//App:App")
+    assert has_element?(live_view, "#bazel-invocations-table", "bazel build //App:App")
     refute has_element?(live_view, "[data-part='bazel-invocation-analytics-card']")
     assert has_element?(live_view, "#bazel-invocations-sort-by")
 
@@ -218,10 +220,10 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
 
     assert has_element?(live_view, "#bazel-invocations", "Builds")
     assert has_element?(live_view, "#bazel-total-invocations", "1")
-    assert has_element?(live_view, "#bazel-invocations-table", "//App:App")
+    assert has_element?(live_view, "#bazel-invocations-table", "bazel build //App:App")
     refute has_element?(live_view, "#bazel-invocations-table", "test")
     refute has_element?(live_view, "#bazel-invocations-table", "run")
-    refute has_element?(live_view, "#bazel-invocations-table", "Command")
+    assert has_element?(live_view, "#bazel-invocations-table", "Invocation")
     refute has_element?(live_view, "#bazel-invocations-sort-by")
   end
 
@@ -383,8 +385,8 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     refute has_element?(live_view, "#bazel-invocation", "Timeline")
     refute has_element?(live_view, "#bazel-invocation", "Critical path")
     refute has_element?(live_view, "[data-part='actions']", "Download logs")
-    assert has_element?(live_view, "#bazel-command-configuration", "bazel build //App:App")
-    assert has_element?(live_view, "#bazel-requested-command-copy")
+    assert has_element?(live_view, "#bazel-invocation-command", "bazel build //App:App")
+    refute has_element?(live_view, "#bazel-command-configuration")
     assert has_element?(live_view, "[data-part='back-button']", "Build Runs")
 
     render_patch(

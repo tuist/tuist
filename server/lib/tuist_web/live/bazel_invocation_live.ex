@@ -4,7 +4,7 @@ defmodule TuistWeb.BazelInvocationLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers,
-    only: [parse_page: 1, sort_direction: 1, target_patterns_label: 1]
+    only: [parse_page: 1, requested_command: 1, sort_direction: 1, target_patterns_label: 1]
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.VCSLinks
@@ -170,6 +170,14 @@ defmodule TuistWeb.BazelInvocationLive do
           <.card_section data-part="build-details-section">
             <div data-part="metadata-grid">
               <div data-part="metadata-row">
+                <div data-part="metadata" data-field="command">
+                  <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+                  <code id="bazel-invocation-command" data-part="command">
+                    {requested_command(@invocation)}
+                  </code>
+                </div>
+              </div>
+              <div data-part="metadata-row">
                 <div data-part="metadata">
                   <div data-part="title">
                     {dgettext("dashboard_builds", "Status")}
@@ -283,7 +291,6 @@ defmodule TuistWeb.BazelInvocationLive do
             </div>
           </.card_section>
         </.card>
-        <.command_configuration invocation={@invocation} />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
         <.cache_tab
@@ -668,34 +675,6 @@ defmodule TuistWeb.BazelInvocationLive do
     """
   end
 
-  def command_configuration(assigns) do
-    assigns = assign(assigns, :command, requested_command(assigns.invocation))
-
-    ~H"""
-    <.card title={dgettext("dashboard_projects", "Command")} icon="settings">
-      <.card_section data-part="command-configuration-section">
-        <div id="bazel-command-configuration" data-part="command-configuration">
-          <div data-part="command-line">
-            <span data-part="title">{dgettext("dashboard_projects", "Requested command")}</span>
-            <div data-part="command-with-copy">
-              <code data-part="command">{@command}</code>
-              <.neutral_button
-                id="bazel-requested-command-copy"
-                size="small"
-                phx-hook="Clipboard"
-                data-clipboard-value={@command}
-                aria-label={dgettext("dashboard_projects", "Copy requested command")}
-              >
-                <.copy />
-              </.neutral_button>
-            </div>
-          </div>
-        </div>
-      </.card_section>
-    </.card>
-    """
-  end
-
   def cache_filters(selected_cache_view) do
     [
       %Filter.Filter{
@@ -989,8 +968,6 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp invocation_title(%{target_patterns: []}), do: dgettext("dashboard_projects", "Bazel invocation")
   defp invocation_title(invocation), do: target_patterns_label(invocation.target_patterns)
-
-  defp requested_command(invocation), do: Enum.join(["bazel", invocation.command | invocation.target_patterns], " ")
 
   defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache"], do: tab
   defp selected_tab(_params), do: "overview"
