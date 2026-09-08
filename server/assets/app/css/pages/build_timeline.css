@@ -38,6 +38,10 @@
     }
   }
 
+  & #timeline-target {
+    max-width: 320px;
+  }
+
   & [data-part="legend"] {
     display: flex;
     flex-wrap: wrap;
@@ -52,7 +56,7 @@
       gap: var(--noora-spacing-2);
       color: var(--noora-surface-label-primary);
     }
-    & span::before {
+    & span[data-kind]::before {
       border-radius: var(--noora-radius-2);
       background: var(--color);
       width: 8px;

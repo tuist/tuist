@@ -1,6 +1,7 @@
 export const ROW_HEIGHT = 26;
 
 export function categoryFor(category) {
+  if (["compile", "link", "script", "resource", "other", "failure"].includes(category)) return category;
   if (/compilation|swiftmodule|bridgingheader/i.test(category)) return "compile";
   if (/linker|staticlibrary/i.test(category)) return "link";
   if (/script/i.test(category)) return "script";

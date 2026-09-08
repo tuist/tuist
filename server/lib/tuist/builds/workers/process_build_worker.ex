@@ -58,11 +58,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
     build_metadata = Map.get(args, "build_metadata", %{})
 
-    case process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled) do
-      {:ok, parsed_data} ->
-        parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
+    consume = fn parsed_data ->
+      parsed_data = Map.put(parsed_data, "project_id", project_id)
+      :ok = replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
+      {:ok, :processed}
+    end
 
+    case process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled, consume) do
+      {:ok, :processed} ->
         case Map.get(args, "vcs_comment_params", %{}) do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
           _ -> :ok
@@ -89,7 +92,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   # account (where the artifact was uploaded and the key is namespaced), not
   # the run's `account_id`, which records who ran the build and can be a member
   # with a different personal account.
-  defp process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled) do
+  defp process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled, consume) do
     with {:ok, account} <- storage_account(project_id) do
       # Unique per execution: the duplicate-enqueue race in `get_or_create_build`
       # can leave two jobs running for the same build_id concurrently. A path
@@ -101,7 +104,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+            Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled, consume)
 
           {:error, _} = error ->
             error
@@ -134,7 +137,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         cacheable_tasks: Enum.map(parsed[:cacheable_tasks] || [], &atomize_keys/1),
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
         machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1),
-        build_steps: Enum.map(Map.get(parsed, :build_steps, []), &atomize_keys/1)
+        build_steps: Stream.map(Map.get(parsed, :build_steps, []), &atomize_keys/1)
       })
 
     {:ok, _build} = Builds.create_build(attrs)

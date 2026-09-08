@@ -69,6 +69,35 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     refute Map.has_key?(hd(timeline.events), :log)
 
+    render_hook(lv, "load-timeline-range", %{
+      version: version,
+      request_id: 21,
+      start: 90,
+      span: 300,
+      search: "App",
+      target: "App",
+      project: "Workspace",
+      build_run_id: Ecto.UUID.generate()
+    })
+
+    render_async(lv)
+    assert_push_event(lv, "timeline-range", %{request_id: 21, timeline: %{events: [%{event_id: 1}], total_count: 1}})
+
+    render_hook(lv, "load-timeline-step", %{
+      request_id: 22,
+      event_id: nil,
+      direction: "last",
+      search: "",
+      target: "",
+      project: ""
+    })
+
+    render_async(lv)
+    assert_push_event(lv, "timeline-step", %{request_id: 22, step: %{event_id: 1}})
+
+    assert {:reply, %{error: true}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline-range", %{"start" => -1}, socket)
+
     render_hook(lv, "load-timeline-log", %{"event_id" => 1, "request_id" => 1, "build_run_id" => Ecto.UUID.generate()})
     render_async(lv)
 

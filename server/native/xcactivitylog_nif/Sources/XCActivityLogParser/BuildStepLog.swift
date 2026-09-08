@@ -9,7 +9,6 @@ struct BuildStepLog {
     }
 
     private var sections: [Key: [IDEActivityLogSection]] = [:]
-    private var remainingBytes = 16 * 1024 * 1024
 
     init(root: IDEActivityLogSection) {
         var pending = [root]
@@ -24,7 +23,7 @@ struct BuildStepLog {
         }
     }
 
-    mutating func extract(step: BuildStep) -> (text: String, truncated: Bool) {
+    func extract(step: BuildStep) -> (text: String, truncated: Bool) {
         let key = Key(signature: step.signature, start: step.startTimestamp, end: step.endTimestamp)
         let matches = sections[key] ?? []
         // Synthetic or ambiguous parser steps still have a signature, but must
@@ -35,17 +34,26 @@ struct BuildStepLog {
             command: section?.commandDetailDesc ?? "",
             output: section?.text ?? "",
             messages: section?.messages.map(\.title) ?? [],
-            limit: min(64 * 1024, remainingBytes)
+            limit: 64 * 1024
         )
-        remainingBytes -= result.text.utf8.count
         return result
     }
 
     static func render(signature: String, command: String, output: String, messages: [String], limit: Int) -> (text: String, truncated: Bool) {
+        let result = renderPrefix(signature: signature, command: command, output: output, messages: messages, limit: limit)
+        let marker = "\n… log truncated …\n"
+        guard result.truncated, limit >= marker.utf8.count + 8 else { return result }
+        let tailLimit = (limit - marker.utf8.count) / 2
+        let tail = normalizedSuffix(parts: [[signature, command, output], messages].joined(), limit: tailLimit)
+        let head = utf8Prefix(Array(result.text.utf8.prefix(limit - marker.utf8.count - tail.utf8.count)))
+        return (head + marker + tail, true)
+    }
+
+    private static func renderPrefix(signature: String, command: String, output: String, messages: [String], limit: Int) -> (text: String, truncated: Bool) {
         var result = ""
         for recorded in [[signature, command, output], messages].joined() where !recorded.isEmpty {
             // Bound normalization too: the recorded output can be much larger
-            // than the log we retain, even after the build's budget is exhausted.
+            // than the log we retain.
             let part = normalizedPrefix(recorded, limit: max(0, limit))
             if !part.truncated, result.contains(part.text) { continue }
             if !result.isEmpty, part.text.hasPrefix(result) { result = "" }
@@ -75,6 +83,36 @@ struct BuildStepLog {
             bytes.append(previousWasCR ? 10 : byte)
         }
         return (String(decoding: bytes, as: UTF8.self), false)
+    }
+
+    private static func normalizedSuffix(parts: some BidirectionalCollection<String>, limit: Int) -> String {
+        var bytes: [UInt8] = []
+        for recorded in parts.reversed() where !recorded.isEmpty {
+            if !bytes.isEmpty {
+                if bytes.count == limit { break }
+                bytes.append(UInt8(10))
+            }
+            var part = recorded
+            part.withUTF8 { buffer in
+                var previousWasLF = false
+                for byte in buffer.reversed() {
+                    if previousWasLF, byte == 13 {
+                        previousWasLF = false
+                        continue
+                    }
+                    if bytes.count == limit { break }
+                    previousWasLF = byte == 10
+                    bytes.append(byte == 13 ? 10 : byte)
+                }
+            }
+            if bytes.count == limit { break }
+        }
+        var suffix = Array(bytes.reversed())
+        while !suffix.isEmpty {
+            if let text = String(bytes: suffix, encoding: .utf8) { return text }
+            suffix.removeFirst()
+        }
+        return ""
     }
 
     private static func utf8Prefix(_ bytes: [UInt8]) -> String {

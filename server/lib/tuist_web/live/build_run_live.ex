@@ -345,6 +345,23 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, error: true})}
   end
 
+  def handle_async(:timeline_range, {:ok, timeline}, socket) do
+    {:noreply,
+     push_event(socket, "timeline-range", %{request_id: socket.assigns.timeline_range_request, timeline: timeline})}
+  end
+
+  def handle_async(:timeline_range, {:exit, _reason}, socket) do
+    {:noreply, push_event(socket, "timeline-range", %{request_id: socket.assigns.timeline_range_request, error: true})}
+  end
+
+  def handle_async(:timeline_step, {:ok, step}, socket) do
+    {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, step: step})}
+  end
+
+  def handle_async(:timeline_step, {:exit, _reason}, socket) do
+    {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
+  end
+
   defp assign_timeline(socket, tab, force \\ false)
 
   defp assign_timeline(socket, "timeline", force) do
@@ -354,7 +371,13 @@ defmodule TuistWeb.BuildRunLive do
       socket
       |> assign(:timeline_run_id, run_id)
       |> assign(:timeline_version, socket.assigns.timeline_version + 1)
-      |> assign_async(:timeline, fn -> {:ok, %{timeline: Builds.build_timeline(run_id)}} end, reset: true)
+      |> assign_async(
+        :timeline,
+        fn ->
+          {:ok, %{timeline: Map.put(Builds.build_timeline(run_id), :targets, Builds.build_timeline_targets(run_id))}}
+        end,
+        reset: true
+      )
     else
       socket
     end
@@ -372,6 +395,67 @@ defmodule TuistWeb.BuildRunLive do
         {:reply, %{error: true}, socket}
     end
   end
+
+  def handle_event(
+        "load-timeline-step",
+        %{
+          "request_id" => request_id,
+          "event_id" => event_id,
+          "direction" => direction,
+          "search" => search,
+          "target" => target,
+          "project" => project
+        },
+        socket
+      )
+      when is_integer(request_id) and
+             (is_nil(event_id) or (is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991)) and
+             direction in ["next", "previous", "last"] and is_binary(search) and is_binary(target) and is_binary(project) do
+    run_id = socket.assigns.run.id
+
+    {:noreply,
+     socket
+     |> cancel_async(:timeline_step)
+     |> assign(:timeline_step_request, request_id)
+     |> start_async(:timeline_step, fn ->
+       Builds.neighbor_build_step(run_id, event_id, direction, search: search, target: target, project: project)
+     end)}
+  end
+
+  def handle_event("load-timeline-step", _params, socket), do: {:reply, %{error: true}, socket}
+
+  def handle_event(
+        "load-timeline-range",
+        %{
+          "version" => version,
+          "request_id" => request_id,
+          "start" => start,
+          "span" => span,
+          "search" => search,
+          "target" => target,
+          "project" => project
+        },
+        socket
+      )
+      when is_integer(request_id) and is_number(start) and start >= 0 and start <= 9_007_199_254_740_991 and
+             is_number(span) and span > 0 and span <= 9_007_199_254_740_991 and is_binary(search) and is_binary(target) and
+             is_binary(project) do
+    if version == socket.assigns.timeline_version do
+      run_id = socket.assigns.run.id
+
+      {:noreply,
+       socket
+       |> cancel_async(:timeline_range)
+       |> assign(:timeline_range_request, request_id)
+       |> start_async(:timeline_range, fn ->
+         Builds.build_timeline(run_id, start: start, span: span, search: search, target: target, project: project)
+       end)}
+    else
+      {:reply, %{error: true}, socket}
+    end
+  end
+
+  def handle_event("load-timeline-range", _params, socket), do: {:reply, %{error: true}, socket}
 
   def handle_event("load-timeline-log", %{"event_id" => event_id, "request_id" => request_id}, socket)
       when is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991 and is_integer(request_id) and

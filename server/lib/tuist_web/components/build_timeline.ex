@@ -43,6 +43,8 @@ defmodule TuistWeb.Components.BuildTimeline do
       data-log-error={
         dgettext("dashboard_builds", "Unable to load the log. Select the step again to retry.")
       }
+      data-steps-label={dgettext("dashboard_builds", "steps")}
+      data-grouped-label={dgettext("dashboard_builds", "Grouped activity")}
       data-success-label={dgettext("dashboard_builds", "Succeeded")}
       data-build-label={dgettext("dashboard_builds", "Build operations")}
     >
@@ -59,12 +61,6 @@ defmodule TuistWeb.Components.BuildTimeline do
         </.card_section>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content" hidden>
-          <p :if={@timeline.truncated} data-part="notice">
-            {dgettext(
-              "dashboard_builds",
-              "Showing the first 50,000 steps. This timeline is incomplete."
-            )}
-          </p>
           <div data-part="toolbar">
             <.text_input
               type="search"
@@ -75,6 +71,19 @@ defmodule TuistWeb.Components.BuildTimeline do
               placeholder={dgettext("dashboard_builds", "Search steps or targets…")}
               show_suffix={false}
             />
+            <.select
+              id="timeline-target"
+              name="timeline_target"
+              label={dgettext("dashboard_builds", "All targets")}
+              value="all"
+            >
+              <:item value="all" label={dgettext("dashboard_builds", "All targets")} />
+              <:item
+                :for={entry <- Map.get(@timeline, :targets, [])}
+                value={JSON.encode!([entry.project, entry.target])}
+                label={entry.target <> " · " <> entry.project}
+              />
+            </.select>
           </div>
           <div data-part="legend">
             <span data-kind="compile">{dgettext("dashboard_builds", "Compilation")}</span>
@@ -83,8 +92,12 @@ defmodule TuistWeb.Components.BuildTimeline do
             <span data-kind="resource">{dgettext("dashboard_builds", "Resources")}</span>
             <span data-kind="other">{dgettext("dashboard_builds", "Other")}</span>
             <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
+            <span data-part="grouped-label" hidden>{dgettext("dashboard_builds", "Grouped activity")}</span>
             <output data-part="range"></output>
           </div>
+          <p data-part="range-error" role="alert" hidden>
+            {dgettext("dashboard_builds", "Unable to load this time range. Try again.")}
+          </p>
           <div data-part="workspace">
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">

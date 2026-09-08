@@ -8,7 +8,8 @@ public struct XCActivityLogParser: Sendable {
     public func parse(
         xcactivitylogURL: URL,
         casAnalyticsDatabasePath: AbsolutePath,
-        legacyCASMetadataPath: AbsolutePath? = nil
+        legacyCASMetadataPath: AbsolutePath? = nil,
+        onBuildStep: (@Sendable (BuildStepData) throws -> Void)? = nil
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -79,14 +80,14 @@ public struct XCActivityLogParser: Sendable {
             files: files,
             cacheable_tasks: cacheableTasks,
             cas_outputs: casOutputs,
-            build_steps: extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog)
+            build_steps: try extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog, onBuildStep: onBuildStep)
         )
     }
 
     // MARK: - Build Steps
 
-    private func extractBuildSteps(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog) -> [BuildStepData] {
-        var logs = BuildStepLog(root: activityLog.mainSection)
+    private func extractBuildSteps(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog, onBuildStep: (@Sendable (BuildStepData) throws -> Void)?) throws -> [BuildStepData] {
+        let logs = BuildStepLog(root: activityLog.mainSection)
         var targets = [String: (String, String)]()
         var events = [BuildStepData]()
         for (index, step) in steps.enumerated() {
@@ -108,7 +109,7 @@ public struct XCActivityLogParser: Sendable {
             else { continue }
 
             let log = logs.extract(step: step)
-            events.append(BuildStepData(
+            let event = BuildStepData(
                 event_id: index,
                 title: String(step.title.prefix(1000)),
                 target: target,
@@ -119,7 +120,8 @@ public struct XCActivityLogParser: Sendable {
                 status: (step.errors ?? []).contains { $0.severity == 2 } ? "failure" : "success",
                 log: log.text,
                 log_truncated: log.truncated
-            ))
+            )
+            if let onBuildStep { try onBuildStep(event) } else { events.append(event) }
         }
         return events
     }

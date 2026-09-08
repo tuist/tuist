@@ -21,7 +21,9 @@ defmodule Tuist.Processor.XCActivityLogParser do
   @delay_to_sigkill to_timeout(second: 5)
 
   @doc """
-  Parses an xcactivitylog file and returns structured build data.
+  Parses an xcactivitylog file and invokes `consume` with structured build data.
+  The `build_steps` enumerable must be consumed inside the callback: its temporary
+  JSONL file is removed when the callback returns or raises.
 
   ## Parameters
 
@@ -29,14 +31,17 @@ defmodule Tuist.Processor.XCActivityLogParser do
     * `cas_analytics_db_path` - Path to the CAS analytics SQLite database
     * `legacy_cas_metadata_path` - Path to the legacy CAS metadata directory (for backward compatibility)
     * `xcode_cache_upload_enabled` - Accepted for call-site compatibility; the parser does not read it
+    * `consume` - Ingests the summary and lazy step enumerable before temporary-file cleanup
 
   ## Returns
 
-    * `{:ok, map}` - Parsed build data as a map
+    * The return value of `consume` on successful parsing
     * `{:error, reason}` - If parsing fails
   """
-  def parse(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, _xcode_cache_upload_enabled) do
+  def parse(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, _xcode_cache_upload_enabled, consume) do
     output_path = Path.join(System.tmp_dir!(), "xcactivitylog_#{System.unique_integer([:positive])}.json")
+
+    steps_path = output_path <> ".steps.jsonl"
 
     try do
       with {:ok, executable} <- executable_path(),
@@ -45,13 +50,17 @@ defmodule Tuist.Processor.XCActivityLogParser do
                xcactivitylog_path,
                cas_analytics_db_path,
                legacy_cas_metadata_path,
-               output_path
+               output_path,
+               steps_path
              ]),
-           {:ok, json} <- File.read(output_path) do
-        JSON.decode(json)
+           {:ok, json} <- File.read(output_path),
+           {:ok, parsed} <- JSON.decode(json) do
+        steps = steps_path |> File.stream!() |> Stream.map(&JSON.decode!/1)
+        consume.(Map.put(parsed, "build_steps", steps))
       end
     after
       File.rm(output_path)
+      File.rm(steps_path)
     end
   end
 

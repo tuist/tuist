@@ -1,9 +1,9 @@
-import { debounce, hitInLane, nextStep } from "./BuildTimelineInteractions.mjs";
+import { densityLayout } from "./BuildTimelineDensity.mjs";
+import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
 import { bindInspectorResize } from "./BuildTimelineResize.mjs";
 import { bindScrollIndicator } from "noora";
 import {
   normalizeEvents,
-  layoutEvents,
   timeLabel,
   clampRange,
   zoomRange,
@@ -17,6 +17,8 @@ import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
 import { bindDragFocus } from "./BuildTimelineFocus.mjs";
 
 let nextLogRequest = 0;
+let nextRangeRequest = 0;
+let nextNavigationRequest = 0;
 
 export default {
   mounted() {
@@ -28,7 +30,7 @@ export default {
       .then(({ timeline }) => {
         if (signal.aborted) return;
         if (!timeline) throw new Error("Timeline unavailable");
-        this.initialize(timeline.events);
+        this.initialize(timeline);
       })
       .catch(() => {
         if (signal.aborted) return;
@@ -37,9 +39,15 @@ export default {
       });
   },
 
-  initialize(events) {
-    this.events = normalizeEvents(events);
-    this.duration = this.events.reduce((end, event) => Math.max(end, event.end), Number(this.el.dataset.duration) || 1);
+  initialize(timeline) {
+    this.events = normalizeEvents(timeline.events);
+    this.search = "";
+    this.target = "";
+    this.project = "";
+    this.duration = this.events.reduce(
+      (end, event) => Math.max(end, event.end),
+      Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
+    );
     this.range = { start: 0, span: this.duration };
     this.logRequest = ++nextLogRequest;
     this.palette = null;
@@ -48,6 +56,16 @@ export default {
     this.part("timeline-content").hidden = false;
     this.part("summary").hidden = false;
     this.requestLog = debounce((event, request) => this.loadLog(event, request), 150, this.abort.signal);
+    this.rangeRequest = ++nextRangeRequest;
+    this.requestRange = debounce(() => this.loadRange(), 150, this.abort.signal);
+    this.navigationRequest = ++nextNavigationRequest;
+    this.stepHandler = this.handleEvent("timeline-step", ({ request_id, step }) => {
+      if (request_id !== this.navigationRequest || !step || this.abort.signal.aborted) return;
+      const event = normalizeEvents([step])[0];
+      this.select(event);
+      this.setRange(event.start_ms - event.duration_ms * 0.1, Math.max(1, event.duration_ms * 1.2));
+    });
+    this.rangeHandler = this.handleEvent("timeline-range", (response) => this.receiveRange(response));
     this.logHandler = this.handleEvent("timeline-log", (response) => this.receiveLog(response));
     const on = (el, name, fn) => el.addEventListener(name, fn, { signal: this.abort.signal });
     this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
@@ -90,10 +108,15 @@ export default {
       signal: this.abort.signal,
     });
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
-    this.el.querySelector('[data-stat="tasks"]').textContent = this.events.length.toLocaleString();
-    this.el.querySelector('[data-stat="targets"]').textContent = new Set(
-      this.events.filter((e) => e.target).map((e) => JSON.stringify([e.project, e.target])),
-    ).size;
+    this.el.querySelector('[data-stat="tasks"]').textContent = (
+      timeline.total_count ?? this.events.length
+    ).toLocaleString();
+    this.el.querySelector('[data-stat="targets"]').textContent = (timeline.targets || []).length;
+    on(this.el.querySelector('[name="timeline_target"]'), "change", (event) => {
+      [this.project, this.target] =
+        event.target.value && event.target.value !== "all" ? JSON.parse(event.target.value) : ["", ""];
+      this.filter();
+    });
     on(
       this.control("search"),
       "input",
@@ -143,15 +166,15 @@ export default {
     on(this.part("focus-region"), "pointerleave", () => this.hideCursor());
     const resize = () => {
       this.resizeInspector();
-      this.syncScroll();
-      this.scheduleDraw();
+      this.relayout(false);
     };
     on(window, "resize", resize);
     this.resize = new ResizeObserver(resize);
     this.resize.observe(this.el);
     this.resize.observe(this.part("timeline-chart"));
     this.resize.observe(this.scrollport);
-    this.filter();
+    this.filtered = this.events;
+    this.relayout(false);
   },
 
   updated() {
@@ -168,6 +191,10 @@ export default {
     this.abort.abort();
     if (this.logHandler) this.removeHandleEvent(this.logHandler);
     this.logHandler = null;
+    if (this.rangeHandler) this.removeHandleEvent(this.rangeHandler);
+    this.rangeHandler = null;
+    if (this.stepHandler) this.removeHandleEvent(this.stepHandler);
+    this.stepHandler = null;
     for (const indicator of this.scrollIndicators || []) {
       indicator.destroy();
       indicator.track.remove();
@@ -179,25 +206,64 @@ export default {
   },
 
   filter() {
-    const query = this.control("search").value.toLowerCase();
-    this.filtered = this.events.filter((e) => e.searchText.includes(query));
+    this.search = this.control("search").value;
     this.select(null);
+    this.range = { start: 0, span: this.duration };
+    this.events = [];
+    this.filtered = [];
     this.relayout();
   },
 
-  relayout() {
+  relayout(fetch = true) {
     this.cancelFocus();
-    this.layout = layoutEvents(this.filtered, this.range);
+    this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
+    for (const event of this.layout.events) {
+      if (event.aggregate) event.title = `${event.count.toLocaleString()} ${this.el.dataset.stepsLabel}`;
+    }
+    this.part("grouped-label").hidden = !this.layout.grouped;
     this.syncScroll();
-    this.part("no-matches").hidden = this.layout.events.length > 0;
+    this.part("no-matches").hidden =
+      fetch || this.chart.getAttribute("aria-busy") === "true" || this.layout.events.length > 0;
     this.hideTooltip();
+    if (fetch) {
+      this.rangeRequest = ++nextRangeRequest;
+      this.chart.setAttribute("aria-busy", "true");
+      this.requestRange();
+    }
     this.scheduleDraw();
+  },
+
+  loadRange() {
+    const request = this.rangeRequest;
+    this.part("range-error").hidden = true;
+    this.pushEvent("load-timeline-range", {
+      version: Number(this.payload),
+      request_id: request,
+      ...this.range,
+      search: this.search,
+      target: this.target,
+      project: this.project,
+    })
+      .then((reply) => {
+        if (reply?.error) this.receiveRange({ request_id: request, error: true });
+      })
+      .catch(() => this.receiveRange({ request_id: request, error: true }));
+  },
+
+  receiveRange({ request_id, timeline, error }) {
+    if (this.abort.signal.aborted || request_id !== this.rangeRequest) return;
+    this.chart.setAttribute("aria-busy", "false");
+    this.part("range-error").hidden = !error;
+    if (error) return;
+    this.events = normalizeEvents(timeline.events);
+    this.filtered = this.events;
+    this.relayout(false);
   },
 
   syncScroll() {
     if (!this.layout) return;
     const availableHeight = Math.max(
-      160,
+      320,
       Math.min(480, window.innerHeight - this.scrollport.getBoundingClientRect().top - 32),
     );
     this.scrollport.style.height = `${availableHeight}px`;
@@ -221,7 +287,7 @@ export default {
 
   focusStep(event) {
     if (!event) return;
-    this.select(event);
+    if (!event.aggregate) this.select(event);
     this.setRange(event.start_ms - event.duration_ms * 0.1, event.duration_ms * 1.2);
   },
 
@@ -333,10 +399,9 @@ export default {
     const inset = 12;
     const plotWidth = width - inset * 2;
     const x = (ms) => inset + ((ms - this.range.start) / this.range.span) * plotWidth;
-    const laneScale = Math.min(1, Math.max(0, height - 16) / Math.max(1, this.layout.height - 16));
-    const rowHeight = ROW_HEIGHT * laneScale;
+    const rowHeight = this.layout.grouped ? 48 : ROW_HEIGHT;
     const gap = Math.min(2, rowHeight * 0.1);
-    const barHeight = rowHeight - gap * 2;
+    const barHeight = this.layout.grouped ? 24 : rowHeight - gap * 2;
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, height);
     this.drawRuler(inset, plotWidth, colors);
@@ -354,19 +419,19 @@ export default {
     this.rectsByLane = [];
     this.rowHeight = rowHeight;
     for (const event of this.layout.events) {
-      const top = 8 + (event.y - 8) * laneScale + gap;
+      const top = event.y + gap + (this.layout.grouped ? 18 : 0);
       const left = Math.max(inset, x(event.start_ms));
       const right = Math.min(width - inset, x(event.end));
       const barWidth = Math.min(width - inset - left, Math.max(2, right - left));
       const kind = event.status === "failure" ? "failure" : event.kind;
       const color = colors[kind];
       ctx.fillStyle = color;
-      ctx.globalAlpha = this.selected && this.selected !== event ? 0.55 : 1;
+      ctx.globalAlpha = this.selected && this.selected.event_id !== event.event_id ? 0.55 : 1;
       ctx.beginPath();
       ctx.roundRect(left, top, barWidth, barHeight, Math.min(3, barHeight / 2));
       ctx.fill();
       ctx.globalAlpha = 1;
-      if (barWidth > 50 && barHeight >= 18) {
+      if (!event.aggregate && barWidth > 50 && barHeight >= 18) {
         ctx.fillStyle = colors.labels[kind];
         this.text(
           ctx,
@@ -376,8 +441,15 @@ export default {
           barWidth - 14,
         );
       }
-      const lane = Math.round((event.y - 8) / ROW_HEIGHT);
+      const lane = Math.round((event.y - 8) / rowHeight);
       (this.rectsByLane[lane] ||= []).push({ event, left, right: left + barWidth, top, bottom: top + barHeight });
+    }
+    if (this.layout.grouped) {
+      ctx.fillStyle = colors.text;
+      for (const [lane, kind] of this.layout.kinds.entries()) {
+        const label = this.part("legend").querySelector(`[data-kind="${kind}"]`).textContent;
+        ctx.fillText(label, inset, lane * 48 + 20);
+      }
     }
     const cursorLabel = this.part("cursor-time");
     cursorLabel.style.backgroundColor = colors.accent;
@@ -439,6 +511,11 @@ export default {
   },
 
   select(event) {
+    if (event?.aggregate) {
+      this.focusStep(event);
+      return;
+    }
+    this.navigationRequest = ++nextNavigationRequest;
     this.selected = event;
     const logRequest = (this.logRequest = ++nextLogRequest);
     this.hideTooltip();
@@ -516,12 +593,16 @@ export default {
       this.focusStep(this.selected);
       return;
     }
-    if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key) || !this.filtered.length) return;
+    if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key)) return;
     event.preventDefault();
-    const selected = nextStep(this.filtered, this.selected, event.key);
-    this.select(selected);
-    if (selected.end <= this.range.start || selected.start_ms >= this.range.start + this.range.span) {
-      this.setRange(selected.start_ms - this.range.span * 0.1, this.range.span);
-    }
+    const request = (this.navigationRequest = ++nextNavigationRequest);
+    this.pushEvent("load-timeline-step", {
+      request_id: request,
+      event_id: this.selected?.event_id ?? null,
+      direction: event.key === "End" ? "last" : event.key === "ArrowLeft" ? "previous" : "next",
+      search: this.search,
+      target: this.target,
+      project: this.project,
+    });
   },
 };

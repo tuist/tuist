@@ -3,6 +3,7 @@ defmodule Tuist.BuildsTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Builds.Timeline
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -39,16 +40,52 @@ defmodule Tuist.BuildsTest do
       assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
     end
 
-    test "the timeline display limit does not discard reusable build steps" do
+    test "dense full-build summaries retain every step beyond the old display limit" do
       steps =
         for id <- 1..50_001 do
           %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
         end
 
       {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
-      assert %{events: events, truncated: true} = Builds.build_timeline(build.id)
-      assert length(events) == 50_000
+      assert %{events: events, grouped: true, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert length(events) <= 128
+      assert Enum.all?(events, &(&1.aggregate and &1.count == 50_001))
       assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
+    end
+
+    test "range and search find late steps and keyboard navigation stays in the build and target" do
+      steps =
+        Stream.map(1..1600, fn id ->
+          %{
+            event_id: id,
+            title: "Compile #{id}",
+            target: "App",
+            project: "Workspace",
+            category: "swiftCompilation",
+            start_ms: id * 10.0,
+            duration_ms: 5.0,
+            status: "success"
+          }
+        end)
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      {:ok, other} =
+        RunsFixtures.build_fixture(
+          build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
+        )
+
+      assert %{grouped: true, total_count: 1600, events: buckets} = Builds.build_timeline(build.id)
+      assert length(buckets) <= 128
+      assert Enum.any?(buckets, &(&1.start_ms > 15_000))
+      assert %{events: [%{event_id: 1600}], grouped: false} = Builds.build_timeline(build.id, start: 16_000, span: 5)
+      assert %{events: [%{event_id: 1600}], total_count: 1} = Builds.build_timeline(build.id, search: "COMPILE 1600")
+      assert %{events: []} = Builds.build_timeline(build.id, target: "App", project: "Wrong")
+      assert [%{project: "Workspace", target: "App"}] = Builds.build_timeline_targets(build.id)
+      assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
+      assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
+      assert nil == Timeline.neighbor(build.id, 1600, "next", [])
+      assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
     end
 
     test "fetches logs separately and scopes them to their build" do
@@ -76,7 +113,7 @@ defmodule Tuist.BuildsTest do
 
     test "old builds have no manufactured timeline" do
       {:ok, build} = RunsFixtures.build_fixture()
-      assert Builds.build_timeline(build.id) == %{events: [], truncated: false}
+      assert %{events: [], total_count: 0, grouped: false} = Builds.build_timeline(build.id)
     end
   end
 

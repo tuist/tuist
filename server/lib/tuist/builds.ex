@@ -13,6 +13,7 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
   alias Tuist.Builds.Step
+  alias Tuist.Builds.Timeline
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -203,7 +204,7 @@ defmodule Tuist.Builds do
     inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
 
     steps
-    |> Stream.chunk_every(500)
+    |> Stream.chunk_every(100)
     |> Enum.each(fn batch ->
       entries = Enum.map(batch, &build_step_entry(build.id, inserted_at, &1))
       Step.Buffer.insert_all(entries)
@@ -227,22 +228,14 @@ defmodule Tuist.Builds do
     }
   end
 
-  def build_timeline(build_run_id) do
-    limit = 50_000
-
-    events =
-      ClickHouseRepo.all(
-        from(e in Step,
-          hints: ["FINAL"],
-          where: e.build_run_id == ^build_run_id,
-          order_by: [asc: e.start_ms, asc: e.event_id],
-          limit: ^(limit + 1),
-          select: map(e, [:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
-        )
-      )
-
-    %{events: Enum.take(events, limit), truncated: length(events) > limit}
+  def build_timeline(build_run_id, opts \\ []) do
+    Timeline.load(build_run_id, opts)
   end
+
+  def build_timeline_targets(build_run_id), do: Timeline.targets(build_run_id)
+
+  def neighbor_build_step(build_run_id, event_id, direction, opts),
+    do: Timeline.neighbor(build_run_id, event_id, direction, opts)
 
   def build_step_log(build_run_id, event_id) when is_integer(event_id) and event_id >= 0 do
     ClickHouseRepo.one(

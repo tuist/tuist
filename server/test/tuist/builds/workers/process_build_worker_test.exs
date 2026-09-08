@@ -107,9 +107,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, :done}
       end)
 
-      expect(BuildProcessor, :process_build, fn path, true ->
+      expect(BuildProcessor, :process_build, fn path, true, consume ->
         assert String.ends_with?(path, ".zip")
-        {:ok, parsed_data()}
+        consume.(parsed_data())
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -117,7 +117,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.project_id == project.id
         assert attrs.duration == 1200
         assert attrs.status == "success"
-        assert [%{event_id: 1, title: "Compile App.swift", start_ms: 100.0, duration_ms: 200.0}] = attrs.build_steps
+
+        assert [%{event_id: 1, title: "Compile App.swift", start_ms: 100.0, duration_ms: 200.0}] =
+                 Enum.to_list(attrs.build_steps)
+
         assert attrs.machine_metrics == []
         {:ok, %{id: build.id}}
       end)
@@ -133,8 +136,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _path, true ->
-        {:ok, parsed_data_with_machine_metrics()}
+      expect(BuildProcessor, :process_build, fn _path, true, consume ->
+        consume.(parsed_data_with_machine_metrics())
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -196,7 +199,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _path, _ ->
+      expect(BuildProcessor, :process_build, fn _path, _, _consume ->
         {:error, "NIF not loaded"}
       end)
 
@@ -252,7 +255,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
 
       vcs_params = %{
@@ -280,7 +283,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
@@ -295,7 +298,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
+      expect(BuildProcessor, :process_build, fn _, _, _consume ->
         {:error, "boom"}
       end)
 
@@ -378,7 +381,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
-      expect(BuildProcessor, :process_build, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
 
       expect(Builds, :create_build, fn attrs ->
         assert attrs.id == build.id
@@ -432,8 +435,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, parsed_data_with_cache}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(parsed_data_with_cache)
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -457,8 +460,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, data_without_metrics}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(data_without_metrics)
       end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -479,8 +482,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, Map.put(parsed_data(), "targets", [])}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(Map.put(parsed_data(), "targets", []))
       end)
 
       assert :ok ==
@@ -528,8 +531,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
-      expect(BuildProcessor, :process_build, fn _, _ ->
-        {:ok, Map.put(parsed_data(), "targets", [])}
+      expect(BuildProcessor, :process_build, fn _, _, consume ->
+        consume.(Map.put(parsed_data(), "targets", []))
       end)
 
       assert :ok ==
@@ -566,7 +569,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, :done}
       end)
 
-      expect(BuildProcessor, :process_build, 2, fn _, _ -> {:ok, parsed_data()} end)
+      expect(BuildProcessor, :process_build, 2, fn _, _, consume -> consume.(parsed_data()) end)
       expect(Builds, :create_build, 2, fn _attrs -> {:ok, %{id: build.id}} end)
 
       job = oban_job(job_args(build.id, account.id, project.id))

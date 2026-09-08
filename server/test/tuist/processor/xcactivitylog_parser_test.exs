@@ -8,13 +8,15 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
 
   defp install_parser(script) do
     File.mkdir_p!(Path.dirname(@executable_path))
-    File.write!(@executable_path, "#!/bin/sh\n" <> script)
+    File.write!(@executable_path, "#!/bin/sh\n: > \"$5\"\n" <> script)
     File.chmod!(@executable_path, 0o755)
     on_exit(fn -> File.rm(@executable_path) end)
   end
 
   defp parse do
-    XCActivityLogParser.parse("log.xcactivitylog", "cas.db", "cas_metadata", false)
+    XCActivityLogParser.parse("log.xcactivitylog", "cas.db", "cas_metadata", false, fn data ->
+      {:ok, Map.update!(data, "build_steps", &Enum.to_list/1)}
+    end)
   end
 
   test "returns the decoded build data the parser wrote" do
@@ -53,7 +55,31 @@ defmodule Tuist.Processor.XCActivityLogParserTest do
     assert leftover_output_files() == before
   end
 
+  test "consumes step lines before cleaning up both files" do
+    install_parser(
+      ~S|printf '{"status":"success"}' > "$4"; printf '%s\n' '{"event_id":1,"log":"first"}' '{"event_id":2,"log":"last"}' > "$5"|
+    )
+
+    before = leftover_output_files()
+    assert {:ok, %{"build_steps" => [%{"log" => "first"}, %{"log" => "last"}]}} = parse()
+    assert leftover_output_files() == before
+  end
+
+  test "cleans up the stream when ingestion raises" do
+    install_parser(~S|printf '{"status":"success"}' > "$4"; printf '%s\n' '{"event_id":1}' > "$5"|)
+    before = leftover_output_files()
+
+    assert_raise RuntimeError, "ingestion failed", fn ->
+      XCActivityLogParser.parse("log", "cas", "metadata", false, fn data ->
+        assert [%{"event_id" => 1}] = Enum.to_list(data["build_steps"])
+        raise "ingestion failed"
+      end)
+    end
+
+    assert leftover_output_files() == before
+  end
+
   defp leftover_output_files do
-    [System.tmp_dir!(), "xcactivitylog_*.json"] |> Path.join() |> Path.wildcard() |> Enum.sort()
+    [System.tmp_dir!(), "xcactivitylog_*.json*"] |> Path.join() |> Path.wildcard() |> Enum.sort()
   end
 end

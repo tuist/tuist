@@ -4,7 +4,7 @@ This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
 - Render LiveView pages and handle UI events.
-- The Xcode build detail Timeline tab loads step intervals only when opened, showing shared dashboard skeletons while loading; `BuildTimeline` renders the canvas through the matching frontend hook. Payloads are delivered through hook replies, not HTML attributes; the loaded timeline is reused across parameter patches. Step logs load in cancellable async tasks. Older builds may have no timeline data.
+- The Xcode build detail Timeline tab loads step intervals only when opened, showing shared dashboard skeletons while loading; `BuildTimeline` renders the canvas through the matching frontend hook. Payloads are delivered through hook replies, not HTML attributes; the loaded timeline is reused across parameter patches. Range queries, keyboard navigation and step logs load in cancellable async tasks scoped to the current build. Dense ranges return full-range aggregates rather than a prefix of steps. Older builds may have no timeline data.
 - Orchestrate UI state while delegating domain operations to `server/lib/tuist`.
 - Xcode overview charts opt into Noora's `data-lazy="true"` behavior so charts
   below the viewport do not initialize while the visible analytics are loading.

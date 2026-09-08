@@ -28,6 +28,31 @@ struct XCActivityLogParserTests {
         }
     }
 
+    @Test func buildSteps_streamWithoutRetainingThePayload() async throws {
+        let url = try fixtureURL("clean-build")
+        let expected = try await parseFixture("clean-build")
+        try await fileSystem.runInTemporaryDirectory(prefix: "stream-test") { tempDir in
+            let path = tempDir.appending(component: "steps.jsonl").pathString
+            FileManager.default.createFile(atPath: path, contents: nil)
+            let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: path))
+            defer { try? handle.close() }
+            let result = try await parser.parse(
+                xcactivitylogURL: url,
+                casAnalyticsDatabasePath: tempDir.appending(component: "absent.db"),
+                onBuildStep: { step in
+                    try handle.write(contentsOf: JSONEncoder().encode(step))
+                    try handle.write(contentsOf: Data([10]))
+                }
+            )
+            #expect(result.build_steps.isEmpty)
+            let lines = try String(contentsOfFile: path, encoding: .utf8).split(separator: "\n")
+            #expect(lines.count == expected.build_steps.count)
+            let last = try #require(lines.last)
+            let decoded = try JSONSerialization.jsonObject(with: Data(last.utf8)) as? [String: Any]
+            #expect(decoded?["event_id"] as? Int == expected.build_steps.last?.event_id)
+        }
+    }
+
     // MARK: - Clean Build
 
     @Test func cleanBuild_parsesSuccessfully() async throws {
@@ -132,7 +157,11 @@ struct XCActivityLogParserTests {
     @Test func buildSteps_logBoundsLargeOutput() {
         let output = String(repeating: "🙂\r\n", count: 4 * 1024 * 1024)
         let log = BuildStepLog.render(signature: "Compile", command: "", output: output, messages: ["end"], limit: 64 * 1024)
-        #expect(log.text == "Compile\n" + String(repeating: "🙂\n", count: 13_105))
+        let startsWithSignature = log.text.hasPrefix("Compile\n🙂\n")
+        #expect(startsWithSignature)
+        #expect(log.text.contains("… log truncated …"))
+        let endsWithDiagnostic = log.text.hasSuffix("🙂\n\nend")
+        #expect(endsWithDiagnostic)
         #expect(log.text.utf8.count <= 64 * 1024)
         #expect(log.truncated)
         let exhausted = BuildStepLog.render(signature: "", command: "", output: output, messages: [], limit: 0)
