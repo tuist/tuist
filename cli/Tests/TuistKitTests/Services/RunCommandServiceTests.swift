@@ -1,22 +1,22 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import Testing
+import struct TSCUtility.Version
 import TuistAndroid
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
+import TuistKit
 import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistXcodeBuildProducts
 import XcodeGraph
-
-import struct TSCUtility.Version
-
-import TuistKit
 @testable import TuistRunCommand
 @testable import TuistTesting
 
@@ -104,6 +104,50 @@ struct RunCommandServiceTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, arguments: [false, true], ["none", "absolute", "relative"])
+    func run_uses_explicit_derived_data_path_for_build_and_run(generate: Bool, option: String) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let customPath = path.appending(component: "Workspace Data")
+        let requestedPath: String?
+        switch option {
+        case "absolute": requestedPath = path.appending(component: "Override Data").pathString
+        case "relative": requestedPath = "Relative Override Data"
+        default: requestedPath = nil
+        }
+        let expectedPath: AbsolutePath?
+        if let requestedPath {
+            expectedPath = try await Environment.current.pathRelativeToWorkingDirectory(requestedPath)
+        } else {
+            expectedPath = nil
+        }
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let scheme = Scheme.test(name: "App", runAction: .test(executable: .init(projectPath: path, name: "App")))
+        let graph = Graph.test(
+            workspace: .test(generationOptions: .test(derivedDataPath: .custom(customPath))),
+            projects: [path: .test(targets: [.test(name: "App", product: .app)], schemes: [scheme])]
+        )
+        given(configLoader).loadConfig(path: .any).willReturn(.test())
+        given(generator).load(path: .any, options: .any).willReturn(graph)
+        given(generator).generateWithGraph(path: .any, options: .any).willReturn((workspacePath, graph, MapperEnvironment()))
+        given(buildGraphInspector).workspacePath(directory: .any).willReturn(workspacePath)
+        given(buildGraphInspector).runnableSchemes(graphTraverser: .any).willReturn([scheme])
+        var didBuild = false
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, derivedDataPath, _, _, _, _, _ in
+            didBuild = true
+            #expect(derivedDataPath == expectedPath)
+        }
+        var didRun = false
+        targetRunner.runTargetStub = { _, _, _, _, derivedDataPath, _, _, _, _ in
+            didRun = true
+            #expect(derivedDataPath == expectedPath)
+        }
+
+        try await subject.run(runnable: .scheme("App"), generate: generate, derivedDataPath: requestedPath)
+
+        #expect(didBuild)
+        #expect(didRun)
+    }
+
     @Test
     func run_generates_when_generateIsTrue() async throws {
         // Given
@@ -137,7 +181,7 @@ struct RunCommandServiceTests {
             )
         given(buildGraphInspector)
             .workspacePath(directory: .any)
-            .willReturn(try! AbsolutePath(validating: "/path/to/project.xcworkspace"))
+            .willReturn(try AbsolutePath(validating: "/path/to/project.xcworkspace"))
         given(buildGraphInspector)
             .runnableSchemes(graphTraverser: .any)
             .willReturn([runnableScheme])
@@ -279,8 +323,8 @@ struct RunCommandServiceTests {
 
         targetRunner
             .runTargetStub = {
-                _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName,
-                    _arguments in
+                _, _workspacePath, _schemeName, _configuration, _, _minVersion, _version, _deviceName,
+                _arguments in
                 // Then
                 #expect(_workspacePath == workspacePath)
                 #expect(_schemeName == schemeName)
@@ -384,7 +428,7 @@ struct RunCommandServiceTests {
             )
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
                 device: "iPhone 15 Pro"
             )
         }
@@ -399,7 +443,7 @@ struct RunCommandServiceTests {
             throws: RunCommandServiceError.invalidVersion("invalid-version")
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
                 osVersion: "invalid-version"
             )
         }
@@ -446,7 +490,7 @@ struct RunCommandServiceTests {
 
         // When
         try await subject.run(
-            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
             device: "iPhone 15 Pro"
         )
 
@@ -626,7 +670,7 @@ struct RunCommandServiceTests {
 
         // When
         try await subject.run(
-            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
             device: "My iPhone"
         )
 
@@ -695,7 +739,7 @@ struct RunCommandServiceTests {
 
         // When
         try await subject.run(
-            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
             device: "Pixel_6"
         )
 
@@ -759,7 +803,7 @@ struct RunCommandServiceTests {
             throws: RunCommandServiceError.missingPackageName
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
                 device: "Pixel_6"
             )
         }
@@ -815,7 +859,7 @@ struct RunCommandServiceTests {
             throws: RunCommandServiceError.apkNotFoundInArchive
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
                 device: "Pixel_6"
             )
         }
@@ -849,7 +893,7 @@ struct RunCommandServiceTests {
             throws: RunCommandServiceError.deviceNotFound("NonExistentDevice")
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
                 device: "NonExistentDevice"
             )
         }
@@ -881,7 +925,7 @@ struct RunCommandServiceTests {
             throws: RunCommandServiceError.noDevicesFound
         ) {
             try await subject.run(
-                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+                runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")))
             )
         }
     }
@@ -931,7 +975,7 @@ struct RunCommandServiceTests {
 
         // When
         try await subject.run(
-            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            runnable: .url(try #require(URL(string: "https://tuist.io/tuist/tuist/preview/some-id"))),
             osVersion: "18.0",
             arguments: ["-destination", "iPhone 15 Pro"]
         )
@@ -953,6 +997,7 @@ extension RunCommandService {
         generate: Bool = false,
         clean: Bool = false,
         configuration: String? = nil,
+        derivedDataPath: String? = nil,
         device: String? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
@@ -964,10 +1009,54 @@ extension RunCommandService {
             generate: generate,
             clean: clean,
             configuration: configuration,
+            derivedDataPath: derivedDataPath,
             device: device,
             osVersion: osVersion,
             rosetta: rosetta,
             arguments: arguments
         )
+    }
+}
+
+struct RunCommandDerivedDataOptionTests {
+    @Test
+    func parses_derived_data_option_after_scheme() throws {
+        let command = try RunCommand.parse(["App", "--derived-data-path", "/tmp/Custom Data"])
+
+        #expect(command.runnable == .scheme("App"))
+        #expect(command.arguments.isEmpty)
+        #expect(command.derivedDataPath == "/tmp/Custom Data")
+    }
+}
+
+struct RunCommandDerivedDataPassthroughTests {
+    @Test
+    func unrecognized_application_arguments_are_preserved() throws {
+        let command = try RunCommand.parse([
+            "App", "--derived-data-path", "Build Data", "--app-option", "app-value",
+        ])
+
+        #expect(command.derivedDataPath == "Build Data")
+        #expect(command.arguments == ["--app-option", "app-value"])
+    }
+
+    @Test
+    func delimiter_keeps_application_arguments_separate() throws {
+        let command = try RunCommand.parse([
+            "App", "--derived-data-path", "Build Data", "--", "--derived-data-path", "app-value",
+            "--configuration", "app-config", "--clean", "--",
+        ])
+
+        #expect(command.derivedDataPath == "Build Data")
+        #expect(command.applicationArguments == [
+            "--derived-data-path",
+            "app-value",
+            "--configuration",
+            "app-config",
+            "--clean",
+            "--",
+        ])
+        #expect(command.configuration == nil)
+        #expect(!command.clean)
     }
 }
