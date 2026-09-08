@@ -136,6 +136,34 @@ spec:
             {{- end }}
             - name: KURA_BACKFILL_BATCH_BYTES
               value: {{ printf "%d" (int64 (dig "backfill" "batchBytes" 33554432 .Values.config)) | quote }}
+            {{- if ne (dig "sync" "replicationPull" nil .Values.config) nil }}
+            - name: KURA_REPLICATION_PULL
+              value: {{ ternary "true" "false" (dig "sync" "replicationPull" false .Values.config) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "feedMaxRows" "" .Values.config) }}
+            - name: KURA_SYNC_FEED_MAX_ROWS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "longPollSecs" "" .Values.config) }}
+            - name: KURA_SYNC_LONG_POLL_SECS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "passStartBufferMs" "" .Values.config) }}
+            - name: KURA_SYNC_PASS_START_BUFFER_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "regionSettleMs" "" .Values.config) }}
+            - name: KURA_SYNC_REGION_SETTLE_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "feedStalePeerSecs" "" .Values.config) }}
+            - name: KURA_SYNC_FEED_STALE_PEER_SECS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
+            {{- with (dig "sync" "drainMarginMs" "" .Values.config) }}
+            - name: KURA_SYNC_DRAIN_MARGIN_MS
+              value: {{ printf "%d" (int64 .) | quote }}
+            {{- end }}
             {{- with .Values.config.memory.softLimitBytes }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
               value: {{ printf "%d" (int64 .) | quote }}

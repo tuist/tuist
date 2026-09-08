@@ -64,17 +64,17 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 - [x] T4.1 Local role derivation (serverless rule) from the membership view:
       group Ready non-draining peers by region, gateway = lowest node URL,
       overlap over gaps.
-- [ ] T4.2 Server publishes `peer_roles: [{url, region, gateway}]` beside
+- [x] T4.2 Server publishes `peer_roles: [{url, region, gateway}]` beside
       `peers` in heartbeat and peers-sync responses; managed roles come from
       `KuraInstance.status.peerRoles`; enrolled self-hosted roles from the
       lowest-URL rule.
-- [ ] T4.3 kura-controller publishes `status.peerRoles` (complement of the
+- [x] T4.3 kura-controller publishes `status.peerRoles` (complement of the
       primary, Ready and non-draining, lowest ordinal tie-break) and pins the
       instance's public peer Service to the gateway pod.
 - [x] T4.4 The flip: `KURA_REPLICATION_PULL` env / server account flag
       (`kura_replication_pull`), advertised as `pulling` in `/_internal/status`;
       per-peer rule (pull from pulling peers by role, push to the rest).
-- [ ] T4.5 Provisioner renders the flag into `extraEnv` and the manifest
+- [x] T4.5 Provisioner renders the flag into `extraEnv` and the manifest
       revision; peers sync enabled for every mesh region.
 
 ### Phase 5 — lifecycle rules
@@ -83,14 +83,14 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
       the termination grace period less a margin; Helm value.
 - [x] T5.2 Readiness follows the sibling (bootstrap settled + forward cursor
       within one page); region of one keeps today's rule.
-- [ ] T5.3 Serve-side gate (INV-6) for young action-cache entries.
+- [x] T5.3 Serve-side gate (INV-6) for young action-cache entries.
 - [x] T5.4 Bandwidth limiter bypass for same-region peers.
 
 ### Phase 6 — observability and docs
 
-- [ ] T6.1 Metrics of design §6.2 plus panels in
+- [x] T6.1 Metrics of design §6.2 plus panels in
       `infra/grafana-dashboards/tuist-kura-details.json`.
-- [ ] T6.2 `architecture.md`, `README.md`, `ops/` values, `AGENTS.md` updated.
+- [x] T6.2 `architecture.md`, `README.md`, `ops/` values, `AGENTS.md` updated.
 
 ### Phase 7 — tests
 
@@ -222,4 +222,26 @@ pulling are removed from the backfill lifecycle's view (never passed over,
 never part of its initial cycle) while this node pulls; peers that do not
 keep today's passes and pushes. Readiness combines both: the legacy cycle
 settled *and* the pull links settled (§3.6), or the ring-fullness escape.
+
+**D-17 — INV-6 needed no new code.** `GetActionResult` already inspects every
+referenced blob's presence before answering (`inspect_action_result_blobs`,
+the composite presence gate that #12937 extended to chunk recipes) and
+answers `not_found` when one is gone, deleting the entry only past the
+cascade grace window. That is exactly §3.3: serving is gated on the blobs,
+ordering is an optimisation. The task is closed against the existing path;
+the ring-A test for it is the existing `snapshot_serve_cascade_*` coverage.
+
+**D-18 — The peer Service of a managed region is pinned to the gateway pod.**
+The instance's public peer Service selected every pod, so a remote gateway's
+listing pages could alternate between the two replicas. Pinning it to the
+gateway (the way the client Services pin to the primary) makes the served
+listing one node's, keeps both directions of the region's WAN traffic on the
+standby, and doubles as the persisted gateway designation the controller
+reads back for stickiness — no new status field for that. The headless
+Service keeps the broad selector.
+
+**D-19 — A replica link settles the moment its bootstrap completes.** The
+cursor then sits at the snapshot head, which is within one page of the
+sibling by construction; waiting for the first forward page would hold
+readiness for up to one long-poll wait with nothing to show for it.
 

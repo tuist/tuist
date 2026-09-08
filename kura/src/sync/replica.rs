@@ -258,6 +258,10 @@ pub async fn run(
                     Ok(position) => {
                         bootstrap_failures = 0;
                         cursor = Some(position);
+                        // The cursor sits at the snapshot head, so it is
+                        // within one page of the sibling by construction
+                        // (design §3.6): settled from here on.
+                        status.update(|status| status.settled = true);
                         position
                     }
                     Err(error) => {

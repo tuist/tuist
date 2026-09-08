@@ -7,7 +7,8 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Entry points: `src/main.rs`, `src/app.rs`
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
-- Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
+- Backfill peer catch-up walker (the pass pipeline every catch-up path runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine, for peers still on push), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
+- Pull replication (`docs/replication-design.md`): `src/sync/` — `feed.rs` (the bounded arrival feed a sibling reads forward), `replica.rs` (intra-region link: snapshot, backward pass, forward reads), `region.rs` (inter-region link: ascending origin-filtered reads from a per-region watermark, gateway only), `roles.rs` (who pulls from whom, from the membership view and published roles), `coordinator.rs` (opens/closes links, readiness and drain terms)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`

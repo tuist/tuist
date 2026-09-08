@@ -1,6 +1,6 @@
 # Kura Replication Design
 
-Status: proposed. Not implemented, not scheduled.
+Status: implemented on branch; see [`replication-implementation.md`](replication-implementation.md).
 
 This document is the design only. The analysis behind it — why the current
 mechanism does not scale, what else was considered, the options deliberately
@@ -277,7 +277,7 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   the change it describes, so a crash cannot separate them.
 - **A position is `(incarnation, seq)`.** The incarnation is a random id the
   node mints once, the first time it creates its store, and persists in it
-  (`sync/fwd/meta/incarnation`). It identifies *that copy of the data*, not
+  (`sync/meta/incarnation`). It identifies *that copy of the data*, not
   the node: a restart on the same volume keeps it, a pod recreated on an empty
   volume gets a new one. Every forward response echoes it and the puller
   stores it beside its cursor, the way a Kafka consumer keeps the cluster id
@@ -453,7 +453,9 @@ continuously, the wait is normally nothing: the cursor is already at head.
 Three cases are decided rather than left to the implementer. A region of one
 has no sibling and exits at once. A sibling that has not yet taken a forward
 cursor — it is mid-bootstrap — is not waited for, since its backward pass
-resumes against the recreated pod's persistent volume. And the grace period
+resumes against the recreated pod's persistent volume; its `{head}` snapshot
+still pins the feed's trim floor, so the rows above it survive the pass, and
+only the drain gate ignores it (D-13). And the grace period
 the wait is bounded by is a Helm value, so the change ships with the matching
 `terminationGracePeriodSeconds` in `ops/`, as the rollout rules require.
 
@@ -537,7 +539,11 @@ opaque `after`; the ascending read does the same. Within a connection the
 cursor is that key; what is persisted and shared (§4.3) is the `version_ms` of
 the last consumed entry, and a resume from a watermark alone starts at
 `(watermark, "")` inclusive — re-listing at most one millisecond's worth of
-entries, which are skipped as already present.
+entries, which are skipped as already present. The ascending page carries
+its cursor whenever the scan moved, full or not, so a caught-up requester
+keeps continuing from it across long-polls and resumes from the watermark
+only after a failure; a page with neither entries nor cursor is the
+caught-up signal the server's long-poll waits on (D-14).
 
 ### 4.2 The watermark is `version_ms`, anchored to observed data
 
@@ -576,7 +582,11 @@ entries, which are skipped as already present.
   moves to the last entry consumed without a gap behind it. A read that fails
   part-way keeps whatever contiguous prefix it consumed and resumes there. The
   backward pass keeps the stricter rule — it lists descending, so it advances
-  its watermark only on completing the pass.
+  its watermark only on completing the pass. On completion it advances to
+  the serving gateway's clock at pass start, less the buffer: the listing
+  carries no origin per row, so the highest own-origin `version_ms` shown is
+  not observable, while the gateway's `now` is that region's clock domain
+  and `now − buffer` is below anything still in flight to it (D-12).
 
 ### 4.3 The watermark is region state, replicated between replicas
 
@@ -1074,7 +1084,7 @@ to re-check when a measurement disagrees.
 | --- | --- | --- |
 | Pass-start buffer (§4.4) | 10 min | Covers the origin region's own lag when the watermark last advanced; the tail is that region's rollout. Cost is listing only, horizon-floored. Re-check against the observed distribution of (arrival at the origin's gateway − `version_ms`). |
 | Feed cap (§3.1) | 1,000,000 rows (~100 MB) | Must hold the writes that land during the longest backward pass a sibling can need, or recovery loops. Re-check against peak write rate × cold-pass duration. |
-| Long-poll wait (§3.1, §4.1) | 30 s | Well inside the internal plane's connection lifecycle; bounds how long a cleanly idle link goes without a proof of life. |
+| Long-poll wait (§3.1, §4.1) | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8); bounds how long a cleanly idle link goes without a proof of life. |
 | Retry backoff after a failed read (§4.1) | 250 ms → 5 s | The backfill's existing constants. |
 | Staleness alert threshold (§2.2) | 5 min | Ten consecutive failed long-polls; short enough to matter, long enough that a slow transfer is not a failure. |
 | Overlap window on a role move (§2.2) | 2 heartbeat periods | Long enough for every node to have fetched the new list; costs one duplicate listing. |

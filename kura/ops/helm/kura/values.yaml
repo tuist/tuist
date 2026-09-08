@@ -104,6 +104,10 @@ podLifecycle:
   # Allow endpoint propagation to remove the pod from public traffic before SIGTERM.
   preStopDelaySeconds: 20
   # Leave a small platform buffer after Kura's own drain deadline for process exit.
+  # A pulling node also waits for its sibling's feed cursor to reach the head
+  # before it exits (the drain gate). That wait is bounded by the drain
+  # deadline less config.sync.drainMarginMs, so it always fits inside the
+  # grace period this buffer completes and never needs it to grow.
   terminationGraceExtraSeconds: 15
 
 pdb:
@@ -162,6 +166,35 @@ config:
     # per-artifact endpoint. Must not exceed the compiled 32 MiB response
     # ceiling shared by both sides of the bodies protocol.
     batchBytes: 33554432
+  sync:
+    # Pull replication (docs/replication-design.md). Every value here is
+    # optional and rendered only when set; the binary's defaults apply
+    # otherwise.
+    # Flip this node to pull: it reads from every peer that also pulls and
+    # keeps pushing to the rest. The control plane's account flag can also
+    # switch it on for enrolled nodes; this value only ever adds to it.
+    replicationPull: null
+    # Arrival-feed cap in rows (default 1000000). Must hold the writes that
+    # land during the longest backward pass a sibling can need.
+    feedMaxRows: null
+    # Forward-read long-poll wait in seconds (default 25, at most 60). Keep it
+    # below the peer client's 30 s idle read timeout.
+    longPollSecs: null
+    # How far below the region watermark a backward pass starts, in
+    # milliseconds (default 600000).
+    passStartBufferMs: null
+    # Settle window of the ascending region read, in milliseconds
+    # (default 2000).
+    regionSettleMs: null
+    # Feed consumer staleness in seconds (default 1800).
+    feedStalePeerSecs: null
+    # Margin the departing node keeps back from its drain deadline for the
+    # sibling wait, in milliseconds (default 5000). The drain gate waits for
+    # the sibling's cursor to reach the feed head for at most the remaining
+    # drain budget (shutdown.drainCompletionTimeoutMs) less this margin, so
+    # the wait is bounded by the termination grace period and never extends
+    # it; see podLifecycle.terminationGraceExtraSeconds.
+    drainMarginMs: null
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from
     # the container's effective memory limit. Explicit values must remain below
