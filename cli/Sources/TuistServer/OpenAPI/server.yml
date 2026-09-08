@@ -14005,6 +14005,7 @@ paths:
                 required:
                   - outputs
                   - pagination_metadata
+                  - totals
                 type: object
                 x-struct:
                 x-validate:

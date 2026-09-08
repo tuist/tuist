@@ -33466,7 +33466,7 @@ public enum Operations {
                         /// The aggregate transfer totals for the whole build. Not narrowed by the operation or type filters, and not scoped to the current page.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cas-outputs/GET/responses/200/content/json/totals`.
-                        public var totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload?
+                        public var totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -33476,7 +33476,7 @@ public enum Operations {
                         public init(
                             outputs: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.outputsPayload,
                             pagination_metadata: Components.Schemas.PaginationMetadata,
-                            totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload? = nil
+                            totals: Operations.listBuildCASOutputs.Output.Ok.Body.jsonPayload.totalsPayload
                         ) {
                             self.outputs = outputs
                             self.pagination_metadata = pagination_metadata

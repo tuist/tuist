@@ -121,7 +121,7 @@ defmodule TuistWeb.API.BuildCASOutputsController do
                required: [:download_count, :upload_count, :download_bytes, :upload_bytes]
              }
            },
-           required: [:outputs, :pagination_metadata]
+           required: [:outputs, :pagination_metadata, :totals]
          }},
       not_found: {"Build not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error},
