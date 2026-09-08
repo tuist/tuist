@@ -15,6 +15,7 @@ This node covers Helm assets under `infra/helm/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
