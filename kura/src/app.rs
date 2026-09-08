@@ -223,6 +223,7 @@ async fn run_with_config(
     );
     let replication_target_cache =
         arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
+    let replication_pull = config.replication_pull;
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -251,6 +252,7 @@ async fn run_with_config(
         replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
+        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);

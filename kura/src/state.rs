@@ -93,6 +93,10 @@ pub struct AppState {
     /// The backfill walker's node-side state machine, driven by the
     /// membership loop.
     pub backfill: Arc<BackfillLifecycle>,
+    /// The flip (design §5.2): whether this node pulls. Seeded from
+    /// `KURA_REPLICATION_PULL` and switchable at runtime by the control
+    /// plane's account flag.
+    pub replication_pull: std::sync::atomic::AtomicBool,
 }
 
 /// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
@@ -485,6 +489,18 @@ impl AppState {
     /// The peers a write enqueues one outbox message for. A shared snapshot:
     /// exact as of the last input change, which every input mutation
     /// follows with `rebuild_replication_targets`.
+    pub fn replication_pull(&self) -> bool {
+        self.replication_pull
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Returns whether the value changed.
+    pub fn set_replication_pull(&self, pull: bool) -> bool {
+        self.replication_pull
+            .swap(pull, std::sync::atomic::Ordering::AcqRel)
+            != pull
+    }
+
     pub fn replication_targets(&self) -> Arc<Vec<String>> {
         self.replication_target_cache.load_full()
     }

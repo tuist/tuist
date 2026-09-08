@@ -447,3 +447,38 @@ mod tests {
         );
     }
 }
+
+// ---- Pull-based replication (docs/replication-design.md) ----
+
+/// `KURA_SYNC_FEED_MAX_ROWS` default: rows the arrival feed retains before it
+/// drops its oldest (design §3.1, §10). At ~100 B a row this is ~100 MB
+/// logical; it must hold the writes that land during the longest backward
+/// pass a sibling can need, or recovery loops.
+pub const DEFAULT_SYNC_FEED_MAX_ROWS: u64 = 1_000_000;
+/// Feed rows below the lowest consumer cursor are trimmed once at least this
+/// many have accumulated; a range delete per request would be wasteful and a
+/// wall of point tombstones is what the explicit floor exists to avoid.
+pub const SYNC_FEED_TRIM_BATCH_ROWS: u64 = 1_024;
+/// `KURA_SYNC_LONG_POLL_SECS` default: how long a forward read blocks with
+/// nothing to return. Below the peer client's 30 s idle read timeout so an
+/// idle long-poll never races it (implementation decision D-8).
+pub const DEFAULT_SYNC_LONG_POLL_SECS: u64 = 25;
+/// Upper bound a requester may ask for.
+pub const SYNC_LONG_POLL_MAX_SECS: u64 = 60;
+/// `KURA_SYNC_PASS_START_BUFFER_MS` default: how far below the region
+/// watermark a backward pass starts (design §4.4).
+pub const DEFAULT_SYNC_PASS_START_BUFFER_MS: u64 = 10 * 60 * 1000;
+/// `KURA_SYNC_REGION_SETTLE_MS` default: the ascending region read lists no
+/// entry younger than this against the serving node's clock, so a commit
+/// that lands out of `version_ms` order inside the window is never skipped
+/// (implementation decision D-6).
+pub const DEFAULT_SYNC_REGION_SETTLE_MS: u64 = 2_000;
+/// `KURA_SYNC_FEED_STALE_PEER_SECS` default: a feed consumer unseen for this
+/// long no longer pins the trim floor, and a feed with no consumer for this
+/// long switches off. Matches the control plane's stale-peer window.
+pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
+/// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
+/// from the drain timeout so the sibling wait never eats the process exit.
+pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
+/// Re-check cadence of an idle long-poll, the bound on a missed wake.
+pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;

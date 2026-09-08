@@ -88,6 +88,7 @@ pub async fn enqueue_replication_for_artifact(
                 inline: manifest.inline,
                 branch: manifest.branch.clone(),
                 trunk: None,
+                origin_region: None,
             },
         }) {
             warn!("failed to enqueue artifact replication for {peer}: {error}");
@@ -531,6 +532,7 @@ async fn replicate_batch(
             version_ms,
             branch,
             trunk,
+            origin_region,
             ..
         } = &message.operation
         else {
@@ -556,6 +558,7 @@ async fn replicate_batch(
             version_ms: *version_ms,
             branch: branch.clone(),
             trunk: trunk.clone(),
+            origin_region: origin_region.clone(),
         };
         let meta_bytes = serde_json::to_vec(&meta)
             .map_err(|error| format!("failed to encode replication batch meta: {error}"))?;
@@ -1146,6 +1149,7 @@ async fn replicate_message(
             inline,
             branch,
             trunk,
+            origin_region,
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
@@ -1197,6 +1201,10 @@ async fn replicate_message(
             if let Some(trunk) = trunk {
                 url.push_str("&trunk=");
                 url.push_str(&url_encode(trunk));
+            }
+            if let Some(origin_region) = origin_region {
+                url.push_str("&origin_region=");
+                url.push_str(&url_encode(origin_region));
             }
             let url = url;
             let size = manifest.size;
@@ -1791,6 +1799,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2156,6 +2165,7 @@ mod tests {
                         inline: false,
                         branch: None,
                         trunk: None,
+                        origin_region: None,
                     },
                 })
                 .expect("upsert should enqueue");
@@ -2223,6 +2233,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2297,6 +2308,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2392,6 +2404,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("outbox message should enqueue");
@@ -2507,6 +2520,7 @@ mod tests {
                 inline: false,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         };
         let outcome = replicate_message(&ctx.state, &message)
@@ -2559,6 +2573,7 @@ mod tests {
                 inline: manifest.inline,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         };
 

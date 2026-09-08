@@ -14,7 +14,7 @@ use arc_swap::{ArcSwap, ArcSwapOption};
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
-    WriteBatch, WriteBufferManager, WriteOptions,
+    ReadOptions, WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -36,14 +36,16 @@ use crate::{
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING,
+        REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
         SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
+        SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -58,6 +60,12 @@ use crate::{
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
+    },
+    sync::feed::{
+        SYNC_META_ENABLED, SYNC_META_FLOOR, SYNC_META_INCARNATION, SYNC_WM_PREFIX, SyncFeedKind,
+        SyncFeedRow, SyncFeedState, SyncFeedTicket, SyncPosition, decode_sync_feed_row,
+        encode_sync_feed_value, sync_cursor_key, sync_feed_key, sync_feed_prefix_upper_bound,
+        sync_feed_seq_from_key, sync_meta_key, sync_wm_key, sync_wm_prefix_upper_bound,
     },
     usage::UsageRollup,
     utils::{
@@ -296,6 +304,13 @@ pub struct Store {
     // rollback-window staleness check at open). Write-path maintenance runs
     // regardless; this only gates what the listing endpoint may serve.
     backfill_index_built: AtomicBool,
+    /// `KURA_REGION`, stamped as `origin_region` on every write this node
+    /// first accepts (design §4.1).
+    region: String,
+    /// The intra-region arrival feed's in-memory state (design §3.1).
+    sync_feed: Arc<SyncFeedState>,
+    /// How long a feed consumer's last request pins the trim floor.
+    sync_feed_stale_consumer: Duration,
     // WAL durability sequencing. Request-path writes enter the WAL without an
     // individual sync, then one flush covers every completed write through the
     // captured sequence. Each caller still returns only after its sequence is
@@ -627,11 +642,22 @@ fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
 pub(crate) struct BackfillApplyBatch {
     staged: Vec<StagedBackfillApply>,
     max_durability_seq: u64,
+    /// Whether the batch's applies earn arrival-feed rows: yes for a
+    /// cross-region link, never for the sibling link (design §3.1).
+    feed_rows: bool,
 }
 
 impl BackfillApplyBatch {
     pub(crate) fn new() -> Self {
-        Self::default()
+        Self {
+            feed_rows: true,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn without_feed_rows(mut self) -> Self {
+        self.feed_rows = false;
+        self
     }
 }
 
@@ -678,10 +704,11 @@ struct StagedBackfillSegmentApply {
     artifact_id: String,
     location: SegmentLocation,
     size: u64,
+    origin_region: Option<String>,
 }
 
 impl StagedBackfillSegmentApply {
-    fn spec(&self) -> PersistArtifactSpec<'_> {
+    fn spec(&self, sync_feed_row: bool) -> PersistArtifactSpec<'_> {
         PersistArtifactSpec {
             producer: self.producer,
             namespace_id: &self.namespace_id,
@@ -691,6 +718,8 @@ impl StagedBackfillSegmentApply {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region: self.origin_region.as_deref(),
+            sync_feed_row,
         }
     }
 }
@@ -707,10 +736,11 @@ struct StagedBackfillInlineApply {
     branch: Option<String>,
     artifact_id: String,
     bytes: Vec<u8>,
+    origin_region: Option<String>,
 }
 
 impl StagedBackfillInlineApply {
-    fn spec(&self) -> PersistArtifactSpec<'_> {
+    fn spec(&self, sync_feed_row: bool) -> PersistArtifactSpec<'_> {
         PersistArtifactSpec {
             producer: self.producer,
             namespace_id: &self.namespace_id,
@@ -720,6 +750,8 @@ impl StagedBackfillInlineApply {
             replication_targets: &[],
             branch: self.branch.as_deref(),
             trunk: None,
+            origin_region: self.origin_region.as_deref(),
+            sync_feed_row,
         }
     }
 }
@@ -751,6 +783,31 @@ struct PersistArtifactSpec<'a> {
     /// re-run the trunk-sticky rule against its own view. Not stored: the
     /// trunk is a property of the publishing build, not of the artifact.
     trunk: Option<&'a str>,
+    /// The region that first accepted this write: this node's own for a
+    /// client write, the carried value for a replicated one, `None` when
+    /// the peer forwarded none (design §4.1).
+    origin_region: Option<&'a str>,
+    /// Whether the change earns an arrival-feed row (design §3.1's echo
+    /// rule): a client write or a cross-region apply does, an apply that
+    /// arrived from the sibling never does.
+    sync_feed_row: bool,
+}
+
+/// Where a replicated apply came from, for the two fields of
+/// [`PersistArtifactSpec`] a peer decides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplyProvenance<'a> {
+    pub origin_region: Option<&'a str>,
+    pub sync_feed_row: bool,
+}
+
+impl ApplyProvenance<'static> {
+    /// A push from a peer of unknown region on the legacy replication
+    /// routes: it may have crossed a region boundary, so it earns a row.
+    pub const PUSHED: Self = Self {
+        origin_region: None,
+        sync_feed_row: true,
+    };
 }
 
 struct OutboxReservation<'a> {
@@ -1184,6 +1241,7 @@ impl Store {
             rocksdb_write_buffer_manager.get_buffer_size() as u64,
         );
 
+        let sync_feed = load_sync_feed_state(&db, config.sync_feed_max_rows)?;
         let segment_ring_limits = resolve_segment_ring_limits(
             config.cas_capacity_bytes,
             total_disk_bytes(&config.data_dir),
@@ -1264,6 +1322,9 @@ impl Store {
             action_cache_eviction_cascade_enabled: config.action_cache_eviction_cascade_enabled,
             action_cache_blob_refs_ready: AtomicBool::new(false),
             backfill_index_built: AtomicBool::new(false),
+            region: config.region.clone(),
+            sync_feed: Arc::new(sync_feed),
+            sync_feed_stale_consumer: Duration::from_secs(config.sync_feed_stale_peer_secs),
             wal_writers_ahead_of_durability: AtomicU64::new(0),
             wal_pending_seq: AtomicU64::new(0),
             wal_durable_seq: AtomicU64::new(0),
@@ -1789,6 +1850,8 @@ impl Store {
             replication_targets,
             branch: None,
             trunk: None,
+            origin_region: Some(&self.region),
+            sync_feed_row: true,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
@@ -1798,6 +1861,31 @@ impl Store {
 
     pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        staged: impl Into<StagedArtifactPath<'a>>,
+        version_ms: u64,
+    ) -> Result<ArtifactApplyOutcome, String> {
+        self.apply_replicated_artifact_from_path_with(
+            ApplyProvenance::PUSHED,
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            staged,
+            version_ms,
+        )
+        .await
+    }
+
+    /// [`Self::apply_replicated_artifact_from_path`] with the provenance the
+    /// caller learned from the wire.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn apply_replicated_artifact_from_path_with<'a>(
+        &self,
+        provenance: ApplyProvenance<'_>,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
@@ -1815,6 +1903,8 @@ impl Store {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region: provenance.origin_region,
+            sync_feed_row: provenance.sync_feed_row,
         };
         Ok(self
             .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
@@ -1978,6 +2068,7 @@ impl Store {
     ) -> Result<ArtifactManifest, String> {
         let mut batch = WriteBatch::default();
         let mut bulk_outbox = 0;
+        let mut feed = Vec::new();
         let manifest = self.stage_segment_manifest(
             &mut batch,
             spec,
@@ -1986,6 +2077,7 @@ impl Store {
             location,
             size,
             &mut bulk_outbox,
+            &mut feed,
         )?;
         self.write_batch_with_durability_off_runtime(
             batch,
@@ -1993,6 +2085,7 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
+        commit_sync_feed_tickets(feed);
         outbox_reservation.commit(bulk_outbox);
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
@@ -2016,6 +2109,7 @@ impl Store {
         location: &SegmentLocation,
         size: u64,
         bulk_outbox: &mut usize,
+        feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<ArtifactManifest, String> {
         let artifact_id = artifact_id.to_owned();
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -2033,6 +2127,7 @@ impl Store {
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
             branch: spec.branch.map(str::to_owned),
+            origin_region: spec.origin_region.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -2106,6 +2201,15 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
+        if spec.sync_feed_row {
+            feed.extend(self.stage_sync_feed_row(
+                batch,
+                SyncFeedKind::Record(backfill_record_kind(&manifest)),
+                &manifest.artifact_id,
+                manifest_version_ms(&manifest),
+                Some(manifest.size),
+            ));
+        }
         *bulk_outbox += self.append_artifact_replication_messages(
             batch,
             &manifest,
@@ -2832,6 +2936,7 @@ impl Store {
 
         let mut batch = WriteBatch::default();
         let mut bulk_outbox = 0;
+        let mut feed = Vec::new();
         let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
             &mut batch,
             &spec,
@@ -2840,6 +2945,7 @@ impl Store {
             branch,
             bytes,
             &mut bulk_outbox,
+            &mut feed,
         )?;
 
         self.write_batch_with_durability_off_runtime(
@@ -2848,6 +2954,7 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
+        commit_sync_feed_tickets(feed);
         outbox_reservation.commit(bulk_outbox);
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
 
@@ -2909,6 +3016,7 @@ impl Store {
         branch: Option<&str>,
         bytes: &[u8],
         bulk_outbox: &mut usize,
+        feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_id.to_owned();
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -2927,6 +3035,7 @@ impl Store {
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
             branch: branch.map(str::to_owned),
+            origin_region: spec.origin_region.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -3019,6 +3128,15 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
+        if spec.sync_feed_row {
+            feed.extend(self.stage_sync_feed_row(
+                batch,
+                SyncFeedKind::Record(backfill_record_kind(&manifest)),
+                &manifest.artifact_id,
+                manifest_version_ms(&manifest),
+                Some(manifest.size),
+            ));
+        }
         *bulk_outbox += self.append_artifact_replication_messages(
             batch,
             &manifest,
@@ -4681,6 +4799,8 @@ impl Store {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region: Some(&self.region),
+            sync_feed_row: true,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -4731,6 +4851,8 @@ impl Store {
             replication_targets,
             branch: None,
             trunk: None,
+            origin_region: Some(&self.region),
+            sync_feed_row: true,
         };
         let (outcome, already_present) = self
             .persist_segment_artifact_with_version(
@@ -4762,6 +4884,8 @@ impl Store {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region: Some(&self.region),
+            sync_feed_row: true,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -4891,6 +5015,8 @@ impl Store {
             replication_targets,
             branch,
             trunk,
+            origin_region: Some(&self.region),
+            sync_feed_row: true,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -4924,6 +5050,8 @@ impl Store {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region: None,
+            sync_feed_row: false,
         };
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -4939,6 +5067,35 @@ impl Store {
     #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        version_ms: u64,
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<ArtifactApplyOutcome, String> {
+        self.apply_replicated_inline_artifact_from_bytes_with(
+            ApplyProvenance::PUSHED,
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            version_ms,
+            branch,
+            trunk,
+        )
+        .await
+    }
+
+    /// [`Self::apply_replicated_inline_artifact_from_bytes`] with the
+    /// provenance the caller learned from the wire.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn apply_replicated_inline_artifact_from_bytes_with(
+        &self,
+        provenance: ApplyProvenance<'_>,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
@@ -4965,6 +5122,8 @@ impl Store {
             replication_targets: &[],
             branch,
             trunk,
+            origin_region: provenance.origin_region,
+            sync_feed_row: provenance.sync_feed_row,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -4992,6 +5151,7 @@ impl Store {
         bytes: &[u8],
         version_ms: u64,
         branch: Option<&str>,
+        origin_region: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -5002,6 +5162,8 @@ impl Store {
             replication_targets: &[],
             branch,
             trunk: None,
+            origin_region,
+            sync_feed_row: batch.feed_rows,
         };
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         {
@@ -5023,6 +5185,7 @@ impl Store {
                 branch: branch.map(str::to_owned),
                 artifact_id,
                 bytes: bytes.to_vec(),
+                origin_region: origin_region.map(str::to_owned),
             }));
         Ok(BackfillStageOutcome::Staged)
     }
@@ -5047,6 +5210,7 @@ impl Store {
         content_type: &str,
         staged: StagedArtifactPath<'_>,
         version_ms: u64,
+        origin_region: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -5057,6 +5221,8 @@ impl Store {
             replication_targets: &[],
             branch: None,
             trunk: None,
+            origin_region,
+            sync_feed_row: batch.feed_rows,
         };
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         let size = self.io.metadata_len(staged.path).await?;
@@ -5090,6 +5256,7 @@ impl Store {
                 artifact_id,
                 location,
                 size,
+                origin_region: origin_region.map(str::to_owned),
             }));
         Ok(BackfillStageOutcome::Staged)
     }
@@ -5136,7 +5303,9 @@ impl Store {
         let mut wrote_any = false;
         let mut groups = batch.staged.chunks(BACKFILL_APPLY_GROUP_RECORDS).peekable();
         while let Some(group) = groups.next() {
-            wrote_any |= self.commit_backfill_apply_group(group).await?;
+            wrote_any |= self
+                .commit_backfill_apply_group(group, batch.feed_rows)
+                .await?;
             on_group_committed(group.len());
             if groups.peek().is_some() {
                 self.hit_failpoint(FailpointName::BetweenBackfillGroupCommits)
@@ -5168,6 +5337,7 @@ impl Store {
     async fn commit_backfill_apply_group(
         &self,
         group: &[StagedBackfillApply],
+        feed_rows: bool,
     ) -> Result<bool, String> {
         // Holding up to BACKFILL_APPLY_GROUP_RECORDS write locks at once is
         // deadlock-free by ordering: the artifact write locks are striped, so
@@ -5208,11 +5378,12 @@ impl Store {
         }
 
         let mut batch = WriteBatch::default();
+        let mut feed = Vec::new();
         let mut committed = Vec::with_capacity(group.len());
         for record in group {
             match record {
                 StagedBackfillApply::Segmented(staged) => {
-                    let spec = staged.spec();
+                    let spec = staged.spec(feed_rows);
                     match self
                         .segment_apply_precheck(&staged.artifact_id, &spec)
                         .await?
@@ -5231,6 +5402,7 @@ impl Store {
                                 &staged.location,
                                 staged.size,
                                 &mut bulk_outbox,
+                                &mut feed,
                             )?;
                             committed.push(CommittedGroupRecord::Segmented {
                                 manifest,
@@ -5240,7 +5412,7 @@ impl Store {
                     }
                 }
                 StagedBackfillApply::Inline(staged) => {
-                    let spec = staged.spec();
+                    let spec = staged.spec(feed_rows);
                     match self
                         .inline_apply_precheck(&staged.artifact_id, &spec)
                         .await?
@@ -5261,6 +5433,7 @@ impl Store {
                                 branch,
                                 &staged.bytes,
                                 &mut bulk_outbox,
+                                &mut feed,
                             )?;
                             committed.push(CommittedGroupRecord::Inline {
                                 manifest,
@@ -5280,6 +5453,7 @@ impl Store {
             ApplyDurability::DeferredBatch,
         )
         .await?;
+        commit_sync_feed_tickets(feed);
         for record in committed {
             match record {
                 CommittedGroupRecord::Segmented {
@@ -5338,7 +5512,7 @@ impl Store {
     #[cfg(test)]
     pub async fn delete_namespace(&self, namespace_id: &str) -> Result<u64, String> {
         let version_ms = now_ms();
-        self.delete_namespace_with_version(namespace_id, version_ms, &[])
+        self.delete_namespace_with_version(namespace_id, version_ms, &[], true)
             .await
             .map(|_| version_ms)
     }
@@ -5349,7 +5523,7 @@ impl Store {
         replication_targets: &[String],
     ) -> Result<u64, String> {
         let version_ms = now_ms();
-        self.delete_namespace_with_version(namespace_id, version_ms, replication_targets)
+        self.delete_namespace_with_version(namespace_id, version_ms, replication_targets, true)
             .await
             .map(|_| version_ms)
     }
@@ -5359,7 +5533,20 @@ impl Store {
         namespace_id: &str,
         version_ms: u64,
     ) -> Result<NamespaceDeleteOutcome, String> {
-        self.delete_namespace_with_version(namespace_id, version_ms, &[])
+        self.apply_replicated_namespace_delete_with(namespace_id, version_ms, true)
+            .await
+    }
+
+    /// [`Self::apply_replicated_namespace_delete`] with the feed-row
+    /// decision made by the caller: a tombstone that arrived from the
+    /// sibling writes none.
+    pub async fn apply_replicated_namespace_delete_with(
+        &self,
+        namespace_id: &str,
+        version_ms: u64,
+        sync_feed_row: bool,
+    ) -> Result<NamespaceDeleteOutcome, String> {
+        self.delete_namespace_with_version(namespace_id, version_ms, &[], sync_feed_row)
             .await
     }
 
@@ -5368,6 +5555,7 @@ impl Store {
         namespace_id: &str,
         version_ms: u64,
         replication_targets: &[String],
+        sync_feed_row: bool,
     ) -> Result<NamespaceDeleteOutcome, String> {
         let prefix = format!("{namespace_id}\0");
         let mut batch = WriteBatch::default();
@@ -5517,6 +5705,7 @@ impl Store {
         );
 
         let mut bulk_outbox = 0;
+        let mut feed = Vec::new();
         if !delete_everything {
             bulk_outbox += self.append_namespace_delete_messages(
                 &mut batch,
@@ -5524,6 +5713,16 @@ impl Store {
                 version_ms,
                 replication_targets,
             )?;
+            // INV-8: `delete_everything` stays node-local and earns no row.
+            if sync_feed_row {
+                feed.extend(self.stage_sync_feed_row(
+                    &mut batch,
+                    SyncFeedKind::Record(BackfillRecordKind::NamespaceTombstone),
+                    namespace_id,
+                    version_ms,
+                    None,
+                ));
+            }
         }
 
         self.write_batch_with_durability_off_runtime(
@@ -5532,6 +5731,7 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
+        commit_sync_feed_tickets(feed);
         outbox_reservation.commit(bulk_outbox);
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
@@ -7258,6 +7458,378 @@ impl Store {
         self.write_batch_sync(batch, "backfill index test row")
     }
 
+    // ---- Pull-based replication: arrival feed, cursors, region watermarks ----
+
+    pub fn sync_feed(&self) -> &Arc<SyncFeedState> {
+        &self.sync_feed
+    }
+
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
+    /// Stages one arrival-feed row for a change staged into `batch`, with
+    /// the cap's drop-oldest trim in the same batch when the retained range
+    /// would exceed it (INV-7: the write is never refused). `None` while the
+    /// feed is off. The returned ticket must be committed after the batch
+    /// lands (`commit_sync_feed_tickets`) or dropped on failure.
+    fn stage_sync_feed_row(
+        &self,
+        batch: &mut WriteBatch,
+        kind: SyncFeedKind,
+        record_id: &str,
+        version_ms: u64,
+        size: Option<u64>,
+    ) -> Option<SyncFeedTicket> {
+        if !self.sync_feed.enabled() {
+            return None;
+        }
+        let ticket = self.sync_feed.allocate();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_feed_key(ticket.seq()),
+            encode_sync_feed_value(kind, record_id, version_ms, size, now_ms()),
+        );
+        let floor = self.sync_feed.floor();
+        let cap = self.sync_feed.cap();
+        if ticket.seq().saturating_sub(floor) > cap {
+            let new_floor = ticket.seq() - cap;
+            self.stage_sync_feed_trim(batch, new_floor);
+            self.sync_feed.raise_floor(new_floor);
+            self.sync_feed.record_dropped(new_floor - floor);
+            self.io
+                .metrics()
+                .record_sync_feed_dropped(new_floor - floor);
+        }
+        Some(ticket)
+    }
+
+    /// Range-deletes every row at or below `new_floor` and persists the
+    /// floor. Always from the start of the keyspace: a trim whose batch
+    /// failed after the in-memory floor moved must not leave rows behind.
+    fn stage_sync_feed_trim(&self, batch: &mut WriteBatch, new_floor: u64) {
+        batch.delete_range_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_feed_key(0),
+            sync_feed_key(new_floor.saturating_add(1)),
+        );
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_meta_key(SYNC_META_FLOOR).as_bytes(),
+            new_floor.to_be_bytes(),
+        );
+    }
+
+    /// Trims the feed below the lowest live consumer cursor once at least
+    /// `SYNC_FEED_TRIM_BATCH_ROWS` have accumulated under it. Called on the
+    /// forward-read path; a no-op otherwise.
+    pub async fn sync_feed_trim_below_consumers(&self) -> Result<(), String> {
+        let Some(cursor) = self
+            .sync_feed
+            .lowest_live_cursor(self.sync_feed_stale_consumer)
+        else {
+            return Ok(());
+        };
+        let floor = self.sync_feed.floor();
+        if cursor.saturating_sub(floor) < SYNC_FEED_TRIM_BATCH_ROWS {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        self.stage_sync_feed_trim(&mut batch, cursor);
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "sync feed trim",
+            ApplyDurability::DeferredBatch,
+        )
+        .await?;
+        self.sync_feed.raise_floor(cursor);
+        Ok(())
+    }
+
+    /// Switches the feed on (the first same-region `{head}` request, design
+    /// §3.1). Persisted so a restart keeps writing rows for the sibling that
+    /// is still reading. Returns whether it was off.
+    pub async fn sync_feed_activate(&self) -> Result<bool, String> {
+        if !self.sync_feed.set_enabled(true) {
+            return Ok(false);
+        }
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_meta_key(SYNC_META_ENABLED).as_bytes(),
+            [1],
+        );
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "sync feed enable",
+            ApplyDurability::Sync,
+        )
+        .await?;
+        tracing::info!("arrival feed activated");
+        Ok(true)
+    }
+
+    /// Switches the feed off and drops its rows: no sibling has asked for
+    /// longer than the stale-peer window.
+    pub async fn sync_feed_deactivate(&self) -> Result<(), String> {
+        if !self.sync_feed.set_enabled(false) {
+            return Ok(());
+        }
+        let head = self.sync_feed.head();
+        let mut batch = WriteBatch::default();
+        self.stage_sync_feed_trim(&mut batch, head);
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_meta_key(SYNC_META_ENABLED).as_bytes(),
+        );
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "sync feed disable",
+            ApplyDurability::Sync,
+        )
+        .await?;
+        self.sync_feed.raise_floor(head);
+        self.sync_feed.clear_consumers();
+        tracing::info!(
+            "arrival feed deactivated: no sibling has read it within the stale-peer window"
+        );
+        Ok(())
+    }
+
+    /// Rows with `after < seq <= head`, oldest first, at most `limit`. Scans
+    /// with `fill_cache = false`: a cursor read touches each block once.
+    pub fn sync_feed_page(&self, after: u64, limit: usize) -> Result<Vec<SyncFeedRow>, String> {
+        let head = self.sync_feed.head();
+        let mut rows = Vec::new();
+        if after >= head || limit == 0 {
+            return Ok(rows);
+        }
+        let mut read_options = ReadOptions::default();
+        read_options.fill_cache(false);
+        read_options.set_iterate_upper_bound(sync_feed_key(head.saturating_add(1)));
+        let iter = self.db.iterator_cf_opt(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            read_options,
+            IteratorMode::From(
+                &sync_feed_key(after.saturating_add(1)),
+                rocksdb::Direction::Forward,
+            ),
+        );
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate sync feed: {error}"))?;
+            if sync_feed_seq_from_key(&key).is_none() {
+                break;
+            }
+            rows.push(decode_sync_feed_row(&key, &value)?);
+            if rows.len() >= limit {
+                break;
+            }
+        }
+        Ok(rows)
+    }
+
+    /// This node's forward cursor against a sibling, if it holds one.
+    pub fn sync_cursor(&self, peer: &str) -> Result<Option<SyncPosition>, String> {
+        self.db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                sync_cursor_key(peer).as_bytes(),
+            )
+            .map_err(|error| format!("failed to read sync cursor: {error}"))?
+            .map(|value| SyncPosition::decode_value(&value))
+            .transpose()
+    }
+
+    /// Persists the cursor after a page was applied whole. Non-sync: a lost
+    /// cursor only re-applies a page, which is idempotent.
+    pub fn write_sync_cursor(&self, peer: &str, position: SyncPosition) -> Result<(), String> {
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_cursor_key(peer).as_bytes(),
+            position.encode_value(),
+        );
+        self.write_batch_with_durability(batch, "sync cursor", ApplyDurability::DeferredBatch)
+    }
+
+    pub fn clear_sync_cursor(&self, peer: &str) -> Result<(), String> {
+        self.db
+            .delete_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                sync_cursor_key(peer).as_bytes(),
+            )
+            .map_err(|error| format!("failed to clear sync cursor: {error}"))
+    }
+
+    /// The region watermark for `origin_region` (design §4.2), if any.
+    pub fn sync_watermark(&self, origin_region: &str) -> Result<Option<u64>, String> {
+        self.db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                sync_wm_key(origin_region).as_bytes(),
+            )
+            .map_err(|error| format!("failed to read region watermark: {error}"))?
+            .map(|value| decode_backfill_watermark_value(&value).map(|(watermark, _)| watermark))
+            .transpose()
+    }
+
+    /// Every region watermark this node holds.
+    pub fn sync_watermarks(&self) -> Result<BTreeMap<String, u64>, String> {
+        let upper_bound = sync_wm_prefix_upper_bound();
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            IteratorMode::From(SYNC_WM_PREFIX.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut watermarks = BTreeMap::new();
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate region watermarks: {error}"))?;
+            if key.as_ref() >= upper_bound.as_slice() {
+                break;
+            }
+            let region = std::str::from_utf8(&key[SYNC_WM_PREFIX.len()..])
+                .map_err(|error| format!("invalid region watermark key: {error}"))?
+                .to_owned();
+            let (watermark, _) = decode_backfill_watermark_value(&value)?;
+            watermarks.insert(region, watermark);
+        }
+        Ok(watermarks)
+    }
+
+    /// Merges a watermark advance by max (design §4.3) and, when it moved,
+    /// writes the advance as a feed row in the same batch so the sibling
+    /// adopts it in commit order. Returns whether the watermark moved.
+    pub async fn advance_sync_watermark(
+        &self,
+        origin_region: &str,
+        version_ms: u64,
+    ) -> Result<bool, String> {
+        if self
+            .sync_watermark(origin_region)?
+            .is_some_and(|existing| existing >= version_ms)
+        {
+            return Ok(false);
+        }
+        let mut batch = WriteBatch::default();
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            sync_wm_key(origin_region).as_bytes(),
+            encode_backfill_watermark_value(version_ms, now_ms()),
+        );
+        let feed = self.stage_sync_feed_row(
+            &mut batch,
+            SyncFeedKind::Watermark,
+            origin_region,
+            version_ms,
+            None,
+        );
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "region watermark",
+            ApplyDurability::DeferredBatch,
+        )
+        .await?;
+        commit_sync_feed_tickets(feed.into_iter().collect());
+        Ok(true)
+    }
+
+    /// The origin region of a record, if it has a manifest at all
+    /// (`Some(None)` for a manifest written before the field existed).
+    pub fn manifest_origin_region(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<Option<String>>, String> {
+        if let Some(manifest) = self.manifest_cache_get_retained(artifact_id) {
+            return Ok(Some(manifest.origin_region.clone()));
+        }
+        Ok(self
+            .manifest_from_db(artifact_id)?
+            .map(|manifest| manifest.origin_region))
+    }
+
+    /// One page of the backfill index read ascending from `from_version_ms`
+    /// inclusive (design §4.1): the forward region read. `after` is the raw
+    /// key of the last row a previous page returned; the scan resumes
+    /// strictly below it (keys sort newest-first, so ascending is a reverse
+    /// walk). Rows above `max_version_ms` are not listed (the settle guard).
+    /// With `origin_region`, artifact rows whose manifest names a different
+    /// origin are dropped — a record with no origin is listed by everyone,
+    /// and tombstones always are. The page reports `next_after` whenever the
+    /// scan stopped for a reason other than the guard or exhaustion, so a
+    /// page of nothing but foreign rows still makes progress.
+    pub fn backfill_index_page_ascending(
+        &self,
+        from_version_ms: u64,
+        after: Option<&[u8]>,
+        limit: usize,
+        max_version_ms: u64,
+        origin_region: Option<&str>,
+    ) -> Result<BackfillIndexPage, String> {
+        const SCAN_CAP: usize = 4 * MAX_PEER_PAGE_ITEMS;
+        let prefix = BACKFILL_IDX_PREFIX.as_bytes();
+        // Every key with version >= from sorts below prefix ++ !(from - 1),
+        // i.e. below prefix ++ (!from + 1); `from == 0` wants the whole
+        // keyspace.
+        let start = match after {
+            Some(after) => after.to_vec(),
+            None => match (!from_version_ms).checked_add(1) {
+                Some(bound) => {
+                    let mut key = prefix.to_vec();
+                    key.extend_from_slice(&bound.to_be_bytes());
+                    key
+                }
+                None => backfill_index_prefix_upper_bound(),
+            },
+        };
+        let mut read_options = ReadOptions::default();
+        read_options.fill_cache(false);
+        let iter = self.db.iterator_cf_opt(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            read_options,
+            IteratorMode::From(&start, rocksdb::Direction::Reverse),
+        );
+        let mut entries = Vec::new();
+        let mut last_key: Option<Vec<u8>> = None;
+        let mut scanned = 0_usize;
+        let mut more = false;
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate backfill index: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() >= after) {
+                continue;
+            }
+            if !key.starts_with(prefix) {
+                break;
+            }
+            let row = decode_backfill_index_row(&key, &value)?;
+            if row.version_ms < from_version_ms {
+                break;
+            }
+            if row.version_ms > max_version_ms {
+                break;
+            }
+            if entries.len() >= limit || scanned >= SCAN_CAP {
+                more = true;
+                break;
+            }
+            scanned += 1;
+            last_key = Some(key.to_vec());
+            if let Some(origin) = origin_region
+                && row.kind != BackfillRecordKind::NamespaceTombstone
+                && let Some(Some(actual)) = self.manifest_origin_region(&row.record_id)?
+                && actual != origin
+            {
+                continue;
+            }
+            entries.push(row);
+        }
+        Ok(BackfillIndexPage {
+            entries,
+            next_after: if more { last_key } else { None },
+        })
+    }
+
     // ---- Backfill per-peer watermarks (`backfill/wm/` keyspace) ----
 
     /// Reads a peer's persisted backfill watermark. An unreadable row decodes
@@ -7796,6 +8368,7 @@ impl Store {
                         // infer it from a request header it never saw.
                         branch: manifest.branch.clone(),
                         trunk: trunk.map(str::to_owned),
+                        origin_region: manifest.origin_region.clone(),
                     },
                 },
             )?);
@@ -7876,7 +8449,9 @@ impl Store {
         }
         self.db
             .write_opt(batch, &write_options)
-            .map_err(|error| format!("failed to write {label}: {error}"))
+            .map_err(|error| format!("failed to write {label}: {error}"))?;
+        self.sync_feed.notify_commit();
+        Ok(())
     }
 
     /// Request-path sibling of [`Self::write_batch_with_durability`] that
@@ -7933,6 +8508,7 @@ impl Store {
         .await
         .map_err(|error| format!("{label} write task failed: {error}"))?
         .map_err(|error| format!("failed to write {label}: {error}"))?;
+        self.sync_feed.notify_commit();
 
         let durability_seq = (durability == ApplyDurability::Sync)
             .then(|| self.wal_pending_seq.fetch_add(1, Ordering::AcqRel) + 1);
@@ -9297,6 +9873,67 @@ fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Resu
     file.seek_read(bytes, offset)
 }
 
+/// Reads the feed's persistent markers at open: the incarnation (minted and
+/// written on the first open of an empty store), the trim floor, whether the
+/// feed is on, and the last row on disk so seq allocation resumes above it.
+fn load_sync_feed_state(db: &DB, cap: u64) -> Result<SyncFeedState, String> {
+    let cf = db
+        .cf_handle(ROCKSDB_CF_KEY_VALUE)
+        .ok_or_else(|| "missing key_value column family".to_string())?;
+    let read_u64 = |name: &str| -> Result<Option<u64>, String> {
+        let value = db
+            .get_cf(cf, sync_meta_key(name).as_bytes())
+            .map_err(|error| format!("failed to read sync marker {name}: {error}"))?;
+        Ok(value.and_then(|value| {
+            let bytes: [u8; 8] = value.as_slice().try_into().ok()?;
+            Some(u64::from_be_bytes(bytes))
+        }))
+    };
+    let incarnation = match read_u64(SYNC_META_INCARNATION)? {
+        Some(incarnation) => incarnation,
+        None => {
+            let incarnation = rand::random::<u64>().max(1);
+            db.put_cf(
+                cf,
+                sync_meta_key(SYNC_META_INCARNATION).as_bytes(),
+                incarnation.to_be_bytes(),
+            )
+            .map_err(|error| format!("failed to persist sync incarnation: {error}"))?;
+            incarnation
+        }
+    };
+    let floor = read_u64(SYNC_META_FLOOR)?.unwrap_or(0);
+    let enabled = db
+        .get_cf(cf, sync_meta_key(SYNC_META_ENABLED).as_bytes())
+        .map_err(|error| format!("failed to read sync feed marker: {error}"))?
+        .is_some();
+    let last_row = db
+        .iterator_cf(
+            cf,
+            IteratorMode::From(&sync_feed_prefix_upper_bound(), rocksdb::Direction::Reverse),
+        )
+        .next()
+        .transpose()
+        .map_err(|error| format!("failed to read the sync feed tail: {error}"))?
+        .and_then(|(key, _)| sync_feed_seq_from_key(&key));
+    let last_seq = last_row.unwrap_or(0).max(floor);
+    Ok(SyncFeedState::new(
+        incarnation,
+        last_seq,
+        floor,
+        enabled,
+        cap,
+    ))
+}
+
+/// Marks every staged feed row of a landed batch committed, in one place so
+/// no commit path forgets it.
+fn commit_sync_feed_tickets(tickets: Vec<SyncFeedTicket>) {
+    for ticket in tickets {
+        ticket.commit();
+    }
+}
+
 fn persisted_version_ms(version_ms: u64) -> u64 {
     if version_ms == 0 {
         now_ms()
@@ -9867,6 +10504,8 @@ mod tests {
                         replication_targets: &[],
                         branch: None,
                         trunk: None,
+                        origin_region: None,
+                        sync_feed_row: false,
                     };
                     let result = if direct {
                         store
@@ -10389,6 +11028,13 @@ mod tests {
             backfill_margin_percent: 40,
             backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
             backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
+            replication_pull: false,
+            sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
+            sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
+            sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
+            sync_region_settle_ms: crate::constants::DEFAULT_SYNC_REGION_SETTLE_MS,
+            sync_feed_stale_peer_secs: crate::constants::DEFAULT_SYNC_FEED_STALE_PEER_SECS,
+            sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
             analytics: None,
             usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
@@ -12070,6 +12716,7 @@ mod tests {
                 "application/octet-stream",
                 StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
                 version_ms,
+                None,
             )
             .await
             .expect("segmented record should stage")
@@ -12092,6 +12739,7 @@ mod tests {
                 "application/octet-stream",
                 body,
                 version_ms,
+                None,
                 None,
             )
             .await
@@ -12833,6 +13481,7 @@ mod tests {
             version_ms: 100,
             created_at_ms: 90,
             branch: None,
+            origin_region: None,
         });
 
         let first = cache.get("artifact").expect("manifest should be cached");
@@ -12864,6 +13513,7 @@ mod tests {
             version_ms: 100,
             created_at_ms: 90,
             branch: Some("branch".repeat(16)),
+            origin_region: None,
         });
 
         let measure = |clone_under_lock: bool| {
@@ -12943,6 +13593,7 @@ mod tests {
             version_ms: 100,
             created_at_ms: 90,
             branch: Some("branch".repeat(16)),
+            origin_region: None,
         });
 
         let measure = |retained: bool| {
@@ -13422,6 +14073,7 @@ mod tests {
             version_ms: 100,
             created_at_ms: 100,
             branch: None,
+            origin_region: None,
         };
 
         store
@@ -16520,6 +17172,7 @@ mod tests {
             version_ms,
             created_at_ms,
             branch: None,
+            origin_region: None,
         };
         let record = encode_manifest_record(&manifest).expect("manifest should encode");
         (artifact_id, record)
@@ -18389,6 +19042,7 @@ mod tests {
                     version_ms: 1,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("failed to enqueue bulk message");
@@ -18405,6 +19059,7 @@ mod tests {
                     version_ms: 2,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("failed to enqueue metadata message");
@@ -18441,6 +19096,7 @@ mod tests {
                 version_ms: 1,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         }
     }
@@ -18458,6 +19114,7 @@ mod tests {
                 version_ms: 2,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         }
     }
@@ -18619,6 +19276,7 @@ mod tests {
                     inline: true,
                     branch: None,
                     trunk: None,
+                    origin_region: Some("local".into()),
                 }
             );
         }

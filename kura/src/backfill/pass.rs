@@ -1110,6 +1110,7 @@ where
                         &body,
                         prelude.version_ms,
                         meta.branch.as_deref(),
+                        meta.origin_region.as_deref(),
                     )
                     .await
                     .map_err(PassAbort::Hard)?;
@@ -1173,6 +1174,7 @@ where
                             &body,
                             prelude.version_ms,
                             meta.branch.as_deref(),
+                            meta.origin_region.as_deref(),
                         )
                         .await
                         .map_err(PassAbort::Hard)?;
@@ -1241,6 +1243,7 @@ where
                         &meta.content_type,
                         staged_path,
                         prelude.version_ms,
+                        meta.origin_region.as_deref(),
                     )
                     .await
                     .map(|staged| match staged {
@@ -2751,6 +2754,7 @@ mod tests {
                         key: entry.record_id.rsplit('/').next().unwrap_or("k").to_owned(),
                         content_type: "application/octet-stream".to_owned(),
                         branch: None,
+                        origin_region: None,
                     }
                     .to_wire_bytes()
                     .expect("manifest meta should encode");

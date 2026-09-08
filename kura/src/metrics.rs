@@ -116,6 +116,21 @@ pub struct MetricsInner {
     outbox_peer_capacity: Gauge,
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
     outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
+    sync_forward_index_entries: Gauge,
+    sync_forward_index_dropped: Counter,
+    sync_forward_cursor_lag_entries: Family<SyncPeerLabels, Gauge>,
+    sync_forward_cursor_lag_seconds: Family<SyncPeerLabels, Gauge>,
+    sync_forward_fell_behind: Family<SyncReasonLabels, Counter>,
+    sync_forward_drain_timeout: Counter,
+    sync_pull_links: Family<SyncLinkLabels, Gauge>,
+    region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
+    region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
+    region_sync_last_cycle_duration_seconds: Family<SyncRegionLabels, Gauge>,
+    peer_clock_skew_seconds: Family<SyncPeerLabels, Gauge>,
+    gateway_role: Family<GatewayRoleLabels, Gauge>,
+    gateway_role_changes: Counter,
     multipart_uploads: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
@@ -675,6 +690,21 @@ impl Metrics {
         let outbox_peer_capacity = Gauge::default();
         let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
+        let sync_forward_index_entries = Gauge::default();
+        let sync_forward_index_dropped = Counter::default();
+        let sync_forward_cursor_lag_entries = Family::<SyncPeerLabels, Gauge>::default();
+        let sync_forward_cursor_lag_seconds = Family::<SyncPeerLabels, Gauge>::default();
+        let sync_forward_fell_behind = Family::<SyncReasonLabels, Counter>::default();
+        let sync_forward_drain_timeout = Counter::default();
+        let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
+        let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
+        let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
+        let region_sync_last_cycle_duration_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let peer_clock_skew_seconds = Family::<SyncPeerLabels, Gauge>::default();
+        let gateway_role = Family::<GatewayRoleLabels, Gauge>::default();
+        let gateway_role_changes = Counter::default();
         let multipart_uploads = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
@@ -1228,6 +1258,81 @@ impl Metrics {
             "kura_outbox_peer_capacity",
             "Replication outbox messages one target peer may hold",
             outbox_peer_capacity.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_index_entries",
+            "Arrival-feed rows retained between the trim floor and the head",
+            sync_forward_index_entries.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_index_dropped_total",
+            "Arrival-feed rows dropped at the cap before a sibling read them",
+            sync_forward_index_dropped.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_cursor_lag_entries",
+            "Feed rows between this node's cursor and the sibling's head",
+            sync_forward_cursor_lag_entries.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_cursor_lag_seconds",
+            "Age of the newest feed row this node applied from the sibling",
+            sync_forward_cursor_lag_seconds.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_fell_behind_total",
+            "Forward reads answered 410 by the sibling, by reason",
+            sync_forward_fell_behind.clone(),
+        );
+        registry.register(
+            "kura_sync_forward_drain_timeout_total",
+            "Shutdowns that exited before the sibling's cursor reached the head",
+            sync_forward_drain_timeout.clone(),
+        );
+        registry.register(
+            "kura_sync_pull_links",
+            "Pull links this node keeps open, by link kind",
+            sync_pull_links.clone(),
+        );
+        registry.register(
+            "kura_region_sync_last_success_age_seconds",
+            "Seconds since the last successful forward read from a remote region",
+            region_sync_last_success_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_watermark_age_seconds",
+            "Age of the region watermark, by origin region",
+            region_watermark_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_sync_entries_listed_total",
+            "Entries listed by forward region reads, by origin region",
+            region_sync_entries_listed.clone(),
+        );
+        registry.register(
+            "kura_region_sync_bytes_fetched_total",
+            "Bytes fetched by region sync, by origin region",
+            region_sync_bytes_fetched.clone(),
+        );
+        registry.register(
+            "kura_region_sync_last_cycle_duration_seconds",
+            "Duration of the last completed backward pass over a remote region",
+            region_sync_last_cycle_duration_seconds.clone(),
+        );
+        registry.register(
+            "kura_peer_clock_skew_seconds",
+            "Peer clock minus local clock, from listing responses",
+            peer_clock_skew_seconds.clone(),
+        );
+        registry.register(
+            "kura_gateway_role",
+            "Whether this node holds its region's gateway role",
+            gateway_role.clone(),
+        );
+        registry.register(
+            "kura_gateway_role_changes_total",
+            "Gateway role transitions on this node",
+            gateway_role_changes.clone(),
         );
         registry.register(
             "kura_multipart_uploads",
@@ -1821,6 +1926,21 @@ impl Metrics {
                 outbox_peer_capacity,
                 outbox_lane_messages,
                 outbox_target_messages,
+                sync_forward_index_entries,
+                sync_forward_index_dropped,
+                sync_forward_cursor_lag_entries,
+                sync_forward_cursor_lag_seconds,
+                sync_forward_fell_behind,
+                sync_forward_drain_timeout,
+                sync_pull_links,
+                region_sync_last_success_age_seconds,
+                region_watermark_age_seconds,
+                region_sync_entries_listed,
+                region_sync_bytes_fetched,
+                region_sync_last_cycle_duration_seconds,
+                peer_clock_skew_seconds,
+                gateway_role,
+                gateway_role_changes,
                 multipart_uploads,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
@@ -2522,6 +2642,132 @@ impl Metrics {
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
+    }
+
+    // ---- Pull-based replication (design §6.2) ----
+
+    pub fn update_sync_feed_depth(&self, rows: u64) {
+        self.sync_forward_index_entries.set(rows as i64);
+    }
+
+    pub fn record_sync_feed_dropped(&self, rows: u64) {
+        self.sync_forward_index_dropped.inc_by(rows);
+    }
+
+    pub fn set_sync_forward_cursor_lag(&self, peer: &str, entries: u64, seconds: u64) {
+        let labels = SyncPeerLabels {
+            peer: peer.to_owned(),
+        };
+        self.sync_forward_cursor_lag_entries
+            .get_or_create(&labels)
+            .set(entries as i64);
+        self.sync_forward_cursor_lag_seconds
+            .get_or_create(&labels)
+            .set(seconds as i64);
+    }
+
+    pub fn clear_sync_forward_cursor_lag(&self, peer: &str) {
+        let labels = SyncPeerLabels {
+            peer: peer.to_owned(),
+        };
+        self.sync_forward_cursor_lag_entries.remove(&labels);
+        self.sync_forward_cursor_lag_seconds.remove(&labels);
+    }
+
+    pub fn record_sync_forward_fell_behind(&self, reason: &str) {
+        self.sync_forward_fell_behind
+            .get_or_create(&SyncReasonLabels {
+                reason: reason.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_sync_forward_drain_timeout(&self) {
+        self.sync_forward_drain_timeout.inc();
+    }
+
+    pub fn update_sync_pull_links(&self, link: &str, count: usize) {
+        self.sync_pull_links
+            .get_or_create(&SyncLinkLabels {
+                link: link.to_owned(),
+            })
+            .set(count as i64);
+    }
+
+    pub fn set_region_sync_last_success_age(&self, region: &str, seconds: u64) {
+        self.region_sync_last_success_age_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
+    pub fn set_region_watermark_age(&self, region: &str, seconds: u64) {
+        self.region_watermark_age_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(seconds as i64);
+    }
+
+    pub fn clear_region_sync_gauges(&self, region: &str) {
+        let labels = SyncRegionLabels {
+            region: region.to_owned(),
+        };
+        self.region_sync_last_success_age_seconds.remove(&labels);
+        self.region_watermark_age_seconds.remove(&labels);
+        self.region_sync_last_cycle_duration_seconds.remove(&labels);
+    }
+
+    pub fn record_region_sync_listed(&self, region: &str, entries: u64) {
+        self.region_sync_entries_listed
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .inc_by(entries);
+    }
+
+    pub fn record_region_sync_bytes(&self, region: &str, bytes: u64) {
+        self.region_sync_bytes_fetched
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .inc_by(bytes);
+    }
+
+    pub fn set_region_sync_last_cycle_duration(&self, region: &str, duration: Duration) {
+        self.region_sync_last_cycle_duration_seconds
+            .get_or_create(&SyncRegionLabels {
+                region: region.to_owned(),
+            })
+            .set(duration.as_secs() as i64);
+    }
+
+    pub fn set_peer_clock_skew(&self, peer: &str, skew_seconds: i64) {
+        self.peer_clock_skew_seconds
+            .get_or_create(&SyncPeerLabels {
+                peer: peer.to_owned(),
+            })
+            .set(skew_seconds);
+    }
+
+    /// One series per node: `state="gateway"` is 1 while this node holds the
+    /// role and `state="standby"` while it does not.
+    pub fn update_gateway_role(&self, gateway: bool) {
+        self.gateway_role
+            .get_or_create(&GatewayRoleLabels {
+                state: "gateway".to_owned(),
+            })
+            .set(i64::from(gateway));
+        self.gateway_role
+            .get_or_create(&GatewayRoleLabels {
+                state: "standby".to_owned(),
+            })
+            .set(i64::from(!gateway));
+    }
+
+    pub fn record_gateway_role_change(&self) {
+        self.gateway_role_changes.inc();
     }
 
     pub fn update_outbox_capacity(&self, max_depth: usize) {
@@ -3240,6 +3486,31 @@ struct BackfillPassEventLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct BackfillPassPeerLabels {
     peer: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncPeerLabels {
+    peer: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncRegionLabels {
+    region: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncReasonLabels {
+    reason: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct SyncLinkLabels {
+    link: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct GatewayRoleLabels {
+    state: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
