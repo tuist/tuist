@@ -1679,6 +1679,22 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
+    let sync_links: Vec<serde_json::Value> = state
+        .sync
+        .link_statuses()
+        .into_iter()
+        .map(|link| {
+            serde_json::json!({
+                "kind": link.kind.as_str(),
+                "peer": link.peer,
+                "region": link.region,
+                "phase": link.phase.as_str(),
+                "settled": link.settled,
+                "lag_entries": link.lag_entries,
+            })
+        })
+        .collect();
+
     Json(serde_json::json!({
         "status": "ok",
         "generation": cluster.generation,
@@ -1691,6 +1707,25 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
+        "pulling": state.replication_pull(),
+        "gateway": state.sync.own_gateway(),
+        "sync_links": sync_links,
+        "feed": {
+            "enabled": state.store.sync_feed().enabled(),
+            "head": state.store.sync_feed().head(),
+            "floor": state.store.sync_feed().floor(),
+            "consumers": state
+                .store
+                .sync_feed()
+                .consumers()
+                .into_iter()
+                .map(|(peer, consumer)| serde_json::json!({
+                    "peer": peer,
+                    "cursor": consumer.cursor,
+                    "pinned": consumer.pinned,
+                }))
+                .collect::<Vec<_>>(),
+        },
     }))
 }
 
@@ -2791,7 +2826,7 @@ async fn internal_sync_forward(
             );
         }
         let head = feed.head();
-        feed.note_consumer(peer, head);
+        feed.note_consumer_snapshot(peer, head);
         let watermarks = match state.store.sync_watermarks() {
             Ok(watermarks) => watermarks,
             Err(error) => {

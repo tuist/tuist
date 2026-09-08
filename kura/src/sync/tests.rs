@@ -520,7 +520,7 @@ async fn ascending_index_read_filters_pages_and_settles() {
     let context = test_context(|_| {}).await;
     let store = &context.state.store;
     let base = now_ms() - 10_000;
-    let mut apply = |key: &str, version_ms: u64, origin: Option<&str>| {
+    let apply = |key: &str, version_ms: u64, origin: Option<&str>| {
         let store = store.clone();
         let key = key.to_owned();
         let origin = origin.map(str::to_owned);
@@ -574,7 +574,18 @@ async fn ascending_index_read_filters_pages_and_settles() {
         vec![base + 3],
         "the young row sits above the settle guard"
     );
-    assert!(page.next_after.is_none(), "caught up");
+    assert!(
+        page.next_after.is_some(),
+        "the cursor moves whenever the scan did, caught up or not (D-14)"
+    );
+    let cursor = page.next_after.expect("cursor");
+    let page = store
+        .backfill_index_page_ascending(base, Some(&cursor), 10, now_ms(), Some("local"))
+        .expect("page");
+    assert!(
+        page.entries.is_empty() && page.next_after.is_none(),
+        "nothing scanned: caught up"
+    );
     let unfiltered = store
         .backfill_index_page_ascending(base, None, 10, now_ms(), None)
         .expect("page");

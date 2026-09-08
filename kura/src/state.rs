@@ -97,6 +97,13 @@ pub struct AppState {
     /// `KURA_REPLICATION_PULL` and switchable at runtime by the control
     /// plane's account flag.
     pub replication_pull: std::sync::atomic::AtomicBool,
+    /// What every reachable peer's `/_internal/status` last said, refreshed
+    /// each membership tick; the role rule's input.
+    pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
+    /// Roles the control plane published beside the peer list.
+    pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
+    /// The pull links (design §3, §4), driven by the membership loop.
+    pub sync: Arc<crate::sync::coordinator::SyncCoordinator>,
 }
 
 /// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
@@ -513,6 +520,15 @@ impl AppState {
         targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
+        // The per-peer rule of the flip (design §5.2): a peer that pulls is
+        // no longer pushed to.
+        if self.replication_pull() {
+            for view in self.peer_views.load().iter() {
+                if view.pulling {
+                    targets.remove(&view.url);
+                }
+            }
+        }
         let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());
         self.replication_target_cache.store(targets.clone());
         targets
@@ -552,9 +568,11 @@ impl AppState {
         // serving, and no backfill path clears the flag — only the orthogonal
         // /ready inputs (writer lock, draining) can take the node out of
         // rotation.
-        if !self.backfill.cycle_snapshot().is_backfilling()
-            || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent
-        {
+        // Pull links have their own settle term (design §3.6): the sibling
+        // bootstrap, or for a region of one the initial region passes.
+        let settled = !self.backfill.cycle_snapshot().is_backfilling()
+            && self.sync.bootstrap_settled(self.replication_pull());
+        if settled || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent {
             self.runtime.mark_serving();
         }
     }
@@ -591,6 +609,9 @@ impl AppState {
                 "initial backfill cycle in progress (ring {fullness}% < {}%)",
                 self.config.backfill_ready_ring_percent
             ));
+        }
+        if !self.runtime.is_serving() && !self.sync.bootstrap_settled(self.replication_pull()) {
+            reasons.push("replica bootstrap in progress".to_string());
         }
 
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();

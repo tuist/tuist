@@ -2394,7 +2394,7 @@ impl Metrics {
         }
     }
 
-    fn note_peer_connection_failure(&self) {
+    pub fn note_peer_connection_failure(&self) {
         self.peer_connection_failures.inc();
         self.rollout_snapshot
             .peer_connection_failure_count

@@ -253,6 +253,9 @@ async fn run_with_config(
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
         replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -484,6 +487,30 @@ async fn run_with_config(
             "timed out waiting for inflight requests to drain during shutdown"
         );
     }
+    // The departing node waits to be pulled (design §3.5): the sibling's
+    // cursor reaching the head, bounded by what is left of the budget less
+    // a margin for the process exit. Normally nothing, since the sibling
+    // long-polls continuously.
+    if state.replication_pull() && state.store.sync_feed().enabled() {
+        let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
+        let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
+        let deadline = Instant::now() + shutdown_budget.remaining().saturating_sub(margin);
+        let mut caught_up = state.store.sync_feed().consumers_caught_up(stale);
+        while !caught_up && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            caught_up = state.store.sync_feed().consumers_caught_up(stale);
+        }
+        if caught_up {
+            info!("sibling cursor reached the head before exit");
+        } else {
+            state.metrics.record_sync_forward_drain_timeout();
+            warn!(
+                head = state.store.sync_feed().head(),
+                "exiting before the sibling's cursor reached the head; recent writes lag for the restart"
+            );
+        }
+    }
+    state.sync.shutdown();
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }

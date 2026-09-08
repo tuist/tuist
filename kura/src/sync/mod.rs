@@ -11,8 +11,13 @@
 //! [`roles`] decides who is a gateway from the membership view (and from the
 //! roles the control plane publishes when it has better information).
 
+pub mod coordinator;
 pub mod feed;
+pub mod region;
+pub mod replica;
 pub mod roles;
 
+#[cfg(test)]
+mod link_tests;
 #[cfg(test)]
 mod tests;

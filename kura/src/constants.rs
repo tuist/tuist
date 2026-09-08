@@ -422,32 +422,6 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn response_stream_chunks_follow_payload_size_with_bounded_allocation_granularity() {
-        assert_eq!(
-            response_stream_chunk_bytes(0),
-            RESPONSE_STREAM_MIN_CHUNK_BYTES
-        );
-        assert_eq!(response_stream_chunk_bytes(32 * 1024), 32 * 1024);
-        assert_eq!(
-            response_stream_chunk_bytes(u64::MAX),
-            RESPONSE_STREAM_CHUNK_BYTES
-        );
-        assert_eq!(
-            encoded_response_stream_chunk_bytes(0),
-            RESPONSE_STREAM_MIN_CHUNK_BYTES * 2
-        );
-        assert_eq!(
-            encoded_response_stream_chunk_bytes(RESPONSE_STREAM_CHUNK_BYTES as u64),
-            RESPONSE_STREAM_CHUNK_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES
-        );
-    }
-}
-
 // ---- Pull-based replication (docs/replication-design.md) ----
 
 /// `KURA_SYNC_FEED_MAX_ROWS` default: rows the arrival feed retains before it
@@ -482,3 +456,29 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
 /// Re-check cadence of an idle long-poll, the bound on a missed wake.
 pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_stream_chunks_follow_payload_size_with_bounded_allocation_granularity() {
+        assert_eq!(
+            response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+        assert_eq!(response_stream_chunk_bytes(32 * 1024), 32 * 1024);
+        assert_eq!(
+            response_stream_chunk_bytes(u64::MAX),
+            RESPONSE_STREAM_CHUNK_BYTES
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES * 2
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(RESPONSE_STREAM_CHUNK_BYTES as u64),
+            RESPONSE_STREAM_CHUNK_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+    }
+}

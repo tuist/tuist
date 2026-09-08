@@ -47,7 +47,7 @@ use crate::{
     reapi::chunking::is_recipe_key,
     replication::{read_bounded_body, stream_response_to_temp},
     state::SharedState,
-    store::{BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
+    store::{ApplyProvenance, BackfillApplyBatch, BackfillStageOutcome, StagedArtifactPath},
     utils::{BackfillRecordKind, TempFileCleanup, temp_file_path, url_encode},
 };
 
@@ -138,10 +138,29 @@ pub enum BackfillPassOutcome {
     },
 }
 
+/// Where a pass takes its entries from.
+#[derive(Clone, Debug)]
+pub enum PassSource {
+    /// Walk the peer's index newest-first within the window (a backward
+    /// pass).
+    PeerIndex,
+    /// Apply exactly these entries — one forward page of the arrival feed
+    /// or of the ascending region read (design §3.1, §4.1; implementation
+    /// decision D-9).
+    Entries(Vec<BackfillEntry>),
+}
+
 /// Pass knobs. Production passes take these from config and compiled
 /// constants via [`BackfillPassTuning::from_config`]; tests shrink them.
 #[derive(Clone, Debug)]
 pub struct BackfillPassTuning {
+    pub source: PassSource,
+    /// Whether applies earn arrival-feed rows: yes on a cross-region link,
+    /// never on the sibling link (design §3.1).
+    pub feed_rows: bool,
+    /// Whether body fetches go through the WAN limiter; the sibling link
+    /// bypasses it (design §4.8).
+    pub bandwidth_shaped: bool,
     /// Batch byte threshold and up-front oversized cutoff
     /// (`KURA_BACKFILL_BATCH_BYTES`).
     pub batch_bytes: u64,
@@ -162,6 +181,9 @@ pub struct BackfillPassTuning {
 impl BackfillPassTuning {
     pub fn from_config(config: &Config) -> Self {
         Self {
+            source: PassSource::PeerIndex,
+            feed_rows: true,
+            bandwidth_shaped: true,
             batch_bytes: config.backfill_batch_bytes,
             flush_interval: Duration::from_millis(BACKFILL_BATCH_FLUSH_INTERVAL_MS),
             retry_backoff_base: Duration::from_millis(BACKFILL_RETRY_BACKOFF_BASE_MS),
@@ -346,6 +368,19 @@ async fn list_entries(
     context: &PassContext<'_>,
     queue: mpsc::Sender<QueuedFetch>,
 ) -> Result<BackfillPassEnd, PassAbort> {
+    if let PassSource::Entries(entries) = &context.tuning.source {
+        context.update_stats(|stats| stats.pages_listed += 1);
+        for entry in entries {
+            if context.cancel.is_cancelled() {
+                return Err(PassAbort::Cancelled);
+            }
+            let Some(kind) = BackfillRecordKind::from_wire_name(&entry.record_kind) else {
+                continue;
+            };
+            list_entry(context, &queue, kind, entry).await?;
+        }
+        return Ok(BackfillPassEnd::PeerExhausted);
+    }
     let mut after: Option<String> = None;
     loop {
         let page = fetch_listing_page(context, after.as_deref()).await?;
@@ -880,7 +915,13 @@ async fn spool_batch_response(
     let cleanup = TempFileCleanup::new(path.clone(), disk_reservation);
     cancellable(
         context,
-        stream_response_to_temp(state, response, &path, limit),
+        stream_response_to_temp(
+            state,
+            response,
+            &path,
+            limit,
+            context.tuning.bandwidth_shaped,
+        ),
     )
     .await?
     .map_err(PassAbort::Hard)?;
@@ -913,7 +954,11 @@ async fn apply_spooled_batch(
     spool: &SpooledResponse,
     bounces: &mpsc::UnboundedSender<ClaimKey>,
 ) -> Result<(), PassAbort> {
-    let mut apply_batch = BackfillApplyBatch::new();
+    let mut apply_batch = if context.tuning.feed_rows {
+        BackfillApplyBatch::new()
+    } else {
+        BackfillApplyBatch::new().without_feed_rows()
+    };
     // Listed keys and transfer sizes of staged records, in staging order —
     // the group-commit callback below resolves them group by group.
     let mut staged_resolutions: Vec<(ClaimKey, u64)> = Vec::new();
@@ -1122,7 +1167,11 @@ where
             None => {
                 state
                     .store
-                    .apply_replicated_inline_artifact_from_bytes(
+                    .apply_replicated_inline_artifact_from_bytes_with(
+                        ApplyProvenance {
+                            origin_region: meta.origin_region.as_deref(),
+                            sync_feed_row: context.tuning.feed_rows,
+                        },
                         producer,
                         &meta.namespace_id,
                         &meta.key,
@@ -1252,7 +1301,11 @@ where
                     }),
                 None => state
                     .store
-                    .apply_replicated_artifact_from_path(
+                    .apply_replicated_artifact_from_path_with(
+                        ApplyProvenance {
+                            origin_region: meta.origin_region.as_deref(),
+                            sync_feed_row: context.tuning.feed_rows,
+                        },
                         producer,
                         &meta.namespace_id,
                         &meta.key,
@@ -1377,7 +1430,13 @@ async fn apply_individual_response(
     let _cleanup = TempFileCleanup::new(path.clone(), disk_reservation);
     cancellable(
         context,
-        stream_response_to_temp(state, response, &path, limit),
+        stream_response_to_temp(
+            state,
+            response,
+            &path,
+            limit,
+            context.tuning.bandwidth_shaped,
+        ),
     )
     .await?
     .map_err(PassAbort::Hard)?;
@@ -1437,7 +1496,11 @@ async fn apply_tombstone(context: &PassContext<'_>, key: &ClaimKey) -> Result<()
     context
         .state
         .store
-        .apply_replicated_namespace_delete(&key.record_id, key.version_ms)
+        .apply_replicated_namespace_delete_with(
+            &key.record_id,
+            key.version_ms,
+            context.tuning.feed_rows,
+        )
         .await
         .map_err(PassAbort::Hard)?;
     context.guard.resolve_applied(key);
@@ -1615,6 +1678,9 @@ mod tests {
 
     fn tuning() -> BackfillPassTuning {
         BackfillPassTuning {
+            source: PassSource::PeerIndex,
+            feed_rows: true,
+            bandwidth_shaped: true,
             batch_bytes: BACKFILL_BODIES_BATCH_BYTES,
             flush_interval: Duration::from_millis(200),
             retry_backoff_base: Duration::from_millis(10),

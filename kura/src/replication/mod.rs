@@ -37,6 +37,8 @@ use crate::{
     utils::{replication_target_label, url_encode},
 };
 
+use crate::sync::roles::PeerView;
+
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
 // How much of a staged peer body may accumulate in the page cache before the
@@ -48,6 +50,12 @@ struct PeerStatusPayload {
     region: String,
     tenant_id: String,
     node_url: String,
+    /// Additive (design §2.4, §5.2): an older peer reports neither and is
+    /// treated as serving and not pulling.
+    #[serde(default)]
+    traffic_state: Option<String>,
+    #[serde(default)]
+    pulling: Option<bool>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -139,6 +147,7 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
+        let mut views: Vec<PeerView> = Vec::new();
         let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
@@ -182,6 +191,14 @@ async fn membership_task_loop(state: SharedState) {
                                 continue;
                             }
                             members.insert(payload.region.clone());
+                            let traffic_state = payload.traffic_state.as_deref();
+                            views.push(PeerView {
+                                url: payload.node_url.clone(),
+                                region: payload.region.clone(),
+                                serving: traffic_state.is_none_or(|s| s == "serving"),
+                                draining: traffic_state == Some("draining"),
+                                pulling: payload.pulling.unwrap_or(false),
+                            });
                             peer_nodes.insert(payload.node_url, payload.region);
                         }
                         Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
@@ -209,6 +226,9 @@ async fn membership_task_loop(state: SharedState) {
             .cloned()
             .collect();
         state.note_discovered_only_peers(discovered_only).await;
+        views.sort_by(|a, b| a.url.cmp(&b.url));
+        views.dedup_by(|a, b| a.url == b.url);
+        state.peer_views.store(Arc::new(views));
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
             .await;
@@ -216,6 +236,7 @@ async fn membership_task_loop(state: SharedState) {
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
         state.backfill.evaluate(&state, &membership_update);
+        state.sync.evaluate(&state);
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;
     }
@@ -304,6 +325,7 @@ pub(crate) async fn stream_response_to_temp(
     response: reqwest::Response,
     path: &Path,
     staging_limit: u64,
+    bandwidth_shaped: bool,
 ) -> Result<(), String> {
     let parent = path
         .parent()
@@ -325,7 +347,8 @@ pub(crate) async fn stream_response_to_temp(
                     "peer body response exceeded reserved {staging_limit} bytes"
                 ));
             }
-            if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            if bandwidth_shaped && let Some(limiter) = state.replication_bandwidth_limiter.as_ref()
+            {
                 limiter.acquire(chunk.len()).await;
             }
             destination
@@ -1579,7 +1602,7 @@ mod tests {
             .expect("peer body request should succeed");
         let path = ctx.state.config.tmp_dir.join("backfill").join("overrun");
 
-        let error = stream_response_to_temp(&ctx.state, response, &path, reserved)
+        let error = stream_response_to_temp(&ctx.state, response, &path, reserved, true)
             .await
             .expect_err("a body larger than the reservation must be rejected");
         assert!(

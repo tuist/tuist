@@ -1859,6 +1859,7 @@ impl Store {
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
+    #[cfg(test)]
     pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
         producer: ArtifactProducer,
@@ -7464,10 +7465,6 @@ impl Store {
         &self.sync_feed
     }
 
-    pub fn region(&self) -> &str {
-        &self.region
-    }
-
     /// Stages one arrival-feed row for a change staged into `batch`, with
     /// the cap's drop-oldest trim in the same batch when the retained range
     /// would exceed it (INV-7: the write is never refused). `None` while the
@@ -7824,9 +7821,13 @@ impl Store {
             }
             entries.push(row);
         }
+        // The cursor moves whenever the scan did: a page of nothing but
+        // foreign rows still makes progress, and a caught-up requester
+        // keeps its cursor (the page then carries none).
+        let _ = more;
         Ok(BackfillIndexPage {
             entries,
-            next_after: if more { last_key } else { None },
+            next_after: last_key,
         })
     }
 

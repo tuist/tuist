@@ -3,9 +3,9 @@
 //!
 //! On disk it is one row per change under `sync/fwd/{seq}` in the
 //! `key_value` column family, staged into the same WriteBatch as the change
-//! it describes. This module owns the row codec, the position (`incarnation`
-//! + `seq`) codec, and the in-memory head/floor/consumer state that decides
-//! what a reader may be served; the store owns the batches.
+//! it describes. This module owns the row codec, the position codec
+//! (`incarnation` and `seq`), and the in-memory head/floor/consumer state
+//! that decides what a reader may be served; the store owns the batches.
 //!
 //! Head is the *contiguous committed* head. A seq is allocated at staging
 //! time, before its batch lands, and batches commit in any order, so a reader
@@ -238,6 +238,10 @@ impl SyncPosition {
 pub struct FeedConsumer {
     pub cursor: u64,
     pub seen_at: Instant,
+    /// Registered by a `{head}` snapshot rather than a forward read: it
+    /// pins the trim floor while the sibling's backward pass runs, but the
+    /// drain gate does not wait for it (design §3.5).
+    pub pinned: bool,
 }
 
 /// In-memory state of this node's feed. Owned by the store behind an `Arc`
@@ -344,6 +348,7 @@ impl SyncFeedState {
         self.head().saturating_sub(self.floor())
     }
 
+    #[cfg(test)]
     pub fn dropped_total(&self) -> u64 {
         self.dropped_total.load(Ordering::Relaxed)
     }
@@ -387,6 +392,14 @@ impl SyncFeedState {
     }
 
     pub fn note_consumer(&self, peer: &str, cursor: u64) {
+        self.insert_consumer(peer, cursor, false);
+    }
+
+    pub fn note_consumer_snapshot(&self, peer: &str, cursor: u64) {
+        self.insert_consumer(peer, cursor, true);
+    }
+
+    fn insert_consumer(&self, peer: &str, cursor: u64, pinned: bool) {
         self.consumers
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -395,6 +408,7 @@ impl SyncFeedState {
                 FeedConsumer {
                     cursor,
                     seen_at: Instant::now(),
+                    pinned,
                 },
             );
     }
@@ -408,6 +422,7 @@ impl SyncFeedState {
             .collect()
     }
 
+    #[cfg(test)]
     pub fn forget_consumer(&self, peer: &str) {
         self.consumers
             .lock()
@@ -449,8 +464,13 @@ impl SyncFeedState {
     /// design §3.5). True with no live consumer.
     pub fn consumers_caught_up(&self, stale: std::time::Duration) -> bool {
         let head = self.head();
-        self.lowest_live_cursor(stale)
-            .is_none_or(|cursor| cursor >= head)
+        let now = Instant::now();
+        self.consumers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .filter(|consumer| !consumer.pinned && now.duration_since(consumer.seen_at) <= stale)
+            .all(|consumer| consumer.cursor >= head)
     }
 }
 

@@ -596,6 +596,12 @@ impl BackfillLifecycle {
     // so a poisoned lock would panic every restart and take peer discovery
     // down with it. Critical sections mutate atomically (the claims.rs
     // precedent), so a poisoned value is still consistent.
+    /// The node's one shared claim set, so the pull links single-flight
+    /// records with the passes scheduled here.
+    pub(crate) fn claims(&self) -> &Arc<ClaimSet> {
+        &self.claims
+    }
+
     fn lock_machine(&self) -> MutexGuard<'_, LifecycleMachine> {
         self.machine.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -613,16 +619,40 @@ impl BackfillLifecycle {
     /// One level-triggered evaluation, called from the membership loop at its
     /// cadence with that tick's membership delta.
     pub fn evaluate(self: &Arc<Self>, app: &SharedState, update: &MembershipUpdate) {
+        // Peers on pull belong to the sync coordinator (design §5.2): this
+        // scheduler neither passes over them nor gates readiness on them.
+        let pulling: BTreeSet<String> = if app.replication_pull() {
+            app.peer_views
+                .load()
+                .iter()
+                .filter(|view| view.pulling)
+                .map(|view| view.url.clone())
+                .collect()
+        } else {
+            BTreeSet::new()
+        };
+        let discovered: Vec<String> = update
+            .discovered_peers
+            .iter()
+            .filter(|peer| !pulling.contains(*peer))
+            .cloned()
+            .collect();
+        let mut lost: Vec<String> = update.lost_peers.clone();
+        for peer in self.lock_machine().present_peers() {
+            if pulling.contains(&peer) && !lost.contains(&peer) {
+                lost.push(peer);
+            }
+        }
         let control_plane_peers: Vec<String> = app
             .dynamic_peers
             .load()
             .iter()
-            .filter(|url| **url != app.config.node_url)
+            .filter(|url| **url != app.config.node_url && !pulling.contains(*url))
             .cloned()
             .collect();
         let tick = MembershipTick {
-            discovered: &update.discovered_peers,
-            lost: &update.lost_peers,
+            discovered: &discovered,
+            lost: &lost,
             view_settled: update.initial_discovery_completed && !app.runtime.peer_view_pending(),
             control_plane_peers: &control_plane_peers,
             admission: app.memory.allow_background_admission(),

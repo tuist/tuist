@@ -221,6 +221,9 @@ where
         backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
         replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
 

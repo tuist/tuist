@@ -48,20 +48,20 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 
 ### Phase 3 — pullers
 
-- [ ] T3.1 Replica sync task per same-region peer: snapshot `{head}` →
+- [x] T3.1 Replica sync task per same-region peer: snapshot `{head}` →
       horizon-bounded backward pass → forward reads; cursor persisted per
       `(peer, incarnation)`; bodies through the existing backfill fetch/apply
       pipeline; page advances only when every entry is applied/declined/absent.
-- [ ] T3.2 `410` / missing cursor → snapshot, backward pass, forward.
-- [ ] T3.3 Region sync task per remote gateway (gateway role only): ascending
+- [x] T3.2 `410` / missing cursor → snapshot, backward pass, forward.
+- [x] T3.3 Region sync task per remote gateway (gateway role only): ascending
       forward reads from the per-origin watermark, capacity rule per entry,
       settle guard, backward pass with the pass-start buffer on
       enter/leave/restart/promotion.
-- [ ] T3.4 Watermark adoption from `{head}` after the backward pass completes.
+- [x] T3.4 Watermark adoption from `{head}` after the backward pass completes.
 
 ### Phase 4 — roles and the flip
 
-- [ ] T4.1 Local role derivation (serverless rule) from the membership view:
+- [x] T4.1 Local role derivation (serverless rule) from the membership view:
       group Ready non-draining peers by region, gateway = lowest node URL,
       overlap over gaps.
 - [ ] T4.2 Server publishes `peer_roles: [{url, region, gateway}]` beside
@@ -71,7 +71,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 - [ ] T4.3 kura-controller publishes `status.peerRoles` (complement of the
       primary, Ready and non-draining, lowest ordinal tie-break) and pins the
       instance's public peer Service to the gateway pod.
-- [ ] T4.4 The flip: `KURA_REPLICATION_PULL` env / server account flag
+- [x] T4.4 The flip: `KURA_REPLICATION_PULL` env / server account flag
       (`kura_replication_pull`), advertised as `pulling` in `/_internal/status`;
       per-peer rule (pull from pulling peers by role, push to the rest).
 - [ ] T4.5 Provisioner renders the flag into `extraEnv` and the manifest
@@ -79,12 +79,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 
 ### Phase 5 — lifecycle rules
 
-- [ ] T5.1 Drain gate: wait for the sibling cursor to reach head, bounded by
+- [x] T5.1 Drain gate: wait for the sibling cursor to reach head, bounded by
       the termination grace period less a margin; Helm value.
-- [ ] T5.2 Readiness follows the sibling (bootstrap settled + forward cursor
+- [x] T5.2 Readiness follows the sibling (bootstrap settled + forward cursor
       within one page); region of one keeps today's rule.
 - [ ] T5.3 Serve-side gate (INV-6) for young action-cache entries.
-- [ ] T5.4 Bandwidth limiter bypass for same-region peers.
+- [x] T5.4 Bandwidth limiter bypass for same-region peers.
 
 ### Phase 6 — observability and docs
 
@@ -185,3 +185,41 @@ off while a sibling is still reading forward, so the flag is a marker row
 **D-11 — Feed keys live under `sync/fwd/`, markers under `sync/meta/`.** The
 design wrote `sync/fwd/meta/incarnation`; a marker inside the row prefix
 would sit inside every row scan. Same column family, same rollback story.
+
+**D-12 — After a backward pass, the region watermark advances to the peer's
+clock at pass start, less the buffer.** The design advances it "on
+completion" without saying to what; the listing carries no origin per row,
+so "highest own-origin `version_ms` shown" is not observable from a
+backward pass. The serving gateway sits in the origin region, so its `now`
+(read from a one-row probe before the pass) is that region's clock domain,
+and `now − buffer` is below any record that could still be in flight to it
+(the same intra-region-lag assumption §4.4 already makes). INV-1's point —
+never the puller's clock — holds. A peer that sends no `now` (an older
+binary) leaves the watermark where it was.
+
+**D-13 — A snapshot pins the trim floor but not the drain gate.** The
+`{head}` request registers the sibling's position so the rows above it
+survive its backward pass, exactly as a forward cursor would; the drain gate
+ignores it, because the design says a mid-bootstrap sibling is not waited
+for. `FeedConsumer.pinned` carries the distinction.
+
+**D-14 — The ascending read always returns its page cursor.** With the
+cursor only present when a page was full, a caught-up requester had no way
+to continue past the newest row it was shown and would have re-listed it on
+every poll; with it present whenever the scan moved, the requester keeps it
+across long-polls and resumes from the watermark only after a failure. A
+page with neither entries nor cursor is the "caught up" signal the server's
+long-poll waits on.
+
+**D-15 — Roles are re-derived on every membership tick, links follow.** The
+coordinator diffs the desired links (siblings; remote gateways when this
+node is the gateway) against the running tasks and opens or cancels the
+difference. A role move therefore costs one cancelled pass and one new
+bootstrap on the new holder — the "brief pause" §2.1 budgets for.
+
+**D-16 — The legacy scheduler steps aside per peer.** Peers that advertise
+pulling are removed from the backfill lifecycle's view (never passed over,
+never part of its initial cycle) while this node pulls; peers that do not
+keep today's passes and pushes. Readiness combines both: the legacy cycle
+settled *and* the pull links settled (§3.6), or the ring-fullness escape.
+
