@@ -30,7 +30,7 @@ defmodule TuistWeb.TestsLiveTest do
     render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "[data-part='analytics']")
-    assert has_element?(lv, "#tests-analytics-scheme-dropdown", "Targets:")
+    assert has_element?(lv, "#tests-analytics-scheme-dropdown", "Invocation:")
     refute has_element?(lv, "[data-part='selective-testing']")
   end
 end

@@ -1902,7 +1902,7 @@ msgstr ""
 #: lib/tuist_web/helpers/test_labels.ex:17
 #: lib/tuist_web/helpers/test_labels.ex:20
 #, elixir-autogen, elixir-format
-msgid "Test targets"
+msgid "Test Targets"
 msgstr ""
 
 #: lib/tuist_web/helpers/test_labels.ex:32
