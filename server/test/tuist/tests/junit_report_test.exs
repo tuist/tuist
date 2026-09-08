@@ -5,7 +5,7 @@ defmodule Tuist.Tests.JunitReportTest do
 
   test "matches the shared command-line identity fixtures" do
     directory = Path.expand("../../../../cli/Tests/Fixtures/JUnitIdentity", __DIR__)
-    fixtures = directory |> Path.join("expected.json") |> File.read!() |> Jason.decode!()
+    fixtures = directory |> Path.join("expected.json") |> File.read!() |> JSON.decode!()
     reports = directory |> File.ls!() |> Enum.filter(&String.ends_with?(&1, ".xml"))
     assert Enum.sort(Enum.map(fixtures, & &1["file"])) == Enum.sort(reports)
 
