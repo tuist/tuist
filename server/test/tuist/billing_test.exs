@@ -164,6 +164,37 @@ defmodule Tuist.BillingTest do
       assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
     end
 
+    test "asks Stripe when the mirrored period has already closed" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      # A renewal webhook that is late, or an older event delivered after
+      # a newer one, leaves a period the account has already been
+      # invoiced for on the row.
+      now = DateTime.utc_now()
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_id",
+        current_period_start: DateTime.truncate(DateTime.shift(now, month: -2), :second),
+        current_period_end: DateTime.truncate(DateTime.shift(now, month: -1), :second)
+      )
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+         }}
+      end)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+
     test "falls back to Stripe for a row that has not seen a webhook yet" do
       # Given
       account = AccountsFixtures.organization_fixture(preload: [:account]).account

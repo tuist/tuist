@@ -636,8 +636,8 @@ defmodule Tuist.Billing do
 
   Read from the boundaries the subscription webhooks mirror onto the row,
   so a page that resolves the period costs Stripe nothing. A row written
-  before those columns existed, or by a payload that carried no period,
-  still asks Stripe once.
+  before those columns existed, by a payload that carried no period, or
+  by a renewal that has not arrived yet, still asks Stripe once.
   """
   def current_billing_period(%Account{} = account) do
     case get_current_active_subscription(account) do
@@ -647,14 +647,29 @@ defmodule Tuist.Billing do
   end
 
   defp subscription_billing_period(subscription) do
-    case {Map.get(subscription, :current_period_start), Map.get(subscription, :current_period_end)} do
-      {%DateTime{} = period_start, %DateTime{} = period_end} ->
-        {period_start, period_end}
+    period_start = Map.get(subscription, :current_period_start)
+    period_end = Map.get(subscription, :current_period_end)
 
-      _ ->
-        stripe_billing_period(Map.get(subscription, :subscription_id))
+    if current_period?(period_start, period_end) do
+      {period_start, period_end}
+    else
+      stripe_billing_period(Map.get(subscription, :subscription_id))
     end
   end
+
+  # The row is trusted only while it holds the period that is actually
+  # running. Stripe guarantees no ordering for webhooks, so a renewal
+  # delivered late, or an older event delivered after a newer one, leaves
+  # a closed period behind. Serving that would attribute usage to a cycle
+  # already invoiced and would date a runner credit grant into the past,
+  # which is worse than the request this exists to avoid.
+  defp current_period?(%DateTime{} = period_start, %DateTime{} = period_end) do
+    now = DateTime.utc_now()
+
+    not DateTime.before?(now, period_start) and DateTime.before?(now, period_end)
+  end
+
+  defp current_period?(_period_start, _period_end), do: false
 
   defp stripe_billing_period(subscription_id) when is_binary(subscription_id) do
     with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
