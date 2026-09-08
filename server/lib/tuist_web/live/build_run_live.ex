@@ -442,7 +442,14 @@ defmodule TuistWeb.BuildRunLive do
              is_binary(project) do
     if version == socket.assigns.timeline_version do
       run_id = socket.assigns.run.id
-      opts = [search: search, target: target, project: project]
+
+      summary =
+        case socket.assigns.timeline do
+          %{ok?: true, result: timeline} -> Map.take(timeline, [:total_count, :duration])
+          _ -> nil
+        end
+
+      opts = [search: search, target: target, project: project, summary: summary]
       opts = if params["reset"] == true, do: opts, else: Keyword.merge(opts, start: start, span: span)
 
       {:noreply,

@@ -1,3 +1,4 @@
+import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
 import { TimelineCache } from "./BuildTimelineCache.mjs";
 import { densityLayout } from "./BuildTimelineDensity.mjs";
 import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
@@ -51,6 +52,7 @@ export default {
     this.maxSpan = timeline.max_span || Math.min(this.duration, 120_000);
     this.range = timeline.range || { start: 0, span: Math.min(this.duration, 10_000) };
     this.initialRange = { ...this.range };
+    this.prefetch = new TimelinePrefetch();
     this.cache = new TimelineCache();
     this.cache.add(timeline.loaded_range || this.range, this.events);
     this.rangeInFlight = false;
@@ -141,12 +143,14 @@ export default {
       this.hideTooltip();
       this.cancelFocus();
       if (Math.abs(this.scrollport.scrollLeft - this.lastScrollLeft) > 0.5) {
+        const previousStart = this.range.start;
         this.range.start = scrollStart(
           this.scrollport.scrollLeft,
           this.scrollport.scrollWidth - this.scrollport.clientWidth,
           this.range,
           this.duration,
         );
+        this.prefetch.pan(previousStart, this.range.start);
         this.relayout();
       }
       this.scheduleDraw();
@@ -215,6 +219,7 @@ export default {
     this.search = this.control("search").value;
     this.select(null);
     this.range = { ...this.initialRange };
+    this.prefetch = new TimelinePrefetch();
     this.cache = new TimelineCache();
     this.rangeRequest = ++nextRangeRequest;
     this.rangeInFlight = false;
@@ -229,10 +234,8 @@ export default {
     this.layoutDirty = true;
     this.hideTooltip();
     this.chart.setAttribute("aria-busy", String(!this.cache.contains(this.range)));
-    const margin = Math.min(30_000, Math.max(15_000, this.range.span / 2));
-    const start = Math.max(0, this.range.start - margin);
-    const end = Math.min(this.duration, this.range.start + this.range.span + margin);
-    if (fetch && !this.cache.contains({ start, span: end - start })) this.requestRange();
+    const { needed } = this.prefetch.plan(this.range, this.duration);
+    if (fetch && !this.cache.contains(needed)) this.requestRange();
     this.scheduleDraw();
   },
 
@@ -240,11 +243,12 @@ export default {
     if (this.rangeInFlight) return;
     this.rangeInFlight = true;
     const request = (this.rangeRequest = ++nextRangeRequest);
+    this.rangeStartedAt = performance.now();
     this.part("range-error").hidden = true;
     this.pushEvent("load-timeline-range", {
       version: Number(this.payload),
       request_id: request,
-      ...this.range,
+      ...(this.resetRange ? this.range : this.prefetch.plan(this.range, this.duration).request),
       reset: !!this.resetRange,
       search: this.search,
       target: this.target,
@@ -272,6 +276,7 @@ export default {
     this.cache.add(timeline.loaded_range || timeline.range, normalizeEvents(timeline.events));
     this.events = this.cache.events;
     this.filtered = this.events;
+    this.prefetch.received(performance.now() - this.rangeStartedAt);
     this.relayout();
   },
 

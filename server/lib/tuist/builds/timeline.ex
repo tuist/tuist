@@ -16,18 +16,33 @@ defmodule Tuist.Builds.Timeline do
     project = Keyword.get(opts, :project, "")
     base = from(e in Step, hints: ["FINAL"], where: e.build_run_id == ^build_id)
 
-    {_, duration} =
-      ClickHouseRepo.one(from(e in base, select: {count(), max(fragment("? + ?", e.start_ms, e.duration_ms))}))
+    summary = Keyword.get(opts, :summary)
+
+    {total, duration} =
+      case summary do
+        %{total_count: total, duration: duration} -> {total, duration}
+        _ -> ClickHouseRepo.one(from(e in base, select: {count(), max(fragment("? + ?", e.start_ms, e.duration_ms))}))
+      end
 
     base = if target == "", do: base, else: from(e in base, where: e.target == ^target and e.project == ^project)
 
     base =
-      from(e in base,
-        where:
-          fragment("positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0", e.title, e.target, e.project, ^search)
-      )
+      if search == "" do
+        base
+      else
+        from(e in base,
+          where:
+            fragment(
+              "positionCaseInsensitiveUTF8(concat(?, ' ', ?, ' ', ?), ?) > 0",
+              e.title,
+              e.target,
+              e.project,
+              ^search
+            )
+        )
+      end
 
-    total = ClickHouseRepo.one(from(e in base, select: count()))
+    total = if search == "" and target == "", do: total, else: ClickHouseRepo.one(from(e in base, select: count()))
     duration = max(duration || 0, 1)
 
     initial_start =

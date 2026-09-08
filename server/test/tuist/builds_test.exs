@@ -112,6 +112,25 @@ defmodule Tuist.BuildsTest do
       assert Enum.map(late, & &1.event_id) == [4]
     end
 
+    test "reuses the server-held summary for scrolling without aggregate queries" do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          build_steps: [
+            %{event_id: 1, title: "Compile", start_ms: 100_000.0, duration_ms: 2000.0, status: "success"}
+          ]
+        )
+
+      timeline = Builds.build_timeline(build.id)
+      stub(Tuist.ClickHouseRepo, :one, fn _ -> flunk("scrolling should not requery the build summary") end)
+
+      assert %{events: [%{event_id: 1}], total_count: 1, duration: 102_000.0} =
+               Builds.build_timeline(build.id,
+                 start: 100_000,
+                 span: 1000,
+                 summary: Map.take(timeline, [:total_count, :duration])
+               )
+    end
+
     test "fetches logs separately and scopes them to their build" do
       event = %{
         event_id: 3,

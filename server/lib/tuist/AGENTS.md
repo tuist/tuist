@@ -6,7 +6,7 @@ This directory contains the core business logic and domain modules for the serve
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
-- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are ingested alongside build details for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar in batches of 100, and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` returns individual intervals in a maximum 120-second viewport with a 60-second buffer on either side for local zooming. Search, target filtering and keyboard navigation query all steps. Logs share that retention and are fetched separately by build and event ID.
+- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are ingested alongside build details for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar in batches of 100, and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` returns individual intervals in a maximum 120-second viewport with a 60-second buffer on either side for local zooming. Subsequent range requests reuse the build summary held by LiveView to avoid rescanning totals and duration. Search, target filtering and keyboard navigation query all steps. Logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries

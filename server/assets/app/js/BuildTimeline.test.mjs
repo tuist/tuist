@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
 import { TimelineCache } from "./BuildTimelineCache.mjs";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
@@ -27,6 +28,7 @@ function fixture() {
     ...hook,
     range: { start: 100_000, span: 10_000 },
     cache,
+    prefetch: new TimelinePrefetch(),
     abort: new AbortController(),
     maxSpan: 120_000,
     duration: 900_000,
@@ -192,4 +194,21 @@ test("wide zoom retains headroom after prefetch rather than reloading on every s
   assert.equal(queries, 0);
   view.setRange(191_000, 120_000);
   assert.equal(queries, 1);
+});
+
+test("fast scrolling shifts the actual preload request ahead before visible data runs out", () => {
+  const view = fixture();
+  view.scheduleDraw = () => {};
+  const requests = [];
+  view.pushEvent = (_name, request) => {
+    requests.push(request);
+    return Promise.resolve({});
+  };
+  view.requestRange = () => view.loadRange();
+  view.prefetch.pan(265_000, 285_000);
+  view.setRange(285_000, 10_000);
+  assert.equal(view.chart.getAttribute("aria-busy"), "false");
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].start, 345_000);
+  assert.equal(requests[0].start - 60_000, view.range.start);
 });
