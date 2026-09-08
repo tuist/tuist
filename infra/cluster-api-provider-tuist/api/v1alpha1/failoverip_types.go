@@ -49,6 +49,9 @@ type FailoverIPStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=".spec.ip"
+// +kubebuilder:printcolumn:name="Vendor",type=string,JSONPath=".spec.vendor"
+// +kubebuilder:printcolumn:name="ActiveNode",type=string,JSONPath=".status.activeNode"
 
 // FailoverIP is the placement of one provider failover IP onto a healthy box of
 // a Kura bare-metal pool.
