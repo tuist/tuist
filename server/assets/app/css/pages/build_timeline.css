@@ -344,6 +344,16 @@
       overflow-wrap: normal;
     }
   }
+  & [data-part="duration-value"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    & svg {
+      flex-shrink: 0;
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
   @media (max-width: 640px) {
     & [data-part="machine-metrics"] {
       grid-template-columns: minmax(0, 1fr);

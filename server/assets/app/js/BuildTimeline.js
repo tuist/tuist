@@ -677,15 +677,16 @@ export default {
     if (event) {
       const details = {
         title: event.title,
-        target: [event.project, event.target].filter(Boolean).join(" / ") || this.el.dataset.buildLabel,
-        category: this.part("legend").querySelector(`[data-kind="${event.kind}"]`).textContent,
+        project: event.project || "—",
+        target: event.target || "—",
         start: timeLabel(event.start_ms),
         duration: timeLabel(event.duration_ms),
-        status:
-          event.status === "failure"
-            ? this.part("legend").querySelector('[data-kind="failure"]').textContent
-            : this.el.dataset.successLabel,
       };
+      this.part("category-badge").querySelector("span").textContent = this.part("legend").querySelector(
+        `[data-kind="${event.kind}"]`,
+      ).textContent;
+      this.part("outcome-success").hidden = event.status === "failure";
+      this.part("outcome-failure").hidden = event.status !== "failure";
       this.showLogLoading();
       this.requestLog(event, logRequest);
       for (const [key, value] of Object.entries(details))

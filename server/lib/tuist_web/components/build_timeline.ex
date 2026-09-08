@@ -51,8 +51,6 @@ defmodule TuistWeb.Components.BuildTimeline do
         dgettext("dashboard_builds", "Unable to load the log. Select the step again to retry.")
       }
       data-steps-label={dgettext("dashboard_builds", "steps")}
-      data-success-label={dgettext("dashboard_builds", "Succeeded")}
-      data-build-label={dgettext("dashboard_builds", "Build operations")}
     >
       <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
         <:actions>
@@ -173,21 +171,42 @@ defmodule TuistWeb.Components.BuildTimeline do
                 <strong data-detail="title"></strong>
                 <dl>
                   <div>
+                    <dt>{dgettext("dashboard_builds", "Project")}</dt><dd data-detail="project"></dd>
+                  </div>
+                  <div>
                     <dt>{dgettext("dashboard_builds", "Target")}</dt><dd data-detail="target"></dd>
                   </div>
                   <div>
-                    <dt>{dgettext("dashboard_builds", "Type")}</dt><dd data-detail="category"></dd>
+                    <dt>{dgettext("dashboard_builds", "Type")}</dt>
+                    <dd><.badge label="" style="light-fill" data-part="category-badge" /></dd>
                   </div>
                   <div>
                     <dt>{dgettext("dashboard_builds", "Started after")}</dt><dd data-detail="start">
                     </dd>
                   </div>
                   <div>
-                    <dt>{dgettext("dashboard_builds", "Duration")}</dt><dd data-detail="duration">
+                    <dt>{dgettext("dashboard_builds", "Duration")}</dt>
+                    <dd data-part="duration-value">
+                      <.history />
+                      <span data-detail="duration"></span>
                     </dd>
                   </div>
                   <div>
-                    <dt>{dgettext("dashboard_builds", "Outcome")}</dt><dd data-detail="status"></dd>
+                    <dt>{dgettext("dashboard_builds", "Outcome")}</dt>
+                    <dd>
+                      <.status_badge
+                        status="success"
+                        label={dgettext("dashboard_builds", "Succeeded")}
+                        data-part="outcome-success"
+                        hidden
+                      />
+                      <.status_badge
+                        status="error"
+                        label={dgettext("dashboard_builds", "Failed")}
+                        data-part="outcome-failure"
+                        hidden
+                      />
+                    </dd>
                   </div>
                 </dl>
                 <section data-part="step-log">
