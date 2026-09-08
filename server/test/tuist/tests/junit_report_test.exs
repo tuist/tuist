@@ -13,7 +13,6 @@ defmodule Tuist.Tests.JunitReportTest do
 
     assert {:ok, parsed} = JunitReport.parse(report)
     assert Enum.map(parsed.test_cases, & &1.test_suite_name) == ["FirstClass", "SecondClass"]
-    assert Enum.map(parsed.test_suites, & &1.name) == ["FirstClass", "SecondClass"]
   end
 
   test "parses individual JUnit test cases and their failures" do
@@ -31,8 +30,6 @@ defmodule Tuist.Tests.JunitReportTest do
     """
 
     assert {:ok, parsed} = JunitReport.parse(report)
-
-    assert parsed.test_suites == [%{name: "ExampleTests", status: "failure", duration: 376}]
 
     assert parsed.test_cases == [
              %{
