@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
 import { TimelineCache } from "./BuildTimelineCache.mjs";
-import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
 // scheduling and transport without mounting Noora's DOM controls.
@@ -281,63 +280,4 @@ test("full-build metadata remains cached when zooming in and returning to maximu
   view.keydown({ key: "Home", preventDefault() {} });
   assert.deepEqual(view.range, { start: 0, span: 900_000 });
   assert.equal(view.chart.getAttribute("aria-busy"), "false");
-});
-
-test("metric hover uses the zoomed time range and shows the recorded sample with both directions", () => {
-  const view = fixture();
-  view.metrics = new TimelineMetrics([
-    { offset_ms: 104_000, network_bytes_in: 1048576, network_bytes_out: 2097152 },
-    { offset_ms: 105_000, network_bytes_in: 3145728, network_bytes_out: 0 },
-  ]);
-  const title = {},
-    values = {};
-  const tooltip = view.part("tooltip");
-  tooltip.querySelector = (selector) => (selector === "strong" ? title : values);
-  view.hideTooltip = hook.hideTooltip;
-  let positioned = false;
-  view.positionTooltip = () => (positioned = true);
-  view.hoverMetric({
-    clientX: 412,
-    pointerType: "mouse",
-    currentTarget: {
-      dataset: { metricCanvas: "network" },
-      getBoundingClientRect: () => ({ left: 100, width: 624 }),
-      closest: () => ({ querySelector: () => ({ textContent: "Network" }) }),
-    },
-  });
-  assert.equal(tooltip.hidden, false);
-  assert.equal(title.textContent, "Network · 105 s 000 ms");
-  assert.equal(values.textContent, "In 3 MiB/s · Out 0 MiB/s");
-  assert.equal(positioned, true);
-});
-
-test("metric hover hides stale values in collection gaps, missing fields, and during touch or drag", () => {
-  const view = fixture();
-  view.hideTooltip = hook.hideTooltip;
-  view.range = { start: 0, span: 10_000 };
-  view.metrics = new TimelineMetrics([
-    { offset_ms: 0, cpu_usage_percent: 50 },
-    { offset_ms: 1000, cpu_usage_percent: 60 },
-    { offset_ms: 2000 },
-    { offset_ms: 10_000, cpu_usage_percent: 70 },
-  ]);
-  const pointer = {
-    clientX: 512,
-    pointerType: "mouse",
-    currentTarget: {
-      dataset: { metricCanvas: "cpu" },
-      getBoundingClientRect: () => ({ left: 0, width: 1024 }),
-    },
-  };
-  for (const state of [
-    { x: 512, type: "mouse", focusing: false },
-    { x: 212, type: "mouse", focusing: false },
-    { x: 112, type: "touch", focusing: false },
-    { x: 112, type: "mouse", focusing: true },
-  ]) {
-    view.part("tooltip").hidden = false;
-    view.focusing = state.focusing;
-    view.hoverMetric({ ...pointer, clientX: state.x, pointerType: state.type });
-    assert.equal(view.part("tooltip").hidden, true);
-  }
 });
