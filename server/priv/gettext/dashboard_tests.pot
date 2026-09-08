@@ -1909,13 +1909,3 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Invocation"
 msgstr ""
-
-#: lib/tuist_web/live/quarantined_tests_live.html.heex:8
-#, elixir-autogen, elixir-format
-msgid "Run tests with tuist bazel test to apply quarantine. Skipped cases exclude their entire Bazel target. Muted cases still run; only verified muted failures are ignored."
-msgstr ""
-
-#: lib/tuist_web/live/test_case_live.html.heex:146
-#, elixir-autogen, elixir-format
-msgid "Run tests with tuist bazel test to apply quarantine. Skipping this case excludes its entire Bazel target, including healthy cases. Muting keeps cases running and ignores only verified muted failures."
-msgstr ""

@@ -5,7 +5,7 @@ This area owns LiveView pages and components for the web UI.
 ## Responsibilities
 - Render LiveView pages and handle UI events.
 - Orchestrate UI state while delegating domain operations to `server/lib/tuist`.
-- Bazel exposes test case automations through the shared project settings tabs and explains target-level skipping on quarantine pages.
+- Bazel exposes test case automations through the shared project settings tabs. Keep quarantine setup and target-level skipping guidance in the Bazel flaky-tests documentation, not page banners.
 - Xcode overview charts opt into Noora's `data-lazy="true"` behavior so charts
   below the viewport do not initialize while the visible analytics are loading.
 

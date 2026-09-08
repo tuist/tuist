@@ -22,7 +22,8 @@ defmodule TuistWeb.BazelQuarantineLiveTest do
     assert has_element?(view, "a[href='#{base}/tests/quarantined-tests']", "Quarantined Tests")
 
     {:ok, view, _} = live(conn, "#{base}/tests/quarantined-tests")
-    assert render(view) =~ "Skipped cases exclude their entire Bazel target"
+    assert has_element?(view, "#quarantined-tests")
+    refute render(view) =~ "Run tests with tuist bazel test"
   end
 
   test "Bazel projects expose test automations in settings", %{conn: conn, organization: organization, project: project} do

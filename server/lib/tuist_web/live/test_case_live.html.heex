@@ -137,19 +137,6 @@
     </div>
   </div>
 
-  <.alert
-    :if={Tuist.Projects.Project.bazel_project?(@selected_project)}
-    status="information"
-    type="secondary"
-    size="small"
-    title={
-      dgettext(
-        "dashboard_tests",
-        "Run tests with tuist bazel test to apply quarantine. Skipping this case excludes its entire Bazel target, including healthy cases. Muting keeps cases running and ignores only verified muted failures."
-      )
-    }
-  />
-
   <.tab_menu_horizontal>
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Overview")}
