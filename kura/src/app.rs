@@ -477,20 +477,12 @@ async fn run_with_config(
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
     });
-    let _ = shutdown_tx.send(Some(shutdown_budget));
-    let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
-    if !drained {
-        warn!(
-            http_inflight = state.runtime.http_inflight(),
-            grpc_inflight = state.runtime.grpc_inflight(),
-            drain_timeout_ms = state.config.drain_completion_timeout_ms,
-            "timed out waiting for inflight requests to drain during shutdown"
-        );
-    }
     // The departing node waits to be pulled (design §3.5): the sibling's
     // cursor reaching the head, bounded by what is left of the budget less
-    // a margin for the process exit. Normally nothing, since the sibling
-    // long-polls continuously.
+    // a margin for the process exit. It runs BEFORE the internal listener is
+    // told to stop accepting, because the cursor arrives on the sibling's
+    // next forward request; and it is normally nothing, since the sibling
+    // long-polls continuously and draining wakes its poll at once.
     if state.replication_pull() && state.store.sync_feed().enabled() {
         let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
         let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
@@ -511,6 +503,16 @@ async fn run_with_config(
         }
     }
     state.sync.shutdown();
+    let _ = shutdown_tx.send(Some(shutdown_budget));
+    let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
+    if !drained {
+        warn!(
+            http_inflight = state.runtime.http_inflight(),
+            grpc_inflight = state.runtime.grpc_inflight(),
+            drain_timeout_ms = state.config.drain_completion_timeout_ms,
+            "timed out waiting for inflight requests to drain during shutdown"
+        );
+    }
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }

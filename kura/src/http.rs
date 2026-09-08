@@ -2709,6 +2709,11 @@ async fn internal_backfill_entries_ascending(
             return Json(BackfillEntriesPage::from(page)).into_response();
         };
         let now = Instant::now();
+        let deadline = if state.runtime.is_draining() {
+            deadline.min(now + Duration::from_millis(250))
+        } else {
+            deadline
+        };
         if now >= deadline {
             return Json(BackfillEntriesPage::from(page)).into_response();
         }
@@ -2893,6 +2898,15 @@ async fn internal_sync_forward(
             }
         };
         let now = Instant::now();
+        // While draining, hold at most briefly: the departing node is
+        // waiting for this reader's cursor, and the reader re-asks at once.
+        let deadline = deadline.map(|deadline| {
+            if state.runtime.is_draining() {
+                deadline.min(now + Duration::from_millis(250))
+            } else {
+                deadline
+            }
+        });
         let waiting = rows.is_empty() && deadline.is_some_and(|deadline| now < deadline);
         if !waiting {
             let next = rows.last().map_or(position.seq, |row| row.seq);

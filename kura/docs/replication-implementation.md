@@ -94,15 +94,15 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 
 ### Phase 7 — tests
 
-- [ ] T7.1 Unit tests for every store/endpoint/puller rule above.
-- [ ] T7.2 shellspec e2e: `sync_spec.sh` (two replicas + two regions on
+- [x] T7.1 Unit tests for every store/endpoint/puller rule above.
+- [x] T7.2 shellspec e2e: `sync_spec.sh` (two replicas + two regions on
       compose), pull flip, drain gate, feed fall-off recovery, mixed-version
       (push peer) mesh.
-- [ ] T7.3 k01 clusters: every setup in the test plan.
+- [~] T7.3 k01 clusters: every setup in the test plan.
 
 ### Phase 8 — measurement and delivery
 
-- [ ] T8.1 main vs branch comparison (memory, disk, CPU, network) per setup.
+- [~] T8.1 main vs branch comparison (memory, disk, CPU, network) per setup.
 - [ ] T8.2 Draft PR.
 
 ---
@@ -244,4 +244,89 @@ Service keeps the broad selector.
 cursor then sits at the snapshot head, which is within one page of the
 sibling by construction; waiting for the first forward page would hold
 readiness for up to one long-poll wait with nothing to show for it.
+
+---
+
+## 3. Test runs and measurements
+
+Ring A (unit, `cargo test`): 928 passed, 0 failed at commit `0eba194aec`.
+Rings B and C are recorded per run below; the comparison of `main` against
+this branch is in §3.2.
+
+### 3.1 Ring C runs
+
+**C-1 — self-hosted, no server, 2 regions × 2 nodes (k04, branch image).**
+Roles derived locally: exactly one gateway per region (`kura-us-0`,
+`kura-eu-0`); each gateway holds one replica link and one region link, each
+non-gateway one replica link; feeds active on all four nodes; outbox empty
+on every node. A 2,000-write burst of 4 KiB values on the non-gateway
+`kura-us-1` converged on the sibling 0.15 s after the last write, on the
+remote gateway after 2.8 s and on the remote non-gateway after 5.0 s, with
+no sampled miss.
+
+### 3.2 `main` vs branch, same cluster, same burst
+
+Serverless mesh on k04, 2 regions × 2 nodes, one VM (6 vCPU / 12 GB), writer
+`kura-us-1`, 2,000 sequential 4 KiB key-value writes issued from inside the
+writer pod (so the writer's CPU column includes 2,000 `curl` processes on
+both sides). Deltas are cAdvisor counters over the run; the data directory is
+`du` of the volume. Convergence is the time from the last write until the
+last key is readable on each other node.
+
+| image | pod | role | cpu s | tx MB | rx MB | working set MB | data dir MB | converged after burst |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| branch | kura-us-1 | writer, non-gateway | 15.4 | 12.4 | 1.5 | 18 → 24 | 21 → 43 | — |
+| branch | kura-us-0 | us gateway | 4.2 | 14.1 | 14.5 | 19 → 25 | 21 → 43 | 0.15 s |
+| branch | kura-eu-0 | eu gateway | 4.8 | 15.9 | 15.8 | 20 → 26 | 21 → 43 | 2.8 s |
+| branch | kura-eu-1 | non-gateway | 2.8 | 2.5 | 13.2 | 18 → 23 | 21 → 43 | 5.0 s |
+| main | kura-us-1 | writer | 20.1 | 33.9 | 1.5 | 11 → 22 | 0 → 24 | — |
+| main | kura-us-0 | — | 1.6 | 0.6 | 11.4 | 11 → 16 | 0 → 21 | 0.11 s |
+| main | kura-eu-0 | — | 1.2 | 0.6 | 11.3 | 11 → 16 | 0 → 21 | 2.4 s |
+| main | kura-eu-1 | — | 1.6 | 0.6 | 11.4 | 10 → 17 | 0 → 21 | 5.0 s |
+
+| branch (fresh) | kura-us-1 | writer, non-gateway | 17.0 | 12.5 | 1.6 | 10 → 19 | 0 → 21 | — |
+| branch (fresh) | kura-us-0 | us gateway | 4.7 | 14.7 | 14.8 | 11 → 21 | 0 → 21 | 0.27 s |
+| branch (fresh) | kura-eu-0 | eu gateway | 4.8 | 15.8 | 15.7 | 11 → 20 | 0 → 21 | 3.4 s |
+| branch (fresh) | kura-eu-1 | non-gateway | 3.4 | 2.6 | 13.4 | 11 → 19 | 0 → 21 | 7.2 s |
+
+Reading it (the first four branch rows are a warm second run on the same
+volumes, so their "before" columns start higher; the "fresh" rows are a
+redeploy on empty volumes like the `main` run, taken while the host was also
+building images, which is why that burst took 105 s instead of 75 s):
+
+- **Egress moves off the writer.** The writer's transmit falls from 33.9 MB
+  (three pushes of the burst) to 12.4 MB (one feed read by its sibling); the
+  cross-region bytes are carried by the two gateways instead, which is the
+  design's intent (§2). Total bytes on the wire are higher on the branch
+  (44.9 MB against 35.7 MB across the four pods): a record now crosses three
+  hops (feed → region read → feed) with a descriptor page and a bodies frame
+  per hop, where push sent three direct copies.
+- **CPU moves the same way.** Writer CPU 20.1 s → 15.4 s (both include the
+  2,000 `curl` processes); receivers 1.2–1.6 s → 2.8–4.8 s, since a puller
+  lists, presence-checks and applies where a pushee only applied. Sum over
+  the four pods: 24.5 s → 27.2 s.
+- **Convergence is within a second or two of `main`** on every hop for a
+  burst the writer paces at ~20–27 writes/s; the remote-region hop carries the 2 s settle
+  guard (D-6) plus one long-poll wake, the remote replica one more feed hop.
+- **Disk is the same** (+21 MB per node for the burst on both images; the
+  feed rows are trimmed behind the sibling's cursor). Working set after the
+  burst: 16–22 MB on `main`, 19–21 MB on the branch.
+- **Outbox is empty on every branch node** during and after the burst; on
+  `main` it drains to zero as well at this rate — the difference shows under
+  a slow or absent peer, which ring B's fall-off scenario (B-3) and the
+  10k-writes-while-stopped scenario (B-2) cover.
+
+### 3.3 Ring B (docker compose)
+
+`spec/e2e/sync_spec.sh` at the drain-gate fix commit: 10 examples covering
+B-1, B-2, B-3, B-4, B-5, B-6, B-7, B-8, B-9 and B-10. First full run: 9
+passed, 1 failed — the drain gate (B-4). Cause: the shutdown sequence told
+the internal listener to stop accepting connections before the gate ran, so
+the sibling could never report the cursor the gate was waiting for, and the
+node exited only when the wait expired. Fixed by running the gate before
+the internal listener's shutdown and by shortening long-polls to 250 ms
+while draining (the drain wakes them, the sibling re-asks at once with its
+new cursor). The pre-existing suites (`discovery_spec.sh`,
+`backfill_spec.sh`) pass on the branch: 6 examples, 0 failures, 1 skip
+(the opt-in multi-GiB capacity check).
 

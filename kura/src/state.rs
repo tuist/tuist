@@ -348,7 +348,13 @@ impl AppState {
     }
 
     pub fn enter_draining(&self) -> bool {
-        self.runtime.request_drain()
+        let entered = self.runtime.request_drain();
+        if entered {
+            // Wake every long-poll so the sibling reads the tail now and
+            // reports its cursor for the drain gate (design §3.5).
+            self.store.sync_feed().notify_commit();
+        }
+        entered
     }
 
     pub async fn replication_target_backed_off(&self, target: &str, now: Instant) -> bool {
