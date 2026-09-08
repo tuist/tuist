@@ -151,19 +151,45 @@ k8s-monitoring:
           regex = "tuist-(staging|canary|pentest);.+_bucket"
           action = "drop"
         }
-        // Same non-production principle, applied to two families whose
-        // value is production-only. `hubble_drop_total`'s `source` label is a
-        // workload path for cluster traffic but a bare remote address for
-        // external traffic, so its cardinality is unbounded; the
-        // mis-sourced-host runbook that justifies keeping it lives in
-        // alerts.md and is production-only. The surviving `kube_replicaset_*`
-        // gauges carry one series per historical revision and are read by the
-        // Grafana Cloud Kubernetes app, not by anything in this repo.
+        // Non-production keeps only what validates a deploy. Everything below
+        // the `keep` list is dropped for staging, canary and pentest, which
+        // together were 39% of all billed series while nothing pages on them.
+        //
+        // The keep list is not a judgement call: it is every metric read by an
+        // alert rule that does NOT pin `cluster="tuist-production"`, so no
+        // alert changes scope silently. Recover it with
+        //   GET /api/v1/provisioning/alert-rules
+        //   jq '[.[] | {e: ([.data[]?|.model.expr? // empty]|join(" "))}
+        //        | select(.e|test("tuist-production")|not) | .e]'
+        // and re-derive this regex if the alert set changes. `up` and
+        // `scrape_*` are outside the dropped prefixes, so the
+        // "Kura - cache telemetry missing" alert keeps its staging and canary
+        // arms.
+        //
+        // Two alerts DO change scope, deliberately: the Phoenix route-latency
+        // pair carries no cluster matcher, so staging and canary traffic has
+        // been folding into what reads as a production SLO. They become
+        // production-only.
         write_relabel_config {
-          source_labels = ["cluster", "__name__"]
+          source_labels = ["__name__"]
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // `hubble_*` is in the dropped set because its `source` label is a bare
+        // remote address for external traffic, so its cardinality is unbounded.
+        // The mis-sourced-host runbook in alerts.md that justifies keeping it
+        // is production-only.
+        write_relabel_config {
+          source_labels = ["cluster", "__tmp_nonprod_keep", "__name__"]
           separator = ";"
-          regex = "tuist-(staging|canary|pentest);(hubble_.*|kube_replicaset_(owner|spec_replicas|status_ready_replicas|status_replicas))"
+          regex = "tuist-(staging|canary|pentest);;(kube_.*|kura_.*|tuist_.*|container_.*|node_.*|hubble_.*)"
           action = "drop"
+        }
+        write_relabel_config {
+          regex = "__tmp_nonprod_keep"
+          action = "labeldrop"
         }
         // Kura histograms whose buckets no dashboard or alert reads. Their
         // cardinality is pod count x `le`, so it grows with every account
@@ -231,7 +257,7 @@ k8s-monitoring:
               threshold_ms: 2000
             - name: healthy-sample
               type: probabilistic
-              sampling_percentage: 25
+              sampling_percentage: 10
           collector:
             alloy:
               resources:
