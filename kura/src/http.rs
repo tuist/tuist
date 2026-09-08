@@ -6416,7 +6416,7 @@ mod tests {
     async fn backfill_bodies_honour_the_configured_slots_per_peer() {
         let context = test_context(|config| {
             config.sync_peer_bodies_slots_per_peer = 2;
-            config.sync_peer_serving_max_inflight = 8;
+            config.sync_peer_serving_max_inflight = Some(8);
         })
         .await;
         put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
@@ -6463,7 +6463,7 @@ mod tests {
     async fn backfill_bodies_cap_concurrent_requests_across_peer_identities() {
         let context = test_context(|config| {
             config.sync_peer_bodies_slots_per_peer = 1;
-            config.sync_peer_serving_max_inflight = 2;
+            config.sync_peer_serving_max_inflight = Some(2);
         })
         .await;
         put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;

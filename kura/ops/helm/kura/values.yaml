@@ -199,9 +199,9 @@ config:
     # serving side (default 1). Above it the node answers 503 with a
     # Retry-After; it never queues, so the requester backs off or skips.
     peerBodiesSlotsPerPeer: null
-    # Bodies requests this node serves in flight across every peer identity
-    # (default 8). The bound the per-peer count cannot give: many
-    # well-behaved peers converging on one gateway.
+    # Pins the bodies requests this node serves in flight across every peer
+    # identity. Unset, Kura derives it on every membership tick as
+    # max(8, visible peers × slots per peer).
     peerServingMaxInflight: null
   memory:
     # Leave watermarks and cache capacities unset so Kura derives them from

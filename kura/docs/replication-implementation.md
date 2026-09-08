@@ -109,7 +109,8 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
 
 - [x] T9.1 Hard upload limits as explicit config: per-peer bodies slot count
       (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`), per-node peer-serving
-      aggregate (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`); both rejection rates
+      aggregate (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, derived from the
+      membership view unless set); both rejection rates
       and the limiter's effective rate on the dashboard row (§11.1).
 - [x] T9.2 Push exception for peers that cannot dial back: `/_internal/status`
       advertises the membership view's node URLs; a pulling peer whose view
@@ -481,7 +482,14 @@ the number of *distinct* peers in flight — the concentration a gateway
 actually sees, since every other region's gateway plus its own siblings pull
 from it. Both are configuration now
 (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`, default 1;
-`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, default 8), rendered by the chart.
+`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, which pins the aggregate when set),
+rendered by the chart. Unset, the aggregate is derived on every membership
+tick as `max(8, visible peers × slots per peer)`: the exact legitimate
+maximum is one slot set per counted peer, and the floor of 8 covers the
+requesters the view does not count (a peer one tick ahead of it, or one
+that dials this node without being dialled back, §11.2). A fixed number
+would reject legitimate peers once the mesh outgrew it; twice the peer count
+was considered and dropped for the same headroom being unexplainable.
 Rejection stays the behaviour: a queue would hold the requester's connection
 and the shared tmp budget for an unbounded time, where a `503` with
 `Retry-After` lets the pass back off or skip the entry and come back on the

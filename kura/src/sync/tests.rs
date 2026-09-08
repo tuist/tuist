@@ -812,3 +812,41 @@ async fn a_pulling_peer_stays_off_push_while_unreachable() {
         ]
     );
 }
+
+// A-26: the serving aggregate follows the membership view unless pinned.
+#[tokio::test]
+async fn the_peer_serving_aggregate_follows_the_membership_view() {
+    use crate::sync::roles::PeerView;
+    let view = |index: usize| PeerView {
+        url: format!("http://peer-{index}.kura.internal:7443"),
+        region: "local".to_owned(),
+        serving: true,
+        draining: false,
+        pulling: false,
+        knows_me: true,
+    };
+    let derived = test_context(|config| {
+        config.sync_peer_bodies_slots_per_peer = 2;
+        config.sync_peer_serving_max_inflight = None;
+    })
+    .await;
+    assert_eq!(derived.state.backfill_bodies_peer_slots.max_inflight(), 8);
+    derived.state.apply_peer_views((0..3).map(view).collect());
+    assert_eq!(
+        derived.state.backfill_bodies_peer_slots.max_inflight(),
+        8,
+        "three peers holding two slots each sit under the floor"
+    );
+    derived.state.apply_peer_views((0..6).map(view).collect());
+    assert_eq!(derived.state.backfill_bodies_peer_slots.max_inflight(), 12);
+    derived.state.apply_peer_views(Vec::new());
+    assert_eq!(derived.state.backfill_bodies_peer_slots.max_inflight(), 8);
+
+    let pinned = test_context(|config| {
+        config.sync_peer_bodies_slots_per_peer = 1;
+        config.sync_peer_serving_max_inflight = Some(3);
+    })
+    .await;
+    pinned.state.apply_peer_views((0..20).map(view).collect());
+    assert_eq!(pinned.state.backfill_bodies_peer_slots.max_inflight(), 3);
+}

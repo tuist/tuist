@@ -459,10 +459,13 @@ pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
 /// `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` default: bodies requests one peer
 /// identity may hold in flight on this node's serving side (design §11.1).
 pub const DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER: u64 = 1;
-/// `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` default: bodies requests this node
-/// serves in flight across every peer identity (design §11.1). Above it the
-/// node answers `503` rather than queueing, so a receiver backs off or skips.
-pub const DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT: u64 = 8;
+/// Floor of the derived peer-serving aggregate (design §11.1): the node
+/// serves at most `max(this, visible peers × slots per peer)` bodies requests
+/// in flight unless `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` pins it. Above the
+/// bound the node answers `503` rather than queueing, so a receiver backs off
+/// or skips. The floor absorbs requesters the membership view does not count
+/// yet: a peer a tick ahead of the view, or one that cannot be dialled back.
+pub const SYNC_PEER_SERVING_MIN_INFLIGHT: u64 = 8;
 
 #[cfg(test)]
 mod tests {

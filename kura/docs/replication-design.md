@@ -1228,7 +1228,7 @@ to re-check when a measurement disagrees.
 | Drain margin (§3.5) — `KURA_SYNC_DRAIN_MARGIN_MS` | 5 s | Subtracted from the termination grace period to leave the process time to exit cleanly after the gate; the gate itself is the drain wait below. |
 | The flip (§5.2) — `KURA_REPLICATION_PULL`, account flag `kura_replication_pull` | off | Per node by env, per account by the server flag rendered into each managed instance's spec and its manifest revision, so the flip rolls; either source makes the node advertise `pulling`. |
 | Peer bodies slots per peer (§11.1) — `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` | 1 | What one peer identity may hold in flight on the serving side. One is what the requester already asks for; the value exists so a mesh whose links are latency-bound can widen it deliberately rather than by patch. Re-check against the observed `rejected_busy` rate on a gateway. |
-| Peer serving aggregate (§11.1) — `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` | 8 | Bodies requests one node serves across every peer identity. Bounds the concentration the per-peer count cannot: `R-1` gateways plus siblings all catching up at once. Rejection, never a queue. Re-check against the region count and the `rejected_node_busy` rate. |
+| Peer serving aggregate (§11.1) — `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` | derived: `max(8, visible peers × slots per peer)` | Bodies requests one node serves across every peer identity, re-derived on every membership tick so every counted peer can hold its slots; the floor of 8 covers requesters the view does not count (a peer a tick ahead of it, or one that cannot be dialled back). Setting the variable pins it. Rejection, never a queue. Re-check against the `rejected_node_busy` rate. |
 | Retry backoff after a failed read (§4.1) | 250 ms → 5 s | The backfill's existing constants. |
 | Staleness alert threshold (§2.2) | 5 min | Ten consecutive failed long-polls; short enough to matter, long enough that a slow transfer is not a failure. |
 | Overlap window on a role move (§2.2) | 2 heartbeat periods | Long enough for every node to have fetched the new list; costs one duplicate listing. |
@@ -1254,7 +1254,9 @@ peer identity, answered `503 peer_busy` with `Retry-After` and counted as
 shed with `503` under pressure; the adaptive bandwidth ceiling shared across
 peer uploads, ingests and fetches; the per-tenant HTB egress classes below the
 process. What is implicit becomes configuration: the per-peer bodies slot
-count and a per-node aggregate on peer-serving concurrency. Rejection stays
+count and a per-node aggregate on peer-serving concurrency, the aggregate
+derived from the membership view as `max(8, visible peers × slots per peer)`
+unless pinned by configuration. Rejection stays
 the behaviour, never a queue, so a receiver can back off or skip. The
 `rejected_busy` rate and the limiter's effective rate join the pull
 replication dashboard row, so concentration on one gateway is measured

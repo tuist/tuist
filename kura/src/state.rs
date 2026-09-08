@@ -127,7 +127,10 @@ pub struct AppState {
 pub struct BackfillBodiesPeerSlots {
     active: std::sync::Mutex<BTreeMap<Arc<str>, u64>>,
     slots_per_peer: u64,
-    max_inflight: u64,
+    /// The aggregate in force; derived from the membership view unless
+    /// `pinned`.
+    max_inflight: std::sync::atomic::AtomicU64,
+    pinned: bool,
 }
 
 /// Which limit refused a bodies request, so the metric can tell "this peer is
@@ -139,12 +142,38 @@ pub enum BackfillBodiesSlotRejection {
 }
 
 impl BackfillBodiesPeerSlots {
-    pub fn new(slots_per_peer: u64, max_inflight: u64) -> Self {
+    /// `max_inflight` pins the aggregate; `None` derives it from the
+    /// membership view through [`Self::observe_peer_count`], starting at the
+    /// floor until the first view arrives.
+    pub fn new(slots_per_peer: u64, max_inflight: Option<u64>) -> Self {
         Self {
             active: std::sync::Mutex::new(BTreeMap::new()),
             slots_per_peer: slots_per_peer.max(1),
-            max_inflight: max_inflight.max(1),
+            max_inflight: std::sync::atomic::AtomicU64::new(
+                max_inflight
+                    .unwrap_or(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT)
+                    .max(1),
+            ),
+            pinned: max_inflight.is_some(),
         }
+    }
+
+    /// Re-derives the aggregate from the number of peers in the membership
+    /// view: `max(floor, peers × slots per peer)`, so every counted peer can
+    /// hold its slots and the floor covers the ones the view does not count.
+    pub fn observe_peer_count(&self, peers: usize) {
+        if self.pinned {
+            return;
+        }
+        let derived = (peers as u64)
+            .saturating_mul(self.slots_per_peer)
+            .max(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT);
+        self.max_inflight
+            .store(derived, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn max_inflight(&self) -> u64 {
+        self.max_inflight.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Claims a slot for the identity, or names the limit that refused it.
@@ -159,7 +188,7 @@ impl BackfillBodiesPeerSlots {
         if held >= self.slots_per_peer {
             return Err(BackfillBodiesSlotRejection::PeerBusy);
         }
-        if active.values().sum::<u64>() >= self.max_inflight {
+        if active.values().sum::<u64>() >= self.max_inflight() {
             return Err(BackfillBodiesSlotRejection::NodeBusy);
         }
         active.insert(identity.clone(), held + 1);
@@ -545,6 +574,8 @@ impl AppState {
     /// does not name this node in its own view never enters the set, so the
     /// stickiness of D-20 cannot outlive the condition that earned it.
     pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
+        self.backfill_bodies_peer_slots
+            .observe_peer_count(views.len());
         let mut pulling: BTreeSet<String> = (**self.pulling_peers.load()).clone();
         for view in &views {
             if view.pulling && view.knows_me {

@@ -54,7 +54,7 @@ the same `A-n` tag):
 | A-24 | Watermark seed from `backfill/wm/` rows | first read starts at the seeded value |
 | A-25 | Push exception for a pulling peer that cannot dial back (§11.2) | a pulling peer whose advertised view omits us stays a push target, leaves once it names us, and never earns D-20's stickiness before that; `/_internal/status` carries the view |
 | A-27 | Bootstrap failure budget survives a link respawn (§3.6) | a peer that leaves and re-enters the view continues its failure count; readiness settles after the budget however often the link reopens |
-| A-26 | Peer bodies limits are configuration (§11.1) | the configured per-peer slot count admits exactly that many; the (N+1)th request across distinct identities is refused as `rejected_node_busy` |
+| A-26 | Peer bodies limits are configuration (§11.1) | the aggregate follows the membership view (`max(8, peers × slots)`) unless pinned; the configured per-peer slot count admits exactly that many; the (N+1)th request across distinct identities is refused as `rejected_node_busy` |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 

@@ -10,10 +10,10 @@ use crate::{
         DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_SYNC_DRAIN_MARGIN_MS,
         DEFAULT_SYNC_FEED_MAX_ROWS, DEFAULT_SYNC_FEED_STALE_PEER_SECS, DEFAULT_SYNC_LONG_POLL_SECS,
         DEFAULT_SYNC_PASS_START_BUFFER_MS, DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
-        DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT, DEFAULT_SYNC_REGION_SETTLE_MS,
-        DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES, SYNC_LONG_POLL_MAX_SECS,
+        DEFAULT_SYNC_REGION_SETTLE_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+        MAX_INLINE_REPLICATION_BODY_BYTES, SYNC_LONG_POLL_MAX_SECS,
         default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
@@ -273,8 +273,9 @@ pub struct Config {
     /// side (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`, design §11.1).
     pub sync_peer_bodies_slots_per_peer: u64,
     /// Bodies requests this node serves in flight across every peer identity
-    /// (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, design §11.1).
-    pub sync_peer_serving_max_inflight: u64,
+    /// (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, design §11.1). `None` derives
+    /// it from the membership view: `max(8, visible peers × slots per peer)`.
+    pub sync_peer_serving_max_inflight: Option<u64>,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -1419,11 +1420,15 @@ impl Config {
             &mut invalid,
             DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
         );
-        let sync_peer_serving_max_inflight = parse_u64_env(
+        let sync_peer_serving_max_inflight = optional_parsed_value(
             &mut lookup,
             KURA_SYNC_PEER_SERVING_MAX_INFLIGHT,
             &mut invalid,
-            DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_SYNC_PEER_SERVING_MAX_INFLIGHT} must be a valid u64")
+                })
+            },
         );
         if sync_feed_max_rows == 0 {
             invalid.push(format!("{KURA_SYNC_FEED_MAX_ROWS} must be greater than 0"));
@@ -1433,7 +1438,7 @@ impl Config {
                 "{KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER} must be greater than 0"
             ));
         }
-        if sync_peer_serving_max_inflight == 0 {
+        if sync_peer_serving_max_inflight == Some(0) {
             invalid.push(format!(
                 "{KURA_SYNC_PEER_SERVING_MAX_INFLIGHT} must be greater than 0"
             ));

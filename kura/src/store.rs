@@ -11038,8 +11038,7 @@ mod tests {
             sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
             sync_peer_bodies_slots_per_peer:
                 crate::constants::DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
-            sync_peer_serving_max_inflight:
-                crate::constants::DEFAULT_SYNC_PEER_SERVING_MAX_INFLIGHT,
+            sync_peer_serving_max_inflight: None,
             analytics: None,
             usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
