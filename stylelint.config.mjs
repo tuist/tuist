@@ -50,10 +50,6 @@ const runtimeProperties = {
     // Set inline by the Gradle build timeline on each configuration operation.
     "--configuration-operation-start": "",
     "--configuration-operation-duration": "",
-    // Set inline by the Bazel invocation timeline according to its lane count.
-    "--timeline-height": "",
-    // Set inline on each retained Bazel critical-path action.
-    "--action-weight": "",
   },
 };
 

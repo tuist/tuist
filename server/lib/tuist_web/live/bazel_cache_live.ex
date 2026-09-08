@@ -31,8 +31,6 @@ defmodule TuistWeb.BazelCacheLive do
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
-    has_any_cache_observations = ReapiCache.observations_present?(project.id)
-
     {:noreply,
      socket
      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
@@ -45,12 +43,16 @@ defmodule TuistWeb.BazelCacheLive do
      |> assign(:selected_transfer_type, params["transfer-type"] || "combined")
      |> assign(:selected_latency_type, params["latency-type"] || "combined")
      |> assign(:selected_throughput_type, params["throughput-type"] || "combined")
-     |> assign(:has_any_cache_observations, has_any_cache_observations)
-     |> assign_async([:cache_summary, :cache_analytics], fn ->
+     |> assign_async([:cache_summary, :cache_analytics, :has_any_cache_observations], fn ->
+       cache_analytics = ReapiCache.analytics(project.id, period_opts(analytics_period))
+
        {:ok,
         %{
           cache_summary: cache_summary_with_trends(project.id, analytics_period),
-          cache_analytics: ReapiCache.analytics(project.id, period_opts(analytics_period))
+          cache_analytics: cache_analytics,
+          has_any_cache_observations:
+            Enum.any?(cache_analytics.observation_values, &(&1 > 0)) ||
+              ReapiCache.observations_present?(project.id)
         }}
      end)
      |> assign_async(:recent_cache_invocations, fn ->
@@ -385,8 +387,8 @@ defmodule TuistWeb.BazelCacheLive do
               !analytics_has_data?(@cache_analytics.result, @analytics_selected_widget)
           }
           data-part="analytics-card-chart-section"
-          title={cache_observations_empty_state_title(@has_any_cache_observations)}
-          get_started_href={cache_get_started_href(@has_any_cache_observations)}
+          title={cache_observations_empty_state_title(@has_any_cache_observations.result)}
+          get_started_href={cache_get_started_href(@has_any_cache_observations.result)}
         >
           <:image>
             <img
@@ -510,9 +512,12 @@ defmodule TuistWeb.BazelCacheLive do
         </.card_section>
         <.skeleton_chart :if={!@recent_cache_invocations.ok?} />
         <.empty_card_section
-          :if={@recent_cache_invocations.ok? && Enum.empty?(@recent_cache_invocations.result)}
-          title={cache_invocations_empty_state_title(@has_any_cache_observations)}
-          get_started_href={cache_get_started_href(@has_any_cache_observations)}
+          :if={
+            @recent_cache_invocations.ok? && @has_any_cache_observations.ok? &&
+              Enum.empty?(@recent_cache_invocations.result)
+          }
+          title={cache_invocations_empty_state_title(@has_any_cache_observations.result)}
+          get_started_href={cache_get_started_href(@has_any_cache_observations.result)}
         >
           <:image>
             <img
