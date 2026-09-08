@@ -293,7 +293,7 @@
   & [data-part="inspector"] {
     flex: 0 0 var(--timeline-inspector-width);
     box-sizing: border-box;
-    padding: var(--noora-spacing-5) 0;
+    padding: var(--noora-spacing-5) var(--noora-spacing-2);
     min-width: 0;
     overflow-y: auto;
     & [data-detail="title"] {

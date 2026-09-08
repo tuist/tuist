@@ -15,7 +15,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
 - Asset builds for development and production.
-- Step details show project and target separately, use Noora badges for type and outcome, and pair duration with the dashboard’s history icon.
+- Step details show project and target separately, use Noora badges for type and outcome, and pair duration with the dashboard’s history icon. The inspector has a small horizontal inset so its scroll boundary does not clip badge borders and shadows.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
 - Timeline selection persists when scrolling or zooming moves the step outside the visible range, keeping its metadata and log open.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
