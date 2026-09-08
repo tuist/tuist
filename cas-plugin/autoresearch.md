@@ -559,3 +559,27 @@ by default, and never treat server support as consent. The next useful work is
 streamed or spooled prepared pages with measured receiver-only peak memory,
 rather than another compression-level search. There is no claimed reduction in
 compiler invalidation or total build time.
+
+## Receiver-memory search (fifth segment)
+
+Continue the same six pairs on this branch with at most six runs, optimizing
+receiver_peak_bytes. Each sender runs separately, followed by three fresh receiver
+processes per changed output. Receivers receive only the local base, patch, and
+expected sizes/digests, never the target file or sender allocations. Count base
+reads/preparation, patch decoding, inverse transformation, original and compressed
+identity verification, and writing the reconstructed file. Report process-start
+overhead separately as worker_ms. The parent verifies actual target bytes after
+each receiver exits. Primary memory is the maximum per-output median process
+peak; it is not comparable directly to the earlier combined-process peak.
+
+Run `AUTORESEARCH_FIXTURES=<manifest> python3 autoresearch.helper.py run --command
+./autoresearch.receiver.sh`. Keep the existing combined benchmark as a separate
+regression check. The new runner leaves private temporary artifacts for consumer
+validation; they are not a cache and are not used by subsequent runs.
+
+Test avoiding expanded-buffer copies before adding disk-backed storage. Preserve
+the exact prepared format, patch bytes, compressed identity, and all resource
+bounds. Reject transfer changes or an aggregate receiver-time regression over
+25% unless a separately documented memory tradeoff is compelling. Keep production
+code, capabilities, and the default-off opt-in policy unchanged. Promotion still
+needs concurrency budgets, hostile-input coverage, and a supported runtime path.
