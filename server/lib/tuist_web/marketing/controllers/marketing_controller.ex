@@ -16,6 +16,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.SocialCards
 
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
@@ -32,7 +33,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: home_open_graph_image_path())
+      SocialCards.image_url("home")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:read_more_posts, read_more_posts)
@@ -57,7 +58,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: home_open_graph_image_path())
+        SocialCards.image_url("home")
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(:featured_testimonials, get_featured_testimonials(locale))
@@ -431,13 +432,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path:
-            OpenGraph.image_path(:marketing,
-              title: dgettext("marketing", "About Tuist"),
-              icon: "static/marketing/images/about/logo.webp"
-            )
-        )
+        SocialCards.image_url("about")
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(
@@ -469,9 +464,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Brand guidelines"))
-        )
+        SocialCards.image_url("brand")
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(
@@ -528,7 +521,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Download Tuist")))
+      SocialCards.image_url("download")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -583,28 +576,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
-  def support(conn, _params) do
-    conn
-    |> assign_structured_data(get_organization_structured_data())
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Support"), Tuist.Environment.app_url(path: ~p"/support")}
-      ])
-    )
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Support")))
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(
-      :head_description,
-      "Get help with Tuist. Access our support channels, documentation, and community resources."
-    )
-    |> assign(:head_title, "Support · Tuist")
-    |> render(:support, layout: false)
-  end
-
   def newsletter(conn, _params) do
     conn
     |> assign_structured_data(get_organization_structured_data())
@@ -616,12 +587,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing_newsletter,
-            title: dgettext("marketing", "Newsletter")
-          )
-      )
+      SocialCards.image_url("newsletter")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:head_title, dgettext("marketing", "Tuist Digest Newsletter"))
@@ -830,13 +796,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/changelog",
     "/customers",
     "/cache",
-    "/build-insights",
-    "/selective-testing",
     "/flaky-tests",
     "/test-insights",
     "/previews",
     "/about",
-    "/support",
     "/newsletter"
   ]
 
@@ -989,15 +952,9 @@ defmodule TuistWeb.Marketing.MarketingController do
         case_study_path = Localization.localized_href(case_study.slug, locale)
         new_design = Design.new?(conn, :case_study)
 
-        # The redesign swaps the static OG photos for the generated cover
-        # artwork; crawlers see it once the page's flag flips for anonymous
-        # traffic.
-        head_image_path =
-          if new_design and TuistWeb.Marketing.MarketingCustomerCovers.cover?(case_study) do
-            OpenGraph.image_path(:marketing_case_study, slug: Path.basename(case_study.slug))
-          else
-            case_study.og_image_path
-          end
+        # The generated cover artwork (or the title card without it) — the
+        # static photos are gone.
+        head_image_path = TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)
 
         conn =
           conn
@@ -1081,13 +1038,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:plans, plans)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path:
-            OpenGraph.image_path(:marketing,
-              title: dgettext("marketing", "Pricing"),
-              icon: "static/marketing/images/pricing/logo-og.svg"
-            )
-        )
+        SocialCards.image_url("pricing")
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_faq_structured_data(faqs))
@@ -1127,7 +1078,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Compute")))
+      SocialCards.image_url("compute")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -1159,7 +1110,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Tests")))
+      SocialCards.image_url("tests")
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -1197,7 +1148,9 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_description, head_description)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: page.title))
+        SocialCards.head_image(Path.basename(page.slug), fn ->
+          OpenGraph.image_path(:marketing, title: page.title)
+        end)
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(
@@ -1242,12 +1195,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing_newsletter,
-            title: dgettext("marketing", "Newsletter")
-          )
-      )
+      SocialCards.image_url("newsletter")
     )
     |> assign(:head_twitter_card, "summary_large_image")
   end
@@ -1271,14 +1219,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       render(conn, :newsletter_verify, layout: false)
     end
-  end
-
-  defp home_open_graph_image_path do
-    title =
-      dgettext("marketing", "Your mobile platform team,") <>
-        " " <> dgettext("marketing", "as a service")
-
-    OpenGraph.image_path(:marketing_home, title: title)
   end
 
   defp blog_post_image_url(post) do

@@ -26,7 +26,7 @@ defmodule TuistWeb.Helpers.OpenGraph do
   """
   def og_image_assigns(image_name) do
     [
-      head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/#{image_name}.jpg"),
+      head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/#{image_name}.png"),
       head_twitter_card: "summary_large_image"
     ]
   end

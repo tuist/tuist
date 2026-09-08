@@ -454,7 +454,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       },
       "headline" => case_study.title,
       "description" => case_study.excerpt,
-      "image" => Tuist.Environment.app_url(path: case_study.og_image_path),
+      "image" => Tuist.Environment.app_url(path: TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)),
       "author" => %{
         "@type" => "Organization",
         "name" => case_study.company,

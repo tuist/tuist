@@ -85,15 +85,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
     end
   end
 
-  defp generated_changelog_image_url(entry, date) do
-    Tuist.Environment.app_url(
-      path:
-        OpenGraph.image_path(:changelog_entry,
-          title: entry.title,
-          description: entry.description,
-          date: date,
-          pull_request: entry.pull_request
-        )
-    )
+  # The same title-on-template card blog posts without a cover get.
+  defp generated_changelog_image_url(entry, _date) do
+    Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing_text, title: entry.title))
   end
 end

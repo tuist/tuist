@@ -89,11 +89,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
-      for path <- ["/cache", "/build-insights", "/selective-testing", "/flaky-tests", "/test-insights", "/previews"] do
+      for path <- ["/cache", "/flaky-tests", "/test-insights", "/previews"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
-      for path <- ["/about", "/support", "/newsletter"] do
+      for path <- ["/about", "/newsletter"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
     end
@@ -212,6 +212,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ ~s(data-part="ci-switch")
       assert html =~ "runs-on: tuist-macos"
       assert html =~ ~s(queue: "tuist-macos")
+
+      # The redesign ships a designed social card instead of a rendered one.
+      assert html =~
+               ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
+
       assert html =~ "/marketing/assets/bundle-new.css"
       refute html =~ "/marketing/assets/bundle.css"
     end

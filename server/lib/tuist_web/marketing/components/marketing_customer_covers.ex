@@ -13,6 +13,7 @@ defmodule TuistWeb.Marketing.MarketingCustomerCovers do
   use TuistWeb, :html
 
   alias Tuist.Marketing.Customers.CoverArtwork
+  alias TuistWeb.Helpers.OpenGraph
 
   @doc """
   Whether `case_study` has cover artwork. Cards fall back to the case
@@ -31,6 +32,20 @@ defmodule TuistWeb.Marketing.MarketingCustomerCovers do
     assigns = assign(assigns, :svg, assigns.case_study |> basename() |> CoverArtwork.svg(:page))
 
     ~H"{raw(@svg)}"
+  end
+
+  @doc """
+  The path of `case_study`'s social image: a path its front matter names,
+  else the generated cover-artwork card, else the title-on-template card
+  every page without artwork gets. Also the raster the legacy pages show
+  where they have no inline artwork.
+  """
+  def og_image_path(case_study) do
+    cond do
+      case_study.og_image_path -> case_study.og_image_path
+      cover?(case_study) -> OpenGraph.image_path(:marketing_case_study, slug: basename(case_study))
+      true -> OpenGraph.image_path(:marketing_text, title: case_study.title)
+    end
   end
 
   defp basename(case_study), do: Path.basename(case_study.slug)

@@ -31,7 +31,11 @@
           <% else %>
             <img
               data-part="image"
-              src={TuistWeb.Marketing.MarketingHTML.static_asset_path(case_study.og_image_path)}
+              src={
+                TuistWeb.Marketing.MarketingHTML.static_asset_path(
+                  TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)
+                )
+              }
               alt={dgettext("marketing", "%{company} case study", company: case_study.company)}
               loading="lazy"
               decoding="async"

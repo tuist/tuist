@@ -349,16 +349,6 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
-        live Path.join(locale_path_prefix, "/build-insights"),
-             TuistWeb.Marketing.MarketingBuildInsightsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/selective-testing"),
-             TuistWeb.Marketing.MarketingSelectiveTestingLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: @marketing_route_metadata,
@@ -421,10 +411,6 @@ defmodule TuistWeb.Router do
         private: private
 
       get Path.join(locale_path_prefix, "/download"), MarketingController, :download,
-        metadata: @marketing_route_metadata,
-        private: private
-
-      get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
         metadata: @marketing_route_metadata,
         private: private
 
@@ -996,6 +982,8 @@ defmodule TuistWeb.Router do
       pipe_through [:browser_app]
 
       forward "/sent_emails", Bamboo.SentEmailViewerPlug
+      # Every Open Graph image on one page while the cards are redesigned.
+      get "/og-gallery", TuistWeb.OpsOpenGraphGalleryController, :index
     end
   end
 

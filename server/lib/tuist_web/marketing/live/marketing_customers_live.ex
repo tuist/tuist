@@ -8,6 +8,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   alias Tuist.Marketing.Customers
   alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.SocialCards
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
 
@@ -79,12 +80,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(:total_pages, total_pages)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path:
-            TuistWeb.Helpers.OpenGraph.image_path(:marketing,
-              title: dgettext("marketing", "Customers")
-            )
-        )
+        SocialCards.image_url("customers")
       )
       |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
