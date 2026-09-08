@@ -31,6 +31,7 @@ env:
 jobs:
   translate:
     name: Translate
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 90
     steps:

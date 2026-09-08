@@ -38,6 +38,7 @@ permissions:
 jobs:
   restore-drill:
     name: Restore drill (${{ inputs.environment || 'staging' }})
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment || 'staging' }}

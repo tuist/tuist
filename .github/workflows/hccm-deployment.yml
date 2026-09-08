@@ -28,6 +28,7 @@ permissions:
 jobs:
   apply:
     name: HCCM (${{ matrix.environment }})
+    if: github.repository == 'tuist/tuist'
     strategy:
       fail-fast: false
       matrix:
