@@ -12,11 +12,13 @@ pub struct Patch {
     pub bytes: Vec<u8>,
     pub groups: usize,
     pub copied_bytes: usize,
+    pub difference_groups: usize,
+    metadata: usize,
 }
 
 impl Patch {
     pub fn metadata_bytes(&self) -> usize {
-        HEADER_SIZE + self.groups * DESCRIPTOR_SIZE
+        self.metadata
     }
 }
 
@@ -85,13 +87,17 @@ pub fn encode(
         bytes: Vec::new(),
         groups: target_groups.len(),
         copied_bytes: 0,
+        difference_groups: 0,
+        metadata: 0,
     };
-    patch.bytes.extend(b"BPG00001");
+    patch.bytes.extend(b"BPG00002");
     patch.bytes.extend(Sha256::digest(base));
     patch.bytes.extend(Sha256::digest(target));
     for value in [base.len(), target.len(), limit, target_groups.len()] {
         patch.bytes.extend((value as u32).to_le_bytes());
     }
+    let mut metadata = Vec::with_capacity(target_groups.len() * DESCRIPTOR_SIZE);
+    let mut payloads = Vec::new();
     for (key, bytes) in target_groups {
         let prefix = base_groups.get(&key).copied().unwrap_or_default();
         let (mut mode, mut payload) = if prefix == bytes {
@@ -139,27 +145,40 @@ pub fn encode(
             if compressed.len() < payload.len() {
                 mode = 3;
                 payload = compressed;
+                patch.difference_groups += 1;
             }
         }
         for value in key {
-            patch.bytes.extend(value.to_le_bytes());
+            metadata.extend(value.to_le_bytes());
         }
-        patch.bytes.extend((bytes.len() as u32).to_le_bytes());
-        patch.bytes.push(mode);
-        patch.bytes.extend((payload.len() as u32).to_le_bytes());
-        patch.bytes.extend(payload);
+        metadata.extend((bytes.len() as u32).to_le_bytes());
+        metadata.push(mode);
+        metadata.extend((payload.len() as u32).to_le_bytes());
+        payloads.extend(payload);
     }
+    let compressed_metadata =
+        zstd::bulk::compress(&metadata, level).map_err(|e| format!("compress metadata: {e}"))?;
+    patch
+        .bytes
+        .extend((compressed_metadata.len() as u32).to_le_bytes());
+    patch.bytes.extend(compressed_metadata);
+    patch.metadata = patch.bytes.len();
+    patch.bytes.extend(payloads);
     Ok(patch)
 }
 
 pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
     require(base.len() <= MAX_PREPARED, "base size limit")?;
     require(
-        patch.len() <= MAX_PREPARED + HEADER_SIZE + MAX_GROUPS * DESCRIPTOR_SIZE,
+        patch.len()
+            <= MAX_PREPARED
+                + HEADER_SIZE
+                + 4
+                + zstd::zstd_safe::compress_bound(MAX_GROUPS * DESCRIPTOR_SIZE),
         "patch size limit",
     )?;
     let mut input = Cursor { data: patch, at: 0 };
-    require(input.take(8)? == b"BPG00001", "unknown patch format")?;
+    require(input.take(8)? == b"BPG00002", "unknown patch format")?;
     require(
         input.take(32)? == Sha256::digest(base).as_slice(),
         "wrong base digest",
@@ -171,6 +190,21 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
     let limit = input.u32()? as usize;
     let count = input.u32()? as usize;
     require(count <= MAX_GROUPS, "group count limit")?;
+    let metadata_size = input.u32()? as usize;
+    require(
+        metadata_size <= zstd::zstd_safe::compress_bound(count * DESCRIPTOR_SIZE),
+        "metadata size limit",
+    )?;
+    let metadata = zstd::bulk::decompress(input.take(metadata_size)?, count * DESCRIPTOR_SIZE)
+        .map_err(|e| format!("decompress metadata: {e}"))?;
+    require(
+        metadata.len() == count * DESCRIPTOR_SIZE,
+        "incorrect metadata size",
+    )?;
+    let mut metadata = Cursor {
+        data: &metadata,
+        at: 0,
+    };
     let base_groups: BTreeMap<_, _> = groups(base, limit)?.into_iter().collect();
     // Allocate only after validating the complete envelope and base groups.
     let mut output = Vec::with_capacity(size);
@@ -178,16 +212,16 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
     for _ in 0..count {
         let mut key = [0; 5];
         for value in &mut key {
-            *value = input.u32()? as i32;
+            *value = metadata.u32()? as i32;
         }
         require(seen.insert(key), "duplicate group")?;
-        let decoded_size = input.u32()? as usize;
+        let decoded_size = metadata.u32()? as usize;
         require(
             decoded_size <= limit && decoded_size <= size.saturating_sub(output.len()),
             "group output limit",
         )?;
-        let mode = input.take(1)?[0];
-        let payload_size = input.u32()? as usize;
+        let mode = metadata.take(1)?[0];
+        let payload_size = metadata.u32()? as usize;
         require(payload_size <= limit, "group payload limit")?;
         let payload = input.take(payload_size)?;
         let prefix = base_groups.get(&key).copied().unwrap_or_default();
@@ -271,6 +305,25 @@ mod tests {
         let patch = encode(&base, &base, 1024, 3, true).unwrap();
         assert_eq!(patch.copied_bytes, base.len());
         assert_eq!(patch.bytes.len(), patch.metadata_bytes());
+    }
+
+    #[test]
+    fn byte_differences_preserve_wrapping_values() {
+        let mut state = 47u64;
+        let values: Vec<u8> = (0..4096)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state as u8
+            })
+            .collect();
+        let changed: Vec<_> = values.iter().map(|value| value.wrapping_add(1)).collect();
+        let base = prepared(&values, 7);
+        let target = prepared(&changed, 7);
+        let patch = encode(&base, &target, 1024, 3, true).unwrap();
+        assert!(patch.difference_groups > 0);
+        assert_eq!(decode(&base, &patch.bytes).unwrap(), target);
     }
 
     #[test]
