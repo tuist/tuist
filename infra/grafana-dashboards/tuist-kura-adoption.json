@@ -27,7 +27,7 @@
       }
     ],
     "cursorSync": "Off",
-    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle request rates between the two backends in Prometheus, counting both of Kura's transports on the Xcode lane since the compilation cache runs on REAPI over gRPC as well as the older HTTP cache routes, and expresses the per-lane share in bytes from ClickHouse since request counts are not comparable across the two protocols. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
+    "description": "Production only. Adoption of Kura, the per-account cache mesh, now that the CLI enables it by default (4.207.0-canary.15+). CLI-run panels cover the module cache lane; the per-lane row compares module, Xcode compilation cache and Gradle request rates between the two backends in Prometheus, counting both of Kura's transports on the Xcode lane since the compilation cache runs on REAPI over gRPC as well as the older HTTP cache routes, and expresses the Xcode and Gradle share in bytes from ClickHouse, since request counts are not comparable across the two protocols, keeping the module share on requests because the legacy module cache records no bytes. Splits hosted cache traffic between Kura (*.kura.tuist.dev) and the legacy hosted cache (cache-*.tuist.dev) using ClickHouse command_events.cache_endpoint, kura_usage_events and cas_events_daily_stats, the Postgres kura_servers / kura_origin_rollups tables, and the live kura_* / cache_* Prometheus series.",
     "editable": true,
     "elements": {
       "panel-10": {
@@ -1477,6 +1477,30 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "100 * (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) / (sum(increase(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__range])) + sum(increase(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__range]))))",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "Module (requests)",
+                        "queryType": "instant",
+                        "range": false
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
                         "name": "dexgs9hv7rjswd"
                       },
                       "group": "grafana-clickhouse-datasource",
@@ -1486,11 +1510,11 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT\n  round(100 * sum(kura_xcode) / nullIf(sum(kura_xcode) + sum(legacy_xcode), 0), 2) AS \"Xcode\",\n  round(100 * sum(kura_gradle) / nullIf(sum(kura_gradle) + sum(legacy_gradle), 0), 2) AS \"Gradle\"\nFROM (\n  SELECT sumIf(bytes, artifact_kind IN ('xcode', 'reapi')) AS kura_xcode,\n    sumIf(bytes, artifact_kind = 'gradle') AS kura_gradle,\n    toUInt64(0) AS legacy_xcode, toUInt64(0) AS legacy_gradle\n  FROM kura_usage_events WHERE $__timeFilter(window_start)\n  UNION ALL\n  SELECT toUInt64(0), toUInt64(0), toUInt64(sum(total_size)), toUInt64(0)\n  FROM cas_events_daily_stats\n  WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n  UNION ALL\n  SELECT toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(size))\n  FROM gradle_cache_events\n  WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n)"
+                        "rawSql": "SELECT\n  round(100 * sum(kura_xcode) / nullIf(sum(kura_xcode) + sum(legacy_xcode), 0), 2) AS \"Xcode (bytes)\",\n  round(100 * sum(kura_gradle) / nullIf(sum(kura_gradle) + sum(legacy_gradle), 0), 2) AS \"Gradle (bytes)\"\nFROM (\n  SELECT sumIf(bytes, artifact_kind IN ('xcode', 'reapi')) AS kura_xcode,\n    sumIf(bytes, artifact_kind = 'gradle') AS kura_gradle,\n    toUInt64(0) AS legacy_xcode, toUInt64(0) AS legacy_gradle\n  FROM kura_usage_events WHERE $__timeFilter(window_start)\n  UNION ALL\n  SELECT toUInt64(0), toUInt64(0), toUInt64(sum(total_size)), toUInt64(0)\n  FROM cas_events_daily_stats\n  WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000)))\n  UNION ALL\n  SELECT toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(size))\n  FROM gradle_cache_events\n  WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev'\n)"
                       },
                       "version": "v0"
                     },
-                    "refId": "A"
+                    "refId": "B"
                   }
                 }
               ],
@@ -1498,10 +1522,10 @@
               "transformations": []
             }
           },
-          "description": "Share of cache bytes served by production Kura nodes rather than the legacy hosted cache, per lane, over the selected range. Bytes rather than requests because REAPI batches many blobs into one call while the HTTP cache lanes are one request per object, so counting requests understates Kura on the Xcode lane. Xcode counts Kura's REAPI and HTTP bytes together (`kura_usage_events` `reapi` plus `xcode`) against `cas_events_daily_stats`, which holds no Kura-endpoint rows. Gradle counts `kura_usage_events` `gradle` against the `gradle_cache_events` rows that did not go to a Kura endpoint. The module lane has no share here: legacy module cache bytes are not recorded in ClickHouse (`module_cache_outputs` is empty), so there is no denominator to divide by. Module adoption is tracked by CLI runs on the module cache row instead. ClickHouse rather than Prometheus, because the legacy byte totals only exist here, so this lags the live rate panels above. Legacy Xcode bytes are stored daily, which sets the floor on granularity.",
+          "description": "Share of each cache lane served by production Kura nodes rather than the legacy hosted cache, over the selected range. The module lane is a request share and the other two are byte shares, which the series names carry. Bytes are the better measure, since REAPI batches many blobs into one call while the HTTP cache lanes are one request per object, so a request ratio understates Kura on the Xcode lane. Module stays on requests because legacy module cache bytes are not recorded in ClickHouse (`module_cache_outputs` is empty), so that lane has no byte denominator. Xcode counts Kura's REAPI and HTTP bytes together (`kura_usage_events` `reapi` plus `xcode`) against `cas_events_daily_stats`, which holds no Kura-endpoint rows. Gradle counts `kura_usage_events` `gradle` against the `gradle_cache_events` rows that did not go to a Kura endpoint. Module reads the live Prometheus request counters on `/api/cache/module.*`. The two byte arms come from ClickHouse and lag the live rate panels above; legacy Xcode bytes are stored daily, which sets the floor on their granularity.",
           "id": 40,
           "links": [],
-          "title": "Kura share of cache bytes per lane",
+          "title": "Kura share per cache lane",
           "vizConfig": {
             "group": "bargauge",
             "kind": "VizConfig",
@@ -1577,6 +1601,29 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
+                        "name": "grafanacloud-prom"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "100 * (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) / (sum(rate(kura_public_request_latency_seconds_count{cluster=\"tuist-production\", route=~\"/api/cache/module.*\"}[$__rate_interval])) + sum(rate(cache_prom_ex_phoenix_http_requests_total{instance=~\"cache-.*\", instance!~\".*-(canary|staging).*\", path=~\"/api/cache/module.*\"}[$__rate_interval]))))",
+                        "instant": false,
+                        "legendFormat": "Module (requests)",
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
                         "name": "dexgs9hv7rjswd"
                       },
                       "group": "grafana-clickhouse-datasource",
@@ -1586,11 +1633,11 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT time,\n  round(100 * sum(kura_xcode) / nullIf(sum(kura_xcode) + sum(legacy_xcode), 0), 2) AS \"Xcode\",\n  round(100 * sum(kura_gradle) / nullIf(sum(kura_gradle) + sum(legacy_gradle), 0), 2) AS \"Gradle\"\nFROM (\n  SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time,\n    sumIf(bytes, artifact_kind IN ('xcode', 'reapi')) AS kura_xcode,\n    sumIf(bytes, artifact_kind = 'gradle') AS kura_gradle,\n    toUInt64(0) AS legacy_xcode, toUInt64(0) AS legacy_gradle\n  FROM kura_usage_events WHERE $__timeFilter(window_start) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(sum(total_size)), toUInt64(0)\n  FROM cas_events_daily_stats\n  WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000))) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(size))\n  FROM gradle_cache_events\n  WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev' GROUP BY time\n)\nGROUP BY time ORDER BY time"
+                        "rawSql": "SELECT time,\n  round(100 * sum(kura_xcode) / nullIf(sum(kura_xcode) + sum(legacy_xcode), 0), 2) AS \"Xcode (bytes)\",\n  round(100 * sum(kura_gradle) / nullIf(sum(kura_gradle) + sum(legacy_gradle), 0), 2) AS \"Gradle (bytes)\"\nFROM (\n  SELECT toStartOfInterval(window_start, INTERVAL 1 $bucket) AS time,\n    sumIf(bytes, artifact_kind IN ('xcode', 'reapi')) AS kura_xcode,\n    sumIf(bytes, artifact_kind = 'gradle') AS kura_gradle,\n    toUInt64(0) AS legacy_xcode, toUInt64(0) AS legacy_gradle\n  FROM kura_usage_events WHERE $__timeFilter(window_start) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(toDateTime(date), INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(sum(total_size)), toUInt64(0)\n  FROM cas_events_daily_stats\n  WHERE date BETWEEN toDate(toDateTime(intDiv($__from, 1000))) AND toDate(toDateTime(intDiv($__to, 1000))) GROUP BY time\n  UNION ALL\n  SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n    toUInt64(0), toUInt64(0), toUInt64(0), toUInt64(sum(size))\n  FROM gradle_cache_events\n  WHERE $__timeFilter(inserted_at) AND cache_endpoint NOT LIKE '%.kura.tuist.dev' GROUP BY time\n)\nGROUP BY time ORDER BY time"
                       },
                       "version": "v0"
                     },
-                    "refId": "A"
+                    "refId": "B"
                   }
                 }
               ],
@@ -1598,10 +1645,10 @@
               "transformations": []
             }
           },
-          "description": "Kura bytes over Kura + legacy bytes on each lane, per bucket. Bytes rather than requests because REAPI batches many blobs into one call while the HTTP cache lanes are one request per object, so counting requests understates Kura on the Xcode lane. Xcode counts Kura's REAPI and HTTP bytes together (`kura_usage_events` `reapi` plus `xcode`) against `cas_events_daily_stats`, which holds no Kura-endpoint rows. Gradle counts `kura_usage_events` `gradle` against the `gradle_cache_events` rows that did not go to a Kura endpoint. The module lane has no share here: legacy module cache bytes are not recorded in ClickHouse (`module_cache_outputs` is empty), so there is no denominator to divide by. Module adoption is tracked by CLI runs on the module cache row instead. ClickHouse rather than Prometheus, because the legacy byte totals only exist here, so this lags the live rate panels above. Legacy Xcode bytes are stored daily, which sets the floor on granularity. Gaps mean neither backend moved bytes on that lane in the interval.",
+          "description": "Kura's share of each cache lane per bucket. The module lane is a request share and the other two are byte shares, which the series names carry. Bytes are the better measure, since REAPI batches many blobs into one call while the HTTP cache lanes are one request per object, so a request ratio understates Kura on the Xcode lane. Module stays on requests because legacy module cache bytes are not recorded in ClickHouse (`module_cache_outputs` is empty), so that lane has no byte denominator. Xcode counts Kura's REAPI and HTTP bytes together (`kura_usage_events` `reapi` plus `xcode`) against `cas_events_daily_stats`, which holds no Kura-endpoint rows. Gradle counts `kura_usage_events` `gradle` against the `gradle_cache_events` rows that did not go to a Kura endpoint. Module reads the live Prometheus request counters on `/api/cache/module.*`. The two byte arms come from ClickHouse and lag the live rate panels above; legacy Xcode bytes are stored daily, which sets the floor on their granularity. Gaps mean neither backend saw traffic on that lane in the interval.",
           "id": 41,
           "links": [],
-          "title": "Kura share of cache bytes per lane over time",
+          "title": "Kura share per cache lane over time",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -1662,7 +1709,22 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Xcode"
+                      "options": "Module (requests)"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Xcode (bytes)"
                     },
                     "properties": [
                       {
@@ -1677,7 +1739,7 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "Gradle"
+                      "options": "Gradle (bytes)"
                     },
                     "properties": [
                       {
