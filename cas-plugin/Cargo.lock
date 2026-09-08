@@ -1074,6 +1074,7 @@ dependencies = [
  "libc",
  "libloading",
  "prost",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",

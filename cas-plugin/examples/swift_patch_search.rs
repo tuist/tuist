@@ -26,6 +26,8 @@ struct Config {
     group_bytes: usize,
     #[serde(default)]
     residual: bool,
+    #[serde(default)]
+    fast_hash: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -135,6 +137,7 @@ fn main() {
                     config.group_bytes,
                     config.level,
                     config.residual,
+                    config.fast_hash,
                 )
                 .unwrap();
                 groups = patch.groups;
@@ -178,7 +181,7 @@ fn main() {
             drop(next_prepared);
             let start = Instant::now();
             let prepared = if config.group_bytes != 0 {
-                bitstream_probe::grouped::decode(&base_prepared, &patch).unwrap()
+                bitstream_probe::grouped::decode(&base_prepared, &patch, config.fast_hash).unwrap()
             } else {
                 let mut decoder = zstd::zstd_safe::DCtx::create();
                 if config.prefix {

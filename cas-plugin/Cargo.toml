@@ -39,6 +39,10 @@ base64 = "0.22"
 # cas_analytics.db uses; `macros` gives a compile-time-checked format string.
 time = { version = "0.3", features = ["formatting", "macros"] }
 
+[dev-dependencies]
+# Already used by the transport; only the offline patch experiment selects its hash implementation.
+ring = "0.17"
+
 [profile.release]
 opt-level = 2
 lto = "thin"

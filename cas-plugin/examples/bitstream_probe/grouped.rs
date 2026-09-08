@@ -8,6 +8,17 @@ const MAX_GROUPS: usize = 131_072;
 const HEADER_SIZE: usize = 88;
 const DESCRIPTOR_SIZE: usize = 29;
 
+fn digest(bytes: &[u8], fast: bool) -> [u8; 32] {
+    if fast {
+        ring::digest::digest(&ring::digest::SHA256, bytes)
+            .as_ref()
+            .try_into()
+            .unwrap()
+    } else {
+        Sha256::digest(bytes).into()
+    }
+}
+
 pub struct Patch {
     pub bytes: Vec<u8>,
     pub groups: usize,
@@ -80,6 +91,7 @@ pub fn encode(
     limit: usize,
     level: i32,
     residual: bool,
+    fast_hash: bool,
 ) -> Result<Patch> {
     let base_groups: BTreeMap<_, _> = groups(base, limit)?.into_iter().collect();
     let target_groups = groups(target, limit)?;
@@ -91,8 +103,8 @@ pub fn encode(
         metadata: 0,
     };
     patch.bytes.extend(b"BPG00002");
-    patch.bytes.extend(Sha256::digest(base));
-    patch.bytes.extend(Sha256::digest(target));
+    patch.bytes.extend(digest(base, fast_hash));
+    patch.bytes.extend(digest(target, fast_hash));
     for value in [base.len(), target.len(), limit, target_groups.len()] {
         patch.bytes.extend((value as u32).to_le_bytes());
     }
@@ -167,7 +179,7 @@ pub fn encode(
     Ok(patch)
 }
 
-pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
+pub fn decode(base: &[u8], patch: &[u8], fast_hash: bool) -> Result<Vec<u8>> {
     require(base.len() <= MAX_PREPARED, "base size limit")?;
     require(
         patch.len()
@@ -180,7 +192,7 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
     let mut input = Cursor { data: patch, at: 0 };
     require(input.take(8)? == b"BPG00002", "unknown patch format")?;
     require(
-        input.take(32)? == Sha256::digest(base).as_slice(),
+        input.take(32)? == digest(base, fast_hash),
         "wrong base digest",
     )?;
     let target_digest = input.take(32)?;
@@ -269,7 +281,7 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
         "incomplete or trailing patch data",
     )?;
     require(
-        Sha256::digest(&output).as_slice() == target_digest,
+        digest(&output, fast_hash) == target_digest,
         "wrong target digest",
     )?;
     Ok(output)
@@ -278,6 +290,35 @@ pub fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn encode(
+        base: &[u8],
+        target: &[u8],
+        limit: usize,
+        level: i32,
+        residual: bool,
+    ) -> Result<Patch> {
+        super::encode(base, target, limit, level, residual, true)
+    }
+
+    fn decode(base: &[u8], patch: &[u8]) -> Result<Vec<u8>> {
+        super::decode(base, patch, true)
+    }
+
+    #[test]
+    fn hash_implementations_preserve_digests_and_patch_bytes() {
+        for size in [0, 1, 55, 56, 63, 64, 65, 127, 128, 4096, 1_048_576] {
+            let bytes: Vec<_> = (0..size).map(|index| (index * 47) as u8).collect();
+            assert_eq!(digest(&bytes, false), digest(&bytes, true));
+        }
+        let base = prepared(&vec![11; 4096], 7);
+        let target = prepared(&vec![19; 4096], 7);
+        let slow = super::encode(&base, &target, 1024, 3, true, false).unwrap();
+        let fast = super::encode(&base, &target, 1024, 3, true, true).unwrap();
+        assert_eq!(slow.bytes, fast.bytes);
+        assert_eq!(super::decode(&base, &fast.bytes, false).unwrap(), target);
+        assert_eq!(super::decode(&base, &slow.bytes, true).unwrap(), target);
+    }
 
     fn prepared(column: &[u8], code: i32) -> Vec<u8> {
         let mut bytes = Vec::from(&b"BCOL0001"[..]);
