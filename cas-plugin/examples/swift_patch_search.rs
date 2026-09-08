@@ -18,6 +18,8 @@ struct Config {
     column_cap: u32,
     level: i32,
     window_log: u32,
+    #[serde(default)]
+    long_distance: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -109,6 +111,9 @@ fn main() {
                     .set_parameter(zstd::zstd_safe::CParameter::WindowLog(config.window_log))
                     .unwrap();
             }
+            compressor
+                .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(config.long_distance))
+                .unwrap();
             let patch = compressor.compress(&next_prepared).unwrap();
             samples[2].push(elapsed(start));
             drop(compressor);
