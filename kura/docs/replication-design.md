@@ -34,7 +34,7 @@ identifies are what this design has to remove.
 | | Limit | Why it is structural | Removed by |
 | --- | --- | --- | --- |
 | **L1** | **Fan-out lands on the hottest node.** Egress from the write-receiving node is `(N-1) x S`, and the cheap loopback copies share one pipeline with the expensive WAN ones. | The node under bursty client load is the node doing all the replication work. | Pull, so each receiver paces itself (§3, §4); the gateway topology, so bytes cross a region boundary once (§2). Not for a region of one — the co-located instance keeps `(R-1) x S` and now also serves the listings (§2.3). |
-| **L2** | **Write availability is coupled to the slowest peer.** One depth cap shared by all targets, reserved `N-1` at a time; an unreachable peer's backlog consumes the budget healthy peers need, and client writes get `429`. | A queue bounded for safety cannot also be the convergence mechanism — Cassandra's hinted-handoff lesson. | A feed that drops oldest instead of blocking (§3.1, INV-7); no per-target queue at all. |
+| **L2** | **Write availability is coupled to the slowest peer.** The outbox cap is now a per-peer share (#12826: 100k per target under a 1M ceiling), so a dead peer no longer sheds writes for the healthy ones — but a write is still refused with `429` the moment *any* of its targets is at its share, and the total grows with the mesh. | A queue bounded for safety cannot also be the convergence mechanism — Cassandra's hinted-handoff lesson. #12826 calls itself an interim measure for that reason. | A feed that drops oldest instead of blocking (§3.1, INV-7); no per-target queue at all. |
 | **L3** | **Commit-path cost.** `N-1` extra puts in a synchronous batch per write, plus `N-1` later deletes, for data that is pure routing state. | It scales with mesh size on the critical path of every write. | One feed row per commit regardless of peer count, trimmed in batches (§3.1, §8). |
 | **L4** | **Blind pushes.** The sender does not know what the receiver has or whether it will keep it; content addressing goes unexploited and bytes ship before the receiver's admission runs. | Push cannot ask; only a puller knows what it lacks. | Descriptor pages with receiver-side admission before bytes move (§3.1, §4.1). |
 | **L5** | **No continuous anti-entropy.** Messages are dropped for targets that left the view, a rejoining peer re-walks only to the horizon, the walker is edge-triggered. | Convergence depends on a queue never losing anything and on membership events firing at the right times. | Continuous forward sync on both links (§3.1, §4.1), backward sync on every membership change (§4.1). |
@@ -78,6 +78,14 @@ shaping stays per-pod and role-agnostic, both replicas carry the class sized
 for that share, and the non-gateway's unused headroom is borrowed under HTB.
 The role can move without anything being re-rendered, so there is no
 server-to-controller feedback path to build.
+
+`R` is per account and small. A mesh is one account's instances, placed by
+plan and traffic (#12901, #12956): a plan funds two, three or five regions,
+and placement may *relocate* an account's instance or *expand* it into a
+second region on the evidence of where its cache traffic comes from. Every
+such move is a region entering or leaving the mesh — a backward pass, nothing
+else — and the small `R` is what keeps the gateway clique, `R(R-1)` streams,
+comfortably cheap.
 
 **Bidirectionality inside the region is load-bearing**, not symmetry for its own
 sake: the gateway pulling *from* its non-gateways is the only way data written
@@ -277,7 +285,10 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   the counter at zero, so a sibling holding an old, higher cursor would sit
   above the new head and long-poll forever, never falling off the feed. The
   request carries it — `after={incarnation}:{seq}` — because the source cannot
-  otherwise tell a foreign cursor from a future one. It is not the
+  otherwise tell a foreign cursor from a future one. This is a routine event,
+  not only a node move: the controller rebuilds a data volume one ordinal at a
+  time behind the standby whenever an account's claim grows (#12947), and each
+  rebuild is a new incarnation that bootstraps from its sibling. It is not the
   `generation` in `/ready`, which is per-process cluster state.
 - **Written for what the sibling does not have.** A client write and a
   region-sync apply each produce a row. A change that *arrived from the
@@ -402,6 +413,21 @@ are checked at serve time. The cost is one manifest point lookup per
 referenced blob, on young entries only — microseconds against cached blocks,
 and zero for the steady-state hit.
 
+Content-defined chunking (#12937) already works this way, and is the second
+dependency class the gate covers. A recipe under `blob_chunks/{hash}/{size}`
+references its chunks the way an action-cache entry references its blobs, and
+it keeps its creation `version_ms` rather than being stamped behind them:
+backfill can encounter the recipe before its chunks, and "the composite
+presence and read gates keep it unavailable until every dependency arrives".
+That is INV-6 for recipes, already shipped. The consequences carry over
+unchanged. Recipes are classified with the capacity-sensitive records in the
+index, so the ascending read's per-entry capacity rule (§4.1) declines them
+with their chunks. And a recipe that reuses chunks older than the puller's
+horizon — the normal case for an incremental build — is an honest miss where
+the chunks are absent, which the client repairs by design: a miss on the
+logical blob makes Bazel probe the chunks, upload the missing ones and
+re-splice, and the bounded expiry sweep reclaims the stranded recipe.
+
 ### 3.4 Replicas are not identical, and that is fine
 
 They cannot be. During the drain overlap both take writes, so neither is a
@@ -435,7 +461,11 @@ An expiry is a counted event, not a loss: the feed is on the persistent
 volume, so the recreated pod serves the tail when it comes back and the
 sibling merely lags for the restart. The one genuine loss is a node move on
 local-path storage, where the volume itself is gone — which is the pre-existing
-loss of that storage class, not something this design introduces.
+loss of that storage class, not something this design introduces. The
+controller's volume rebuild for a grown claim (#12947) is this sequence by
+construction — the ordinal is replaced behind its sibling, drains, comes back
+on an empty volume and bootstraps — so §3.6 is also what that path should
+wait on before moving to the next ordinal.
 
 ### 3.6 Readiness follows the sibling, never the region
 
@@ -479,7 +509,10 @@ inverted `version_ms`, one row per live artifact. No new structure.
   `R(R-1)`, a gateway's cross-region egress is exactly its own region's
   writes, and each region's watermark lives in that region's clock (§4.6).
   Backward passes stay unfiltered — a cold fill wants everything, newest
-  first, from whoever holds it.
+  first, from whoever holds it. That is also what makes a *departed* origin
+  harmless: after a relocation (#12956) nobody lists that region's records
+  forward, but every backward pass still delivers them from whichever gateway
+  holds them.
 
 On a full ring the ascending read applies the marginal trade
 `capacity_complete` already makes, per entry: an entry older than the next
@@ -702,10 +735,10 @@ Three steps, of which only the middle one changes behaviour.
   `GET /_internal/sync/forward`, the ascending read and `now` on the existing
   listing, `origin_region` stamped on new manifests. The server publishes
   `peer_roles` beside `peers`; older nodes ignore a field they do not know.
-  Push still does all the work — so the same release takes the outbox's depth
-  accounting per target (`replication-scaling.md` §6, item 2), because links
-  that stay on push through the whole support window must stop shedding
-  client writes now, not at removal.
+  Push still does all the work. Its depth cap is already per target (#12826),
+  which is what lets links that stay on push through the whole support window
+  survive a dead peer; what that share cannot do — stop a write being refused
+  because one of its targets is full — is what the flip removes.
 - **Flip.** One flag per account, rendered into each instance's spec from the
   account's feature flag and published in that mesh's roles. A node with the
   flag on **advertises that it is pulling**, and applies one rule per peer:
@@ -771,13 +804,18 @@ Per `kura/AGENTS.md`, every metric added or changed here needs a matching panel
 in `infra/grafana-dashboards/tuist-kura-details.json`, with the operational
 interpretation in the panel description rather than the Prometheus HELP text.
 Counters scrape with a doubled suffix (`foo_total` is served as
-`foo_total_total`), so panels must query the scraped name.
+`foo_total_total`), so panels must query the scraped name. Series cost is per
+pod times labels (#12969 dropped every histogram bucket family no alert
+reads, at ~750 series per two-replica instance): nothing below adds a
+bucket family, the one duration is exported as `_sum` and `_count`, and the
+labels are bounded — `region` by the plan's region count, `peer` by one
+sibling.
 
 ### 6.1 Retained, retired, reframed
 
 | Metric | Fate |
 | --- | --- |
-| `kura_outbox_messages`, `kura_outbox_lane_messages` | Keep until removal — they measure the remaining push traffic, which is exactly what tells you whether removal is reachable. Retire with the outbox. |
+| `kura_outbox_messages`, `kura_outbox_lane_messages`, `kura_outbox_target_messages{target}`, `kura_outbox_peer_capacity`, `kura_outbox_capacity` | Keep until removal — they measure the remaining push traffic, which is exactly what tells you whether removal is reachable. Retire with the outbox. |
 | `kura_replication_*` (apply outcomes, latency, by target) | Reframe: `target` becomes the peer being pulled *from* rather than pushed *to*. Same families, inverted meaning — rename rather than silently repurpose. |
 | `kura_backfill_*` | Retained. Backward sync is unchanged apart from the pass-start buffer. |
 | `kura_capacity_shed_*` for outbox exhaustion | Should trend to zero as links move to pull, and its remaining non-zero share names the links still on push. |
