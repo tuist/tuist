@@ -33,6 +33,8 @@ struct Config {
     compact_columns: bool,
     #[serde(default)]
     receiver_segments: bool,
+    #[serde(default)]
+    receiver_release: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -191,6 +193,9 @@ fn main() {
             parts
         };
         let prepare_peak = peak_bytes();
+        if config.receiver_release {
+            drop(base);
+        }
         let prepared = if config.receiver_segments {
             bitstream_probe::grouped::decode_segments(&base_prepared, &patch, config.fast_hash)
                 .unwrap()
@@ -206,6 +211,11 @@ fn main() {
             parts
         };
         let restored = bitstream_probe::restore_source(&prepared, expected.size).unwrap();
+        let owned_prepared = base_prepared.owned_bytes() + prepared.owned_bytes();
+        if config.receiver_release {
+            drop(prepared);
+            drop(base_prepared);
+        }
         assert_eq!(blob_digest(&restored).hash, expected.original_hash);
         let blob = compressed(&restored);
         let digest = blob_digest(&blob);
@@ -216,7 +226,7 @@ fn main() {
             "{}",
             serde_json::json!({"receiver_ms":start.elapsed().as_secs_f64()*1000.0,
             "receiver_peak_bytes":peak_bytes(), "prepare_peak_bytes":prepare_peak,
-            "owned_prepared_bytes":base_prepared.owned_bytes() + prepared.owned_bytes()})
+            "owned_prepared_bytes":owned_prepared})
         );
         return;
     }
