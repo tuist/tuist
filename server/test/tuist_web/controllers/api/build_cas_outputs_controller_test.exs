@@ -214,6 +214,163 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
       assert response["pagination_metadata"]["total_pages"] == 2
     end
 
+    test "omits totals unless they are requested", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :list_cas_outputs, fn _attrs -> {[], empty_meta()} end)
+      reject(&Builds.cas_output_metrics/1)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs")
+
+      response = json_response(conn, 200)
+      refute Map.has_key?(response, "totals")
+    end
+
+    test "returns totals for the whole build run when they are requested", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+      stub(Builds, :list_cas_outputs, fn _attrs -> {[], empty_meta()} end)
+
+      expect(Builds, :cas_output_metrics, fn build_run_id ->
+        assert build_run_id == build.id
+        metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?include_totals=true"
+        )
+
+      assert %{
+               "totals" => %{
+                 "download_count" => 90,
+                 "upload_count" => 10,
+                 "download_bytes" => 9000,
+                 "upload_bytes" => 1000
+               }
+             } = json_response(conn, 200)
+    end
+
+    test "returns totals for both operations when the outputs are filtered to one", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :list_cas_outputs, fn attrs ->
+        assert %{field: :operation, op: :==, value: "upload"} in attrs.filters
+
+        {[
+           %{
+             node_id: "node2",
+             checksum: "def456",
+             size: 2048,
+             compressed_size: 1500,
+             duration: 300.0,
+             operation: :upload,
+             type: :swift
+           }
+         ], %{empty_meta() | total_count: 1, total_pages: 1}}
+      end)
+
+      expect(Builds, :cas_output_metrics, fn _build_run_id ->
+        metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?operation=upload&include_totals=true"
+        )
+
+      response = json_response(conn, 200)
+
+      assert Enum.map(response["outputs"], & &1["operation"]) == ["upload"]
+      assert response["pagination_metadata"]["total_count"] == 1
+
+      assert response["totals"] == %{
+               "download_count" => 90,
+               "upload_count" => 10,
+               "download_bytes" => 9000,
+               "upload_bytes" => 1000
+             }
+    end
+
+    test "returns totals for the whole build run when the outputs are filtered by type", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :list_cas_outputs, fn attrs ->
+        assert %{field: :type, op: :==, value: "swift"} in attrs.filters
+        {[], empty_meta()}
+      end)
+
+      expect(Builds, :cas_output_metrics, fn _build_run_id ->
+        metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?type=swift&include_totals=true"
+        )
+
+      assert json_response(conn, 200)["totals"] == %{
+               "download_count" => 90,
+               "upload_count" => 10,
+               "download_bytes" => 9000,
+               "upload_bytes" => 1000
+             }
+    end
+
+    test "returns the same totals on every page", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      stub(Builds, :list_cas_outputs, fn attrs ->
+        {[], %{empty_meta() | current_page: attrs.page, page_size: attrs.page_size, total_count: 100, total_pages: 10}}
+      end)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id ->
+        metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      totals =
+        for page <- [1, 5, 10] do
+          conn
+          |> get(
+            "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}/cas-outputs?page=#{page}&page_size=10&include_totals=true"
+          )
+          |> json_response(200)
+          |> Map.get("totals")
+        end
+
+      assert Enum.uniq(totals) == [
+               %{
+                 "download_count" => 90,
+                 "upload_count" => 10,
+                 "download_bytes" => 9000,
+                 "upload_bytes" => 1000
+               }
+             ]
+    end
+
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
       stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
 
@@ -243,5 +400,27 @@ defmodule TuistWeb.API.BuildCASOutputsControllerTest do
 
       assert json_response(conn, :forbidden)
     end
+  end
+
+  defp empty_meta do
+    %{
+      has_next_page?: false,
+      has_previous_page?: false,
+      current_page: 1,
+      page_size: 20,
+      total_count: 0,
+      total_pages: 0
+    }
+  end
+
+  defp metrics(attrs) do
+    %{
+      download_count: Keyword.fetch!(attrs, :download_count),
+      upload_count: Keyword.fetch!(attrs, :upload_count),
+      download_bytes: Keyword.fetch!(attrs, :download_bytes),
+      upload_bytes: Keyword.fetch!(attrs, :upload_bytes),
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
   end
 end

@@ -6068,6 +6068,13 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
       x-validate:
+    BuildCASOutputsIndexIncludeTotals:
+      default: false
+      description: Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.
+      title: BuildCASOutputsIndexIncludeTotals
+      type: boolean
+      x-struct:
+      x-validate:
     AppBuild:
       properties:
         binary_id:
@@ -13854,6 +13861,17 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: ''
+          in: query
+          name: include_totals
+          required: false
+          schema:
+            default: false
+            description: Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.
+            title: BuildCASOutputsIndexIncludeTotals
+            type: boolean
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
@@ -13971,6 +13989,37 @@ paths:
                     x-validate:
                   pagination_metadata:
                     $ref: '#/components/schemas/PaginationMetadata'
+                  totals:
+                    description: The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.
+                    properties:
+                      download_bytes:
+                        description: The number of bytes downloaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      download_count:
+                        description: The number of CAS outputs downloaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      upload_bytes:
+                        description: The number of bytes uploaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      upload_count:
+                        description: The number of CAS outputs uploaded.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - download_count
+                      - upload_count
+                      - download_bytes
+                      - upload_bytes
+                    type: object
+                    x-struct:
+                    x-validate:
                 required:
                   - outputs
                   - pagination_metadata

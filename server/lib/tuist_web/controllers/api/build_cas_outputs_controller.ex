@@ -79,6 +79,16 @@ defmodule TuistWeb.API.BuildCASOutputsController do
           default: 1,
           minimum: 1
         }
+      ],
+      include_totals: [
+        in: :query,
+        type: %Schema{
+          title: "BuildCASOutputsIndexIncludeTotals",
+          description:
+            "Whether to include the aggregate transfer totals for the build. The totals cover the whole build and are not narrowed by the operation or type filters.",
+          type: :boolean,
+          default: false
+        }
       ]
     ],
     responses: %{
@@ -107,7 +117,19 @@ defmodule TuistWeb.API.BuildCASOutputsController do
                  required: [:node_id, :checksum, :size, :compressed_size, :duration, :operation]
                }
              },
-             pagination_metadata: PaginationMetadata
+             pagination_metadata: PaginationMetadata,
+             totals: %Schema{
+               type: :object,
+               description:
+                 "The aggregate transfer totals for the whole build, present when include_totals is true. Not narrowed by the operation or type filters.",
+               properties: %{
+                 download_count: %Schema{type: :integer, description: "The number of CAS outputs downloaded."},
+                 upload_count: %Schema{type: :integer, description: "The number of CAS outputs uploaded."},
+                 download_bytes: %Schema{type: :integer, description: "The number of bytes downloaded."},
+                 upload_bytes: %Schema{type: :integer, description: "The number of bytes uploaded."}
+               },
+               required: [:download_count, :upload_count, :download_bytes, :upload_bytes]
+             }
            },
            required: [:outputs, :pagination_metadata]
          }},
@@ -120,7 +142,7 @@ defmodule TuistWeb.API.BuildCASOutputsController do
   def index(
         %{
           assigns: %{selected_project: selected_project},
-          params: %{build_id: build_id, page_size: page_size, page: page} = params
+          params: %{build_id: build_id, page_size: page_size, page: page, include_totals: include_totals} = params
         } = conn,
         _params
       ) do
@@ -142,7 +164,7 @@ defmodule TuistWeb.API.BuildCASOutputsController do
             page_size: page_size
           })
 
-        json(conn, %{
+        response = %{
           outputs:
             Enum.map(outputs, fn output ->
               %{
@@ -163,13 +185,28 @@ defmodule TuistWeb.API.BuildCASOutputsController do
             total_count: meta.total_count,
             total_pages: meta.total_pages
           }
-        })
+        }
+
+        json(conn, maybe_put_totals(response, build_id, include_totals))
 
       {:ok, _build} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
     end
+  end
+
+  defp maybe_put_totals(response, _build_id, false), do: response
+
+  defp maybe_put_totals(response, build_id, true) do
+    metrics = Builds.cas_output_metrics(build_id)
+
+    Map.put(response, :totals, %{
+      download_count: metrics.download_count,
+      upload_count: metrics.upload_count,
+      download_bytes: metrics.download_bytes,
+      upload_bytes: metrics.upload_bytes
+    })
   end
 
   defp build_filters(build_id, params) do
