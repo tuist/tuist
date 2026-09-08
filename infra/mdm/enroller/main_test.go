@@ -59,9 +59,34 @@ func TestEnrollProfile(t *testing.T) {
 	if mdm["SignMessage"] != true {
 		t.Error("SignMessage must be true for Mdm-Signature validation")
 	}
+	caps, ok := mdm["ServerCapabilities"].([]any)
+	if !ok {
+		t.Fatalf("ServerCapabilities missing: %#v", mdm["ServerCapabilities"])
+	}
+	got := map[string]bool{}
+	for _, c := range caps {
+		got[c.(string)] = true
+	}
+	// per-user-connections is mandatory for macOS and cannot be added to an
+	// already-enrolled device; bootstraptoken gates escrow.
+	for _, want := range []string{"com.apple.mdm.per-user-connections", "com.apple.mdm.bootstraptoken"} {
+		if !got[want] {
+			t.Errorf("ServerCapabilities missing %s", want)
+		}
+	}
 	scepContent := scep["PayloadContent"].(map[string]any)
 	if scepContent["URL"] != "https://mdm-staging.tuist.dev/scep" {
 		t.Errorf("SCEP URL = %v", scepContent["URL"])
+	}
+	// The subject must vary per device. A shared one is refused by the SCEP
+	// CA for every machine after the first.
+	subject := scepContent["Subject"].([]any)
+	pair := subject[0].([]any)[0].([]any)
+	if pair[0].(string) != "CN" {
+		t.Fatalf("expected a CN in the subject, got %v", pair[0])
+	}
+	if !strings.Contains(pair[1].(string), "%HardwareUUID%") {
+		t.Errorf("subject CN %q is not per-device", pair[1])
 	}
 }
 
@@ -189,7 +214,8 @@ func TestWebhookEnrollSequence(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	for i, want := range []string{"no_push=1", "no_push=1", "no_push=1", ""} {
+	// NanoMDM reads "nopush"; anything else means every command pushes.
+	for i, want := range []string{"nopush=1", "nopush=1", "nopush=1", ""} {
 		if !strings.HasPrefix(enqueued[i], "/v1/enqueue/test-udid?") {
 			t.Errorf("enqueue %d path = %s", i, enqueued[i])
 		}

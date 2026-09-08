@@ -81,6 +81,14 @@ scep:
   # the fleet is reprovisioned by DFU restore, not kept alive for years,
   # and macOS does not renew the MDM identity on its own.
   certValidityDays: 3650
+  # Days before expiry that re-issuing a certificate for an existing
+  # subject is permitted; 0 means always. Re-enrolling a machine after a
+  # DFU restore requests the same subject it had before (the subject is
+  # derived from the hardware UUID), and at the upstream default of 14
+  # the CA would refuse until the old certificate was nearly expired —
+  # which, at the validity above, is a decade. Reprovisioning is the
+  # fleet's routine recovery path, so it must never be gated on this.
+  allowRenewDays: 0
   depotSize: 1Gi
   depotStorageClass: ""
   resources:

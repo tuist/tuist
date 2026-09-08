@@ -137,8 +137,14 @@ func enrollProfile(c config) ([]byte, error) {
 			"Key Type":  "RSA",
 			"Key Usage": 5,
 			"Keysize":   2048,
+			// %HardwareUUID% is substituted by the device as it installs the
+			// profile, so every Mac requests a distinct subject. A shared
+			// subject is rejected outright by the SCEP CA for every device
+			// after the first ("DN ... already exists"), because its renewal
+			// policy treats a duplicate DN as a renewal and refuses one until
+			// the existing certificate is nearly expired.
 			"Subject": [][][]string{
-				{{"CN", "tuist-runner-mdm-identity"}},
+				{{"CN", "tuist-fleet-%HardwareUUID%"}},
 			},
 		},
 	}
@@ -153,8 +159,18 @@ func enrollProfile(c config) ([]byte, error) {
 		"Topic":                   c.pushTopic,
 		"IdentityCertificateUUID": scepPayloadUUID,
 		"AccessRights":            8191,
-		"SignMessage":             true,
-		"CheckOutWhenRemoved":     true,
+		// per-user-connections is required to manage macOS at all, and
+		// bootstraptoken is what lets the device escrow a bootstrap token on
+		// the service account's first GUI login. Neither can be added to an
+		// enrolled device later: Apple rejects a payload update that changes
+		// per-user-connections, so a device enrolled without it has to be
+		// re-enrolled.
+		"ServerCapabilities": []string{
+			"com.apple.mdm.per-user-connections",
+			"com.apple.mdm.bootstraptoken",
+		},
+		"SignMessage":         true,
+		"CheckOutWhenRemoved": true,
 	}
 	profile := map[string]any{
 		"PayloadType":         "Configuration",
@@ -267,7 +283,11 @@ type nanomdmClient struct {
 func (n *nanomdmClient) enqueue(id string, cmd []byte, noPush bool) error {
 	u := n.baseURL + "/v1/enqueue/" + id
 	if noPush {
-		u += "?no_push=1"
+		// NanoMDM reads "nopush"; "no_push" is silently ignored and every
+		// command sends a push. An APNs failure on an intermediate command
+		// then aborts the sequence before DeviceConfigured, stranding the
+		// device in Setup Assistant.
+		u += "?nopush=1"
 	}
 	req, err := http.NewRequest(http.MethodPut, u, bytes.NewReader(cmd))
 	if err != nil {

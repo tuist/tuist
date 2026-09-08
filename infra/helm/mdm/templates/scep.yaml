@@ -74,6 +74,8 @@ spec:
             - "8080"
             - -crtvalid
             - {{ .Values.scep.certValidityDays | quote }}
+            - -allowrenew
+            - {{ .Values.scep.allowRenewDays | quote }}
           env:
             - name: SCEP_CHALLENGE_PASSWORD
               valueFrom:
