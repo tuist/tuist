@@ -902,6 +902,221 @@ struct SetupCacheCommandServiceTests {
         }
         """)
     }
+
+    /// The policy-only flip is the whole point of `--upload-policy`: it rewrites the
+    /// one field the proxy gates publishes on and leaves the launch agent alone, so
+    /// a team can turn a lane read-only without dragging an agent teardown and
+    /// bootstrap behind it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_rewritesTheRegistryWithoutTouchingTheAgent() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(
+            #"{"tuist/tuist":{"trunk":"main","branch":"feature/tags","upload":true}}"#,
+            at: sourcesPath
+        )
+
+        // When
+        try await subject.run(path: nil, uploadPolicy: .disabled)
+
+        // Then: only `upload` moves. The trunk and the CI branch were recorded by
+        // the setup that installed the agent and are not a policy decision, so
+        // re-resolving them here would be a server round trip that could only lose
+        // them.
+        let sources = try await fileSystem.readTextFile(at: sourcesPath)
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "branch" : "feature/tags",
+            "trunk" : "main",
+            "upload" : false
+          }
+        }
+        """)
+
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+        verify(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .called(0)
+    }
+
+    /// Nothing about rewriting one boolean in a local file needs credentials or the
+    /// server. Requiring either would make a policy flip fail exactly where teams
+    /// want it — a PR lane whose token is scoped for reads, or a laptop that is
+    /// offline.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_doesNotAuthenticateOrCallTheServer() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        serverAuthenticationController.reset()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(nil)
+
+        // When
+        try await subject.run(path: nil, uploadPolicy: .disabled)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(
+            at: registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        )
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "upload" : false
+          }
+        }
+        """)
+
+        verify(getProjectService)
+            .getProject(fullHandle: .any, serverURL: .any)
+            .called(0)
+        verify(gitController)
+            .gitInfo(workingDirectory: .any)
+            .called(0)
+    }
+
+    /// The registry is machine-wide and a flip rewrites the whole file, so every
+    /// other project's row has to survive one, exactly as it does for a full setup.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_keepsOtherProjectsRows() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(
+            #"{"other/project":{"trunk":"trunk","upload":false},"tuist/tuist":{"trunk":"main","upload":true}}"#,
+            at: sourcesPath
+        )
+
+        // When
+        try await subject.run(path: nil, uploadPolicy: .disabled)
+
+        // Then
+        let sources = try await fileSystem.readTextFile(at: sourcesPath)
+        #expect(sources == """
+        {
+          "other/project" : {
+            "trunk" : "trunk",
+            "upload" : false
+          },
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : false
+          }
+        }
+        """)
+    }
+
+    /// Enabling is not the mirror image of disabling. `tuist generate` bakes
+    /// `xcodeCache(upload:)` into the project as `-cas-plugin-option
+    /// tuist-upload=false`, and the plugin gates on that independently of the
+    /// registry, so a generated project keeps blocking its Swift lane until it is
+    /// regenerated. Saying nothing would leave someone believing a flip that only
+    /// half took.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_warnsWhenEnablingWhileTheConfigurationStillOptsOut() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(upload: false)))
+
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, uploadPolicy: .enabled)
+        }
+
+        // Then
+        let sources = try await FileSystem().readTextFile(
+            at: registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        )
+        #expect(sources.contains(#""upload" : true"#))
+
+        let warning = try #require(alertController.warnings().last)
+        #expect(warning.message.plain().contains("tuist generate"))
+    }
+
+    /// Disabling has no such caveat — the proxy gate covers every publication from
+    /// both lanes — so it must not drag the regeneration warning along with it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_doesNotWarnWhenDisabling() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", xcodeCache: Tuist.XcodeCache(upload: false)))
+
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: nil, uploadPolicy: .disabled)
+        }
+
+        // Then
+        #expect(alertController.warnings().isEmpty)
+    }
+
+    /// The registry is read by the machine-wide proxy and by nothing else. On the
+    /// legacy per-project daemon the policy is a launchd argument, so a flip would
+    /// write a file nothing reads and report success — the quietest way for a lane
+    /// to keep publishing after being told not to.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func setUploadPolicy_failsWhenTheMachineRunsTheLegacyDaemon() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        // When / Then
+        await #expect(throws: SetupCacheCommandServiceError.uploadPolicyRequiresProxy) {
+            try await subject.run(path: nil, uploadPolicy: .disabled)
+        }
+        #expect(try await !FileSystem().exists(
+            registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        ))
+    }
 }
 
 private struct TestError: Error {
