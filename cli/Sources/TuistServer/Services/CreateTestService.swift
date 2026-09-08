@@ -425,6 +425,59 @@ import TuistHTTP
         }
     }
 
+    private func repetitionStatusToServerStatus(_ status: TestStatus) -> TestCaseRepetitionPayload.statusPayload {
+        switch status {
+        case .passed, .skipped, .processing:
+            return .success
+        case .failed:
+            return .failure
+        }
+    }
+
+    /// The gate's reruns, numbered after the test case's own executions.
+    ///
+    /// `firstPass` carries the execution the gate reacted to, for a test case the run did not
+    /// retry and which therefore reports no repetitions of its own. Without it the list holds
+    /// only reruns, so a candidate that failed every one of them reads as uniformly failed and
+    /// never reaches the run's flaky tests.
+    private func stressRepetitions(
+        for key: StressRepetitionKey,
+        in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
+                .repetition_resultsPayloadPayload]],
+        after ownCount: Int,
+        firstPass: (status: TestStatus, duration: Int)?
+    ) -> [TestCaseRepetitionPayload] {
+        let stressed = repetitionsByTestCase[key] ?? []
+        guard !stressed.isEmpty else { return [] }
+
+        let own = firstPass.map {
+            [
+                TestCaseRepetitionPayload(
+                    duration: $0.duration,
+                    name: "First Run",
+                    repetition_number: 1,
+                    source: .run,
+                    status: repetitionStatusToServerStatus($0.status)
+                ),
+            ]
+        } ?? []
+        let offset = ownCount + own.count
+
+        return own + stressed.enumerated().map { index, repetition in
+            TestCaseRepetitionPayload(
+                duration: repetition.duration,
+                name: "Stress \(index + 1)",
+                repetition_number: offset + index + 1,
+                source: .stress,
+                status: repetition.status == .success ? .success : .failure
+            )
+        }
+    }
+
+    // A rerun's failure is kept on the test case beside the first pass's, which is where the
+    // run page reads failures from. Without it a stressed test keeps its status and duration
+    // and loses what it said when it broke.
+
 #endif
 
 struct StressRepetitionKey: Hashable {
@@ -439,61 +492,9 @@ struct StressRepetitionKey: Hashable {
     }
 }
 
-private func repetitionStatusToServerStatus(_ status: TestStatus) -> TestCaseRepetitionPayload.statusPayload {
-    switch status {
-    case .passed, .skipped, .processing:
-        return .success
-    case .failed:
-        return .failure
-    }
-}
-
 private typealias TestCaseRepetitionPayload = Operations.createTest.Input.Body.jsonPayload
     .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
 
-/// The gate's reruns, numbered after the test case's own executions.
-///
-/// `firstPass` carries the execution the gate reacted to, for a test case the run did not
-/// retry and which therefore reports no repetitions of its own. Without it the list holds
-/// only reruns, so a candidate that failed every one of them reads as uniformly failed and
-/// never reaches the run's flaky tests.
-private func stressRepetitions(
-    for key: StressRepetitionKey,
-    in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
-            .repetition_resultsPayloadPayload]],
-    after ownCount: Int,
-    firstPass: (status: TestStatus, duration: Int)?
-) -> [TestCaseRepetitionPayload] {
-    let stressed = repetitionsByTestCase[key] ?? []
-    guard !stressed.isEmpty else { return [] }
-
-    let own = firstPass.map {
-        [
-            TestCaseRepetitionPayload(
-                duration: $0.duration,
-                name: "First Run",
-                repetition_number: 1,
-                source: .run,
-                status: repetitionStatusToServerStatus($0.status)
-            ),
-        ]
-    } ?? []
-    let offset = ownCount + own.count
-
-    return own + stressed.enumerated().map { index, repetition in
-        TestCaseRepetitionPayload(
-            duration: repetition.duration,
-            name: "Stress \(index + 1)",
-            repetition_number: offset + index + 1,
-            source: .stress,
-            status: repetition.status == .success ? .success : .failure
-        )
-    }
-}
-
-/// A rerun's failure is kept on the test case beside the first pass's, which is where the
-/// run page reads failures from. Without it a stressed test keeps its status and duration
-/// and loses what it said when it broke.
 private func stressFailures(
     for key: StressRepetitionKey,
     in repetitionsByTestCase: [StressRepetitionKey: [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload
