@@ -1,5 +1,7 @@
 //! Offline receiver-only measurements. Workers have no target file or sender state.
 mod bitstream_probe;
+use bitstream_probe::segments::{Segments, Source};
+use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -29,6 +31,8 @@ struct Config {
     fast_hash: bool,
     compact_layout: bool,
     compact_columns: bool,
+    #[serde(default)]
+    receiver_segments: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -60,6 +64,9 @@ fn write_new(path: impl AsRef<Path>, bytes: &[u8]) {
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
     assert!(config.fields && config.group_bytes > 0);
+    if !config.compact_layout && !config.compact_columns {
+        return bitstream_probe::prepare(bytes, config.delta, config.column_cap).unwrap();
+    }
     bitstream_probe::prepare_compact(
         bytes,
         config.delta,
@@ -156,6 +163,7 @@ fn main() {
             "{}",
             serde_json::json!({"identical":false,
             "warm_bytes":(patch.bytes.len() + 192).min(blob.len()),
+            "groups":patch.groups, "metadata_bytes":patch.metadata_bytes(),
             "prepared_bytes":next_prepared.len()})
         );
         return;
@@ -168,10 +176,36 @@ fn main() {
             bitstream_probe::MAX_PREPARED + 8 * 1024 * 1024,
         );
         let expected: Expected = serde_json::from_slice(&read(&arguments[4], 4096)).unwrap();
-        let base_prepared = prepare(&base, &config);
-        let prepared =
-            bitstream_probe::grouped::decode(&base_prepared, &patch, config.fast_hash).unwrap();
-        let restored = bitstream_probe::restore(&prepared, expected.size).unwrap();
+        let base_prepared = if config.receiver_segments {
+            bitstream_probe::prepare_segments(
+                &base,
+                config.delta,
+                config.column_cap,
+                config.compact_layout,
+                config.compact_columns,
+            )
+            .unwrap()
+        } else {
+            let mut parts = Segments::default();
+            parts.push(Cow::Owned(prepare(&base, &config))).unwrap();
+            parts
+        };
+        let prepare_peak = peak_bytes();
+        let prepared = if config.receiver_segments {
+            bitstream_probe::grouped::decode_segments(&base_prepared, &patch, config.fast_hash)
+                .unwrap()
+        } else {
+            let mut parts = Segments::default();
+            let base_bytes = base_prepared.range(0, base_prepared.len()).unwrap();
+            parts
+                .push(Cow::Owned(
+                    bitstream_probe::grouped::decode(&base_bytes, &patch, config.fast_hash)
+                        .unwrap(),
+                ))
+                .unwrap();
+            parts
+        };
+        let restored = bitstream_probe::restore_source(&prepared, expected.size).unwrap();
         assert_eq!(blob_digest(&restored).hash, expected.original_hash);
         let blob = compressed(&restored);
         let digest = blob_digest(&blob);
@@ -181,7 +215,8 @@ fn main() {
         println!(
             "{}",
             serde_json::json!({"receiver_ms":start.elapsed().as_secs_f64()*1000.0,
-            "receiver_peak_bytes":peak_bytes()})
+            "receiver_peak_bytes":peak_bytes(), "prepare_peak_bytes":prepare_peak,
+            "owned_prepared_bytes":base_prepared.owned_bytes() + prepared.owned_bytes()})
         );
         return;
     }

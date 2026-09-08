@@ -101,6 +101,8 @@ Large downloads negotiate split support, reuse `src/chunk_cache.rs`'s bounded pe
 
 Use `examples/cache_output_inventory.rs` with an idle disposable compiler store and Xcode's output remarks to investigate outputs individually. It measures actual reachable nodes before any proposed format-specific transformation; a standalone object file is not evidence that the compiler caches it as one opaque node. Decode printed identifiers with the upstream plugin, not by treating their base64 payload as the full internal digest. Keep experimental Swift/Clang field transforms separate from the negotiated production format until exact reconstruction, resource bounds, and old-client reads are covered.
 
+`examples/swift_receiver_search.rs` and `autoresearch.receiver.sh` isolate receiver memory in fresh worker processes, without sender allocations or access to the expected target file. The parent checks actual output bytes; the worker verifies original and compressed digests and includes local reads and output writes. Compare like-for-like receiver runs, not receiver-only peaks with the combined-process benchmark. Segmented preparation borrows unchanged pages but retains all base fields; it does not establish streaming or production memory/concurrency limits.
+
 A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:
 
 ```sh

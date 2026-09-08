@@ -17,8 +17,11 @@ envelope pins prepared-base and prepared-target hashes and bounds decoded group
 metadata, page sizes, and total output. Copy, prefix patch, literal, and bytewise
 difference modes must all preserve every byte. Count the compressed metadata as
 transfer bytes. Bounded page comparisons do not mean bounded total memory: the
-current preparation and inverse still retain whole expanded representations.
-Do not claim streaming, base discovery, authorization, or network integration.
+preparation still retains all field buffers. `segments.rs` can avoid flattening
+those buffers and borrow unchanged target pages from the verified base. Preserve
+hash verification across the logical byte sequence and check reads spanning
+segment boundaries. This is copy avoidance, not streaming or constant memory.
+Do not claim base discovery, authorization, or network integration.
 
 The compact offline representation records repeated operation layouts as runs
 and numeric columns as variable-length integers, optionally encoding signed

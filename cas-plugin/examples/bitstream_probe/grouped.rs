@@ -1,7 +1,12 @@
 //! Offline grouped patch experiment. No server capability advertises this format.
+use super::segments::{Segments, Source, ViewCursor};
 use super::{require, Cursor, Result, MAX_COLUMNS, MAX_INPUT, MAX_PREPARED};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    ops::Range,
+};
 
 type Key = [i32; 5];
 const MAX_GROUPS: usize = 131_072;
@@ -34,13 +39,24 @@ impl Patch {
 }
 
 fn groups(data: &[u8], limit: usize) -> Result<Vec<(Key, &[u8])>> {
+    Ok(group_ranges(data, limit)?
+        .into_iter()
+        .map(|(key, range)| (key, &data[range]))
+        .collect())
+}
+
+fn group_ranges<S: Source + ?Sized>(data: &S, limit: usize) -> Result<Vec<(Key, Range<usize>)>> {
     require(
         (1024..=8 * 1024 * 1024).contains(&limit),
         "group size limit",
     )?;
     require(data.len() <= MAX_PREPARED, "prepared size limit")?;
-    let mut input = Cursor { data, at: 0 };
-    let compact_version = super::prepared_version(&mut input)?;
+    let mut input = ViewCursor::new(data, 0, data.len())?;
+    let header = input.read::<8>()?;
+    let compact_version = super::prepared_version(&mut Cursor {
+        data: &header,
+        at: 0,
+    })?;
     require(input.u64()? <= MAX_INPUT as u64, "original size limit")?;
     let layout_size = input.u32()? as usize;
     let blob_size = input.u32()? as usize;
@@ -70,21 +86,25 @@ fn groups(data: &[u8], limit: usize) -> Result<Vec<(Key, &[u8])>> {
         require(keys.insert(key), "duplicate column")?;
         descriptors.push((key, size));
     }
+    let header_end = input.at;
+    let layout = input.region(layout_size)?;
+    let blobs = input.region(blob_size)?;
     let mut sections = vec![
-        ([0, 0, 0, 0, 0], &data[..input.at]),
-        ([1, 0, 0, 0, 0], input.take(layout_size)?),
-        ([2, 0, 0, 0, 0], input.take(blob_size)?),
+        ([0, 0, 0, 0, 0], 0..header_end),
+        ([1, 0, 0, 0, 0], layout.at..layout.end),
+        ([2, 0, 0, 0, 0], blobs.at..blobs.end),
     ];
     for (key, size) in descriptors {
-        sections.push((key, input.take(size)?));
+        let column = input.region(size)?;
+        sections.push((key, column.at..column.end));
     }
     require(input.at == data.len(), "trailing prepared bytes")?;
     let mut output = Vec::new();
-    for (mut key, bytes) in sections {
-        for (page, bytes) in bytes.chunks(limit).enumerate() {
+    for (mut key, range) in sections {
+        for (page, start) in (range.start..range.end).step_by(limit).enumerate() {
             require(output.len() < MAX_GROUPS, "group count limit")?;
             key[4] = page as i32;
-            output.push((key, bytes));
+            output.push((key, start..range.end.min(start + limit)));
         }
     }
     Ok(output)
@@ -184,7 +204,74 @@ pub fn encode(
     Ok(patch)
 }
 
+enum PageHash {
+    Fast(ring::digest::Context),
+    Software(Sha256),
+}
+
+impl PageHash {
+    fn new(fast: bool) -> Self {
+        if fast {
+            Self::Fast(ring::digest::Context::new(&ring::digest::SHA256))
+        } else {
+            Self::Software(Sha256::new())
+        }
+    }
+    fn update(&mut self, bytes: &[u8]) {
+        match self {
+            Self::Fast(hash) => hash.update(bytes),
+            Self::Software(hash) => hash.update(bytes),
+        }
+    }
+    fn finish(self) -> [u8; 32] {
+        match self {
+            Self::Fast(hash) => hash.finish().as_ref().try_into().unwrap(),
+            Self::Software(hash) => hash.finalize().into(),
+        }
+    }
+}
+
+trait PageOutput<'a> {
+    fn new(size: usize) -> Self;
+    fn append(&mut self, bytes: Cow<'a, [u8]>) -> Result<()>;
+}
+
+impl<'a> PageOutput<'a> for Vec<u8> {
+    fn new(size: usize) -> Self {
+        Self::with_capacity(size)
+    }
+    fn append(&mut self, bytes: Cow<'a, [u8]>) -> Result<()> {
+        self.extend_from_slice(&bytes);
+        Ok(())
+    }
+}
+
+impl<'a> PageOutput<'a> for Segments<'a> {
+    fn new(_: usize) -> Self {
+        Self::default()
+    }
+    fn append(&mut self, bytes: Cow<'a, [u8]>) -> Result<()> {
+        self.push(bytes)
+    }
+}
+
 pub fn decode(base: &[u8], patch: &[u8], fast_hash: bool) -> Result<Vec<u8>> {
+    decode_to(base, patch, fast_hash)
+}
+
+pub fn decode_segments<'a, S: Source + ?Sized>(
+    base: &'a S,
+    patch: &'a [u8],
+    fast_hash: bool,
+) -> Result<Segments<'a>> {
+    decode_to(base, patch, fast_hash)
+}
+
+fn decode_to<'a, S: Source + ?Sized, O: PageOutput<'a>>(
+    base: &'a S,
+    patch: &'a [u8],
+    fast_hash: bool,
+) -> Result<O> {
     require(base.len() <= MAX_PREPARED, "base size limit")?;
     require(
         patch.len()
@@ -196,10 +283,18 @@ pub fn decode(base: &[u8], patch: &[u8], fast_hash: bool) -> Result<Vec<u8>> {
     )?;
     let mut input = Cursor { data: patch, at: 0 };
     require(input.take(8)? == b"BPG00002", "unknown patch format")?;
-    require(
-        input.take(32)? == digest(base, fast_hash),
-        "wrong base digest",
-    )?;
+    let mut base_hash = PageHash::new(fast_hash);
+    let mut offset = 0;
+    while offset < base.len() {
+        let bytes = base.chunk_at(offset)?;
+        require(
+            !bytes.is_empty() && bytes.len() <= base.len() - offset,
+            "invalid source chunk",
+        )?;
+        base_hash.update(bytes);
+        offset += bytes.len();
+    }
+    require(input.take(32)? == base_hash.finish(), "wrong base digest")?;
     let target_digest = input.take(32)?;
     require(input.u32()? as usize == base.len(), "wrong base size")?;
     let size = input.u32()? as usize;
@@ -222,9 +317,11 @@ pub fn decode(base: &[u8], patch: &[u8], fast_hash: bool) -> Result<Vec<u8>> {
         data: &metadata,
         at: 0,
     };
-    let base_groups: BTreeMap<_, _> = groups(base, limit)?.into_iter().collect();
+    let base_groups: BTreeMap<_, _> = group_ranges(base, limit)?.into_iter().collect();
     // Allocate only after validating the complete envelope and base groups.
-    let mut output = Vec::with_capacity(size);
+    let mut output = O::new(size);
+    let mut written = 0;
+    let mut target_hash = PageHash::new(fast_hash);
     let mut seen = BTreeSet::new();
     for _ in 0..count {
         let mut key = [0; 5];
@@ -234,61 +331,62 @@ pub fn decode(base: &[u8], patch: &[u8], fast_hash: bool) -> Result<Vec<u8>> {
         require(seen.insert(key), "duplicate group")?;
         let decoded_size = metadata.u32()? as usize;
         require(
-            decoded_size <= limit && decoded_size <= size.saturating_sub(output.len()),
+            decoded_size <= limit && decoded_size <= size.saturating_sub(written),
             "group output limit",
         )?;
         let mode = metadata.take(1)?[0];
         let payload_size = metadata.u32()? as usize;
         require(payload_size <= limit, "group payload limit")?;
         let payload = input.take(payload_size)?;
-        let prefix = base_groups.get(&key).copied().unwrap_or_default();
-        match mode {
+        let prefix = match base_groups.get(&key) {
+            Some(range) => base.range(range.start, range.len())?,
+            None => Cow::Borrowed(&[][..]),
+        };
+        let decoded = match mode {
             0 => {
                 require(
                     payload.is_empty() && prefix.len() == decoded_size,
                     "invalid copy group",
                 )?;
-                output.extend(prefix);
+                prefix
             }
             1 => {
                 let mut decoder = zstd::zstd_safe::DCtx::create();
                 decoder
-                    .ref_prefix(prefix)
+                    .ref_prefix(&prefix)
                     .map_err(|e| format!("decode prefix: {e}"))?;
                 let mut decoded = Vec::with_capacity(decoded_size);
                 decoder
                     .decompress(&mut decoded, payload)
                     .map_err(|e| format!("decompress: {e}"))?;
                 require(decoded.len() == decoded_size, "incorrect group size")?;
-                output.extend(decoded);
+                Cow::Owned(decoded)
             }
             2 => {
                 require(payload.len() == decoded_size, "incorrect literal size")?;
-                output.extend(payload);
+                Cow::Borrowed(payload)
             }
             3 => {
                 require(prefix.len() == decoded_size, "difference base size")?;
-                let difference = zstd::bulk::decompress(payload, decoded_size)
+                let mut difference = zstd::bulk::decompress(payload, decoded_size)
                     .map_err(|e| format!("decompress difference: {e}"))?;
                 require(difference.len() == decoded_size, "difference output size")?;
-                output.extend(
-                    difference
-                        .iter()
-                        .zip(prefix)
-                        .map(|(change, old)| change.wrapping_add(*old)),
-                );
+                for (change, old) in difference.iter_mut().zip(prefix.iter()) {
+                    *change = change.wrapping_add(*old);
+                }
+                Cow::Owned(difference)
             }
             _ => return Err("unknown group mode".into()),
-        }
+        };
+        written += decoded.len();
+        target_hash.update(&decoded);
+        output.append(decoded)?;
     }
     require(
-        output.len() == size && input.at == patch.len(),
+        written == size && input.at == patch.len(),
         "incomplete or trailing patch data",
     )?;
-    require(
-        digest(&output, fast_hash) == target_digest,
-        "wrong target digest",
-    )?;
+    require(target_hash.finish() == target_digest, "wrong target digest")?;
     Ok(output)
 }
 
@@ -323,6 +421,40 @@ mod tests {
         assert_eq!(slow.bytes, fast.bytes);
         assert_eq!(super::decode(&base, &fast.bytes, false).unwrap(), target);
         assert_eq!(super::decode(&base, &slow.bytes, true).unwrap(), target);
+    }
+
+    #[test]
+    fn segmented_decode_borrows_copies_and_handles_fragmented_bases() {
+        let base = prepared(&vec![11; 4096], 7);
+        let copy = encode(&base, &base, 1024, 3, true).unwrap();
+        let decoded = decode_segments(base.as_slice(), &copy.bytes, true).unwrap();
+        assert_eq!(decoded.owned_bytes(), 0);
+        assert_eq!(decoded.into_vec(), base);
+
+        let mut column = vec![11; 4096];
+        column[1030] = 19;
+        let target = prepared(&column, 7);
+        let patch = encode(&base, &target, 1024, 3, true).unwrap();
+        let decoded = decode_segments(base.as_slice(), &patch.bytes, true).unwrap();
+        assert!(decoded.owned_bytes() <= 1024);
+        assert_eq!(decoded.into_vec(), target);
+        for size in [1, 7, 1031] {
+            let mut fragmented = Segments::default();
+            for bytes in base.chunks(size) {
+                fragmented.push(Cow::Borrowed(bytes)).unwrap();
+            }
+            for fast in [false, true] {
+                assert_eq!(
+                    decode_segments(&fragmented, &patch.bytes, fast)
+                        .unwrap()
+                        .into_vec(),
+                    target
+                );
+            }
+        }
+        let mut corrupt = patch.bytes.clone();
+        corrupt[40] ^= 1;
+        assert!(decode_segments(base.as_slice(), &corrupt, true).is_err());
     }
 
     fn prepared(column: &[u8], code: i32) -> Vec<u8> {

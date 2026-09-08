@@ -4,11 +4,14 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub mod grouped;
+pub mod segments;
+use segments::{Segments, Source, ViewCursor};
+use std::borrow::Cow;
 
 type Result<T> = std::result::Result<T, String>;
 type Key = (i32, i32, u32);
 type Abbreviation = Arc<Vec<(u8, u64)>>;
-type ColumnRow<'a> = Vec<Option<(Cursor<'a>, u64)>>;
+type ColumnRow<'a, S> = Vec<Option<(ViewCursor<'a, S>, u64)>>;
 pub const MAX_INPUT: usize = 32 * 1024 * 1024;
 pub const MAX_PREPARED: usize = 256 * 1024 * 1024;
 const MAX_OPERATIONS: usize = 16 * 1024 * 1024;
@@ -381,6 +384,16 @@ pub fn prepare_compact(
     compact_layout: bool,
     compact_columns: bool,
 ) -> Result<Vec<u8>> {
+    Ok(prepare_segments(data, delta, column_cap, compact_layout, compact_columns)?.into_vec())
+}
+
+pub fn prepare_segments(
+    data: &[u8],
+    delta: bool,
+    column_cap: u32,
+    compact_layout: bool,
+    compact_columns: bool,
+) -> Result<Segments<'static>> {
     require(
         data.len() <= MAX_INPUT && data.len() >= 4,
         "input size limit",
@@ -416,12 +429,7 @@ pub fn prepare_compact(
         reader.position == data.len() * 8 && reader.trace.is_empty(),
         "unconsumed input",
     )?;
-    let mut output = Vec::with_capacity(
-        36 + reader.columns.len() * 16
-            + reader.layout.len()
-            + reader.blobs.len()
-            + reader.column_bytes,
-    );
+    let mut output = Vec::with_capacity(36 + reader.columns.len() * 16);
     output.extend(if compact_layout || compact_columns {
         b"BCOL0002"
     } else {
@@ -443,13 +451,14 @@ pub fn prepare_compact(
         output.extend(operand.to_le_bytes());
         output.extend((column.bytes.len() as u32).to_le_bytes());
     }
-    output.extend(reader.layout);
-    output.extend(reader.blobs);
+    let mut prepared = Segments::default();
+    prepared.push(Cow::Owned(output))?;
+    prepared.push(Cow::Owned(reader.layout))?;
+    prepared.push(Cow::Owned(reader.blobs))?;
     for column in reader.columns.into_values() {
-        output.extend(column.bytes);
+        prepared.push(Cow::Owned(column.bytes))?;
     }
-    require(output.len() <= MAX_PREPARED, "prepared size limit")?;
-    Ok(output)
+    Ok(prepared)
 }
 
 struct Cursor<'a> {
@@ -496,22 +505,6 @@ impl<'a> Cursor<'a> {
     fn u32(&mut self) -> Result<u32> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
     }
-    fn u64(&mut self) -> Result<u64> {
-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
-    }
-    fn variable(&mut self) -> Result<u64> {
-        let mut value = 0u64;
-        for group in 0..10 {
-            let byte = self.take(1)?[0];
-            require(group < 9 || byte <= 1, "prepared integer overflow")?;
-            value |= ((byte & 127) as u64) << (group * 7);
-            if byte & 128 == 0 {
-                require(group == 0 || byte != 0, "noncanonical prepared integer")?;
-                return Ok(value);
-            }
-        }
-        Err("prepared integer group limit".into())
-    }
 }
 
 #[derive(Default)]
@@ -540,12 +533,20 @@ impl Writer {
 }
 
 pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
+    restore_source(data, expected_size)
+}
+
+pub fn restore_source<S: Source + ?Sized>(data: &S, expected_size: usize) -> Result<Vec<u8>> {
     require(
         data.len() <= MAX_PREPARED && expected_size <= MAX_INPUT,
         "restore size limit",
     )?;
-    let mut input = Cursor { data, at: 0 };
-    let compact_version = prepared_version(&mut input)?;
+    let mut input = ViewCursor::new(data, 0, data.len())?;
+    let header = input.read::<8>()?;
+    let compact_version = prepared_version(&mut Cursor {
+        data: &header,
+        at: 0,
+    })?;
     require(
         input.u64()? == expected_size as u64,
         "restored size mismatch",
@@ -574,15 +575,9 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         )?;
         descriptors.push((key, size));
     }
-    let mut layout = Cursor {
-        data: input.take(layout_size)?,
-        at: 0,
-    };
-    let mut blobs = Cursor {
-        data: input.take(blob_size)?,
-        at: 0,
-    };
-    let mut columns: BTreeMap<(i32, i32), ColumnRow<'_>> = BTreeMap::new();
+    let mut layout = input.region(layout_size)?;
+    let mut blobs = input.region(blob_size)?;
+    let mut columns: BTreeMap<(i32, i32), ColumnRow<'_, S>> = BTreeMap::new();
     let mut slots = 0;
     for (key, size) in descriptors {
         require(key.2 <= column_cap, "invalid column index")?;
@@ -595,13 +590,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         }
         let column = &mut row[key.2 as usize];
         require(column.is_none(), "duplicate column")?;
-        *column = Some((
-            Cursor {
-                data: input.take(size)?,
-                at: 0,
-            },
-            0,
-        ));
+        *column = Some((input.region(size)?, 0));
     }
     require(input.at == data.len(), "trailing prepared bytes")?;
     let mut writer = Writer {
@@ -610,7 +599,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         ..Default::default()
     };
     let mut operations = 0;
-    while layout.at < layout.data.len() {
+    while layout.at < layout.end {
         let block = layout.u32()? as i32;
         let code = layout.u32()? as i32;
         let count = layout.u32()? as usize;
@@ -621,8 +610,8 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         for index in 0..count {
             if compact_layout {
                 if left == 0 {
-                    kind = layout.take(1)?[0];
-                    width = layout.take(1)?[0];
+                    kind = layout.byte()?;
+                    width = layout.byte()?;
                     groups =
                         u32::try_from(layout.variable()?).map_err(|_| "layout group overflow")?;
                     left =
@@ -631,8 +620,8 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
                 }
                 left -= 1;
             } else {
-                kind = layout.take(1)?[0];
-                width = layout.take(1)?[0];
+                kind = layout.byte()?;
+                width = layout.byte()?;
                 groups = layout.u32()?;
             }
             if kind == 2 {
@@ -641,7 +630,7 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
                     groups as usize <= expected_size.saturating_sub(writer.data.len()),
                     "blob output limit",
                 )?;
-                writer.data.extend_from_slice(blobs.take(groups as usize)?);
+                blobs.copy_into(&mut writer.data, groups as usize)?;
                 continue;
             }
             let (column, previous) = row
@@ -690,12 +679,12 @@ pub fn restore(data: &[u8], expected_size: usize) -> Result<Vec<u8>> {
         "incomplete restored output",
     )?;
     require(
-        blobs.at == blobs.data.len()
+        blobs.at == blobs.end
             && columns
                 .values()
                 .flatten()
                 .flatten()
-                .all(|(column, _)| column.at == column.data.len()),
+                .all(|(column, _)| column.at == column.end),
         "unconsumed prepared data",
     )?;
     Ok(writer.data)
@@ -785,22 +774,18 @@ mod tests {
             assert_eq!(size, bytes.len());
             assert!(size <= 10);
             assert_eq!(
-                Cursor {
-                    data: &bytes,
-                    at: 0
-                }
-                .variable()
-                .unwrap(),
+                ViewCursor::new(bytes.as_slice(), 0, bytes.len())
+                    .unwrap()
+                    .variable()
+                    .unwrap(),
                 value
             );
         }
         for bytes in [vec![0x80], vec![0x80, 0], vec![0xff; 10], vec![0x80; 11]] {
-            assert!(Cursor {
-                data: &bytes,
-                at: 0
-            }
-            .variable()
-            .is_err());
+            assert!(ViewCursor::new(bytes.as_slice(), 0, bytes.len())
+                .unwrap()
+                .variable()
+                .is_err());
         }
     }
 
@@ -828,6 +813,30 @@ mod tests {
             restore(&prepared, 0).unwrap_err(),
             "column slot limit exceeded"
         );
+    }
+
+    #[test]
+    fn inverse_accepts_fragmented_streams_without_flattening() {
+        let mut bytes = fixture();
+        *bytes.last_mut().unwrap() = 0xa5;
+        for delta in [false, true] {
+            for compact_layout in [false, true] {
+                for compact_columns in [false, true] {
+                    let prepared =
+                        prepare_segments(&bytes, delta, 32, compact_layout, compact_columns)
+                            .unwrap();
+                    assert_eq!(restore_source(&prepared, bytes.len()).unwrap(), bytes);
+                    let flat = prepared.into_vec();
+                    for page in [1, 3, 7, 32] {
+                        let mut fragmented = Segments::default();
+                        for piece in flat.chunks(page) {
+                            fragmented.push(Cow::Borrowed(piece)).unwrap();
+                        }
+                        assert_eq!(restore_source(&fragmented, bytes.len()).unwrap(), bytes);
+                    }
+                }
+            }
+        }
     }
 
     #[test]
