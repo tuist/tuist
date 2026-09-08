@@ -2238,6 +2238,136 @@
           }
         }
       },
+      "panel-120": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_file_descriptor_wait_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_descriptor_wait_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_file_descriptor_wait_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time spent waiting to acquire a file descriptor permit\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_file_descriptor_wait_seconds`_count/_sum · labels: result",
+          "id": 120,
+          "links": [],
+          "title": "file_descriptor_wait_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-121": {
         "kind": "Panel",
         "spec": {
@@ -2402,6 +2532,136 @@
                   "unit": "Bps"
                 },
                 "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-123": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "File operation latency by operation\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_file_operation_duration_seconds`_count/_sum · labels: operation",
+          "id": 123,
+          "links": [],
+          "title": "file_operation_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -6029,6 +6289,136 @@
           }
         }
       },
+      "panel-157": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_auth_backend_request_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_auth_backend_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_auth_backend_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Authentication backend request latency by route\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_auth_backend_request_duration_seconds`_count/_sum · labels: route",
+          "id": 157,
+          "links": [],
+          "title": "auth_backend_request_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-158": {
         "kind": "Panel",
         "spec": {
@@ -6368,6 +6758,136 @@
           }
         }
       },
+      "panel-160": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_auth_decision_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_auth_decision_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_auth_decision_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Authorization decision latency by stage\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_auth_decision_duration_seconds`_count/_sum · labels: stage",
+          "id": 160,
+          "links": [],
+          "title": "auth_decision_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-161": {
         "kind": "Panel",
         "spec": {
@@ -6532,6 +7052,136 @@
                   "unit": "short"
                 },
                 "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-163": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_analytics_batch_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_analytics_batch_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_analytics_batch_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Analytics webhook batch latency by pipeline\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_analytics_batch_duration_seconds`_count/_sum · labels: pipeline",
+          "id": 163,
+          "links": [],
+          "title": "analytics_batch_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -8247,6 +8897,157 @@
               }
             },
             "version": "12.0.0"
+          }
+        }
+      },
+      "panel-18": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_internal_backfill_http_request_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Internal backfill HTTP request latency by route\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_internal_backfill_http_request_duration_seconds`_count/_sum · labels: route",
+          "id": 18,
+          "links": [],
+          "title": "internal_backfill_http_request_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
           }
         }
       },
@@ -10536,6 +11337,266 @@
           }
         }
       },
+      "panel-24": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_artifact_egress_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time from artifact response body creation until stream completion, error, or drop\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_artifact_egress_duration_seconds`_count/_sum · labels: producer",
+          "id": 24,
+          "links": [],
+          "title": "artifact_egress_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-25": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_artifact_egress_throughput_bytes_per_second_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding\n\nMean throughput per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_artifact_egress_throughput_bytes_per_second`_count/_sum · labels: producer",
+          "id": 25,
+          "links": [],
+          "title": "artifact_egress_throughput_bytes_per_second (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Bps"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-26": {
         "kind": "Panel",
         "spec": {
@@ -12599,6 +13660,136 @@
           }
         }
       },
+      "panel-46": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_segment_refresh_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_segment_refresh_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_segment_refresh_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time spent refreshing artifacts out of old segments, by trigger\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_segment_refresh_duration_seconds`_count/_sum · labels: producer, trigger",
+          "id": 46,
+          "links": [],
+          "title": "segment_refresh_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-47": {
         "kind": "Panel",
         "spec": {
@@ -13751,6 +14942,136 @@
                   "unit": "short"
                 },
                 "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-58": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_manifest_index_rebuild_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time spent rebuilding the warm in-memory manifest index from RocksDB\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_manifest_index_rebuild_duration_seconds`_count/_sum",
+          "id": 58,
+          "links": [],
+          "title": "manifest_index_rebuild_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -16828,6 +18149,136 @@
                   "unit": "bytes"
                 },
                 "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-89": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_response_stream_wait_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_response_stream_wait_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_response_stream_wait_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Time spent acquiring response stream admission by protocol\n\nMean duration per pod on the left axis, observations per second on the right.\n\nPrometheus name: `kura_response_stream_wait_duration_seconds`_count/_sum · labels: protocol",
+          "id": 89,
+          "links": [],
+          "title": "response_stream_wait_duration_seconds (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
               },
               "options": {
                 "legend": {
@@ -20341,6 +21792,19 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-18"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 14
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-19"
                         },
                         "height": 7,
@@ -20413,6 +21877,32 @@
                         "width": 8,
                         "x": 8,
                         "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-24"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-25"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
                       }
                     },
                     {
@@ -20694,6 +22184,19 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-46"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 28
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-47"
                         },
                         "height": 7,
@@ -20844,6 +22347,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-58"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 14
                       }
                     },
                     {
@@ -21295,6 +22811,19 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-89"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 49
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-90"
                         },
                         "height": 7,
@@ -21713,6 +23242,19 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-120"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-121"
                         },
                         "height": 7,
@@ -21732,6 +23274,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-123"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 14
                       }
                     },
                     {
@@ -22368,6 +23923,19 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
+                          "name": "panel-157"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
                           "name": "panel-158"
                         },
                         "height": 7,
@@ -22387,6 +23955,19 @@
                         "width": 8,
                         "x": 16,
                         "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-160"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
                       }
                     },
                     {
@@ -22426,6 +24007,19 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-163"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
                         "y": 0
                       }
                     },
