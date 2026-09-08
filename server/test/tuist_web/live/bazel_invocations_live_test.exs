@@ -131,7 +131,11 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     organization: organization,
     project: project
   } do
-    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    finished_at =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.add(-31, :day)
+      |> NaiveDateTime.truncate(:second)
+
     Bazel.create_invocations([invocation_attributes(project, "build-run", "build", finished_at)])
 
     {:ok, live_view, _html} =
@@ -140,7 +144,8 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "[data-part='bazel-invocations-card']", "Build Runs")
     assert has_element?(live_view, "#bazel-invocations-table", "//App:App")
     refute has_element?(live_view, "[data-part='bazel-invocation-analytics-card']")
-    assert has_element?(live_view, "#bazel-invocations-filter-dropdown", "Environment")
+
+    assert render(live_view) =~ ~s(data-label="Environment")
   end
 
   test "shows only build invocations on the Bazel builds page", %{
@@ -448,7 +453,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     )
 
     assert has_element?(live_view, "[data-part='log-output']", "Build complete")
-    assert has_element?(live_view, "[data-part='back-button']", "Builds")
+    assert has_element?(live_view, "[data-part='back-button']", "Build Runs")
   end
 
   test "uses the standard empty state when an invocation has no cache requests", %{

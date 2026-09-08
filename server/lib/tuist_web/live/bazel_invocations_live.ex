@@ -56,6 +56,13 @@ defmodule TuistWeb.BazelInvocationsLive do
     filters = maybe_add_environment_filter(filters, analytics_environment, socket.assigns.bazel_show_analytics)
     analytics_opts = analytics_opts(analytics_period, socket.assigns.bazel_invocation_commands, analytics_environment)
 
+    list_opts =
+      if socket.assigns.bazel_show_analytics do
+        analytics_opts
+      else
+        [commands: socket.assigns.bazel_invocation_commands]
+      end
+
     {invocations, meta} =
       Bazel.list_invocations(
         project.id,
@@ -67,7 +74,7 @@ defmodule TuistWeb.BazelInvocationsLive do
           page_size: @page_size,
           commands: socket.assigns.bazel_invocation_commands
         },
-        analytics_opts
+        list_opts
       )
 
     commands = socket.assigns.bazel_invocation_commands
