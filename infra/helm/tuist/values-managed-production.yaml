@@ -827,14 +827,24 @@ vultrFleet:
     item: VULTR_API
 
 vultrFleets:
-  # South America West (Santiago). DISABLED until the region is switched on:
-  # an enabled fleet whose box the controller cannot adopt sits at MD 0/1 and
-  # wedges `helm --wait` for every production deploy, not just this region.
-  # Turning it on is: confirm the box carries the adoptTag and has been through
-  # `mise run baremetal:prep-vultr`, flip this to true, then add sa-west to
-  # TUIST_KURA_AVAILABLE_REGIONS once the node reports Ready.
+  # South America West (Santiago), on Vultr because no other provider in the
+  # fleet sells bare metal in South America.
+  #
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # sa-west's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart, and both are worth leaving closed until
+  # kura_volume_quota_enforced reads 1 on the node. It is 0 on a box whose /data
+  # cannot bound anything, which is otherwise invisible right up to the point one
+  # account fills the box and kubelet evicts every tenant on it.
   sa-west:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-sa-west
     machine:
