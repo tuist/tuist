@@ -20,6 +20,8 @@ struct Config {
     window_log: u32,
     #[serde(default)]
     long_distance: bool,
+    #[serde(default)]
+    prefix: bool,
 }
 
 fn prepare(bytes: &[u8], config: &Config) -> Vec<u8> {
@@ -104,8 +106,9 @@ fn main() {
             samples[1].push(elapsed(start));
             prepared_size = next_prepared.len();
             let start = Instant::now();
-            let mut compressor =
-                zstd::bulk::Compressor::with_dictionary(config.level, &base_prepared).unwrap();
+            let mut compressor = zstd::zstd_safe::CCtx::create();
+            compressor.set_parameter(zstd::zstd_safe::CParameter::CompressionLevel(config.level)).unwrap();
+            if !config.prefix { compressor.load_dictionary(&base_prepared).unwrap(); }
             if config.window_log != 0 {
                 compressor
                     .set_parameter(zstd::zstd_safe::CParameter::WindowLog(config.window_log))
@@ -114,7 +117,9 @@ fn main() {
             compressor
                 .set_parameter(zstd::zstd_safe::CParameter::EnableLongDistanceMatching(config.long_distance))
                 .unwrap();
-            let patch = compressor.compress(&next_prepared).unwrap();
+            if config.prefix { compressor.ref_prefix(&base_prepared).unwrap(); }
+            let mut patch = Vec::with_capacity(zstd::zstd_safe::compress_bound(next_prepared.len()));
+            compressor.compress2(&mut patch, &next_prepared).unwrap();
             samples[2].push(elapsed(start));
             drop(compressor);
             if repetition != 0 {
@@ -125,10 +130,12 @@ fn main() {
             // digests, sizes, codec parameters. This is not a deployed protocol.
             selected = (patch.len() + 192).min(expected_blob.len());
             let start = Instant::now();
-            let mut decoder = zstd::bulk::Decompressor::with_dictionary(&base_prepared).unwrap();
-            let prepared = decoder
-                .decompress(&patch, bitstream_probe::MAX_PREPARED)
-                .unwrap();
+            let mut decoder = zstd::zstd_safe::DCtx::create();
+            if config.prefix { decoder.ref_prefix(&base_prepared).unwrap(); }
+            else { decoder.load_dictionary(&base_prepared).unwrap(); }
+            let mut prepared = Vec::with_capacity(next_prepared.len());
+            decoder.decompress(&mut prepared, &patch).unwrap();
+            assert_eq!(prepared.len(), next_prepared.len());
             let restored = if config.fields {
                 bitstream_probe::restore(&prepared, next.len()).unwrap()
             } else {
