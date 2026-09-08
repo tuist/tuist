@@ -45,6 +45,9 @@ public struct BazelTestCommandService {
                 Noora.current.passthrough(
                     "Skipping \(skipped.count) Bazel target(s) containing skipped tests. All cases in those targets are excluded."
                 )
+                for target in skipped {
+                    Noora.current.passthrough("  \(target)")
+                }
             }
         }
 

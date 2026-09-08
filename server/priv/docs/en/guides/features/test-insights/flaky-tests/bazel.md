@@ -40,6 +40,8 @@ Marking a case **Skipped** excludes its **entire Bazel target**, including healt
 
 The command fetches every quarantine page and deduplicates targets. If Bazel's complete event log identifies a missing skipped target before target configuration or execution, Tuist names it in a warning and retries without that stale exclusion. The original requested patterns and all other exclusions are preserved. Recovery is limited to five retries; other loading failures and incomplete evidence retain Bazel's error. Return stale cases to **Enabled** to remove their policies permanently. Pass target patterns directly; `--target_pattern_file` cannot be combined with quarantine exclusions. If no test targets remain, Bazel retains its normal “no tests found” exit status, which also catches an accidentally empty test selection.
 
+The command prints every excluded target label so build logs show which targets, including their healthy cases, the quarantine policy excludes.
+
 ### Mute {#mute}
 
 **Muted** cases continue to run. Tuist reads a temporary local build-event file and the referenced `test.xml` reports. It changes Bazel's test-failure exit to success only when complete reports attribute every reported failure in each failed target to a muted case. Healthy cases within those targets still affect the result.

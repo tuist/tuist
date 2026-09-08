@@ -1680,6 +1680,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "FileSystem"),

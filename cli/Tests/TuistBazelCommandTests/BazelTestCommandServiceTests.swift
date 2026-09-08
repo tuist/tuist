@@ -5,6 +5,7 @@ import Testing
 import TuistConfig
 import TuistConfigLoader
 import TuistEnvironmentTesting
+import TuistNooraTesting
 import TuistServer
 import TuistTesting
 
@@ -42,7 +43,7 @@ struct BazelTestCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies(), arguments: [0, 4])
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .withMockedNoora, arguments: [0, 4])
     func loads_all_pages_and_deduplicates_targets_without_weakening_the_policy(exitStatus: Int) async throws {
         let configLoader = MockConfigLoading()
         let serverEnvironment = MockServerEnvironmentServicing()
@@ -88,6 +89,9 @@ struct BazelTestCommandServiceTests {
             !$0.hasPrefix("--build_event_json_file=") && $0 != "--nobuild_event_json_file_path_conversion"
         } == command)
         #expect(runner.calls.count == 1)
+        let output = ui()
+        #expect(output.contains("Skipping 3 Bazel target(s)"))
+        #expect(output.contains("  //app:tests\n  //deleted:tests\n  //other:tests"))
     }
 
     @Test(.withMockedEnvironment()) func disabling_quarantine_does_not_contact_server() async throws {
