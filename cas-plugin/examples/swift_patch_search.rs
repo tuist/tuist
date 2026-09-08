@@ -243,4 +243,5 @@ fn main() {
     }
     println!("METRIC warm_bytes={warm}\nMETRIC cold_bytes={cold}\nMETRIC prepared_bytes={prepared_bytes}\nMETRIC base_prepare_ms={base_ms}\nMETRIC target_prepare_ms={target_ms}\nMETRIC patch_ms={patch_ms}\nMETRIC restore_ms={restore_ms}\nMETRIC verify_ms={verify_ms}\nMETRIC peak_rss_bytes={}", peak_bytes());
     println!("METRIC group_count={group_count}\nMETRIC copied_bytes={copied_bytes}\nMETRIC metadata_bytes={metadata_bytes}");
+    println!("METRIC receiver_ms={}", base_ms + restore_ms + verify_ms);
 }

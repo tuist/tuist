@@ -435,3 +435,25 @@ consumer, place each exported file under its original module name and run
 -module-cache-path <fresh-cache-directory> <consumer.swift>`. The header check
 used `xcrun clang -x objective-c -fno-modules -isysroot <macOS-sdk-path>
 -include-pch <restored-header.pch> -fsyntax-only <consumer.m>`.
+
+## Receiver-cost search (fourth segment)
+
+Keep the six-pair grouped workload and start a bounded six-run segment with
+receiver_ms as the primary metric: the sum of base preparation, patch decoding
+and inverse transformation, and compressed-node verification. Each phase remains
+a three-sample median per pair. Secondary metrics include transferred bytes,
+sender work, expanded size, and peak process memory. This is a change of metric,
+not a new corpus. Remain on the existing pull request branch.
+
+First isolate verification cost with the same digest algorithm and patch bytes.
+Then try compact spelling/layout streams and variable-length numeric columns.
+Preserve every compiler-visible bit and compressed-node identity. Reject an
+aggregate warm-byte regression over 10% or any individual regression over 25%
+from the preceding grouped candidate, even if receiver work improves. Memory
+must not materially exceed the baseline; the 512-mebibyte promotion limit still
+applies, and retained offline candidates exceeding it are not shipping candidates.
+
+Only examples, development-only dependencies, and research notes are in scope.
+Production hashing, server protocols, default behavior, and the unimplemented
+project opt-in setting are not changed. Run compiler-consumer checks on retained
+reconstructions and record the actual costs, not a predicted download speedup.
