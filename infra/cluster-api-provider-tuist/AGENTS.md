@@ -306,6 +306,18 @@ mode behind it:
   nothing wipes the disk afterwards, so the kubeconfig stays on the box until
   the next claim overwrites it.
 
+  The same reasoning binds every OTHER path that lets go of a host, which is why
+  they all go through `retireHost`: bootstrap exhaustion, and a claim lost
+  because the inventory record was deleted or released out of band. Bootstrap
+  starts tart-kubelet before its last fatal step (`installLogShipper`), so a
+  host can exhaust its attempts while already registering a Node and holding a
+  working long-lived token. Retiring it therefore has to revoke that identity,
+  delete the Node, and drop the TOFU fingerprint. Skip any one and the damage
+  lands on the NEXT host: the replacement is issued the same credentials and the
+  same Node name while the retired box keeps running, the stale Node keeps the
+  retired host's providerID (which tart-kubelet will not overwrite), or the old
+  host's SSH pin rejects a healthy replacement until it is quarantined too.
+
 ### The first dial
 
 A rented mini has a public IP the operator can reach before anything is
