@@ -512,3 +512,191 @@ probe faster than the budget reset its count on every reopen and could hold
 warm one). The coordinator now owns one counter per peer, handed to every
 task it spawns for that peer and cleared on a successful bootstrap, which
 restores the legacy cycle's property without fixing the membership.
+
+### 3.4 Ring D — sustained REAPI load on k02 (2026-09-08)
+
+The first run that drives the mesh through the REAPI surface for a sustained
+stretch rather than with a key-value burst. Fresh cluster `k02`
+(3 microVM nodes, 12 vCPU / 24 GB total), everything built from this branch
+(`kura-runtime` digest `sha256:4095a3c8…`, confirmed on all five pods), the
+server in **hosted** mode (`TUIST_HOSTED=1`).
+
+Topology: region `local` with two managed replicas plus the self-hosted
+stand-in (`tuist-kura-sh`, 1 replica — a real cross-cluster enrollment is still
+not reproducible here, §3.1 C-3), and region `eu` with two managed replicas
+behind its own public host. `KURA_REPLICATION_PULL=true` on every instance.
+Before the run: one gateway per region (`tuist-kura-0`, `tuist-kura-eu-0`), the
+gateway pair holding the only cross-region link, replica links among every
+same-region pair, every link `forward` and `settled` with `lag_entries` 0, feeds
+enabled, outbox 0 on all five pods.
+
+Load: 8 iterations at a 75 s period, `--jobs=4`, 200 `genrule`s per build
+(68.3 MiB of incompressible payload), alternating regions —
+**3,000 actions over 541 s = 333 actions/min**, 546 MiB written, 478 MiB asked
+for on the read side. Every Bazel invocation exited 0.
+
+| pod | node | CPU s | peak CPU | mean/peak WS MB | rx MB | tx MB | data dir MB | max outbox | max fwd lag |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tuist-kura-0 (gw local) | k02-0 | 21.6 | 11% | 38 / 59 | 570 | 828 | 811 → 1359 | 0 | 0 |
+| tuist-kura-1 | k02-0 | 18.9 | 14% | 44 / 61 | 570 | 775 | 746 → 1294 | 0 | 0 |
+| tuist-kura-sh-0 | k02-0 | 17.1 | 7% | 39 / 50 | 565 | 16 | 754 → 1301 | 0 | 0 |
+| tuist-kura-eu-0 (gw eu) | k02-2 | 19.7 | 9% | 62 / 83 | 563 | 555 | 735 → 1275 | 0 | 0 |
+| tuist-kura-eu-1 | k02-2 | 18.0 | 13% | 42 / 65 | 565 | 558 | 670 → 1211 | 0 | 29 |
+
+Per-iteration read hit rates (each read asks the region that did *not* write the
+seed, ~75 s after it was written): 96%, 98%, 98%, 100%, 96%, 98%, 98% —
+1,366 of 1,400 actions. Write builds took 14–16 s, read builds 0.8–1.3 s.
+
+**What the run establishes.**
+
+* Steady state holds. Outbox 0 at all 60 samples on all five pods; every link
+  `forward`/`settled` before and after; forward cursor lag 0 everywhere except
+  a single 29-entry sample on `tuist-kura-eu-1`; `gateway_role_changes` and
+  `peer_connection_failures` did not move; no capacity shed of any kind and
+  memory pressure 0 throughout (D-1, D-3, D-6).
+* Cross-region convergence is prompt. `kura_region_watermark_age_seconds` is a
+  clean sawtooth: it climbs while the other region is idle and resets to **5–8
+  s** within one sample of that region's write finishing, on both gateways, for
+  every one of the eight iterations — it never ratchets. Region sync cycles
+  succeeded continuously (`region_sync_last_success_age_seconds` ≤ 29 s) (D-2).
+* Replication is not a bottleneck at this rate. Every pod grew by 541–547 MiB
+  against 546 MiB of payload, so each node took the whole dataset regardless of
+  which region ingested it, at a peak of 14% of one core and under 85 MB of
+  working set (D-4, D-6).
+* Client traffic and the peer plane separate cleanly: the REAPI artifact
+  counters moved only on `tuist-kura-1` and `tuist-kura-eu-1`, so in both
+  regions the public Service served from the non-gateway replica and the
+  gateways carried peer traffic only.
+
+**What it does not establish — a persistent cross-region gap (open).**
+D-5 fails. Reading a seed back from the region that did not write it returns
+the *same* hit count long after the mesh is quiescent as it did during the run
+(193/197/195/199/191/195/196 in-run, byte-identical in `verify.csv`), so the
+1–9 misses per iteration are not lag. Reading one seed from its origin region
+gives 200/200 on repeat; from the other region it gives 191/200 on repeat.
+It reproduces without any load at all: a single 200-action write into `local`
+on an otherwise idle mesh reads back 195/200 from `eu` after 2 minutes and
+still 195/200 after 6 minutes, while the same seed reads 200/200 from `local`.
+The miss is not size-correlated (1 miss in the twenty 2 MiB targets, 0 in the
+twenty 768 KiB, 1 in the twenty 8 KiB). Consistent with it,
+`kura_manifest_index_entries` settles at 12,793 on both `local` replicas and
+12,785 on both `eu` replicas — a stable 8-entry deficit — with
+`kura_sync_forward_index_dropped_total` 0, every `replication_requests_total`
+outcome `ok`, no `action_cache_cascade_removed`, outbox 0 and every link
+`forward`/`settled`.
+
+Ruled out before recording it as a defect: a client-side upload failure (the
+origin region serves the same seed 200/200, and no Bazel invocation logged a
+warning); a single lagging replica (both `eu` pods report the identical index
+count, and the miss set is deterministic across runs that open four
+connections); capacity or memory (all shed counters 0, pressure state 0, 1.3 GB
+used of a 10 GiB volume); and saturation (it reproduces on an idle mesh). What
+is still unknown is whether the missing item is the AC manifest or a referenced
+CAS blob, and why the health signals report converged while it is absent.
+
+#### Ring D, batch 2 — restarts and stop/resume (2026-09-08)
+
+Same cluster, same image and the same load as batch 1
+(`run-load.sh k02 600 75 4`, 200 targets, 8 iterations, alternating regions,
+546 MiB of payload), with the chaos sequence from the test plan injected into it.
+`t0` = 2026-09-08 23:46:18 UTC. Baseline before the run: five pods Ready with 0
+restarts, one gateway per region (`tuist-kura-0`, `tuist-kura-eu-0`), every link
+`forward`/`settled` with `lag_entries` 0, outbox 0 on all five, and the client
+Services pinned to the non-gateway replica of each region (`tuist-kura` →
+`tuist-kura-1`, `tuist-kura-eu` → `tuist-kura-eu-1`).
+
+| event | offset | readiness / role | links, outbox | overlapping iterations | recovery |
+| --- | --- | --- | --- | --- | --- |
+| E1 delete `tuist-kura-1` (local client-serving pod) | +2:00 | Service selector on `tuist-kura-0` within 13 s; pod recreated 23:48:41, Ready 23:49:09 (51 s); no role change | one 5 s sample with the recreated pod's two replica links `settled=false`, `lag` 0; outbox 0 throughout | none in flight; iteration 3 write 18.19 s (baseline 14.7–16.1 s), rc 0, its read 197/200 | 56 s |
+| E2 `SIGSTOP` `tuist-kura-eu-0` (eu gateway) 60 s | +4:01 | `tuist-kura-eu-1` reports `gateway=true` at the first sample after the stop (1 s), `members` 5 → 4; eu-0 NotReady 23:50:52, two liveness failures, **no restart**; `SIGCONT` hit the same pid, role back on eu-0 at 23:51:24, answering `/ready` again at 23:51:18 (the first probe sample after the freeze; probe samples and the injector's clock agree only to ~2 s) | eu-0 unreachable for 4 samples; every reachable link stayed `forward`/`settled`; outbox 0 | iteration 4 read in flight (1.12 s, 200/200); iteration 5 write 19.61 s, rc 0 | 65 s |
+| E3 delete `tuist-kura-eu-0` (role holder) | +6:00 | role to `tuist-kura-eu-1` in 6 s; pod recreated 23:52:40, Ready 23:53:01, role back at 23:53:06 | eu-0 unreachable for 7 samples; outbox 0 | none in flight; iteration 6 write 21.68 s (slowest of the run), rc 0, its read 200/200 | 58 s |
+| E4 `SIGSTOP` `tuist-kura-sh-0` 90 s | +8:00 | NotReady 23:54:53; **liveness killed the container at 23:55:12** and it restarted 23:55:43 (RESTARTS 1), so `SIGCONT` was a no-op; links settled again 23:56:08; the pod was then deleted at 23:56:01 by an unrelated CPU-band re-template, replaced 23:56:23, Ready 23:56:51 | sh-0 unreachable for two windows; outbox 0 | none in flight; iteration 8 wrote through `eu` 45 s into the freeze, 14.67 s, rc 0, its read 200/200 | 110 s to first settled, 160 s to the final converged state |
+
+Per-pod cost over the 1005 s sample window (deltas are reset-aware, since two
+pods were replaced mid-run):
+
+| pod | node | CPU s | mean / peak WS MB | rx MB | tx MB | REAPI r/w MB | data dir MB | max outbox | max fwd lag | gw changes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tuist-kura-0 (gw local) | k02-0 | 26.1 | 44 / 64 | 613 | 2066 | 742.3 / 205.9 | 1978 → 2547 (+569) | 0 | 0 | 0 |
+| tuist-kura-1 | k02-0 | 18.1 | 34 / 53 | 569 | 168 | 0.0 / 68.5 | 1913 → 2462 (+549) | 0 | 0 | 0 |
+| tuist-kura-sh-0 | k02-0 | 18.3 | 47 / 75 | 605 | 27 | 0.0 / 0.0 | 1923 → 2492 (+569) | 0 | 0 | 0 |
+| tuist-kura-eu-0 (gw eu) | k02-2 | 20.8 | 31 / 52 | 573 | 495 | 0.0 / 0.0 | 1889 → 2446 (+557) | 0 | 0 | 2 |
+| tuist-kura-eu-1 | k02-2 | 21.6 | 42 / 59 | 586 | 1264 | 818.9 / 274.5 | 1824 → 2377 (+553) | 0 | 0 | 4 |
+
+**What the batch establishes.**
+
+* D-7 holds. Every event was back to a fully converged mesh well inside three
+  minutes (56 / 65 / 58 / 160 s), every one of the eight Bazel invocations exited
+  0, and no read build took longer than 1.4 s at any point in the run.
+* D-9 holds. `kura_sync_forward_drain_timeout_total` stayed 0 on every pod, and
+  `kura_sync_forward_fell_behind_total` exported no series at all on any pod at
+  any sample — not even the `incarnation` reason, because the replaced pods kept
+  their volumes. `kura_sync_forward_index_dropped_total` 0 everywhere.
+* Steady state is preserved through the chaos: `kura_outbox_messages` was 0 on
+  every pod at all 68 collector samples and all 950 probe samples (193 per pod, every one reading 0), memory
+  pressure stayed 0, no capacity shed of any kind fired, and the busiest pod
+  peaked at 75 MB of working set. Every pod's data dir grew 549–569 MiB against
+  546 MiB of payload — including the two that were replaced (D-4 through chaos).
+* Role handover is fast and self-correcting: a frozen gateway lost the role to
+  its sibling inside one 5 s probe sample and got it back one sample after
+  resuming; a deleted gateway handed over in 6 s and took the role back once it
+  was Ready. The role never landed on two pods at once in any sample.
+* Client failover works and is sticky: deleting the pinned pod moved the
+  `tuist-kura` Service selector to `tuist-kura-0` within 13 s, and it stayed
+  there once the replacement was Ready — so `local` served client traffic from
+  its own gateway for the rest of the run, which the REAPI byte counters confirm
+  (they moved on `tuist-kura-0` and `tuist-kura-eu-1` only).
+* Logs are clean: zero `"level":"ERROR"` lines on any pod for the whole window.
+  All 110 WARNs are `peer status request failed` against a pod that was down at
+  that moment, `/ready` 503 during startup, one `region forward read failed` on
+  the frozen node at the instant it resumed, and one `/_internal/sync/forward`
+  long poll that ran 79.1 s against a `wait=25` contract while its process was
+  frozen.
+
+**D-8 fails, on a known-by-design mechanism.** At 23:56:01 the StatefulSet
+deleted `tuist-kura-sh-0` without being asked to. The controller revisions show
+revision 3 → 4 changing exactly one field, `requests.cpu` 150m → 250m: this is
+`cpu_autosize.go` moving the instance to the next `cpuRequestBands` entry after
+the sustained load raised observed CPU, which re-templates the StatefulSet and
+rolls its pods (the file's own comment names the trade-off). `tuist-kura` and
+`tuist-kura-eu` were already at 250m from batch 1's load, so only the `sh`
+instance crossed a band this time. For a `replicas: 1` instance this removes the
+region's third copy for ~50 s in the middle of a load test. Nothing to fix in the
+replication path; it does mean a Ring D run has to expect a pod replacement it
+did not inject.
+
+**D-10 partly holds — and it is the first evidence that a restart repairs the
+cross-region gap.** Batch 1's `verify.csv` was byte-identical to its in-run
+reads: nothing was ever repaired. Here two of the four short seeds were:
+
+| seed | written via | read from | in run | verify #1 (T+2 min) | verify #2 (all pods stable 3 min) |
+| --- | --- | --- | --- | --- | --- |
+| d204617-1 | local | eu | 195/200 | 200/200 | 200/200 |
+| d204617-2 | eu | local | 197/200 | 200/200 | 200/200 |
+| d204617-6 | eu | local | 197/200 | 197/200 | 197/200 |
+| d204617-8 | eu | local | not read in run | 197/200 | 197/200 |
+
+The other four seeds read 200/200 in the run and in both verifies. Seeds 1 and 2
+were written before the last restart on the side that had to serve them; seeds 6
+and 8 were written after it, and stay three actions short — the two verify passes
+are byte identical, so they are stuck rather than lagging. That is exactly what
+the settle-guard defect predicts (`replication-design.md` §11 follow-up; the
+investigation's tooling and evidence are in the harness under
+`~/.config/tuist/k01/replication/settle/`): a restarting node runs a buffered
+backward pass that recovers records the ascending, settle-bounded read had
+skipped, while skips created after the last restart are never revisited. Note
+also that every `local` write after E1 went straight to the gateway, and all
+three of those seeds (3, 5, 7) read 200/200 cross-region without any repair.
+
+One caveat on batch 1's evidence above: `kura_manifest_index_entries` is
+documented in its own HELP text as "Warm in-memory manifest index entries
+currently loaded". It read 16,362 on `tuist-kura-sh-0` before this run and 16
+after its roll, while that pod's data dir *grew* by 569 MiB — so the 12,793 vs
+12,785 split cited earlier measures cache warmth, not whether a record is
+present, and should not be read as corroboration of the gap.
+
+Raw data, per-pod logs kept across the rolls, the probe stream and the
+controller-revision diff are in the harness repo under
+`~/.config/tuist/k01/replication/load/runs/20260908-2045-k02-ringd-chaos/`
+(`summary.md`, `findings.md`, `events.md`, `pods.csv`, `iterations.csv`,
+`verify1.csv`, `verify2.csv`, `cpu-band-roll.txt`).

@@ -116,3 +116,90 @@ Each ring-C run records, per node, before/after: RSS and anon memory
 convergence time of a fixed write burst (`scripts/sync-bench.sh`). The same
 burst runs against a `main`-built image on the same cluster for the
 comparison in `replication-implementation.md` §3.
+
+## Ring D — sustained REAPI load on k01 (tens of minutes)
+
+Ring C answers "does a burst converge". Ring D answers "does the mesh stay
+converged, and at what cost, while a client keeps writing and reading through
+the REAPI surface for ten minutes". It is the only ring that drives Kura the way
+Bazel does — gRPC through the public ingress, ActionCache plus ByteStream,
+outputs from a few KiB to a few MiB — rather than through the key-value API.
+
+The scripts live in the harness repo under
+`~/.config/tuist/k01/replication/load/` (`README.md` there lists them):
+
+```sh
+CLUSTER=k02 mise x -- bash ~/.config/tuist/k01/deploy.sh   # server + kura-controller + region `local` (2) + `sh` (1)
+~/.config/tuist/k01/replication/regions.sh add  k02 eu     # region `eu` (2 replicas, own public host)
+~/.config/tuist/k01/replication/regions.sh flip k02 true   # KURA_REPLICATION_PULL on the deploy.sh instances
+
+~/.config/tuist/k01/replication/load/setup.sh k02 200      # loader image + workspace + JWT, on the host
+~/.config/tuist/k01/replication/load/mesh-state.sh k02     # baseline: roles, links, phases, lag, outbox
+python3 ~/.config/tuist/k01/replication/load/collect-metrics.py k02 tuist "$RUN" 15 900 &
+~/.config/tuist/k01/replication/load/run-load.sh k02 600 75 4
+~/.config/tuist/k01/replication/load/verify.sh  k02 <run-id> 8
+python3 ~/.config/tuist/k01/replication/load/summarise.py "$RUN"
+```
+
+**Load shape.** A generated workspace of 200 `genrule`s writes pseudo-random
+bytes derived from `(--define seed, index)`, in fixed size tiers from 8 KiB to
+2 MiB — 68.3 MiB of incompressible payload per full build. Each iteration runs
+`bazel clean`, a **write** build of a fresh seed (every action a miss, every
+output a new CAS blob, uploads on), and a **read** build of the *previous*
+iteration's seed with uploads off. The endpoint alternates between the two
+regions per iteration, so the seed a read asks for was always written through
+the *other* region: every read hit had to cross regions. Iterations are paced to
+a fixed period so the rate is steady rather than a back-to-back burst.
+
+**What is measured.** Every 15 s, per kura pod: cAdvisor CPU seconds, working
+set and network rx/tx, plus from the pod's own `/metrics` the outbox depth and
+lanes, `kura_sync_forward_cursor_lag_entries`/`_seconds`,
+`kura_sync_forward_index_entries`, `kura_region_watermark_age_seconds`,
+`kura_region_sync_last_success_age_seconds`, `kura_region_sync_bytes_fetched`,
+`kura_backfill_bodies_peer_requests_total` by outcome, `kura_gateway_role` and
+its change counter, `kura_peer_connection_failures_total`, the REAPI artifact
+read/write byte counters, memory pressure and the capacity-shed counters, and
+process RSS/anon (`pods.csv`). Per Bazel iteration: elapsed time, actions,
+remote cache hits and local executions, and Bazel's own network sampler
+(`iterations.csv`). After the run, every seed is read back from the region that
+did not write it (`verify.csv`), and the data-dir size of every pod is compared
+against the pre-run figure.
+
+**Pass criteria.**
+
+| # | Criterion |
+| --- | --- |
+| D-1 | Every link stays `forward` and `settled` for the whole run; `kura_outbox_messages` is 0 at every sample on every pod. |
+| D-2 | `kura_region_watermark_age_seconds` is a sawtooth that resets within ~10 s of the other region's write finishing — it never ratchets upward across iterations. |
+| D-3 | `kura_gateway_role_changes_total` does not move, and `kura_peer_connection_failures_total` stays 0, under steady load. |
+| D-4 | Every pod's data dir grows by approximately the full payload written in the run, whichever region it was written through. |
+| D-5 | The post-run cross-region read (`verify.sh`) hits on every action of every seed. |
+| D-6 | No capacity shed, no memory-pressure state above 0, and CPU well under one core on the busiest pod. |
+
+**Chaos sequence.** A second batch re-runs the same load and injects four events
+into it (`chaos.sh k0N <outdir> <t0>` in the harness, offsets from the load
+start), with `/ready` polled every 2 s and `/status/cluster` plus a `/metrics`
+slice every 5 s from a pod inside the cluster (`probe-pod.sh`), and every kura
+pod's log followed across the rolls (`log-tail.sh` — the controller recreates a
+deleted pod under the same name with a new UID, so `kubectl logs --previous`
+never holds a rolled pod's shutdown lines). `analyse-chaos.py` turns the two
+logs into readiness transitions, role moves, convergence windows and a recovery
+time per event.
+
+| offset | event | what it exercises |
+| --- | --- | --- |
+| +2:00 | delete the pod the region's client Service points at | Service failover to the standby, the standby taking client writes, and the recreated pod bootstrapping from its sibling |
+| +4:00 | `SIGSTOP` the `kura` process in a region's gateway for 60 s, then `SIGCONT` | role move to the sibling within a membership tick and catch-up from the watermark on resume, without a container restart |
+| +6:00 | delete whichever pod holds that gateway role | role move plus re-bootstrap, and whether the restarting node's buffered backward pass repairs earlier cross-region skips |
+| +8:00 | `SIGSTOP` the third same-region replica for 90 s, then resume | a replica falling behind the feed and catching up |
+
+Note that with the shipped probe settings (`/up`, 20 s period, 3 failures, 5 s
+timeout) a freeze longer than about 55 s is converted into a container restart
+by kubelet, so the 90 s event is a restart test, not a freeze test.
+
+| # | Criterion |
+| --- | --- |
+| D-7 | Every event returns the mesh to "every link `forward`/`settled`, `lag_entries` 0, outbox 0 on every pod" within 3 minutes of the event, and every Bazel iteration that overlaps an event still exits 0. |
+| D-8 | No container restart and no pod replacement other than the ones the sequence injects. A roll caused by the controller's CPU-request band change counts as a finding to record, not a pass. |
+| D-9 | `kura_sync_forward_drain_timeout_total` does not move on any pod, and `kura_sync_forward_fell_behind_total` records no reason other than the ones the events make unavoidable (`incarnation` on a pod whose volume was rebuilt). |
+| D-10 | Cross-region misses present before a gateway restart are repaired by it: a seed that read short during the run reads whole in `verify.sh` after the gateway of the region that wrote it has restarted, and the two verify passes (immediately after the run, and after every pod has been stable for 3 minutes) agree. |
