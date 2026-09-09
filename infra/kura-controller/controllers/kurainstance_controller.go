@@ -3745,6 +3745,13 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				// checks. Limit the plaintext cache port (co-hosted
 				// HTTP + gRPC) to in-cluster peers; the JWT layer in
 				// the runtime is the auth boundary.
+				//
+				// This does NOT cover the regional Kura gateway. That
+				// runs host-network, so its traffic carries Cilium's
+				// host / remote-node identity rather than a pod one,
+				// and no namespaceSelector or ipBlock here can select
+				// it. The platform chart grants it separately, in
+				// templates/kura-gateway-network-policy.yaml.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
