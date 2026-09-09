@@ -385,13 +385,15 @@ func TestSelectClaimableHostsFiltersAndExplains(t *testing.T) {
 
 	candidates, skipped := selectClaimableHosts(hosts, testPool, "ber1-0")
 
-	// Sorted by name, and the machine's own host counts as claimable so a
-	// crash between the two status writes converges rather than double-claims.
+	// A host this machine already holds sorts FIRST, then the rest by name.
+	// Recovering the existing claim has to win over any free host, or a crash
+	// between the RackHost write and the Machine write leaves the machine
+	// holding two boxes with nothing able to free the first.
 	var names []string
 	for _, c := range candidates {
 		names = append(names, c.Name)
 	}
-	if got, want := strings.Join(names, ","), "free-a,free-b,mine"; got != want {
+	if got, want := strings.Join(names, ","), "mine,free-a,free-b"; got != want {
 		t.Fatalf("candidates = %s, want %s", got, want)
 	}
 	if skipped != (skippedHosts{claimed: 1, quarantined: 1, unclaimable: 1, incomplete: 2}) {
@@ -1117,5 +1119,97 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 	withEgressTarget := r.hostConfig(machine, perHost)
 	if bootstrap.HostConfigHash(withEgressTarget) != r.desiredHostConfigHash(machine) {
 		t.Fatal("the dial target changed the host-config hash; it is transport, not config")
+	}
+}
+
+// --- letting go of a host must retire everything tied to it ------------------
+
+// Bootstrap starts tart-kubelet (loadTartKubeletLaunchd) BEFORE its last fatal
+// step, installLogShipper. So a host can exhaust its attempts while already
+// running the kubelet, holding a valid long-lived token and registering a Node
+// under this Machine's name.
+//
+// The Scaleway kind gets away with dropping only the bootstrap Secret because
+// releasing a host there triggers a provider reinstall that wipes it. Nothing
+// wipes hardware we own, so the quarantined host keeps running with credentials
+// that still work. Its replacement is issued the SAME token and the SAME Node
+// name, and the stale Node keeps the old host's providerID, which tart-kubelet
+// will not overwrite. Two physical machines then answer for one Node.
+func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
+	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+		m.Status.RackHost = "mini-01"
+		m.Status.BootstrapAttempts = 7
+	})
+	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	// The host got far enough to register: a Node exists and an identity was minted.
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-0"}}
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+		Name: "tart-kubelet-ber1-0", Namespace: testNamespace,
+	}}
+	r := newStaticReconciler(t, host, machine, node, sa)
+	r.Power = registryWithShelly(&stubPowerDriver{on: true})
+	ctx := context.Background()
+
+	r.handleBootstrapFailure(ctx, machine, host, errors.New("install log shipper: boom"))
+
+	if err := r.Get(ctx, types.NamespacedName{Name: "ber1-0"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
+		t.Error("the stale Node survived quarantine; the replacement host inherits it, keeping the quarantined host's providerID")
+	}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: testNamespace, Name: "tart-kubelet-ber1-0"}, &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
+		t.Error("the node identity survived quarantine; the quarantined host keeps working credentials while a replacement is issued the same ones")
+	}
+}
+
+// A claim recorded on the RackHost but not on the Machine is the crash window
+// between the two status writes, which Claimable() deliberately tolerates. But
+// tolerating it is only half: selection then sorts by name, so a newly freed
+// host that sorts earlier wins and the Machine silently ends up holding two.
+// Orphan reclaim cannot clean that up, because the Machine still exists.
+func TestClaimPrefersAHostThisMachineAlreadyHolds(t *testing.T) {
+	mine := rackHost("mini-09", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
+	freeAndEarlier := rackHost("mini-01")
+	machine := staticMachine("ber1-0") // status.rackHost lost
+	r := newStaticReconciler(t, mine, freeAndEarlier, machine)
+
+	host, _, err := r.claimRackHost(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("claimRackHost: %v", err)
+	}
+	if host == nil || host.Name != "mini-09" {
+		t.Fatalf("claimed %v, want the host it already holds (mini-09)", host)
+	}
+	if got := getHost(t, r, "mini-01"); got.Status.ClaimedBy != "" {
+		t.Errorf("also claimed mini-01 (%s); this Machine now holds two hosts and orphan reclaim will not free either", got.Status.ClaimedBy)
+	}
+}
+
+// The TOFU pin is per HOST. Losing a claim and taking a different box means
+// verifying the new host's key against the old host's fingerprint, which fails
+// every dial and eventually quarantines a perfectly healthy machine.
+func TestLosingAClaimDropsTheHostFingerprint(t *testing.T) {
+	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+		m.Status.RackHost = "mini-01" // inventory record since deleted
+	})
+	replacement := rackHost("mini-02")
+	r := newStaticReconciler(t, replacement, machine)
+	ctx := context.Background()
+
+	if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, "pw", "tuist"); err != nil {
+		t.Fatalf("seed credentials: %v", err)
+	}
+	if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, "SHA256:the-old-host"); err != nil {
+		t.Fatalf("seed fingerprint: %v", err)
+	}
+
+	if _, _, err := r.claimRackHost(ctx, machine); err != nil {
+		t.Fatalf("claimRackHost: %v", err)
+	}
+
+	creds, err := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name)
+	if err != nil {
+		t.Fatalf("read bootstrap secret: %v", err)
+	}
+	if creds != nil && creds.HostFingerprint != "" {
+		t.Fatalf("fingerprint %q from the lost host survived; the replacement will fail SSH verification on every attempt", creds.HostFingerprint)
 	}
 }

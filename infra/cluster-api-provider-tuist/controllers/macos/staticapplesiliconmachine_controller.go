@@ -460,7 +460,10 @@ func (r *StaticAppleSiliconMachineReconciler) claimRackHost(
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ClaimLost",
 			"No longer holding rack host %s; will claim another", name)
 		logger.Info("rack host claim lost; re-claiming", "host", name)
-		r.detachFromHost(machine)
+		if err := r.retireHost(ctx, machine); err != nil {
+			logger.Error(err, "retire the lost host; will retry")
+			return nil, ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 	}
 
 	pool := machine.Spec.AdoptPool
@@ -572,9 +575,19 @@ func (s skippedHosts) describe() string {
 // selectClaimableHosts returns the hosts in `pool` this machine may claim,
 // in a stable order, plus a tally of why the rest were passed over.
 //
-// The order is by name and it matters: two reconciles of the same machine must
-// reach for the same host, or a machine that loses a claim race repeatedly can
-// walk the whole pool leaving a trail of half-claims behind it.
+// A host this machine ALREADY holds sorts first, ahead of any free one. That is
+// recovery, not a preference. The case arises when the RackHost status write
+// lands and the Machine patch that follows it does not, leaving a claim
+// recorded on the host and nothing on the Machine; Claimable() tolerates it so
+// the next reconcile can pick the claim back up. Ordering purely by name breaks
+// exactly that: a free host that happens to sort earlier wins, the Machine
+// takes a second box, and the first stays claimed by a Machine that no longer
+// references it. Orphan reclaim cannot free it either, because it only releases
+// claims whose Machine is GONE, and this one still exists.
+//
+// Otherwise the order is by name, and that matters too: two reconciles of the
+// same machine must reach for the same host, or a machine that loses a claim
+// race repeatedly can walk the whole pool leaving a trail of half-claims.
 func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]infrav1.RackHost, skippedHosts) {
 	var (
 		candidates []infrav1.RackHost
@@ -602,7 +615,14 @@ func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]i
 			candidates = append(candidates, host)
 		}
 	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Name < candidates[j].Name })
+	sort.Slice(candidates, func(i, j int) bool {
+		iMine := candidates[i].Status.ClaimedBy == machineName
+		jMine := candidates[j].Status.ClaimedBy == machineName
+		if iMine != jMine {
+			return iMine
+		}
+		return candidates[i].Name < candidates[j].Name
+	})
 	return candidates, skipped
 }
 
@@ -646,17 +666,20 @@ func (r *StaticAppleSiliconMachineReconciler) handleBootstrapFailure(
 				"Could not quarantine %s: %v (will retry)", host.Name, err)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}
 		}
-		// The TOFU fingerprint is pinned to the quarantined host's SSH key and
-		// would reject the replacement host's key on the next bootstrap, so the
-		// per-machine Secret goes with the host. Non-fatal: the next claim
-		// rewrites it, and the fingerprint guard captures fresh on an empty pin.
-		if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
-			logger.Error(err, "delete per-machine bootstrap Secret on quarantine; next claim will recreate it")
+		// Retire before claiming anything else. The quarantined host may still
+		// be running tart-kubelet with a working token, so leaving its identity
+		// and Node in place would hand the replacement the same credentials and
+		// the same Node name.
+		if err := r.retireHost(ctx, machine); err != nil {
+			logger.Error(err, "retire the quarantined host; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "RetireFailed",
+				"Could not retire %s after quarantining it: %v (will retry; not claiming another host until its credentials are revoked)",
+				host.Name, err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}
 		}
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapExhausted",
 			"Quarantined %s after %d bootstrap failures; will claim another host from pool %q",
 			host.Name, attempts, machine.Spec.AdoptPool)
-		r.detachFromHost(machine)
 		conditions.MarkFalse(machine, shared.ProvisionedCondition, "HostQuarantined",
 			clusterv1.ConditionSeverityWarning,
 			"quarantined %s after %d bootstrap failures; awaiting a fresh claim", host.Name, attempts)
@@ -677,10 +700,47 @@ func (r *StaticAppleSiliconMachineReconciler) handleBootstrapFailure(
 	return ctrl.Result{RequeueAfter: 60 * time.Second}
 }
 
-// detachFromHost resets every piece of outwardly-visible state tied to a host
-// this Machine no longer holds, so CAPI and operators never briefly see a Ready
-// Machine pointing at a box it does not have.
-func (r *StaticAppleSiliconMachineReconciler) detachFromHost(machine *infrav1.StaticAppleSiliconMachine) {
+// retireHost drops everything tied to the host this Machine is letting go of,
+// then resets the Machine to its pre-claim shape so CAPI and operators never
+// briefly see a Ready Machine pointing at a box it does not have.
+//
+// Every path that lets go of a host goes through here, and that is the point:
+// the three things below were previously cleaned up in different places, or
+// not at all, and each omission had its own way of breaking the NEXT host.
+//
+//   - The kubelet identity and the Node. Bootstrap starts tart-kubelet before
+//     its last fatal step, so a host can exhaust its attempts while already
+//     registering a Node and holding a working long-lived token. The Scaleway
+//     kind can ignore this because releasing a host there triggers a provider
+//     reinstall that wipes it; nothing wipes hardware we own. Left alone, the
+//     replacement is issued the SAME token and Node name while the retired host
+//     keeps running, so two physical machines answer for one Node, and the
+//     stale Node keeps the old host's providerID, which tart-kubelet will not
+//     overwrite.
+//   - The TOFU host fingerprint, which is pinned to the SSH key of the host
+//     being let go. Carried forward, it is checked against the replacement's
+//     key, fails every dial, and quarantines a healthy box.
+//
+// Failures are returned rather than logged and swallowed. The Scaleway kind
+// treats its equivalent as best-effort because its release is irreversible and
+// failing would strand a host it has already given back; retiring a rack host
+// is all local writes and is safe to retry, and proceeding to claim another box
+// with the old credentials still live is the exact hazard this exists to close.
+func (r *StaticAppleSiliconMachineReconciler) retireHost(
+	ctx context.Context,
+	machine *infrav1.StaticAppleSiliconMachine,
+) error {
+	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
+		return fmt.Errorf("revoke node identity: %w", err)
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: machine.Name}}
+	if err := r.Client.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete stale Node: %w", err)
+	}
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		return fmt.Errorf("delete per-machine bootstrap secret: %w", err)
+	}
+
 	machine.Status.RackHost = ""
 	machine.Status.BootstrapAttempts = 0
 	machine.Status.BootstrapRebootIssued = false
@@ -690,6 +750,7 @@ func (r *StaticAppleSiliconMachineReconciler) detachFromHost(machine *infrav1.St
 	machine.Spec.ProviderID = nil
 	conditions.MarkFalse(machine, BootstrappedCondition, "HostReleased",
 		clusterv1.ConditionSeverityWarning, "no longer holding a rack host")
+	return nil
 }
 
 // quarantineHost marks a host out of the pool and releases its claim, in that
