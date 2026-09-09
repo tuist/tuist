@@ -77,56 +77,60 @@ defmodule Tuist.ClickHouse.Parity do
   """
   def compare(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
-      derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end)
-      as_of = Keyword.get_lazy(opts, :as_of, &default_as_of/0)
-      since = Keyword.get(opts, :since)
-
-      window = if since, do: " written since #{since}", else: ""
-      Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
-
-      drift = Tables.schema_drift(source, target)
-
-      {matching, differing, skipped} = split(source, target, copied, since, as_of)
-      {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
-
-      report = %{
-        compared: length(copied) - length(skipped),
-        skipped: skipped,
-        schema: drift,
-        matching: Enum.map(matching, & &1.table),
-        differing: Enum.map(differing, &Map.delete(&1, :matches)),
-        derived: %{
-          compared: length(derived),
-          matching: Enum.map(derived_matching, & &1.table),
-          differing: Enum.map(derived_differing, &Map.delete(&1, :matches))
-        }
-      }
-
-      if report.differing == [] do
-        Logger.info("ClickHouse parity: all #{report.compared} copied table(s) agree")
-      else
-        Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} copied table(s) differ")
+      with :ok <- Endpoints.await_ready(target, opts) do
+        compare_ready(source, target, opts)
       end
-
-      if drift.missing_on_destination != [] or drift.differing_columns != [] do
-        Logger.error(
-          "ClickHouse schema drift: #{inspect(Map.take(drift, [:missing_on_destination, :differing_columns]))}"
-        )
-      end
-
-      if report.derived.differing != [] do
-        # Reported with both fingerprints rather than by name. These tables are
-        # recomputed rather than copied, so some difference is expected, and
-        # the question is only ever how much: a percent on a rebuilt aggregate
-        # is the design working, and half the rows is not.
-        Logger.warning(
-          "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{inspect(report.derived.differing)}"
-        )
-      end
-
-      {:ok, report}
     end)
+  end
+
+  defp compare_ready(source, target, opts) do
+    copied = Keyword.get_lazy(opts, :tables, fn -> Tables.copied(target) end)
+    derived = Keyword.get_lazy(opts, :derived, fn -> Tables.derived(target) end)
+    as_of = Keyword.get_lazy(opts, :as_of, &default_as_of/0)
+    since = Keyword.get(opts, :since)
+
+    window = if since, do: " written since #{since}", else: ""
+    Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
+
+    drift = Tables.schema_drift(source, target)
+
+    {matching, differing, skipped} = split(source, target, copied, since, as_of)
+    {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
+
+    report = %{
+      compared: length(copied) - length(skipped),
+      skipped: skipped,
+      schema: drift,
+      matching: Enum.map(matching, & &1.table),
+      differing: Enum.map(differing, &Map.delete(&1, :matches)),
+      derived: %{
+        compared: length(derived),
+        matching: Enum.map(derived_matching, & &1.table),
+        differing: Enum.map(derived_differing, &Map.delete(&1, :matches))
+      }
+    }
+
+    if report.differing == [] do
+      Logger.info("ClickHouse parity: all #{report.compared} copied table(s) agree")
+    else
+      Logger.error("ClickHouse parity: #{length(report.differing)} of #{report.compared} copied table(s) differ")
+    end
+
+    if drift.missing_on_destination != [] or drift.differing_columns != [] do
+      Logger.error("ClickHouse schema drift: #{inspect(Map.take(drift, [:missing_on_destination, :differing_columns]))}")
+    end
+
+    if report.derived.differing != [] do
+      # Reported with both fingerprints rather than by name. These tables are
+      # recomputed rather than copied, so some difference is expected, and
+      # the question is only ever how much: a percent on a rebuilt aggregate
+      # is the design working, and half the rows is not.
+      Logger.warning(
+        "ClickHouse parity: #{length(report.derived.differing)} of #{report.derived.compared} derived table(s) differ, which is reported and not a gate: #{inspect(report.derived.differing)}"
+      )
+    end
+
+    {:ok, report}
   end
 
   defp split(source, target, tables, since, as_of) do

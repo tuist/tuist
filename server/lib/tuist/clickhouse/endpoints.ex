@@ -25,6 +25,11 @@ defmodule Tuist.ClickHouse.Endpoints do
 
   alias Tuist.Environment
 
+  require Logger
+
+  @ready_timeout to_timeout(minute: 5)
+  @ready_interval to_timeout(second: 5)
+
   @doc """
   Starts the ledger, source and destination repositories and calls `fun` with a
   descriptor for the two ClickHouse ones, then shuts them all down again.
@@ -44,6 +49,42 @@ defmodule Tuist.ClickHouse.Endpoints do
       # first query rather than at lookup, so the omission surfaced only once
       # the first chunk had already been copied.
       with_started_repo(Tuist.Repo, fn _ledger -> with_clickhouse_repos(source_repo, target_repo, fun) end)
+    end
+  end
+
+  @doc """
+  Waits until `endpoint` answers a query, for up to `:ready_timeout`.
+
+  The in-cluster server is rolled by the same release that runs these tasks, so
+  a `post-upgrade` Job reaches it while its pod may still be coming back. The
+  pool reports that as a queue timeout within seconds, and a task that takes
+  the first refusal at face value fails its Job, which fails the release and
+  rolls it back. Waiting is what keeps a restart window a transient rather than
+  a failed deploy.
+
+  Returns `{:error, {:not_ready, database, reason}}` carrying the last refusal
+  once the deadline passes.
+  """
+  def await_ready(endpoint, opts \\ []) do
+    interval = Keyword.get(opts, :ready_interval, @ready_interval)
+    deadline = System.monotonic_time(:millisecond) + Keyword.get(opts, :ready_timeout, @ready_timeout)
+
+    await_ready(endpoint, interval, deadline)
+  end
+
+  defp await_ready(endpoint, interval, deadline) do
+    case endpoint.repo.query("SELECT 1", [], log: false) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        if System.monotonic_time(:millisecond) + interval < deadline do
+          Logger.info("#{endpoint.database} is not answering yet; retrying in #{interval}ms")
+          Process.sleep(interval)
+          await_ready(endpoint, interval, deadline)
+        else
+          {:error, {:not_ready, endpoint.database, reason}}
+        end
     end
   end
 

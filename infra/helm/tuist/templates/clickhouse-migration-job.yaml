@@ -42,12 +42,13 @@ metadata:
     app.kubernetes.io/component: clickhouse-migration
   annotations:
 {{- if $background }}
-    # Not a hook, so helm does not wait for it: the deploy passes `--wait` but
-    # not `--wait-for-jobs`, and a copy of the production dataset would
-    # otherwise hold the release for hours and then fail it on the deadline.
-    #
     # Kept, so that the deploy which rolls the *next* revision does not delete
     # a copy that is still running. Finished ones remove themselves.
+    #
+    # Being an ordinary resource rather than a hook does not take it off the
+    # release's critical path. That held under helm 3, where `--wait` skipped
+    # Jobs unless `--wait-for-jobs` was passed; helm 4's `--wait` watches them
+    # either way, so a failure here fails the upgrade and rolls it back.
     "helm.sh/resource-policy": keep
 {{- else }}
     helm.sh/hook: post-upgrade,post-install

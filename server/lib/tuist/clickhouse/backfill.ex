@@ -113,7 +113,9 @@ defmodule Tuist.ClickHouse.Backfill do
   """
   def run(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
-      with_single_flight(fn -> backfill(source, target, opts) end)
+      with :ok <- Endpoints.await_ready(target, opts) do
+        with_single_flight(fn -> backfill(source, target, opts) end)
+      end
     end)
   end
 

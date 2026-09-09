@@ -350,16 +350,18 @@ clickhouse:
       # the overlap costs nothing: each chunk fills gaps by row identity rather
       # than appending, so re-copying a range it already holds is a no-op.
       cutoff: "2026-09-09T11:20:00Z"
-      # An ordinary Job rather than a deploy hook, so the release does not wait
-      # for the copy. Canary's dataset is small enough that waiting would work
-      # here, which is exactly why this is the place to exercise the path
-      # production needs: helm waits for hook Jobs, and a terabyte-scale copy
-      # would hold the release for hours and then fail it on the deadline,
-      # rolling the release back with it.
+      # An ordinary Job rather than a deploy hook, so a copy that is still
+      # running when the next revision rolls is not deleted with the hook.
       #
-      # Consequence for reading the result: the deploy going green says the
-      # copy started, not that it finished. The gate is every chunk recorded
-      # done in the ledger with no failures, read from the Job afterwards.
+      # It does not follow that the release stops waiting for it. Helm 4's
+      # `--wait` watches ordinary Jobs as well as hook ones, so this stays on
+      # the release's critical path and a failure rolls the release back.
+      # Canary's dataset is small enough for that to be workable; the
+      # terabyte-scale copy production needs is not, and needs a launch path
+      # helm does not watch before it can be armed there.
+      #
+      # The gate on the result is every chunk recorded done in the ledger with
+      # no failures, read from the Job afterwards.
       background: true
 
   poolSize: "30"
