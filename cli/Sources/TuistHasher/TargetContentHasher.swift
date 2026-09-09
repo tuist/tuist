@@ -157,7 +157,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         )
 
         if let projectHash {
-            let hash = try contentHasher.hash(
+            let stringsToHash =
                 [
                     projectHash,
                     graphTarget.target.name,
@@ -167,7 +167,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                     dependenciesHash.hash,
                     embeddedProductReferencesHash,
                 ].compactMap { $0 } + destinations + additionalStrings
-            )
+            let hash = try contentHasher.hash(stringsToHash)
 
             Logger.current.debug("""
             Target content hash for \(graphTarget.target.name) (external project): \(hash)
@@ -189,7 +189,9 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 targetSettings: settingsHash,
                 additionalStrings: additionalStrings,
                 external: projectHash,
-                embeddedProductReferences: embeddedProductReferencesHash
+                embeddedProductReferences: embeddedProductReferencesHash,
+                destinations: destinations,
+                hashedStrings: stringsToHash
             )
 
             return TargetContentHash(
@@ -438,7 +440,9 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             buildableFolders: buildableFoldersHash,
             additionalHashingInputs: additionalHashingInputsResult.hash,
             additionalStrings: additionalStrings,
-            embeddedProductReferences: embeddedProductReferencesHash
+            embeddedProductReferences: embeddedProductReferencesHash,
+            destinations: destinations,
+            hashedStrings: stringsToHash
         )
 
         return TargetContentHash(

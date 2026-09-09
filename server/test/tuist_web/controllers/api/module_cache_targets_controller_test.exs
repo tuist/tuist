@@ -47,6 +47,11 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                target_settings_hash: nil,
                buildable_folders_hash: nil,
                additional_hashing_inputs_hash: "additional_inputs_hash",
+               hash_inputs: %{
+                 "destinations" => ["iPhone"],
+                 "hashed_strings" => ["input", "iPhone"],
+                 "embedded_product_references" => "embedded"
+               },
                external_hash: nil
              }
            ]
@@ -79,6 +84,9 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
       assert target["product"] == "framework"
       assert target["bundle_id"] == "com.example.MyTarget"
       assert target["product_name"] == "MyTarget"
+      assert target["hash_inputs"]["destinations"] == ["iPhone"]
+      assert target["hash_inputs"]["hashed_strings"] == ["input", "iPhone"]
+      assert target["hash_inputs"]["embedded_product_references"] == "embedded"
       assert target["subhashes"]["sources"] == "src_hash"
       assert target["subhashes"]["dependencies"] == "dep_hash"
       assert target["subhashes"]["additional_hashing_inputs"] == "additional_inputs_hash"
@@ -118,6 +126,11 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                target_settings_hash: nil,
                buildable_folders_hash: nil,
                additional_hashing_inputs_hash: nil,
+               hash_inputs: %{
+                 "destinations" => ["iPhone"],
+                 "hashed_strings" => ["input", "iPhone"],
+                 "embedded_product_references" => "embedded"
+               },
                external_hash: nil
              }
            ]

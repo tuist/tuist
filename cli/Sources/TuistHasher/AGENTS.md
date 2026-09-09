@@ -15,3 +15,5 @@ This module provides hashing utilities used across CLI modules.
 
 ## Invariants
 - Cached hashes are stored in-memory and keyed by absolute file path.
+
+- Record effective destinations and the exact ordered final-hash strings in the subhash snapshot at hashing time; diagnostics must not change hash composition.

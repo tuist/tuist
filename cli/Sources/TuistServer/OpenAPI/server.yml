@@ -11562,10 +11562,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -11578,20 +11578,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -12447,6 +12447,20 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
+                                        destinations:
+                                          description: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        embedded_product_references:
+                                          description: Embedded product references hash. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         entitlements:
                                           description: Entitlements hash
                                           type: string
@@ -12460,6 +12474,15 @@ paths:
                                         external:
                                           description: External project hash
                                           type: string
+                                          x-struct:
+                                          x-validate:
+                                        hashed_strings:
+                                          description: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
                                           x-struct:
                                           x-validate:
                                         headers:
@@ -12634,6 +12657,20 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
+                                        destinations:
+                                          description: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        embedded_product_references:
+                                          description: Embedded product references hash. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         entitlements:
                                           description: Entitlements hash
                                           type: string
@@ -12647,6 +12684,15 @@ paths:
                                         external:
                                           description: External project hash
                                           type: string
+                                          x-struct:
+                                          x-validate:
+                                        hashed_strings:
+                                          description: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
                                           x-struct:
                                           x-validate:
                                         headers:
@@ -24084,6 +24130,12 @@ paths:
                             - remote
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        hash_inputs:
+                          additionalProperties: true
+                          description: Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations.
+                          type: object
                           x-struct:
                           x-validate:
                         name:

@@ -5,6 +5,8 @@ defmodule Tuist.Xcode.XcodeTarget do
 
   @primary_key false
 
+  @hash_components ~w(sources resources copy_files core_data_models target_scripts environment headers deployment_target info_plist entitlements dependencies project_settings target_settings buildable_folders additional_hashing_inputs external)
+
   @derive {
     Flop.Schema,
     filterable: [:name, :binary_cache_hit, :selective_testing_hit],
@@ -30,6 +32,10 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :product, Ch, type: "LowCardinality(String)", default: ""
     field :bundle_id, Ch, type: "String", default: ""
     field :product_name, Ch, type: "String", default: ""
+
+    # Per-purpose snapshots preserve the inputs associated with each specific hash.
+    field :binary_cache_hash_inputs, Ch, type: "Nullable(String)"
+    field :selective_testing_hash_inputs, Ch, type: "Nullable(String)"
 
     # Subhashes
     field :sources_hash, Ch, type: "String", default: ""
@@ -91,6 +97,8 @@ defmodule Tuist.Xcode.XcodeTarget do
       product: xcode_target["product"],
       bundle_id: xcode_target["bundle_id"],
       product_name: xcode_target["product_name"],
+      binary_cache_hash_inputs: encode_hash_inputs(binary_cache_metadata),
+      selective_testing_hash_inputs: encode_hash_inputs(selective_testing_metadata),
       sources_hash: subhashes["sources"],
       resources_hash: subhashes["resources"],
       copy_files_hash: subhashes["copy_files"],
@@ -114,6 +122,48 @@ defmodule Tuist.Xcode.XcodeTarget do
       inserted_at: inserted_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     }
   end
+
+  # Historical rows stored only one shared set of components. With both hashes present,
+  # its provenance is ambiguous; never attribute it to either hash.
+  def with_hash_inputs(target, purpose) when purpose in [:binary_cache, :selective_testing] do
+    snapshot = Map.get(target, :"#{purpose}_hash_inputs")
+
+    inputs =
+      if snapshot do
+        JSON.decode!(snapshot)
+      else
+        legacy_hash_inputs(target)
+      end
+
+    components =
+      Map.new(@hash_components, fn key ->
+        {String.to_existing_atom(key <> "_hash"), inputs[key] || ""}
+      end)
+
+    inputs =
+      Map.merge(
+        %{"destinations" => nil, "hashed_strings" => nil, "embedded_product_references" => nil},
+        inputs
+      )
+
+    target
+    |> Map.merge(components)
+    |> Map.put(:additional_strings, inputs["additional_strings"] || [])
+    |> Map.put(:hash_inputs, inputs)
+  end
+
+  defp legacy_hash_inputs(target) do
+    if Map.get(target, :binary_cache_hash) && Map.get(target, :selective_testing_hash) do
+      %{}
+    else
+      @hash_components
+      |> Map.new(fn key -> {key, Map.get(target, String.to_existing_atom(key <> "_hash"))} end)
+      |> Map.put("additional_strings", Map.get(target, :additional_strings))
+    end
+  end
+
+  defp encode_hash_inputs(%{"subhashes" => inputs}) when is_map(inputs), do: JSON.encode!(inputs)
+  defp encode_hash_inputs(_), do: nil
 
   def normalize_enums(target) do
     %{

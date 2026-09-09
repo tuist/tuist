@@ -43,6 +43,11 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
     /// per-dependency content hashes, so it's tracked separately.
     public let embeddedProductReferences: String?
 
+    /// Sorted raw destinations used by the hasher, absent in historical reports.
+    public let destinations: [String]?
+    /// Exact ordered strings passed to the final content hasher, absent in historical reports.
+    public let hashedStrings: [String]?
+
     public init(
         sources: String? = nil,
         resources: String? = nil,
@@ -61,7 +66,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         additionalHashingInputs: String? = nil,
         additionalStrings: [String] = [],
         external: String? = nil,
-        embeddedProductReferences: String? = nil
+        embeddedProductReferences: String? = nil,
+        destinations: [String]? = nil,
+        hashedStrings: [String]? = nil
     ) {
         self.sources = sources
         self.resources = resources
@@ -81,6 +88,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.additionalStrings = additionalStrings
         self.external = external
         self.embeddedProductReferences = embeddedProductReferences
+        self.destinations = destinations
+        self.hashedStrings = hashedStrings
     }
 
     #if DEBUG
@@ -102,7 +111,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
             additionalHashingInputs: String? = nil,
             additionalStrings: [String] = [],
             external: String? = nil,
-            embeddedProductReferences: String? = nil
+            embeddedProductReferences: String? = nil,
+            destinations: [String]? = nil,
+            hashedStrings: [String]? = nil
         ) -> TargetContentHashSubhashes {
             TargetContentHashSubhashes(
                 sources: sources,
@@ -122,7 +133,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 additionalHashingInputs: additionalHashingInputs,
                 additionalStrings: additionalStrings,
                 external: external,
-                embeddedProductReferences: embeddedProductReferences
+                embeddedProductReferences: embeddedProductReferences,
+                destinations: destinations,
+                hashedStrings: hashedStrings
             )
         }
     #endif

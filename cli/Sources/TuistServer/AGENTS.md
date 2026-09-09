@@ -14,3 +14,5 @@ This module handles CLI integration with the Tuist Server APIs.
 ## Invariants
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided.
+
+- Command event serialization sends each cache purpose's hash snapshot, including effective destinations, ordered final-hash strings, and embedded product references. Do not substitute declared graph destinations for missing inputs.

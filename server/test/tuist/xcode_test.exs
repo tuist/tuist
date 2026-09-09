@@ -11,6 +11,52 @@ defmodule Tuist.XcodeTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "Tuist.Xcode" do
+    test "round-trips independent hash input snapshots through ClickHouse analytics" do
+      event = CommandEventsFixtures.command_event_fixture()
+
+      inputs = fn destinations ->
+        %{
+          "destinations" => destinations,
+          "hashed_strings" => ["same-components"] ++ destinations,
+          "project_settings" => "same-settings",
+          "embedded_product_references" => "embedded"
+        }
+      end
+
+      with_flushed_ingestion_buffers(fn ->
+        Xcode.create_xcode_graph(%{
+          command_event: event,
+          xcode_graph: %{
+            name: "Graph",
+            projects: [
+              %{
+                "name" => "Project",
+                "path" => ".",
+                "targets" => [
+                  %{
+                    "name" => "Library",
+                    "destinations" => ["iphone", "ipad", "mac"],
+                    "binary_cache_metadata" => %{"hash" => "binary", "subhashes" => inputs.(["iPad", "iPhone", "mac"])},
+                    "selective_testing_metadata" => %{"hash" => "testing", "subhashes" => inputs.(["iPad", "iPhone"])}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      end)
+
+      {binary, _} = Xcode.binary_cache_analytics(event)
+      {testing, _} = Xcode.selective_testing_analytics(event)
+      assert [binary_target] = binary.cacheable_targets
+      assert [testing_target] = testing.test_modules
+      assert binary_target.hash_inputs["destinations"] == ["iPad", "iPhone", "mac"]
+      assert testing_target.hash_inputs["destinations"] == ["iPad", "iPhone"]
+      assert binary_target.hash_inputs["embedded_product_references"] == "embedded"
+      assert binary_target.project_settings_hash == testing_target.project_settings_hash
+      assert binary_target.destinations == testing_target.destinations
+    end
+
     test "creates an Xcode graph with projects and targets" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()

@@ -111,7 +111,9 @@ struct CommandEventFactoryTests {
             targetContentHashSubhashes: [
                 "hash-a": .test(
                     sources: "sources-hash-a",
-                    dependencies: "deps-hash-a"
+                    dependencies: "deps-hash-a",
+                    destinations: ["iPhone"],
+                    hashedStrings: ["binary-input"]
                 ),
                 "hash-b": .test(
                     sources: "sources-hash-b",
@@ -119,7 +121,9 @@ struct CommandEventFactoryTests {
                 ),
                 "hash-a-tests": .test(
                     sources: "sources-hash-a-tests",
-                    dependencies: "deps-hash-a-tests"
+                    dependencies: "deps-hash-a-tests",
+                    destinations: ["mac"],
+                    hashedStrings: ["testing-input"]
                 ),
             ],
             previewId: nil,
@@ -166,7 +170,9 @@ struct CommandEventFactoryTests {
                                     hit: .local,
                                     subhashes: .test(
                                         sources: "sources-hash-a",
-                                        dependencies: "deps-hash-a"
+                                        dependencies: "deps-hash-a",
+                                        destinations: ["iPhone"],
+                                        hashedStrings: ["binary-input"]
                                     )
                                 ),
                                 selectiveTestingMetdata: nil
@@ -183,7 +189,9 @@ struct CommandEventFactoryTests {
                                     hit: .local,
                                     subhashes: .test(
                                         sources: "sources-hash-a-tests",
-                                        dependencies: "deps-hash-a-tests"
+                                        dependencies: "deps-hash-a-tests",
+                                        destinations: ["mac"],
+                                        hashedStrings: ["testing-input"]
                                     )
                                 )
                             ),

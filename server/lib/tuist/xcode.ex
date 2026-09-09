@@ -35,10 +35,13 @@ defmodule Tuist.Xcode do
         where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
+          binary_cache_hash_inputs: xt.binary_cache_hash_inputs,
+          selective_testing_hash_inputs: xt.selective_testing_hash_inputs,
           id: xt.id,
           name: xt.name,
           selective_testing_hit: xt.selective_testing_hit,
           selective_testing_hash: xt.selective_testing_hash,
+          binary_cache_hash: xt.binary_cache_hash,
           product: xt.product,
           bundle_id: xt.bundle_id,
           product_name: xt.product_name,
@@ -68,7 +71,10 @@ defmodule Tuist.Xcode do
 
     test_modules =
       Enum.map(targets, fn target ->
+        target = XcodeTarget.with_hash_inputs(target, :selective_testing)
+
         %{
+          hash_inputs: target.hash_inputs,
           name: target.name,
           selective_testing_hit: String.to_existing_atom(target.selective_testing_hit),
           selective_testing_hash: target.selective_testing_hash,
@@ -109,10 +115,13 @@ defmodule Tuist.Xcode do
         where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
+          binary_cache_hash_inputs: xt.binary_cache_hash_inputs,
+          selective_testing_hash_inputs: xt.selective_testing_hash_inputs,
           id: xt.id,
           name: xt.name,
           binary_cache_hit: xt.binary_cache_hit,
           binary_cache_hash: xt.binary_cache_hash,
+          selective_testing_hash: xt.selective_testing_hash,
           product: xt.product,
           bundle_id: xt.bundle_id,
           product_name: xt.product_name,
@@ -142,7 +151,10 @@ defmodule Tuist.Xcode do
 
     cacheable_targets =
       Enum.map(targets, fn target ->
+        target = XcodeTarget.with_hash_inputs(target, :binary_cache)
+
         %{
+          hash_inputs: target.hash_inputs,
           name: target.name,
           binary_cache_hit: String.to_existing_atom(target.binary_cache_hit),
           binary_cache_hash: target.binary_cache_hash,

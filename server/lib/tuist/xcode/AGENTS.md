@@ -19,3 +19,5 @@ This context owns Xcode graph ingestion and analytics.
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- Store binary-cache and selective-testing hash input snapshots independently. Historical shared subhashes cannot be attributed when both hashes are present; never infer hashed destinations from declared graph metadata.

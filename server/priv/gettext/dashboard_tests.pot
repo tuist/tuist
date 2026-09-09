@@ -412,7 +412,7 @@ msgstr ""
 msgid "File"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:106
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:107
 #: lib/tuist_web/live/flaky_tests_live.html.heex:394
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:310
 #: lib/tuist_web/live/shards_live.html.heex:531
@@ -491,12 +491,12 @@ msgstr ""
 msgid "Flaky test runs"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:157
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:158
 #, elixir-autogen, elixir-format
 msgid "Hash"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:137
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:138
 #: lib/tuist_web/live/test_run_live.ex:1338
 #, elixir-autogen, elixir-format
 msgid "Hit"
@@ -614,7 +614,7 @@ msgstr ""
 msgid "Loading..."
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:146
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:147
 #: lib/tuist_web/live/flaky_tests_live.ex:287
 #: lib/tuist_web/live/flaky_tests_live.html.heex:18
 #: lib/tuist_web/live/test_cases_live.ex:391
@@ -653,13 +653,13 @@ msgstr ""
 msgid "Marked as flaky"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:152
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:153
 #: lib/tuist_web/live/test_run_live.ex:1344
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:126
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:127
 #: lib/tuist_web/helpers/test_labels.ex:15
 #, elixir-autogen, elixir-format
 msgid "Module"
@@ -727,7 +727,7 @@ msgstr ""
 msgid "No history available"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:168
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:169
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr ""
@@ -891,7 +891,7 @@ msgstr ""
 msgid "Recent Test Runs"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:140
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:141
 #: lib/tuist_web/live/test_run_live.ex:1342
 #, elixir-autogen, elixir-format
 msgid "Remote"
@@ -909,7 +909,7 @@ msgstr ""
 msgid "Scheme"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:98
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:99
 #: lib/tuist_web/live/flaky_tests_live.html.heex:341
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:266
 #: lib/tuist_web/live/shards_live.html.heex:523
@@ -924,7 +924,7 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:74
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:75
 #: lib/tuist_web/live/test_run_live.html.heex:218
 #: lib/tuist_web/live/tests_live.html.heex:641
 #, elixir-autogen, elixir-format
@@ -936,22 +936,22 @@ msgstr ""
 msgid "Selective test effectiveness"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:47
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:48
 #, elixir-autogen, elixir-format
 msgid "Selective test hits"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:49
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:50
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:61
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:62
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:63
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:64
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
 msgstr ""
@@ -1042,7 +1042,7 @@ msgstr ""
 msgid "Suite"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:30
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:31
 #, elixir-autogen, elixir-format
 msgid "Summary"
 msgstr ""
@@ -1243,12 +1243,12 @@ msgstr ""
 msgid "The total number of test runs."
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:36
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:37
 #, elixir-autogen, elixir-format
 msgid "Total modules"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:38
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:39
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
 msgstr ""
@@ -1258,7 +1258,7 @@ msgstr ""
 msgid "Total number of test cases executed."
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:169
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:170
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
@@ -1282,7 +1282,7 @@ msgstr ""
 msgid "Tuist version"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:159
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:160
 #: lib/tuist_web/helpers/test_labels.ex:40
 #: lib/tuist_web/live/shards_live.html.heex:555
 #: lib/tuist_web/live/shards_live.html.heex:562
@@ -1737,7 +1737,7 @@ msgstr ""
 msgid "Failed processing"
 msgstr ""
 
-#: lib/tuist_web/components/runs/selective_testing_tab.ex:82
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:83
 #, elixir-autogen, elixir-format
 msgid "Copy as JSON"
 msgstr ""

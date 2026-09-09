@@ -25822,6 +25822,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -25830,24 +25834,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -28479,6 +28479,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/deployment_target`.
                                         public var deployment_target: Swift.String?
+                                        /// Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/destinations`.
+                                        public var destinations: [Swift.String]?
+                                        /// Embedded product references hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/embedded_product_references`.
+                                        public var embedded_product_references: Swift.String?
                                         /// Entitlements hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/entitlements`.
@@ -28491,6 +28499,10 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/external`.
                                         public var external: Swift.String?
+                                        /// Exact ordered strings passed to the final content hasher. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/hashed_strings`.
+                                        public var hashed_strings: [Swift.String]?
                                         /// Headers hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/headers`.
@@ -28529,9 +28541,12 @@ public enum Operations {
                                         ///   - core_data_models: Core data models hash
                                         ///   - dependencies: Dependencies hash
                                         ///   - deployment_target: Deployment target hash
+                                        ///   - destinations: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///   - embedded_product_references: Embedded product references hash. Empty means none; omitted means unavailable.
                                         ///   - entitlements: Entitlements hash
                                         ///   - environment: Environment hash
                                         ///   - external: External project hash
+                                        ///   - hashed_strings: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
                                         ///   - headers: Headers hash
                                         ///   - info_plist: Info.plist hash
                                         ///   - project_settings: Project settings hash
@@ -28547,9 +28562,12 @@ public enum Operations {
                                             core_data_models: Swift.String? = nil,
                                             dependencies: Swift.String? = nil,
                                             deployment_target: Swift.String? = nil,
+                                            destinations: [Swift.String]? = nil,
+                                            embedded_product_references: Swift.String? = nil,
                                             entitlements: Swift.String? = nil,
                                             environment: Swift.String? = nil,
                                             external: Swift.String? = nil,
+                                            hashed_strings: [Swift.String]? = nil,
                                             headers: Swift.String? = nil,
                                             info_plist: Swift.String? = nil,
                                             project_settings: Swift.String? = nil,
@@ -28565,9 +28583,12 @@ public enum Operations {
                                             self.core_data_models = core_data_models
                                             self.dependencies = dependencies
                                             self.deployment_target = deployment_target
+                                            self.destinations = destinations
+                                            self.embedded_product_references = embedded_product_references
                                             self.entitlements = entitlements
                                             self.environment = environment
                                             self.external = external
+                                            self.hashed_strings = hashed_strings
                                             self.headers = headers
                                             self.info_plist = info_plist
                                             self.project_settings = project_settings
@@ -28584,9 +28605,12 @@ public enum Operations {
                                             case core_data_models
                                             case dependencies
                                             case deployment_target
+                                            case destinations
+                                            case embedded_product_references
                                             case entitlements
                                             case environment
                                             case external
+                                            case hashed_strings
                                             case headers
                                             case info_plist
                                             case project_settings
@@ -28746,6 +28770,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/deployment_target`.
                                         public var deployment_target: Swift.String?
+                                        /// Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/destinations`.
+                                        public var destinations: [Swift.String]?
+                                        /// Embedded product references hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/embedded_product_references`.
+                                        public var embedded_product_references: Swift.String?
                                         /// Entitlements hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/entitlements`.
@@ -28758,6 +28790,10 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/external`.
                                         public var external: Swift.String?
+                                        /// Exact ordered strings passed to the final content hasher. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/hashed_strings`.
+                                        public var hashed_strings: [Swift.String]?
                                         /// Headers hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/headers`.
@@ -28796,9 +28832,12 @@ public enum Operations {
                                         ///   - core_data_models: Core data models hash
                                         ///   - dependencies: Dependencies hash
                                         ///   - deployment_target: Deployment target hash
+                                        ///   - destinations: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///   - embedded_product_references: Embedded product references hash. Empty means none; omitted means unavailable.
                                         ///   - entitlements: Entitlements hash
                                         ///   - environment: Environment hash
                                         ///   - external: External project hash
+                                        ///   - hashed_strings: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
                                         ///   - headers: Headers hash
                                         ///   - info_plist: Info.plist hash
                                         ///   - project_settings: Project settings hash
@@ -28814,9 +28853,12 @@ public enum Operations {
                                             core_data_models: Swift.String? = nil,
                                             dependencies: Swift.String? = nil,
                                             deployment_target: Swift.String? = nil,
+                                            destinations: [Swift.String]? = nil,
+                                            embedded_product_references: Swift.String? = nil,
                                             entitlements: Swift.String? = nil,
                                             environment: Swift.String? = nil,
                                             external: Swift.String? = nil,
+                                            hashed_strings: [Swift.String]? = nil,
                                             headers: Swift.String? = nil,
                                             info_plist: Swift.String? = nil,
                                             project_settings: Swift.String? = nil,
@@ -28832,9 +28874,12 @@ public enum Operations {
                                             self.core_data_models = core_data_models
                                             self.dependencies = dependencies
                                             self.deployment_target = deployment_target
+                                            self.destinations = destinations
+                                            self.embedded_product_references = embedded_product_references
                                             self.entitlements = entitlements
                                             self.environment = environment
                                             self.external = external
+                                            self.hashed_strings = hashed_strings
                                             self.headers = headers
                                             self.info_plist = info_plist
                                             self.project_settings = project_settings
@@ -28851,9 +28896,12 @@ public enum Operations {
                                             case core_data_models
                                             case dependencies
                                             case deployment_target
+                                            case destinations
+                                            case embedded_product_references
                                             case entitlements
                                             case environment
                                             case external
+                                            case hashed_strings
                                             case headers
                                             case info_plist
                                             case project_settings
@@ -64004,6 +64052,30 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/cache_status`.
                             public var cache_status: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.cache_statusPayload?
+                            /// Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/hash_inputs`.
+                            public struct hash_inputsPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer
+                                /// Creates a new `hash_inputsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: OpenAPIRuntime.OpenAPIObjectContainer = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/hash_inputs`.
+                            public var hash_inputs: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hash_inputsPayload?
                             /// The target name.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/name`.
@@ -64046,6 +64118,7 @@ public enum Operations {
                             ///   - bundle_id: The bundle identifier.
                             ///   - cache_hash: The cache hash.
                             ///   - cache_status: The cache status.
+                            ///   - hash_inputs: Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations.
                             ///   - name: The target name.
                             ///   - product: The product type.
                             ///   - product_name: The product name.
@@ -64054,6 +64127,7 @@ public enum Operations {
                                 bundle_id: Swift.String? = nil,
                                 cache_hash: Swift.String? = nil,
                                 cache_status: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.cache_statusPayload? = nil,
+                                hash_inputs: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hash_inputsPayload? = nil,
                                 name: Swift.String,
                                 product: Swift.String? = nil,
                                 product_name: Swift.String? = nil,
@@ -64062,6 +64136,7 @@ public enum Operations {
                                 self.bundle_id = bundle_id
                                 self.cache_hash = cache_hash
                                 self.cache_status = cache_status
+                                self.hash_inputs = hash_inputs
                                 self.name = name
                                 self.product = product
                                 self.product_name = product_name
@@ -64071,6 +64146,7 @@ public enum Operations {
                                 case bundle_id
                                 case cache_hash
                                 case cache_status
+                                case hash_inputs
                                 case name
                                 case product
                                 case product_name

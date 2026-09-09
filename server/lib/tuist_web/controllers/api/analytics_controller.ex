@@ -366,6 +366,23 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   hashed_strings: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Exact ordered strings passed to the final content hasher. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -412,6 +429,23 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   hashed_strings: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Exact ordered strings passed to the final content hasher. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},

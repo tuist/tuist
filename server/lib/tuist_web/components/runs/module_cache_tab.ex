@@ -6,6 +6,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   use Noora
 
   alias Tuist.Xcode
+  alias Tuist.Xcode.XcodeTarget
   alias TuistWeb.Utilities.Query
 
   attr :binary_cache_analytics, :map, required: true
@@ -219,7 +220,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             id="binary-cache-table"
             rows={@binary_cache_analytics.cacheable_targets}
             row_key={fn target -> target.name end}
-            row_expandable={fn target -> target.product_name != "" end}
+            row_expandable={fn _target -> true end}
             expanded_rows={MapSet.to_list(@expanded_target_names)}
           >
             <:col
@@ -310,15 +311,31 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.bundle_id}</span>
       </div>
-      <div :if={not Enum.empty?(@target.destinations || [])} data-part="subhash-item">
+      <div data-part="subhash-item">
         <span data-part="subhash-label">
-          {dgettext("dashboard_builds", "Destinations")}:
+          {dgettext("dashboard_builds", "Hashed destinations")}:
         </span>
         <span data-part="subhash-value">
-          {@target.destinations
-          |> Enum.sort()
-          |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
-          |> Enum.join(", ")}
+          {hash_input_value(Map.get(@target, :hash_inputs, %{})["destinations"])}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Embedded product references")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :hash_inputs, %{})["embedded_product_references"])}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Ordered hash inputs")}:
+        </span>
+        <span data-part="subhash-value">
+          {case Map.get(@target, :hash_inputs, %{})["hashed_strings"] do
+            nil -> dgettext("dashboard_builds", "Unavailable")
+            strings -> JSON.encode!(strings)
+          end}
         </span>
       </div>
       <div :if={@target.external_hash != ""} data-part="subhash-item">
@@ -554,12 +571,18 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     |> Enum.filter(&(&1.binary_cache_hash != nil))
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map/1)
-    |> :json.format()
+    |> :json.format(fn
+      nil, _encoder, _state -> "null"
+      value, encoder, state -> :json.format_value(value, encoder, state)
+    end)
     |> IO.iodata_to_binary()
   end
 
   defp target_to_json_map(target) do
+    target = XcodeTarget.with_hash_inputs(target, :binary_cache)
+
     %{
+      hash_inputs: target.hash_inputs,
       name: target.name,
       binary_cache_hit: target.binary_cache_hit,
       binary_cache_hash: target.binary_cache_hash,
@@ -582,12 +605,16 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
       additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
-      destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
     |> Map.new()
   end
+
+  defp hash_input_value(nil), do: dgettext("dashboard_builds", "Unavailable")
+  defp hash_input_value(value) when value in [[], ""], do: dgettext("dashboard_builds", "None")
+  defp hash_input_value(value) when is_list(value), do: Enum.join(value, ", ")
+  defp hash_input_value(value), do: value
 
   defp empty_value?(nil), do: true
   defp empty_value?(""), do: true

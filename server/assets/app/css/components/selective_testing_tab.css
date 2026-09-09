@@ -50,6 +50,11 @@
         background-color: var(--noora-surface-background-secondary);
         padding: var(--noora-spacing-3) var(--noora-spacing-5);
 
+        & > [data-part="subhash-value"] {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
         & > [data-part="subhash-label"],
         & > [data-part="subhash-value"] {
           color: var(--noora-surface-label-primary);

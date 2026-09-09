@@ -96,6 +96,12 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
                    product: %Schema{type: :string, nullable: true, description: "The product type."},
                    bundle_id: %Schema{type: :string, nullable: true, description: "The bundle identifier."},
                    product_name: %Schema{type: :string, nullable: true, description: "The product name."},
+                   hash_inputs: %Schema{
+                     type: :object,
+                     additionalProperties: true,
+                     description:
+                       "Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations."
+                   },
                    subhashes: %Schema{
                      type: :object,
                      additionalProperties: %Schema{type: :string},
@@ -154,6 +160,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
                 product: target.product,
                 bundle_id: target.bundle_id,
                 product_name: target.product_name,
+                hash_inputs: target.hash_inputs,
                 subhashes: build_subhashes(target)
               }
             end),

@@ -17,3 +17,5 @@ This module contains core domain abstractions and shared models used across the 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
+
+- Hash snapshots carry optional effective destinations and ordered final-hash strings. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.

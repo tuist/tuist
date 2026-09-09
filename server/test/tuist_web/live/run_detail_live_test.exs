@@ -17,6 +17,55 @@ defmodule TuistWeb.RunDetailLiveTest do
   end
 
   describe "run detail" do
+    test "JSON comparison retains purpose-specific hash inputs and historical unknowns", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      run = CommandEventsFixtures.command_event_fixture(project: project, name: "test", user_id: user.id)
+      graph = XcodeFixtures.xcode_graph_fixture(command_event_id: run.id)
+      xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+      XcodeFixtures.xcode_target_fixture(
+        name: "Library",
+        xcode_project_id: xcode_project.id,
+        binary_cache_hash: "binary",
+        selective_testing_hash: "testing",
+        destinations: ["iphone", "ipad", "mac"],
+        binary_cache_hash_inputs: JSON.encode!(%{"destinations" => ["iPhone"], "embedded_product_references" => ""}),
+        selective_testing_hash_inputs:
+          JSON.encode!(%{"destinations" => ["mac"], "embedded_product_references" => "embedded"})
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        name: "Historical",
+        xcode_project_id: xcode_project.id,
+        binary_cache_hash: "old-binary",
+        selective_testing_hash: "old-testing",
+        destinations: ["iphone", "ipad", "mac"]
+      )
+
+      for {tab, button, expected} <- [
+            {"module-cache", "copy-binary-cache-json", ["iPhone"]},
+            {"test-optimizations", "copy-selective-testing-json", ["mac"]}
+          ] do
+        {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/runs/#{run.id}?tab=#{tab}")
+
+        [json] =
+          lv |> render() |> Floki.parse_fragment!() |> Floki.find("##{button}") |> Floki.attribute("data-clipboard-value")
+
+        targets = JSON.decode!(json)
+        library = Enum.find(targets, &(&1["name"] == "Library"))
+        historical = Enum.find(targets, &(&1["name"] == "Historical"))
+        assert library["hash_inputs"]["destinations"] == expected
+        assert historical["hash_inputs"]["destinations"] == nil
+        assert Map.has_key?(historical["hash_inputs"], "destinations")
+        refute Map.has_key?(library, "destinations")
+        refute Map.has_key?(historical, "destinations")
+      end
+    end
+
     test "shows details of a test run", %{
       conn: conn,
       organization: organization,

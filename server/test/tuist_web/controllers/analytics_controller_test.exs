@@ -516,6 +516,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         build_duration: 1000,
                         subhashes: %{
                           sources: "abc123sources",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "embedded-hash",
+                          hashed_strings: ["TargetA", "iPhone", "embedded-hash"],
                           resources: "def456resources",
                           dependencies: "ghi789dependencies",
                           environment: "jkl012environment",
@@ -586,6 +589,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target_a.additional_hashing_inputs_hash == "vwx234additionalinputs"
       assert target_a.additional_strings == ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
       assert target_a.external_hash == ""
+      inputs = JSON.decode!(target_a.binary_cache_hash_inputs)
+      assert inputs["destinations"] == ["iPhone"]
+      assert inputs["embedded_product_references"] == "embedded-hash"
+      assert inputs["hashed_strings"] == ["TargetA", "iPhone", "embedded-hash"]
 
       # Verify ExternalTarget metadata
       assert external_target.product == "static_library"
@@ -641,6 +648,9 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         hit: "miss",
                         subhashes: %{
                           sources: "tests-sources-hash",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "",
+                          hashed_strings: ["AppTests", "iPhone"],
                           dependencies: "tests-deps-hash",
                           environment: "tests-env-hash",
                           project_settings: "tests-project-settings",
@@ -676,6 +686,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target.environment_hash == "tests-env-hash"
       assert target.project_settings_hash == "tests-project-settings"
       assert target.additional_hashing_inputs_hash == "tests-additional-inputs-hash"
+      inputs = JSON.decode!(target.selective_testing_hash_inputs)
+      assert inputs["destinations"] == ["iPhone"]
+      assert inputs["embedded_product_references"] == ""
+      assert inputs["hashed_strings"] == ["AppTests", "iPhone"]
     end
 
     test "returns command event URL with runs route when build_run_id is not provided", %{

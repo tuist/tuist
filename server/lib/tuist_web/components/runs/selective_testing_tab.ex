@@ -6,6 +6,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   use Noora
 
   alias Tuist.Xcode
+  alias Tuist.Xcode.XcodeTarget
   alias TuistWeb.Runs.ModuleCacheTab
   alias TuistWeb.Utilities.Query
 
@@ -118,7 +119,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
             id="selective-testing-table"
             rows={@selective_testing_analytics.test_modules}
             row_key={fn test_module -> test_module.name end}
-            row_expandable={fn test_module -> has_subhashes?(test_module) end}
+            row_expandable={fn _test_module -> true end}
             expanded_rows={MapSet.to_list(@expanded_target_names)}
           >
             <:col
@@ -186,35 +187,6 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     """
   end
 
-  defp has_subhashes?(test_module) do
-    Enum.any?(
-      [
-        :sources_hash,
-        :resources_hash,
-        :copy_files_hash,
-        :core_data_models_hash,
-        :target_scripts_hash,
-        :environment_hash,
-        :headers_hash,
-        :deployment_target_hash,
-        :info_plist_hash,
-        :entitlements_hash,
-        :dependencies_hash,
-        :project_settings_hash,
-        :target_settings_hash,
-        :buildable_folders_hash,
-        :additional_hashing_inputs_hash,
-        :external_hash
-      ],
-      fn key -> Map.get(test_module, key, "") not in [nil, ""] end
-    ) or
-      not Enum.empty?(Map.get(test_module, :additional_strings, []) || []) or
-      not Enum.empty?(Map.get(test_module, :destinations, []) || []) or
-      Map.get(test_module, :product, "") not in [nil, ""] or
-      Map.get(test_module, :product_name, "") not in [nil, ""] or
-      Map.get(test_module, :bundle_id, "") not in [nil, ""]
-  end
-
   defp sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do
       if current_order == "asc", do: "desc", else: "asc"
@@ -232,12 +204,18 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     |> Enum.filter(&(&1.selective_testing_hash != nil))
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map/1)
-    |> :json.format()
+    |> :json.format(fn
+      nil, _encoder, _state -> "null"
+      value, encoder, state -> :json.format_value(value, encoder, state)
+    end)
     |> IO.iodata_to_binary()
   end
 
   defp target_to_json_map(target) do
+    target = XcodeTarget.with_hash_inputs(target, :selective_testing)
+
     %{
+      hash_inputs: target.hash_inputs,
       name: target.name,
       selective_testing_hit: target.selective_testing_hit,
       selective_testing_hash: target.selective_testing_hash,
@@ -260,7 +238,6 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
       additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
-      destinations: target.destinations,
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
