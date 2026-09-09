@@ -21,7 +21,7 @@ jobs:
   headless-cache:
     name: Headless Xcode cache end-to-end
     if: github.event.pull_request.head.repo.fork != true
-    runs-on: tuist-macos
+    runs-on: tuist-macos-26-5
     timeout-minutes: 45
     env:
       MISE_GITHUB_ATTESTATIONS: 0

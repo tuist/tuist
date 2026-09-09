@@ -74,7 +74,34 @@ SWIFT
     > "$artifacts/project-create.log" 2>&1
   project_created=1
 
-  "$tuist_binary" setup cache --path "$fixture" > "$artifacts/setup.log" 2>&1
+  if ! "$tuist_binary" setup cache --path "$fixture" > "$artifacts/setup.log" 2>&1; then
+    /usr/bin/python3 - "$tuist_binary" "$full_handle" "$socket" > "$artifacts/foreground-daemon.log" 2>&1 <<'PYTHON'
+import pathlib
+import socket
+import subprocess
+import sys
+import time
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+    probe.setblocking(False)
+    print("Native nonblocking Unix socket succeeded", flush=True)
+process = subprocess.Popen([sys.argv[1], "cache-start", sys.argv[2], "--url", "https://canary.tuist.dev"])
+try:
+    for _ in range(100):
+        if process.poll() is not None:
+            print(f"Foreground daemon exited: {process.returncode}", flush=True)
+            break
+        if pathlib.Path(sys.argv[3]).is_socket():
+            print("Foreground daemon socket became ready", flush=True)
+            break
+        time.sleep(0.1)
+finally:
+    if process.poll() is None:
+        process.terminate()
+    process.wait(timeout=10)
+PYTHON
+    exit 1
+  fi
   local plist="$HOME/Library/LaunchAgents/$label.plist"
   [[ "$(plutil -extract LimitLoadToSessionType raw -o - "$plist")" == Background ]]
   [[ -S "$socket" ]]
@@ -92,7 +119,7 @@ SWIFT
       "COMPILATION_CACHE_CAS_PATH=$HOME/cas-$name" \
       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
       > "$artifacts/build-$name.log" 2>&1
-    python3 - "$derived_data/Logs/Build" > "$artifacts/cache-$name.log" <<'PYTHON'
+    /usr/bin/python3 - "$derived_data/Logs/Build" > "$artifacts/cache-$name.log" <<'PYTHON'
 import gzip
 import pathlib
 import re
@@ -119,7 +146,8 @@ PYTHON
   for attempt in 1 2 3 4 5 6; do
     rm -rf "$derived_data"
     build "warm-$attempt"
-    if grep -q 'caching materialize key' "$artifacts/cache-warm-$attempt.log" &&
+    if grep -q 'caching query key' "$artifacts/cache-warm-$attempt.log" &&
+      grep -q 'caching materialize key' "$artifacts/cache-warm-$attempt.log" &&
       ! grep -q 'cache key query miss' "$artifacts/cache-warm-$attempt.log"; then
       hit=1
       echo "Clean rebuild materialized cached compilation results with an empty local CAS and no remote misses"
