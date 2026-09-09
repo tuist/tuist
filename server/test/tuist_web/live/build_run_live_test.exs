@@ -7,7 +7,6 @@ defmodule TuistWeb.BuildRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
-  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobSteps
@@ -15,11 +14,6 @@ defmodule TuistWeb.BuildRunLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
-
-  setup do
-    stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-    :ok
-  end
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()

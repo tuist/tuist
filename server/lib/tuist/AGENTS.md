@@ -8,15 +8,14 @@ This directory contains the core business logic and domain modules for the serve
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
-- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected only when the owning account explicitly opts into the `xcode_build_steps` FunWithFlags flag (off in every environment by default; keep off until log redaction is ready), for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The initial response includes a distinct project/target count. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
+- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected by default for every processed Xcode build, for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The initial response includes a distinct project/target count. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
 
-- Build ingestion reads `feature_flags` through the restricted processor role,
-  even when Xcode build step collection is disabled. Keep its read grant in
-  `Release` and `infra/cnpg/tuist-processor-grants.sql` in sync; every migration
-  revokes processor table privileges before restoring the allowlist.
+- Build ingestion no longer reads `feature_flags`. Its processor read grant in
+  `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
+  with older processor releases during rolling deployments and rollbacks.
 
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
   Its query options suppress application SQL logging without overriding managed
