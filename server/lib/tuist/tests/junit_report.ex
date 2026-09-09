@@ -18,7 +18,7 @@ defmodule Tuist.Tests.JunitReport do
         |> Enum.flat_map(&test_cases_for_suite/1)
         |> Enum.take(@max_test_cases)
 
-      {:ok, %{test_suites: suites_for(test_suites, test_cases), test_cases: test_cases}}
+      {:ok, %{test_cases: test_cases}}
     else
       {:error, _reason} -> {:error, :invalid_report}
     end
@@ -54,29 +54,10 @@ defmodule Tuist.Tests.JunitReport do
 
       %{
         name: attribute(test_case, "name") || "Unnamed test",
-        test_suite_name: suite_name,
+        test_suite_name: attribute(test_case, "classname") || suite_name,
         status: status,
         duration: duration_milliseconds(test_case),
         failures: failures
-      }
-    end)
-  end
-
-  defp suites_for(test_suites, test_cases) do
-    case_names = MapSet.new(Enum.map(test_cases, & &1.test_suite_name))
-
-    test_suites
-    |> Enum.map(&attribute(&1, "name"))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.uniq()
-    |> Enum.filter(&MapSet.member?(case_names, &1))
-    |> Enum.map(fn name ->
-      suite_test_cases = Enum.filter(test_cases, &(&1.test_suite_name == name))
-
-      %{
-        name: name,
-        status: aggregate_status(suite_test_cases),
-        duration: Enum.sum(Enum.map(suite_test_cases, & &1.duration))
       }
     end)
   end
@@ -114,14 +95,6 @@ defmodule Tuist.Tests.JunitReport do
       line_number: integer_attribute(failure, "line") || 0,
       issue_type: "assertion_failure"
     }
-  end
-
-  defp aggregate_status(test_cases) do
-    cond do
-      Enum.any?(test_cases, &(&1.status == "failure")) -> "failure"
-      test_cases != [] and Enum.all?(test_cases, &(&1.status == "skipped")) -> "skipped"
-      true -> "success"
-    end
   end
 
   defp duration_milliseconds(test_case) do

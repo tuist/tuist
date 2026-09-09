@@ -1206,6 +1206,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
+                    .external(name: "Command"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1690,8 +1691,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -2221,6 +2224,8 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
+            resources: self == .bazelCommand && product == .unitTests
+                ? [.folderReference(path: "cli/Tests/Fixtures/JUnitIdentity")] : nil,
             buildableFolders: [
                 .folder(
                     buildableFolderPath,
