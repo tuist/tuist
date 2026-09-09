@@ -393,10 +393,10 @@
           & > canvas {
             display: block;
             position: absolute;
+            cursor: grab;
             inset: 0;
             width: 100%;
             height: 100%;
-            cursor: grab;
             /* Vertical pans still scroll the page on touch; horizontal
                drags rotate the globe. */
             touch-action: pan-y;
@@ -486,9 +486,9 @@
                 gap: var(--noora-spacing-2) var(--noora-spacing-6);
                 margin: var(--noora-spacing-5) 0 0;
                 padding: 0;
-                list-style: none;
                 color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+                list-style: none;
 
                 & > li {
                   display: flex;
@@ -585,7 +585,6 @@
               }
             }
           }
-
         }
 
         /* Shared illustration fade (Figma: a 600x123 band): a gradient
@@ -595,16 +594,16 @@
            the observability, globe, and build-system cards. */
         & > [data-part="illustration"] > [data-part="fade"] {
           position: absolute;
-          /* Above every stacked layer in the illustrations. */
-          z-index: var(--noora-z-index-2);
           right: 0;
           bottom: 0;
           left: 0;
+          /* Above every stacked layer in the illustrations. */
+          z-index: var(--noora-z-index-2);
+          backdrop-filter: blur(1px);
+          mask-image: linear-gradient(180deg, transparent, black);
+          background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
           height: 123px;
           pointer-events: none;
-          backdrop-filter: blur(1px);
-          background: linear-gradient(180deg, transparent, var(--noora-surface-background-primary));
-          mask-image: linear-gradient(180deg, transparent, black);
         }
 
         /* "Built for your build system" blueprint cards: one panel per
@@ -622,11 +621,11 @@
           --marketing-cache-build-halo: var(--noora-purple-400);
           --marketing-cache-build-halo-accent: light-dark(var(--noora-purple-600), var(--noora-purple-200));
           position: relative;
+          align-items: flex-end;
           /* Own stacking context, so the back cards' negative z-index
              stays inside the figure instead of dropping behind the
              section background. */
           z-index: 0;
-          align-items: flex-end;
           overflow: hidden;
 
           /* Panels are positioned purely by data-pos (rotated by the
@@ -637,6 +636,7 @@
             position: absolute;
             bottom: -16px;
             left: 50%;
+            flex-direction: column;
             /* The stack is expressed purely in transform (translate +
                scale) so cycling runs on the compositor — animating
                bottom/width forced a re-layout every frame and stuttered
@@ -646,7 +646,6 @@
             transition:
               transform 0.45s var(--ease-out-cubic),
               box-shadow 0.3s ease;
-            flex-direction: column;
             box-sizing: border-box;
             box-shadow: var(--noora-border-light-default);
             background: var(--noora-surface-background-primary);
@@ -673,23 +672,23 @@
               box-sizing: border-box;
               /* Frames the pattern field, closing the outer cells. */
               border: 1px solid var(--marketing-cache-build-grid);
-              min-height: 0;
               background-image:
                 linear-gradient(var(--marketing-cache-build-grid) 1px, transparent 1px),
                 linear-gradient(90deg, var(--marketing-cache-build-grid) 1px, transparent 1px);
-              background-size: var(--cell) var(--cell);
               background-position: calc(50% + var(--cell) / 2) calc(50% + var(--cell) / 2);
+              background-size: var(--cell) var(--cell);
+              min-height: 0;
               overflow: hidden;
             }
           }
 
           & > [data-part="panel"][data-pos="0"] {
             z-index: var(--noora-z-index-1);
+            cursor: pointer;
             /* Only the front card carries the purple ring; the back cards
                keep the default hairline. Hovering adds the purple glow —
              the hook fades the inner dither rim in alongside it. */
             box-shadow: 0 0 0 1px var(--noora-purple-400);
-            cursor: pointer;
 
             &:hover {
               box-shadow:
@@ -719,18 +718,10 @@
           /* The diamond lattice: the square grid rotated 45 degrees. */
           & > [data-part="panel"][data-system="bazel"] > [data-part="grid"] {
             background-image:
-              repeating-linear-gradient(
-                45deg,
-                var(--marketing-cache-build-grid) 0 1px,
-                transparent 1px var(--cell)
-              ),
-              repeating-linear-gradient(
-                -45deg,
-                var(--marketing-cache-build-grid) 0 1px,
-                transparent 1px var(--cell)
-              );
-            background-size: auto;
+              repeating-linear-gradient(45deg, var(--marketing-cache-build-grid) 0 1px, transparent 1px var(--cell)),
+              repeating-linear-gradient(-45deg, var(--marketing-cache-build-grid) 0 1px, transparent 1px var(--cell));
             background-position: center;
+            background-size: auto;
           }
 
           /* Intersecting wavy lines: horizontal and vertical S-curve
@@ -742,10 +733,10 @@
 
             &::before {
               position: absolute;
-              inset: 0;
               mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48' fill='none' stroke='white'%3E%3Cpath d='M0 12 C8 4 16 4 24 12 S40 20 48 12 M0 36 C8 44 16 44 24 36 S40 28 48 36 M12 0 C4 8 4 16 12 24 S20 40 12 48 M36 0 C44 8 44 16 36 24 S28 40 36 48'/%3E%3C/svg%3E");
               mask-position: center;
               mask-size: 48px 48px;
+              inset: 0;
               background: var(--marketing-cache-build-grid);
               content: "";
             }
