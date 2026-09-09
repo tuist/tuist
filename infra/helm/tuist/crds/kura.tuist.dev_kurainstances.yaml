@@ -313,3 +313,5 @@ spec:
                         type: boolean
                       primary:
                         type: boolean
+                      node:
+                        type: string
