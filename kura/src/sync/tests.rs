@@ -426,6 +426,52 @@ async fn forward_endpoint_answers_head_entries_and_gone() {
     assert_eq!(gone.head, 8);
 }
 
+// A-29a: an exhausted page reports the head, so a gap at the head — the
+// seqs of allocations that were aborted before staging — neither pins the
+// requester's cursor nor shows as lag (D-26).
+#[tokio::test]
+async fn an_exhausted_forward_page_reports_the_head_over_an_aborted_gap() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    let head = snapshot(&context).await;
+    let incarnation = head.incarnation.clone();
+    write_inline(store, "one", b"1").await;
+
+    // Two allocations that never stage a row: the contiguous head passes
+    // them, and no row will ever fill their seqs.
+    let feed = store.sync_feed();
+    drop((feed.allocate(), feed.allocate()));
+    assert_eq!(feed.head(), 3, "the head passed the aborted seqs");
+
+    let response = forward(&context, &format!("&after={incarnation}:1")).await;
+    let page: SyncForwardPage = serde_json::from_value(body_json(response).await).expect("page");
+    assert!(page.entries.is_empty(), "the gap holds no rows");
+    assert_eq!(
+        (page.next, page.head),
+        (3, 3),
+        "the scan reached the head, so the cursor may go there"
+    );
+    assert_eq!(
+        page.head.saturating_sub(page.next),
+        0,
+        "no phantom lag remains"
+    );
+
+    // A page cut short by the limit still reports its last row: the scan
+    // says nothing about what is above it.
+    let response = forward(&context, &format!("&after={incarnation}:0&limit=1")).await;
+    let page: SyncForwardPage = serde_json::from_value(body_json(response).await).expect("page");
+    assert_eq!(page.entries.len(), 1);
+    assert_eq!((page.next, page.head), (1, 3));
+
+    // A row above the gap is served from the reported cursor as usual.
+    write_inline(store, "two", b"2").await;
+    let response = forward(&context, &format!("&after={incarnation}:3")).await;
+    let page: SyncForwardPage = serde_json::from_value(body_json(response).await).expect("page");
+    assert_eq!(page.entries.len(), 1);
+    assert_eq!((page.next, page.head), (4, 4));
+}
+
 // A-8: a long-poll wakes on the next commit and returns at the deadline.
 #[tokio::test]
 async fn forward_endpoint_long_polls_until_a_commit_lands() {

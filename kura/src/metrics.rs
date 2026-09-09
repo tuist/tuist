@@ -1308,7 +1308,7 @@ impl Metrics {
         );
         registry.register(
             "kura_region_listing_bound_lag_seconds",
-            "Seconds between now and the newest version_ms this node serves to an ascending region read",
+            "Seconds between now and the newest version_ms this node serves to an ascending region read, saturating at 86400 when the listing is bounded whole",
             region_listing_bound_lag_seconds.clone(),
         );
         registry.register(

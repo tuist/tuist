@@ -161,12 +161,14 @@ pause in the cross-region pull.
 
 ### 2.2 What the server publishes, and what it does not decide
 
-Publish roles as a **new field beside `peers`** in the existing mesh view —
-`peer_roles: [{url, region, gateway}]` — and leave `peers` itself alone. It is
-`Vec<String>` on every deployed node (`mesh_heartbeat.rs`, `enrollment.rs`);
-retyping its elements would fail decode on an old node, which then keeps its
-last-known view forever. A new field is ignored by old nodes and read by new
-ones, which is the whole migration story for the topology.
+Publish roles as a **new field beside `peers`** in the peer view the managed
+pods read — `peer_roles: [{url, region, gateway}]` — and leave `peers` itself
+alone. It is `Vec<String>` on every deployed node (`mesh_heartbeat.rs`,
+`enrollment.rs`); retyping its elements would fail decode on an old node, which
+then keeps its last-known view forever. A new field is ignored by old nodes and
+read by new ones, which is the whole migration story for the topology. That view
+only: roles are keyed by each pod's internal `KURA_NODE_URL`, an address only
+the managed pods share (§2.4).
 
 Per-entry, not a bare boolean. A scalar tells a node its own role but not which
 peer is its region's gateway or which remote peers are gateways, both of which
@@ -228,14 +230,19 @@ the WAN. Worth knowing, even where the physical topology does not allow it.
 Two shapes, and they degrade differently.
 
 **Enrolled self-hosted nodes** — those that talk to the server — need no special
-handling. They fetch the same peer list over the mesh heartbeat and read the
-managed regions' roles from it exactly as a managed pod does. The controller
-is absent and there is no primary designation to take the complement of, so
-their own rule is the one the serverless mode uses — the gateway is the lowest
-node URL among the region's Ready, non-draining members — and because every
-node already applies that rule locally from the `traffic_state` and liveness
-it probes, the server publishes nothing for them: `peer_roles` carries managed
-regions only, where the server knows what the nodes cannot, the primary (D-7).
+handling. They fetch the peer list over the mesh heartbeat and run on the local
+rule alone: the gateway is the lowest node URL among the region's Ready,
+non-draining members, which every node already applies from the `traffic_state`
+and liveness it probes. The server publishes nothing for them — `peer_roles`
+carries managed regions only, where the server knows what the nodes cannot, the
+primary (D-7) — and it does not send them the managed regions' roles either:
+the heartbeat response carries no `peer_roles` at all. A managed role is keyed
+by its pod's internal `KURA_NODE_URL`, whereas a self-hosted node's peer list
+names a whole managed region by one public peer URL, and a published role is
+honoured only while the peer it names is one this node can see. The two URL
+spaces never meet, so such a role could only ever be ignored — while shipping
+internal cluster addresses into customer infrastructure to be ignored. Roles go
+on the managed pods' peer view instead, the one place the URLs are the same ones.
 
 **Fully self-hosted meshes with no server** have no authority at all, so each
 instance acts as its own, from the same inputs every node already has:
@@ -371,7 +378,13 @@ implementation added:
 - **`after` at or above the floor** — returns `{entries, next, head}`,
   blocking up to `wait` when nothing is above the cursor, so a sibling
   converges in milliseconds without polling. `head` is the source's newest
-  seq; `head - next` is the sibling's lag in rows.
+  contiguous committed seq; `head - next` is the sibling's lag in rows. A page
+  short of its limit exhausted the scan, so it reached that head, and reports
+  `next = head` whether or not it carried rows: a seq at or below the
+  contiguous head with no row is an allocation aborted before staging, which
+  no row will ever fill, and leaving the cursor below it would pin the
+  requester — and the frontier below — there until the source's next write
+  (D-26).
 - **`after` omitted** — returns `{head}` immediately, with no entries. This is
   the snapshot a bootstrapping sibling takes before its backward pass.
 - **`after` below the floor** — `410 Gone` with `{floor, head}`. The rows
@@ -610,9 +623,15 @@ snapshot's, the page's when it leaves the link caught up, otherwise the last
 applied row's arrival stamp, since the rows above it were stamped no earlier.
 The serving bound is the minimum of this node's own frontier and every open
 replica link's, each exclusive, and never above `now − KURA_SYNC_REGION_SETTLE_MS`.
-A link that has not settled or has never reported bounds everything: the
-listing waits rather than skipping a version that link may yet deliver.
-`kura_region_listing_bound_lag_seconds` reports `now` minus the bound. A
+A link that is bootstrapping or has yet to report bounds everything: the
+listing waits rather than skipping a version that link may yet deliver. The
+exception is a link that has spent its bootstrap failure budget — it is
+settled ready-but-cold and delivers nothing at all until one of its
+background retries succeeds, so it bounds nothing, and the region's listing
+keeps moving while the sibling is away (D-25). It bounds again from the
+snapshot frontier of the bootstrap that recovers it.
+`kura_region_listing_bound_lag_seconds` reports `now` minus the bound,
+saturating at a day, which is what a listing bounded whole reads as. A
 region of one carries no feed and keeps the settle window alone.
 
 **The page cursor is the full index key, the watermark is only its
@@ -829,7 +848,8 @@ Three steps, of which only the middle one changes behaviour.
   a binary that does not know the CF fails to open the database),
   `GET /_internal/sync/forward`, the ascending read and `now` on the existing
   listing, `origin_region` stamped on new manifests. The server publishes
-  `peer_roles` beside `peers`; older nodes ignore a field they do not know.
+  `peer_roles` beside `peers` on the managed pods' peer view; older nodes
+  ignore a field they do not know.
   Push still does all the work. Its depth cap is already per target (#12826),
   which is what lets links that stay on push through the whole support window
   survive a dead peer; what that share cannot do — stop a write being refused

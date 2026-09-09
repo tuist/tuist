@@ -7655,10 +7655,23 @@ impl Store {
         Ok(())
     }
 
-    /// Rows with `after < seq <= head`, oldest first, at most `limit`. Scans
-    /// with `fill_cache = false`: a cursor read touches each block once.
+    /// Rows with `after < seq <= head`, oldest first, at most `limit`,
+    /// against the current head.
+    #[cfg(test)]
     pub fn sync_feed_page(&self, after: u64, limit: usize) -> Result<Vec<SyncFeedRow>, String> {
-        let head = self.sync_feed.head();
+        self.sync_feed_page_to(after, limit, self.sync_feed.head())
+    }
+
+    /// Rows with `after < seq <= head`, oldest first, at most `limit`, against
+    /// a head the caller already read, so a serving request reports the same
+    /// head it scanned to even when the feed moves under it (D-26). Scans with
+    /// `fill_cache = false`: a cursor read touches each block once.
+    pub fn sync_feed_page_to(
+        &self,
+        after: u64,
+        limit: usize,
+        head: u64,
+    ) -> Result<Vec<SyncFeedRow>, String> {
         let mut rows = Vec::new();
         if after >= head || limit == 0 {
             return Ok(rows);

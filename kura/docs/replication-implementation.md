@@ -65,9 +65,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` dro
       group Ready non-draining peers by region, gateway = lowest node URL,
       overlap over gaps.
 - [x] T4.2 Server publishes `peer_roles: [{url, region, gateway}]` beside
-      `peers` in heartbeat and peers-sync responses; managed roles come from
-      `KuraInstance.status.peerRoles`; enrolled self-hosted roles from the
-      lowest-URL rule.
+      `peers` in the peers-sync response read by managed pods; managed roles
+      come from `KuraInstance.status.peerRoles`, observed by the reconciler
+      and persisted on `kura_servers` (D-27), so the request path is a
+      Postgres read. The heartbeat carries `replication_pull` only: an
+      enrolled self-hosted node sees one public URL per managed region, which
+      no pod-keyed role can match, so it runs the lowest-URL rule.
 - [x] T4.3 kura-controller publishes `status.peerRoles` (complement of the
       primary, Ready and non-draining, lowest ordinal tie-break) and pins the
       instance's public peer Service to the gateway pod.
@@ -265,7 +268,8 @@ readiness for up to one long-poll wait with nothing to show for it.
 ## 3. Test runs and measurements
 
 Ring A (unit, `cargo test`): 928 passed, 0 failed at commit `0eba194aec`;
-933 passed, 0 failed with phase 9 (A-25, A-26), `mise run clippy` and
+933 passed, 0 failed with phase 9 (A-25, A-26); 943 passed, 0 failed with
+D-25 and D-26 (A-29a, A-29b, A-29c), `mise run clippy` and
 `mise run format -- --check` clean. Rings B and C are recorded per run below;
 the comparison of `main` against this branch is in §3.2.
 
@@ -328,7 +332,7 @@ region whose peer CA the server could sign with (`Mesh.read_account_peer_ca`
 walks `kura_servers`, which the out-of-band deploy never creates). The
 scenario is the hosted provisioning path itself, exercised in production
 by every enrolled self-hosted node; what this branch adds to it —
-`peer_roles` and `replication_pull` in the heartbeat — is covered by the
+`replication_pull` in the heartbeat — is covered by the
 controller tests in `server/test/tuist_web/controllers/internal/kura_mesh_controller_test.exs`
 and by the runtime's heartbeat decoder.
 
@@ -554,14 +558,16 @@ every row above that one carries a stamp at least as high.
 *The bound.* `SyncCoordinator::listing_bound` is the minimum of the feed's
 own frontier (or `now − settle` where there is no feed — a region of one is
 unchanged) and every open replica link's frontier, each exclusive, and the
-ascending read serves `min(now − settle, bound)`. A link that has not
-settled, or that has never reported, bounds everything: the listing waits
-rather than skipping a version that link may still deliver. That is
-deliberate — a stalled sibling pauses cross-region delivery instead of
-losing it — and `kura_region_listing_bound_lag_seconds` is what makes the
-pause visible. A peer too old to send a frontier leaves the link on the
-rows' own stamps, and on its clock when a caught-up page carries no rows,
-which is the settle-window exposure D-6 already had.
+ascending read serves `min(now − settle, bound)`. A link that is
+bootstrapping, or that has settled and never reported, bounds everything:
+the listing waits rather than skipping a version that link may still
+deliver. That is deliberate — a stalled sibling pauses cross-region delivery
+instead of losing it — and `kura_region_listing_bound_lag_seconds` is what
+makes the pause visible. The one link that does *not* bound is one whose
+bootstrap budget is spent, which has stopped delivering altogether (D-25). A
+peer too old to send a frontier leaves the link on the rows' own stamps, and
+on its clock when a caught-up page carries no rows, which is the
+settle-window exposure D-6 already had.
 
 One consequence had to be paid for: the bound only moves when a response
 carries a fresh frontier, so an idle sibling holding a 25 s long poll would
@@ -846,3 +852,134 @@ Raw data (`pods.csv` with the new `region_listing_bound_lag` column,
 `iterations.csv`, `verify.csv`, mesh state before and after, the load log) is in
 the harness under
 `~/.config/tuist/k01/replication/load/runs/20260908-2345-k02-ringd-d24/`.
+
+---
+
+## 4. Decisions from the review loop (2026-09-09)
+
+**D-25 — A link that has spent its bootstrap budget stops bounding the
+listing.** D-24's bound waits on every open replica link, and a link that has
+not reported a frontier bounds everything. The ready-but-cold escape (§3.6,
+the one the legacy backfill cycle already allows) sets `settled` after
+`BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET` failed bootstraps *without* ever
+reporting a frontier, and the two together read as a bound of zero: a node
+holding an unreachable sibling in its membership view served an empty
+ascending listing to every remote region, for as long as the sibling stayed
+down, while Ready and serving its own clients normally. The pause D-24 buys
+is only worth paying while the link is going to deliver something. A
+bootstrapping link is — its backward pass lands records out of version order,
+below a remote reader's cursor — so it keeps bounding everything, unchanged.
+A link that has given up has stopped: it retries on the pass backoff in the
+background, and until one of those succeeds it delivers nothing, so waiting
+on it protects nothing and costs every other region its cross-region feed.
+The frontier is therefore three states rather than a `u64` in which `0` meant
+both "none yet" and "gave up": `LinkFrontier::Pending` bounds everything,
+`At(ms)` bounds at `ms − 1`, and `Abandoned` bounds nothing. The budget
+escape sets `Abandoned` beside `settled`; the next successful bootstrap sets
+`At(snapshot frontier)`, which is the right instant to resume at — the
+backward pass that bootstrap just ran delivered everything below it. The
+state returns to `Pending` one step earlier than that, the moment a retry's
+`{head}` request is answered: from there the backward pass is about to land
+records out of version order, which is precisely what the bound exists to
+cover, and a retry that never gets an answer lands nothing and keeps the
+listing moving. The
+trade is the one §4 already takes for the region link: while a sibling is
+unreachable a record only it holds can be stepped over by a remote reader
+(best-effort, repaired by the next backward pass) instead of the whole
+region's listing stopping. Two observability fixes ride along, both needed to
+tell this state apart from a healthy pause:
+`kura_region_listing_bound_lag_seconds` reported `now − 0` — the epoch in
+seconds, some 56 years — whenever the bound was zero, which no panel can plot
+beside ordinary lags; it saturates at `REGION_LISTING_BOUND_LAG_MAX_SECONDS`
+(86,400) and that ceiling is the "listing bounded whole" reading, documented
+on the dashboard panel. And each link row of `/status/cluster` now carries
+`frontier` (`pending` / `reported` / `abandoned`) and `frontier_ms`, so which
+link is holding the bound is answerable from the node itself. Ring A: A-29c.
+
+**D-26 — An exhausted forward page reports the head.** A feed seq is
+allocated before its rows are staged and released when the ticket drops, so
+any failure between the two — a failed write batch, a staging error, a
+`delete_namespace` that resolves to `IgnoredOlder` — leaves the contiguous
+head above the last row on disk. `internal_sync_forward` reported `next` as
+the last row's seq, or the requester's cursor when the page had none, so a
+page that returned no rows while `head > cursor` reported `next != head`. The
+puller read that as "behind", took its frontier from `page.entries.last()`
+(`None`, so no refresh at all), and never moved it again; its cursor stayed
+below the head too, showing the gap as permanent `lag_entries`. Only the
+sibling's next write cleared it — and on a sibling that takes no client
+writes (a third replica, or a co-located self-hosted node in the same region)
+there is none, so the gateway's serving bound froze at the instant the gap
+opened and its own later writes were never listed to any remote region. The
+drain gate reads the same stalled cursor (§3.5 waits for every live consumer
+to reach the head), so a node with a gap at its head would also have waited
+out its whole drain budget on a sibling that was in fact caught up. The
+endpoint now reports `next = head` whenever the scan was exhausted (fewer
+rows than the limit). That is exactly as safe as reporting the last row's
+seq: the scan reached the head, and every seq at or below the *contiguous*
+head has resolved by definition, so one carrying no row is an allocation
+aborted before staging that no row will ever fill. A full page still reports
+its last row, because the scan says nothing about what is above it. The head
+is also read once and used for both the scan bound and the response, so a
+page can never name a head it did not scan to. Belt and braces on the client:
+the puller treats an *empty* page as caught up for frontier purposes whatever
+`next` says — sound for the same reason, since every row the sibling holds
+above the cursor and at or below its head would have been in the page, and a
+row above the head carries a stamp at or after the frontier — which is what
+keeps a link to an older sibling moving through a mixed-version rollout. The
+persisted cursor stays whatever the server reported: the server owns which
+seqs are resolved, and a puller advancing past seqs the server did not
+resolve would be inventing that guarantee on its behalf, for nothing the
+server fix does not already give it. Ring A: A-29a (the endpoint) and A-29b
+(the frozen frontier, end to end over two same-region nodes).
+
+**D-27 — Managed roles are observed by the reconciler, not read on the
+request path.** `Mesh.peer_roles/1` answered `/_internal/kura/mesh/peers`
+and the heartbeat with one live apiserver `GET` per mesh region of the
+account, sequential, against each region's own cluster, with no timeout of
+its own (Req's 15 s and its transient retries applied) against a node
+deadline of 5 s — and since `KURA_MESH_PEERS_SYNC` is rendered for every
+mesh instance on this branch, the first successful `/peers` is what lifts a
+managed pod's boot serving gate. One slow region cluster would have held
+every pod of every account with a region there below that gate. The
+reconciler already reads each `KuraInstance` every tick to project observed
+state, so it now also records the parsed `status.peerRoles` on the
+`kura_servers` row (`peer_roles`, `jsonb[]` of `{url, gateway}`; a failed
+read keeps the last roles rather than blanking a live topology), and the
+mesh view reads the rows. Staleness is one reconciler tick, and a server
+with an open deployment keeps its last observed roles until the rollout
+closes — the window in which a published role names a restarting pod no
+node can see, so the local rule decides there regardless. The Kubernetes
+client now forwards `:timeout` so no future caller can repeat the mistake.
+The heartbeat carries no `peer_roles` at all: roles are keyed by each pod's
+internal `KURA_NODE_URL`, a self-hosted node's peer list names a managed
+region by one public URL, and `region_gateways` honours a role only for a
+peer the node can see — the field could only be ignored while shipping
+internal cluster addresses to customer infrastructure. Server tests cover
+the reconciler recording and clearing roles, the Postgres-only read, and
+both endpoints.
+
+**D-28 — The controller demotes the same pods for the gateway as for the
+primary, and resolves roles before the storage lifecycle.** Two INV-5
+violations. Node evacuation dropped a pod on an annotated node from the
+primary's health map but not from gateway eligibility, so the complement
+rule named exactly that pod — Ready, not draining, no deletion timestamp —
+pinned the public peer Service to it, and `evacuateMarkedNodes` deleted it
+in the same pass; the client Service's `servedByAnotherPod` guard never
+looked at the peer Service. The evacuating set is now listed once and shared
+by both derivations, the gateway exclusion is unconditional (the gateway
+falls back to the primary, so INV-3 holds; gating it would deadlock the
+sequence, since the standby that has to move first is the pod the complement
+rule names), and a pod is released only once the peer plane has moved too —
+the peer Service no longer selects it and another pod is a ready endpoint
+behind it, with no peer Service counting as released so non-mesh regions
+never stall. Separately, the data-volume resize path returned before role
+resolution, the pinned Services and the `peerRoles` status write, and keeps
+returning until the rebuilt ordinal is serving — a cold bootstrap per
+ordinal — so the peer Service stayed pinned to a deleted pod for a whole
+rebuild (on `main` it selected every pod, so this was a regression). Role
+resolution and the five pod-pinned Services now run above both storage
+paths, and each early return republishes `peerRoles`; refusing to take down
+the pinned pod instead cannot terminate, because the pin only moves once the
+pod stops being routable, which the rebuild is what causes. Controller tests
+cover evacuation × gateway, the resize following the surviving replica, and
+the peer-plane release gate.

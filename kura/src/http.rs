@@ -1691,6 +1691,8 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
                 "phase": link.phase.as_str(),
                 "settled": link.settled,
                 "lag_entries": link.lag_entries,
+                "frontier": link.frontier.as_str(),
+                "frontier_ms": link.frontier.reported_ms(),
             })
         })
         .collect();
@@ -2913,7 +2915,10 @@ async fn internal_sync_forward(
     loop {
         let notified = feed.notified();
         tokio::pin!(notified);
-        let rows = match state.store.sync_feed_page(position.seq, limit) {
+        // One head for the scan and for the response: reporting a head the
+        // scan did not cover would hide the rows in between (D-26).
+        let head = feed.head();
+        let rows = match state.store.sync_feed_page_to(position.seq, limit, head) {
             Ok(rows) => rows,
             Err(error) => {
                 return error_response(
@@ -2934,12 +2939,22 @@ async fn internal_sync_forward(
         });
         let waiting = rows.is_empty() && deadline.is_some_and(|deadline| now < deadline);
         if !waiting {
-            let next = rows.last().map_or(position.seq, |row| row.seq);
+            // A page short of the limit exhausted the scan, so it reached
+            // the head: every seq at or below the contiguous head has
+            // resolved, and one with no row is an allocation that was
+            // aborted before staging and will never appear. Reporting the
+            // head rather than the last row's seq is what stops such a gap
+            // from pinning the requester's cursor — and its frontier —
+            // below the head until the next write (D-26).
+            let next = match rows.last() {
+                Some(row) if rows.len() >= limit => row.seq,
+                _ => head,
+            };
             return Json(SyncForwardPage {
                 incarnation,
                 entries: rows.into_iter().map(SyncForwardEntry::from).collect(),
                 next,
-                head: feed.head(),
+                head,
                 now: now_ms(),
                 frontier_ms: feed.frontier_ms(),
             })

@@ -60,6 +60,9 @@ the same `A-n` tag):
 | A-28c | The ascending listing stops at the serving bound (D-24) | with a replica link's frontier held below an entry, the entry is withheld and the page's cursor still reaches it once the frontier passes — no skip |
 | A-28d | No feed, no links: the bound is the settle window (D-6) | a region of one lists nothing younger than `now − KURA_SYNC_REGION_SETTLE_MS`, unchanged |
 | A-28e | Three nodes, two regions (D-24) | the gateway's replica link reports a frontier past what it delivered; an entry held at that frontier is absent from the gateway's ascending listing and arrives at the remote once the link refreshes |
+| A-29a | An exhausted forward page reports the head (D-26) | with two aborted allocations at the sibling's head, the page above the cursor is empty and reports `next == head` with no lag; a page cut short by the limit still reports its last row |
+| A-29b | A gap at the sibling's feed head does not freeze the link frontier (D-26) | after the gap opens on a quiet sibling, the puller's frontier passes its own later write, the write becomes listable, and the link reports no lag |
+| A-29c | A link that gave up its bootstrap stops bounding the listing (D-25) | while within the budget the bound is 0 and the lag gauge saturates at 86400; once the budget is spent the link is settled and abandoned, the bound follows the settle window again, and a later reported frontier bounds the listing once more |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 

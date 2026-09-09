@@ -13,7 +13,7 @@ use crate::{
     http::internal_router,
     state::SharedState,
     sync::{
-        coordinator::{LinkKind, LinkPhase},
+        coordinator::{LinkFrontier, LinkKind, LinkPhase},
         roles::PeerView,
     },
     test_support::{TestContext, test_context},
@@ -313,7 +313,9 @@ async fn a_gateway_lists_a_region_read_only_up_to_its_replica_link_frontier() {
             .into_iter()
             .find(|status| status.kind == LinkKind::Replica)
             .expect("the gateway keeps a replica link")
-            .frontier_ms
+            .frontier
+            .reported_ms()
+            .unwrap_or_default()
     };
     let warm_version = gateway
         .state()
@@ -351,8 +353,13 @@ async fn a_gateway_lists_a_region_read_only_up_to_its_replica_link_frontier() {
     );
 
     // The link refreshes its frontier on its own, and the record follows.
+    // Both terms of the served ceiling have to pass it: the coordinator's
+    // bound — this node's own feed frontier as well as the link's — and the
+    // settle window the endpoint applies on top.
+    let settle = gateway.state().config.sync_region_settle_ms;
     for _ in 0..200 {
-        if replica_frontier() > held_version {
+        let bound = gateway.state().sync.listing_bound(gateway.state());
+        if bound >= held_version && crate::utils::now_ms().saturating_sub(settle) >= held_version {
             break;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -386,6 +393,170 @@ async fn ascending_lists(node: &Node, from_version_ms: u64, artifact_id: &str) -
         .expect("entries")
         .iter()
         .any(|entry| entry["record_id"].as_str() == Some(artifact_id))
+}
+
+// A-29b: a gap at the sibling's feed head — seqs whose allocation was
+// aborted before staging — leaves the link caught up, so its frontier keeps
+// moving and this node's own later writes stay listable (D-26). Without it
+// the link reads "behind" on every empty page and its frontier freezes
+// until the sibling's next write, which on a quiet sibling is never.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_gap_at_the_siblings_feed_head_does_not_freeze_the_link_frontier() {
+    let a = node("local", |_| {}).await;
+    let b = node("local", |_| {}).await;
+    a.see(&[&b]);
+    b.see(&[&a]);
+    let warm = a.write("warm", b"w").await;
+    b.wait_for(&warm).await;
+
+    // Two allocations on a that never stage a row: a's contiguous head
+    // passes them, and no row will ever fill their seqs.
+    let gap = {
+        let feed = a.state().store.sync_feed();
+        (feed.allocate(), feed.allocate())
+    };
+    let head_before = a.state().store.sync_feed().head();
+    drop(gap);
+    assert_eq!(
+        a.state().store.sync_feed().head(),
+        head_before + 2,
+        "the aborted seqs are a gap the head passed"
+    );
+
+    // b's own write is younger than anything the link had reported when the
+    // gap opened, so it is listable only once the link's frontier moves on.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let own = b.write("own", b"o").await;
+    let own_version = b
+        .state()
+        .store
+        .manifest(&own)
+        .expect("read")
+        .expect("present")
+        .version_ms;
+    for _ in 0..200 {
+        if b.state().sync.listing_bound(b.state()) >= own_version {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(
+        b.state().sync.listing_bound(b.state()) >= own_version,
+        "the link frontier moved past b's own write over the gap"
+    );
+    let link = b
+        .state()
+        .sync
+        .link_statuses()
+        .into_iter()
+        .find(|status| status.kind == LinkKind::Replica)
+        .expect("b keeps a replica link");
+    assert_eq!(link.lag_entries, 0, "the gap is not lag");
+    assert!(
+        link.frontier
+            .reported_ms()
+            .is_some_and(|ms| ms > own_version)
+    );
+}
+
+// A-29c: a link that spent its bootstrap failure budget is settled but
+// delivers nothing, so it stops bounding the serving listing (D-25). While
+// it is still within the budget it bounds everything, and the bound-lag
+// gauge saturates rather than reporting the epoch.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_link_that_gave_up_its_bootstrap_stops_bounding_the_listing() {
+    let a = node("local", |_| {}).await;
+    let ghost = PeerView {
+        url: "http://127.0.0.1:1".to_owned(),
+        region: "local".to_owned(),
+        serving: true,
+        draining: false,
+        pulling: true,
+        knows_me: true,
+    };
+    let evaluate = |views: Vec<PeerView>| {
+        a.state().apply_peer_views(views);
+        a.state().sync.evaluate(a.state());
+    };
+    async fn failures_reach(a: &Node, peer: &str, target: u32) {
+        for _ in 0..600 {
+            if a.state().sync.bootstrap_failures(peer) >= target {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("{peer} never reached {target} bootstrap failures");
+    }
+
+    evaluate(vec![ghost.clone()]);
+    assert_eq!(
+        a.state().sync.listing_bound(a.state()),
+        0,
+        "a link that has yet to report bounds everything"
+    );
+    assert!(
+        a.state()
+            .metrics
+            .render()
+            .contains("kura_region_listing_bound_lag_seconds 86400"),
+        "the held listing reports the gauge's ceiling, not the epoch"
+    );
+
+    // Spend the budget: a respawned link retries at once, so the count is
+    // charged without waiting out the pass backoff (D-23).
+    for attempt in 1..=crate::constants::BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
+        failures_reach(&a, &ghost.url, attempt).await;
+        evaluate(Vec::new());
+        evaluate(vec![ghost.clone()]);
+    }
+    failures_reach(
+        &a,
+        &ghost.url,
+        crate::constants::BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET + 1,
+    )
+    .await;
+
+    for _ in 0..200 {
+        if a.state().sync.link_statuses()[0].frontier == LinkFrontier::Abandoned {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let link = a.state().sync.link_statuses().remove(0);
+    assert!(link.settled, "the budget is spent: ready but cold");
+    assert_eq!(link.frontier, LinkFrontier::Abandoned);
+    assert!(
+        a.state().sync.bootstrap_settled(true),
+        "readiness no longer waits on it"
+    );
+
+    let bound = a.state().sync.listing_bound(a.state());
+    let settle = a.state().config.sync_region_settle_ms;
+    let expected = crate::utils::now_ms() - settle;
+    assert!(
+        bound > 0 && expected.saturating_sub(bound) < 5_000,
+        "an abandoned link bounds nothing: bound {bound} should track {expected}"
+    );
+    a.state().sync.evaluate(a.state());
+    assert!(
+        a.state()
+            .metrics
+            .render()
+            .contains("kura_region_listing_bound_lag_seconds 0"),
+        "the gauge follows the freed bound"
+    );
+
+    // A later successful bootstrap reports a frontier (`replica::run`'s
+    // bootstrap arm), and the link bounds the listing again.
+    let frontier_ms = crate::utils::now_ms() - 60_000;
+    a.state()
+        .sync
+        .set_replica_link_frontier(&ghost.url, frontier_ms);
+    assert_eq!(
+        a.state().sync.listing_bound(a.state()),
+        frontier_ms - 1,
+        "a re-bootstrapped link bounds with its snapshot frontier again"
+    );
 }
 
 // A-27: a sibling that flaps through the membership view keeps charging the

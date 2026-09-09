@@ -456,6 +456,12 @@ pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
 pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
 /// Re-check cadence of an idle long-poll, the bound on a missed wake.
 pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// Ceiling of `kura_region_listing_bound_lag_seconds`. The serving bound is
+/// a wall-clock instant and is `0` while a replica link bounds the listing
+/// whole (design §4.1), so an unclamped `now − bound` would report the epoch;
+/// the gauge saturates here instead, and the value doubles as the "held
+/// whole" reading.
+pub const REGION_LISTING_BOUND_LAG_MAX_SECONDS: u64 = 24 * 60 * 60;
 /// `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` default: bodies requests one peer
 /// identity may hold in flight on this node's serving side (design §11.1).
 pub const DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER: u64 = 1;

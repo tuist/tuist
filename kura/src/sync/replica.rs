@@ -31,7 +31,7 @@ use crate::{
     replication::read_bounded_body,
     state::SharedState,
     sync::{
-        coordinator::{LinkPhase, LinkStatusCell, backoff, pass_backoff},
+        coordinator::{LinkFrontier, LinkPhase, LinkStatusCell, backoff, pass_backoff},
         feed::{SyncFeedKind, SyncPosition},
     },
     utils::{now_ms, url_encode},
@@ -159,6 +159,14 @@ async fn bootstrap(
 ) -> Result<(SyncPosition, u64), String> {
     status.update(|status| status.phase = LinkPhase::Bootstrapping);
     let head = request_head(app, peer).await?;
+    // The peer answered, so the backward pass below is about to land records
+    // out of version order: a link that had given up (D-25) bounds the
+    // listing again from here, rather than only once the pass completes.
+    status.update(|status| {
+        if status.frontier == LinkFrontier::Abandoned {
+            status.frontier = LinkFrontier::Pending;
+        }
+    });
     let incarnation = u64::from_str_radix(&head.incarnation, 16)
         .map_err(|error| format!("sync head incarnation is not hex: {error}"))?;
     let age_ordered_stats = app.store.backfill_age_ordered_stats();
@@ -293,10 +301,11 @@ pub async fn run(
                         cursor = Some(position);
                         // The cursor sits at the snapshot head, so it is
                         // within one page of the sibling by construction
-                        // (design §3.6): settled from here on.
+                        // (design §3.6): settled from here on. A link that
+                        // had given up bounds the listing again from here.
                         status.update(|status| {
                             status.settled = true;
-                            status.frontier_ms = frontier_ms;
+                            status.frontier = LinkFrontier::At(frontier_ms);
                         });
                         position
                     }
@@ -311,7 +320,15 @@ pub async fn run(
                         if failures >= BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
                             // Ready-but-cold, as the backfill cycle already
                             // allows; retries continue in the background.
-                            status.update(|status| status.settled = true);
+                            // The link is also giving up on delivering
+                            // anything until one of them succeeds, so it
+                            // stops bounding the serving listing (D-25) —
+                            // waiting on it would hold every remote region's
+                            // read for as long as the sibling stays down.
+                            status.update(|status| {
+                                status.settled = true;
+                                status.frontier = LinkFrontier::Abandoned;
+                            });
                         }
                         status.update(|status| status.phase = LinkPhase::Retrying);
                         warn!(peer, error, "replica bootstrap failed; retrying");
@@ -361,8 +378,15 @@ pub async fn run(
                         // Caught up: nothing below the sibling's frontier is
                         // still to come. Behind: the rows above the cursor
                         // were stamped at or after the last one applied, so
-                        // that stamp bounds them (D-24).
-                        let frontier_ms = if page.next == page.head {
+                        // that stamp bounds them (D-24). An empty page is
+                        // caught up whatever it reports as `next`: every row
+                        // the sibling holds above the cursor and at or below
+                        // its head would have been in it, and a row above
+                        // the head is stamped at or after the frontier
+                        // (D-26 — this is what an older sibling, which
+                        // reports `next` as the cursor when a gap sits at
+                        // its head, needs to keep the frontier moving).
+                        let frontier_ms = if page.next == page.head || page.entries.is_empty() {
                             link_frontier(
                                 page.frontier_ms,
                                 page.entries.last().map(|entry| entry.arrived_at_ms),
@@ -376,7 +400,7 @@ pub async fn run(
                             status.last_success = Some(Instant::now());
                             status.lag_entries = lag_entries;
                             if let Some(frontier_ms) = frontier_ms {
-                                status.frontier_ms = frontier_ms;
+                                status.frontier = LinkFrontier::At(frontier_ms);
                             }
                         });
                     }

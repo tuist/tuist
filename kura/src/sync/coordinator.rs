@@ -53,6 +53,38 @@ impl LinkPhase {
     }
 }
 
+/// What a replica link contributes to the serving listing bound (D-24, D-25).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LinkFrontier {
+    /// Bootstrapping, or settled and yet to report one: the link bounds
+    /// everything, because a record it has still to deliver can sort below a
+    /// remote reader's cursor.
+    Pending,
+    /// The instant below which nothing more can arrive over this link.
+    At(u64),
+    /// The bootstrap failure budget is spent: the link delivers nothing at
+    /// all until it re-bootstraps, so it stops bounding the listing (D-25).
+    Abandoned,
+}
+
+impl LinkFrontier {
+    /// The instant this link reported, if it has reported one.
+    pub fn reported_ms(self) -> Option<u64> {
+        match self {
+            Self::At(frontier_ms) => Some(frontier_ms),
+            Self::Pending | Self::Abandoned => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::At(_) => "reported",
+            Self::Abandoned => "abandoned",
+        }
+    }
+}
+
 /// What a link task last reported about itself.
 #[derive(Clone, Debug)]
 pub struct LinkStatus {
@@ -67,10 +99,8 @@ pub struct LinkStatus {
     pub last_success: Option<Instant>,
     /// Replica links: rows between our cursor and the sibling's head.
     pub lag_entries: u64,
-    /// Replica links: the instant below which nothing more can arrive over
-    /// this link, so the serving listing may not go past it (D-24). `0`
-    /// until the link has settled and reported one.
-    pub frontier_ms: u64,
+    /// Replica links: how far this link lets the serving listing go (D-24).
+    pub frontier: LinkFrontier,
 }
 
 /// Shared between a link task and the coordinator.
@@ -272,9 +302,12 @@ impl SyncCoordinator {
             }
         }
         drop(links);
-        let now = now_ms();
-        app.metrics
-            .set_region_listing_bound_lag(now.saturating_sub(self.listing_bound(app)) / 1000);
+        // A bound of 0 — the listing held whole — would report the epoch as
+        // a lag, which no panel can plot beside ordinary seconds, so the
+        // gauge saturates at `REGION_LISTING_BOUND_LAG_MAX_SECONDS`.
+        let lag_seconds = (now_ms().saturating_sub(self.listing_bound(app)) / 1000)
+            .min(crate::constants::REGION_LISTING_BOUND_LAG_MAX_SECONDS);
+        app.metrics.set_region_listing_bound_lag(lag_seconds);
     }
 
     /// The feed's gauges, and its switch-off once no sibling has asked for
@@ -316,8 +349,10 @@ impl SyncCoordinator {
     /// by the feed's frontier — every allocation below it has committed —
     /// and each open replica link by its own frontier, because a record the
     /// sibling stamped below that instant has already been applied here. A
-    /// link that has not settled or has yet to report bounds everything: the
-    /// listing waits rather than skipping a version it may still receive.
+    /// link that is bootstrapping or has yet to report bounds everything:
+    /// the listing waits rather than skipping a version it may still
+    /// receive. A link that has spent its bootstrap budget bounds nothing —
+    /// it delivers nothing to wait for (D-25).
     pub fn listing_bound(&self, app: &SharedState) -> u64 {
         let feed = app.store.sync_feed();
         let mut bound = if feed.enabled() {
@@ -327,13 +362,11 @@ impl SyncCoordinator {
         };
         let links = self.links.lock().unwrap_or_else(PoisonError::into_inner);
         for link in links.replica.values() {
-            let status = link.status.snapshot();
-            let link_bound = if status.settled && status.frontier_ms > 0 {
-                status.frontier_ms - 1
-            } else {
-                0
-            };
-            bound = bound.min(link_bound);
+            match link.status.snapshot().frontier {
+                LinkFrontier::At(frontier_ms) => bound = bound.min(frontier_ms.saturating_sub(1)),
+                LinkFrontier::Pending => bound = 0,
+                LinkFrontier::Abandoned => {}
+            }
         }
         bound
     }
@@ -345,7 +378,7 @@ impl SyncCoordinator {
         if let Some(link) = links.replica.get(peer) {
             link.status.update(|status| {
                 status.settled = true;
-                status.frontier_ms = frontier_ms;
+                status.frontier = LinkFrontier::At(frontier_ms);
             });
         }
     }
@@ -438,7 +471,7 @@ fn spawn_link(
         settled: false,
         last_success: None,
         lag_entries: 0,
-        frontier_ms: 0,
+        frontier: LinkFrontier::Pending,
     });
     let task_app = app.clone();
     let task_peer = peer.to_owned();
