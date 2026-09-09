@@ -66,6 +66,36 @@ defmodule Tuist.XcodeTest do
       assert binary_target.destinations == testing_target.destinations
     end
 
+    test "analytics distinguish empty inputs using the command event CLI version" do
+      for {version, expected} <- [{"4.207.0", nil}, {"4.208.0", []}] do
+        event = CommandEventsFixtures.command_event_fixture(tuist_version: version)
+
+        with_flushed_ingestion_buffers(fn ->
+          Xcode.create_xcode_graph(%{
+            command_event: event,
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  "name" => "Project",
+                  "path" => ".",
+                  "targets" =>
+                    Enum.map(["binary_cache_metadata", "selective_testing_metadata"], fn purpose ->
+                      %{"name" => purpose, purpose => %{"hash" => "hash", "subhashes" => %{"destinations" => []}}}
+                    end)
+                }
+              ]
+            }
+          })
+        end)
+
+        {binary, _} = Xcode.binary_cache_analytics(event)
+        {testing, _} = Xcode.selective_testing_analytics(event)
+        assert [%{hashed_destinations: ^expected}] = binary.cacheable_targets
+        assert [%{hashed_destinations: ^expected}] = testing.test_modules
+      end
+    end
+
     test "creates an Xcode graph with projects and targets" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()

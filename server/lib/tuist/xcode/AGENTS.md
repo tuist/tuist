@@ -20,4 +20,4 @@ This context owns Xcode graph ingestion and analytics.
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
 
-- Store effective destinations separately from declared graph metadata. The recorded flag distinguishes historical missing destinations from a known empty array; nullable new components distinguish unavailable inputs from known absence (empty strings).
+- Store effective destinations separately from declared graph metadata. For empty hashed destinations, use the owning command event's CLI version (4.208.0 stable onward) to distinguish known empty inputs from historical absence; nullable new components distinguish unavailable inputs from known absence (empty strings).

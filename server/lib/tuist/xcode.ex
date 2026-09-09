@@ -36,7 +36,6 @@ defmodule Tuist.Xcode do
         where: not is_nil(xt.selective_testing_hash),
         select: %{
           hashed_destinations: xt.hashed_destinations,
-          hashed_destinations_recorded: xt.hashed_destinations_recorded,
           embedded_product_references_hash: xt.embedded_product_references_hash,
           foreign_build_hash: xt.foreign_build_hash,
           test_device: xt.test_device,
@@ -75,7 +74,7 @@ defmodule Tuist.Xcode do
     test_modules =
       Enum.map(targets, fn target ->
         %{
-          hashed_destinations: XcodeTarget.hashed_destinations(target),
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
           embedded_product_references_hash: target.embedded_product_references_hash,
           foreign_build_hash: target.foreign_build_hash,
           test_device: target.test_device,
@@ -121,7 +120,6 @@ defmodule Tuist.Xcode do
         where: not is_nil(xt.binary_cache_hash),
         select: %{
           hashed_destinations: xt.hashed_destinations,
-          hashed_destinations_recorded: xt.hashed_destinations_recorded,
           embedded_product_references_hash: xt.embedded_product_references_hash,
           foreign_build_hash: xt.foreign_build_hash,
           test_device: xt.test_device,
@@ -160,7 +158,7 @@ defmodule Tuist.Xcode do
     cacheable_targets =
       Enum.map(targets, fn target ->
         %{
-          hashed_destinations: XcodeTarget.hashed_destinations(target),
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
           embedded_product_references_hash: target.embedded_product_references_hash,
           foreign_build_hash: target.foreign_build_hash,
           test_device: target.test_device,

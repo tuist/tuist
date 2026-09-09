@@ -22,7 +22,7 @@ defmodule Tuist.Xcode.XcodeTargetTest do
           }
         })
 
-      assert XcodeTarget.hashed_destinations(target) == ["iPhone"]
+      assert XcodeTarget.hashed_destinations(target, %{tuist_version: "4.207.0"}) == ["iPhone"]
       assert target.project_settings_hash == "settings"
       assert target.embedded_product_references_hash == "embedded"
       assert target.foreign_build_hash == "foreign"
@@ -35,7 +35,7 @@ defmodule Tuist.Xcode.XcodeTargetTest do
   test "historical rows retain components without inventing missing inputs" do
     target = %XcodeTarget{destinations: ["iphone", "mac"], sources_hash: "sources"}
     assert target.sources_hash == "sources"
-    assert XcodeTarget.hashed_destinations(target) == nil
+    assert XcodeTarget.hashed_destinations(target, %{tuist_version: "4.207.0"}) == nil
     assert target.embedded_product_references_hash == nil
     assert target.foreign_build_hash == nil
     assert target.test_device == nil
@@ -50,7 +50,7 @@ defmodule Tuist.Xcode.XcodeTargetTest do
       })
 
     assert target.sources_hash == "sources"
-    assert XcodeTarget.hashed_destinations(target) == nil
+    assert XcodeTarget.hashed_destinations(target, %{tuist_version: "4.207.0"}) == nil
     assert target.embedded_product_references_hash == nil
     assert target.foreign_build_hash == nil
   end
@@ -70,10 +70,30 @@ defmodule Tuist.Xcode.XcodeTargetTest do
         }
       })
 
-    assert XcodeTarget.hashed_destinations(target) == []
+    assert XcodeTarget.hashed_destinations(target, %{tuist_version: "4.208.0"}) == []
     assert target.embedded_product_references_hash == ""
     assert target.foreign_build_hash == ""
     assert target.test_device == ""
     assert target.test_runtime == ""
+  end
+
+  test "derives empty destination availability from the command event CLI version" do
+    target = %XcodeTarget{hashed_destinations: []}
+
+    for version <- ["4.207.0", "4.208.0-canary.21", "4.208.0-rc.1", "x.y.z", "", nil] do
+      assert XcodeTarget.hashed_destinations(target, %{tuist_version: version}) == nil
+    end
+
+    for version <- ["4.208.0", "4.208.1", "4.209.0-canary.1", "5.0.0"] do
+      assert XcodeTarget.hashed_destinations(target, %{tuist_version: version}) == []
+    end
+  end
+
+  test "explicit destinations remain available for development and canary builds" do
+    target = %XcodeTarget{hashed_destinations: ["iPhone"]}
+
+    for version <- ["4.208.0-canary.21", "x.y.z", nil] do
+      assert XcodeTarget.hashed_destinations(target, %{tuist_version: version}) == ["iPhone"]
+    end
   end
 end

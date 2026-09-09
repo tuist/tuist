@@ -203,7 +203,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     run.xcode_targets
     |> Enum.filter(&(&1.selective_testing_hash != nil))
     |> Enum.sort_by(& &1.name)
-    |> Enum.map(&target_to_json_map/1)
+    |> Enum.map(&target_to_json_map(&1, run))
     |> :json.format(fn
       nil, _encoder, _state -> "null"
       value, encoder, state -> :json.format_value(value, encoder, state)
@@ -211,7 +211,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     |> IO.iodata_to_binary()
   end
 
-  defp target_to_json_map(target) do
+  defp target_to_json_map(target, run) do
     %{
       name: target.name,
       selective_testing_hit: target.selective_testing_hit,
@@ -240,7 +240,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
     |> Map.new()
     |> Map.merge(%{
-      hashed_destinations: XcodeTarget.hashed_destinations(target),
+      hashed_destinations: XcodeTarget.hashed_destinations(target, run),
       embedded_product_references_hash: target.embedded_product_references_hash,
       foreign_build_hash: target.foreign_build_hash,
       test_device: target.test_device,

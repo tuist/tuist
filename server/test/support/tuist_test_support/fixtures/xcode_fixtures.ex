@@ -189,7 +189,6 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           project_id: project_id,
           binary_cache_hash: binary_cache_hash,
           hashed_destinations: Keyword.get(opts, :hashed_destinations, []),
-          hashed_destinations_recorded: Keyword.get(opts, :hashed_destinations_recorded, false),
           embedded_product_references_hash: Keyword.get(opts, :embedded_product_references_hash),
           foreign_build_hash: Keyword.get(opts, :foreign_build_hash),
           test_device: Keyword.get(opts, :test_device),

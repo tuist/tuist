@@ -32,7 +32,6 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :product_name, Ch, type: "String", default: ""
 
     field :hashed_destinations, Ch, type: "Array(String)", default: []
-    field :hashed_destinations_recorded, Ch, type: "Bool", default: false
     field :embedded_product_references_hash, Ch, type: "Nullable(String)"
     field :foreign_build_hash, Ch, type: "Nullable(String)"
     field :test_device, Ch, type: "Nullable(String)"
@@ -99,7 +98,6 @@ defmodule Tuist.Xcode.XcodeTarget do
       bundle_id: xcode_target["bundle_id"],
       product_name: xcode_target["product_name"],
       hashed_destinations: subhashes["destinations"] || [],
-      hashed_destinations_recorded: is_list(subhashes["destinations"]),
       embedded_product_references_hash: subhashes["embedded_product_references"],
       foreign_build_hash: subhashes["foreign_build"],
       test_device: subhashes["test_device"],
@@ -128,8 +126,16 @@ defmodule Tuist.Xcode.XcodeTarget do
     }
   end
 
-  def hashed_destinations(%{hashed_destinations_recorded: true, hashed_destinations: destinations}), do: destinations
-  def hashed_destinations(_target), do: nil
+  def hashed_destinations(%{hashed_destinations: [_ | _] = destinations}, _run), do: destinations
+
+  def hashed_destinations(%{hashed_destinations: []}, %{tuist_version: version}) when is_binary(version) do
+    case Version.parse(version) do
+      {:ok, version} -> if Version.compare(version, "4.208.0") == :lt, do: nil, else: []
+      :error -> nil
+    end
+  end
+
+  def hashed_destinations(_target, _run), do: nil
 
   def normalize_enums(target) do
     %{
