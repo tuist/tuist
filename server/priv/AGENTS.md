@@ -6,13 +6,15 @@ This directory contains database migrations and other private assets.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
-- Marketing and app image assets are checked by `mise run marketing:image-budget`.
+- All served raster images under `priv/static` are checked by
+  `mise run marketing:image-budget` (requires ImageMagick).
   Signup artwork is WebP at twice its rendered width; keep replacements within
-  the static-image budget.
-- The shared marketing header keeps the original `hero-background.webp` and
-  `hero-background-sm.webp` artwork as regeneration sources, with compact
-  derivatives at 960px desktop and 480px mobile. Regenerate from those originals
-  with `magick INPUT -resize WIDTHx -quality 85 -define webp:method=6 OUTPUT`.
+  the 500 KiB static-image budget (GIFs allow 3200 KiB).
+- Shared `hero-background*` images have a stricter 20 KiB budget and a maximum
+  of 1024 pixels per dimension. Served derivatives are 960px desktop and 480px
+  mobile; regeneration sources live outside the served tree in
+  `server/assets/marketing/source-images`. Open Graph assets are resized to
+  1200px wide while retaining their aspect ratio.
 
 ## Demo Data
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
