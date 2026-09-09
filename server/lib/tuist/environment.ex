@@ -446,15 +446,23 @@ defmodule Tuist.Environment do
   otherwise. A placement transition costs a region's worth of cache refill,
   which is why this starts stopped where claim sizing does not.
 
-  Per kind because the kinds do not cost the same thing. An `expand` opens a
-  region and leaves every cache the account already has where it is; the
-  others give a region up, and what they spend is the refill of whatever was
-  warm in it. One budget over both would make the number chosen for how fast
-  the fleet may abandon caches also decide how fast it may grow, and would
-  leave no way to run the additive kind while a kind whose evidence is not yet
-  trustworthy stays supervised.
+  Per kind because only one kind needs a fleet-wide ceiling at all. Every rung
+  already limits how often a single account may move: expansion stops at the
+  plan's region count, relocation runs once a quarter, correction fires once in
+  an account's life. Those bound the thing worth bounding and they scale with
+  the fleet by construction. A count here bounds something different, which is
+  how much of the *whole fleet* may move in a day, and the only reason to want
+  that is a rung deciding wrongly for everyone at once. Retirement is where
+  that matters, because it deletes volumes an hour later with no cancel; the
+  others cost a cold cache and re-derive their own decision.
 
-  The format is `kind=count` pairs, such as `expand=2,correct=2,relocate=1`.
+  The format is `kind=count` pairs, such as `expand=all,relocate=all,retire=25`.
+  A count of `all` lifts the fleet-wide ceiling on that kind entirely, which is
+  the right setting for every kind whose mistake is recoverable: the rungs
+  already limit how often any one account may move, and a fleet-wide constant
+  in front of a queue that grows with the account count is a ceiling that stops
+  tracking the fleet the moment it grows.
+
   Which names are real kinds is
   `Tuist.Kura.PlacementProposals.automatic_apply_budgets/0`'s to decide. What
   is settled here is only that an unreadable pair is dropped rather than
@@ -471,11 +479,19 @@ defmodule Tuist.Environment do
 
   defp put_placement_budget(pair, budgets) do
     with [name, count] <- String.split(pair, "=", parts: 2),
-         {count, ""} <- count |> String.trim() |> Integer.parse(),
-         true <- count >= 0 do
+         {:ok, count} <- parse_placement_budget(String.trim(count)) do
       Map.put(budgets, String.trim(name), count)
     else
       _ -> budgets
+    end
+  end
+
+  defp parse_placement_budget("all"), do: {:ok, :unlimited}
+
+  defp parse_placement_budget(count) do
+    case Integer.parse(count) do
+      {count, ""} when count >= 0 -> {:ok, count}
+      _ -> :error
     end
   end
 

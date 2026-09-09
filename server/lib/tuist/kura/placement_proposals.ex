@@ -71,12 +71,14 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  How many proposals of each kind the sweep may apply on its own in a day,
-  with every kind present.
+  How many proposals of each kind the sweep may apply on its own in a day, with
+  every kind present. A count, or `:unlimited` for a kind with no fleet-wide
+  ceiling.
 
   A kind the configuration does not name stays at zero, so a bare number turns
   nothing on: every kind has to be named to run unattended, and one that has to
-  be named cannot be enabled by a value written for the others.
+  be named cannot be enabled by a value written for the others. Zero is also
+  the stop, which is why it stays the default rather than `:unlimited`.
   """
   def automatic_apply_budgets do
     configured = Environment.kura_placement_automatic_applies_per_day()
@@ -85,8 +87,8 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  Open proposals of one kind, oldest first, capped at `limit`. What automatic
-  mode drains; the cap bounds how much placement may move in one pass.
+  Open proposals of one kind, oldest first, capped at `limit` or every one of
+  them for `:unlimited`. What automatic mode drains.
 
   Oldest first, so a backlog is drained in the order it accumulated and no
   proposal can be starved by a steady arrival of newer ones. Age is not
@@ -94,12 +96,23 @@ defmodule Tuist.Kura.PlacementProposals do
   its verdict still holds, so the oldest proposal is reasoned from the same
   hour's rollups as the newest.
   """
+  def open_proposals(kind, :unlimited) do
+    kind
+    |> open_proposals_query()
+    |> Repo.all()
+  end
+
   def open_proposals(kind, limit) do
+    kind
+    |> open_proposals_query()
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  defp open_proposals_query(kind) do
     PlacementProposal
     |> where([proposal], proposal.status == :open and proposal.kind == ^kind)
     |> order_by([proposal], asc: proposal.inserted_at)
-    |> limit(^limit)
-    |> Repo.all()
   end
 
   @doc """
