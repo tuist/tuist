@@ -105,8 +105,8 @@
        so the hero copy at the bottom left sits on quiet ground. */
     & > [data-part="illustration"] {
       position: absolute;
-      inset: 0;
       mask-image: radial-gradient(circle farthest-corner at 100% 0%, #000 0%, transparent 60%);
+      inset: 0;
       pointer-events: none;
 
       @media (max-width: 720px) {
@@ -304,6 +304,11 @@
           /* Lanes: 50px tall at a 74px pitch, the first at y=48; bars are
              vertically centered on the runner tile. */
           [data-part="lane"] {
+            /* The hook overrides these inline per lane once the timeline
+               plays; the defaults keep the blink keyframe valid before. */
+            --blink-period: 600ms;
+            --blink-delay: 0ms;
+            --blink-count: 5;
             display: flex;
             position: absolute;
             left: 0;
@@ -361,8 +366,8 @@
                bar completes. */
             @media (prefers-reduced-motion: no-preference) {
               [data-state="running"] &::after {
-                animation: marketing-tests-runner-blink var(--blink-period, 600ms) ease-in-out
-                  var(--blink-delay, 0ms) var(--blink-count, 5);
+                animation: marketing-tests-runner-blink var(--blink-period) ease-in-out var(--blink-delay)
+                  var(--blink-count);
               }
             }
 
@@ -377,6 +382,11 @@
              its border and radius intact, so it reads as the bar itself
              extending rather than being uncovered. */
           [data-part="bar"] {
+            /* --bar-width comes inline from the markup; the hook sets the
+               delay and duration per bar once the timeline plays. */
+            --bar-width: 0;
+            --bar-delay: 0ms;
+            --bar-duration: 600ms;
             position: relative;
             flex: none;
             width: calc(var(--bar-width) * 1px);
@@ -406,7 +416,7 @@
               }
 
               [data-state="running"] &::before {
-                animation: marketing-tests-bar-fill var(--bar-duration, 600ms) linear var(--bar-delay, 0ms) both;
+                animation: marketing-tests-bar-fill var(--bar-duration) linear var(--bar-delay) both;
               }
             }
 
@@ -431,6 +441,8 @@
             height: 12px;
 
             & > [data-part="tick"] {
+              /* Overridden inline per tick with its index. */
+              --tick: 0;
               position: absolute;
               left: calc(var(--tick) * 72px);
               transform: translateX(-50%);
@@ -524,13 +536,12 @@
           [data-part="chart"] {
             display: block;
             position: absolute;
-            inset: 0;
             /* Fade the chart out toward the sides and the bottom (never the
                top) so the lines don't hit the frame's hairlines head-on. */
-            mask-image:
-              linear-gradient(to right, transparent, #000 12%, #000 88%, transparent),
+            mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent),
               linear-gradient(to bottom, #000 82%, transparent);
             mask-composite: intersect;
+            inset: 0;
             width: 100%;
             height: 100%;
             pointer-events: none;
@@ -540,6 +551,9 @@
              — 24px padding, label row with a 4x12 colour swatch, value
              below. */
           [data-part="card"] {
+            /* Overridden inline per card with its comp coordinates. */
+            --x: 0;
+            --y: 0;
             display: flex;
             position: absolute;
             top: calc(var(--y) / 400 * 100%);
@@ -647,12 +661,12 @@
           flex-direction: column;
           justify-content: flex-start;
           gap: 52px;
-          padding-top: 18px;
-          height: 400px;
-          overflow: hidden;
           /* Small fade at the bottom so the code window melts into the
              card instead of being cut off by the slot. */
           mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent);
+          padding-top: 18px;
+          height: 400px;
+          overflow: hidden;
 
           & > [data-part="marquee"] {
             flex: none;
@@ -664,11 +678,14 @@
             }
 
             & > [data-part="track"] {
+              /* Overridden inline with the real chip count in the markup;
+                 12 keeps the keyframe period sane before that. */
+              --marquee-chip-count: 12;
               display: flex;
               /* One loop covers one group's width, so scaling the period by
                  the chip count keeps the drift speed stable if the list
                  changes. */
-              animation: marketing-tests-marquee calc(var(--marquee-chip-count, 12) * 4s) linear infinite;
+              animation: marketing-tests-marquee calc(var(--marquee-chip-count) * 4s) linear infinite;
               width: max-content;
 
               @media (prefers-reduced-motion: reduce) {
@@ -693,8 +710,8 @@
                 top: 50%;
                 right: 0;
                 left: 0;
-                height: 1px;
                 background: var(--marketing-illustration-neutral-4);
+                height: 1px;
                 content: "";
               }
             }
@@ -758,9 +775,9 @@
                 margin: 0;
                 /* Left inset keeps the diff marker off the number gutter. */
                 padding: 0 var(--noora-spacing-5) 0 var(--noora-spacing-4);
+                overflow: hidden;
                 color: var(--noora-surface-label-primary);
                 font: inherit;
-                overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: pre;
 
@@ -795,8 +812,8 @@
                   background: var(--marketing-tint-red);
 
                   &::before {
-                    color: light-dark(var(--noora-red-500), var(--noora-red-400));
                     content: "−";
+                    color: light-dark(var(--noora-red-500), var(--noora-red-400));
                   }
                 }
               }
@@ -811,8 +828,8 @@
                   background: var(--marketing-tint-green);
 
                   &::before {
-                    color: light-dark(var(--noora-green-500), var(--noora-green-400));
                     content: "+";
+                    color: light-dark(var(--noora-green-500), var(--noora-green-400));
                   }
                 }
               }
