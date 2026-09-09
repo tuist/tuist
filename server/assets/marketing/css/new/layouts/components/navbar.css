@@ -1208,11 +1208,11 @@
       flex-direction: column;
       gap: var(--noora-spacing-2);
       box-sizing: border-box;
+      padding: var(--noora-spacing-7);
       /* Lets the 1fr tracks shrink below the nowrap subtitle's intrinsic
          width, so the ellipsis engages instead of the panel growing a
          horizontal scrollbar. */
       min-width: 0;
-      padding: var(--noora-spacing-7);
       text-decoration: none;
 
       & > [data-part="title"] {
