@@ -2203,12 +2203,17 @@ func peerRoles(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, primaryPo
 		}
 		return ordered[i] < ordered[j]
 	})
+	scheduled := make(map[string]string, len(pods))
+	for i := range pods {
+		scheduled[pods[i].Name] = pods[i].Spec.NodeName
+	}
 	roles := make([]kurav1alpha1.KuraInstancePeerRole, 0, len(ordered))
 	for _, name := range ordered {
 		roles = append(roles, kurav1alpha1.KuraInstancePeerRole{
 			NodeURL: podNodeURL(instance, name),
 			Gateway: name == gatewayPod,
 			Primary: name == primaryPod,
+			Node:    scheduled[name],
 		})
 	}
 	return roles

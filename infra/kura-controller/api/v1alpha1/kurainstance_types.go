@@ -245,6 +245,20 @@ type KuraInstancePeerRole struct {
 	NodeURL string `json:"nodeURL"`
 	Gateway bool   `json:"gateway"`
 	Primary bool   `json:"primary"`
+
+	// Node is the box the pod is scheduled on, empty when it is not
+	// scheduled or does not exist yet. On host-network regions the primary's
+	// box is the one the account's customer DNS record targets and the only
+	// one whose gateway serves it without a cross-box hop, so this is what
+	// makes "is the record pointing at a box that can serve" a single read.
+	//
+	// An account's replicas can report different boxes. The pod affinity only
+	// prefers co-location and the StatefulSet uses Parallel pod management, so
+	// a region with more than one box can place them apart, and a cache PV is
+	// a local-path directory with hard node affinity, so it then holds for the
+	// life of those volumes. That is not a fault and is deliberately not
+	// reconverged: see the placement note in AGENTS.md.
+	Node string `json:"node,omitempty"`
 }
 
 type KuraInstanceStatus struct {

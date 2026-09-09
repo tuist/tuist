@@ -3819,6 +3819,40 @@ func TestPeerRolesListsExpectedOrdinalsAndSurplusPods(t *testing.T) {
 	}
 }
 
+// The primary's box is what the account's customer DNS record has to target on
+// a host-network region, so peerRoles carries it. Replicas can report different
+// boxes: co-location is only preferred, and a cache PV pins a pod to its box for
+// the volume's life, so a straddling instance is a lasting state rather than a
+// move in flight.
+func TestPeerRolesCarriesTheBoxEachPodRunsOn(t *testing.T) {
+	replicas := int32(3)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+
+	onBox := func(ordinal int, box string) corev1.Pod {
+		pod := *kuraPod(instance.Name, instance.Namespace, ordinal, true)
+		pod.Spec.NodeName = box
+		return pod
+	}
+	// Ordinal 2 is expected but not scheduled yet, so it reports no box.
+	pods := []corev1.Pod{onBox(0, "box-1"), onBox(1, "box-2")}
+
+	got := peerRoles(instance, pods, instance.Name+"-1", instance.Name+"-0")
+	want := []kurav1alpha1.KuraInstancePeerRole{
+		{NodeURL: "https://kura-tuist-eu-1-0.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Gateway: true, Node: "box-1"},
+		{NodeURL: "https://kura-tuist-eu-1-1.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Primary: true, Node: "box-2"},
+		{NodeURL: "https://kura-tuist-eu-1-2.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("peerRoles = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("peerRoles[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestPodNodeURLMatchesRenderedEnv(t *testing.T) {
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
 	env := map[string]string{}
@@ -4019,9 +4053,11 @@ func TestKuraInstanceReconcileKeepsTheGatewayOffAnEvacuatingPod(t *testing.T) {
 	if err := reconciler.Get(ctx, req.NamespacedName, got); err != nil {
 		t.Fatal(err)
 	}
+	// The boxes ride along, so a status read during an evacuation says which
+	// replica is still on the retiring one.
 	want := []kurav1alpha1.KuraInstancePeerRole{
-		{NodeURL: podNodeURL(instance, instance.Name+"-0")},
-		{NodeURL: podNodeURL(instance, instance.Name+"-1"), Gateway: true, Primary: true},
+		{NodeURL: podNodeURL(instance, instance.Name+"-0"), Node: "old-box"},
+		{NodeURL: podNodeURL(instance, instance.Name+"-1"), Gateway: true, Primary: true, Node: "new-box"},
 	}
 	if len(got.Status.PeerRoles) != len(want) {
 		t.Fatalf("status.peerRoles = %+v, want %+v", got.Status.PeerRoles, want)
