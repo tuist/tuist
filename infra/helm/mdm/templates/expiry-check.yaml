@@ -1,0 +1,98 @@
+{{- if .Values.expiryCheck.enabled }}
+{{- $fullname := include "mdm.fullname" . -}}
+{{- $tag := required "images.enroller.tag is required" .Values.images.enroller.tag -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullname }}-expiry-check
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: expiry-check
+spec:
+  schedule: {{ .Values.expiryCheck.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- include "mdm.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: expiry-check
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          {{- include "mdm.podScheduling" . | nindent 10 }}
+          containers:
+            - name: check
+              image: "{{ .Values.images.enroller.repository }}:{{ $tag }}"
+              imagePullPolicy: {{ .Values.images.enroller.pullPolicy }}
+              args: ["check-expiry"]
+              env:
+                - name: EXPIRY_WARN_DAYS
+                  value: {{ .Values.expiryCheck.warnDays | quote }}
+                - name: EXPIRY_CRIT_DAYS
+                  value: {{ .Values.expiryCheck.critDays | quote }}
+                - name: EXPIRY_DEP_NAME
+                  value: {{ .Values.nanodep.depName | quote }}
+                - name: EXPIRY_NANODEP_URL
+                  value: "http://{{ $fullname }}-nanodep:9001"
+                - name: EXPIRY_SLACK_CHANNEL
+                  value: {{ .Values.expiryCheck.slack.channel | quote }}
+                - name: EXPIRY_NANODEP_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $fullname }}-runtime
+                      key: nanodep-api-key
+                - name: EXPIRY_SLACK_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $fullname }}-expiry
+                      key: slack-token
+                      optional: true
+              volumeMounts:
+                - name: certs
+                  mountPath: /certs
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.expiryCheck.resources | nindent 16 }}
+          volumes:
+            - name: certs
+              secret:
+                secretName: {{ $fullname }}-expiry
+                optional: true
+{{- if .Values.runtimeSecrets.externalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fullname }}-expiry
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mdm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: expiry-check
+spec:
+  refreshInterval: "12h"
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fullname }}-expiry
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        apns-push-cert.pem: '{{ `{{ index . "apns-push-cert-pem" | default "" | trim }}` }}'
+        devid-installer-cert.pem: '{{ `{{ index . "devid-installer-cert-pem" | default "" | trim }}` }}'
+        slack-token: '{{ `{{ .slackToken | default "" | trim }}` }}'
+  data:
+    - secretKey: slackToken
+      remoteRef:
+        key: {{ printf "%s/%s" .Values.expiryCheck.slack.tokenItem .Values.expiryCheck.slack.tokenField | quote }}
+  dataFrom:
+    - extract:
+        key: {{ .Values.runtimeSecrets.externalSecret.item | quote }}
+{{- end }}
+{{- end }}

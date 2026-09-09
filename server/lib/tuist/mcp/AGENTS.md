@@ -5,6 +5,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - JSON-RPC request handling
 - MCP tools and prompts
 - MCP authorization/serialization helpers
+- Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync
 

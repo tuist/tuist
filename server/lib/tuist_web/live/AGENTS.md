@@ -3,7 +3,9 @@
 This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
+- Xcode machine metrics with recorded build-relative offsets appear as shared-clock tracks in Timeline; legacy metrics without an offset retain the Machine Metrics tab. Samples travel only with the initial timeline payload, never every range response.
 - Render LiveView pages and handle UI events.
+- The Xcode build detail Timeline tab loads step intervals only when opened, showing shared dashboard skeletons while loading; `BuildTimeline` renders the canvas through the matching frontend hook. Payloads are delivered through hook replies, not HTML attributes; after the initial hook reply only the summary stays in assigns; reopening the tab reloads the payload. Completion notifications refresh machine metrics before rebuilding the timeline. Range queries, keyboard navigation and step logs load in cancellable async tasks scoped to the current build. Range requests reuse the server-held initial summary, never client-supplied totals or duration. Initial views show the full build duration, including recorded trailing idle time. Narrower time windows include neighboring individual steps for local zooming without category aggregation. Older builds may have no timeline data.
 - Orchestrate UI state while delegating domain operations to `server/lib/tuist`.
 - Bazel exposes test case automations through the shared project settings tabs. Keep quarantine setup and target-level skipping guidance in the Bazel flaky-tests documentation, not page banners.
 - Xcode overview charts opt into Noora's `data-lazy="true"` behavior so charts
