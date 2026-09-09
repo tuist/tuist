@@ -10,8 +10,8 @@ This directory contains database migrations and other private assets.
   Signup artwork is WebP at twice its rendered width; keep replacements within
   the static-image budget.
 - The shared marketing header keeps the original `hero-background.webp` and
-  `hero-background-sm.webp` artwork, with responsive derivatives at desktop
-  widths 1920/3840 and mobile widths 640/1280. Regenerate from those originals
+  `hero-background-sm.webp` artwork as regeneration sources, with compact
+  derivatives at 960px desktop and 480px mobile. Regenerate from those originals
   with `magick INPUT -resize WIDTHx -quality 85 -define webp:method=6 OUTPUT`.
 
 ## Demo Data
