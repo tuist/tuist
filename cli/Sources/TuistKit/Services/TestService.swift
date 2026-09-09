@@ -318,8 +318,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         if action == .testWithoutBuilding,
-           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path),
-           try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
+           let testProductsPath = try await selectiveTestingBundlePath(
+               passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+               relativeTo: path
+           )
         {
             try await runTestWithoutBuildingFromBundle(
                 schemeName: schemeName,
@@ -577,20 +579,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if action == .build {
+            let selectiveTestingGraph = computeSelectiveTestingGraph(
+                mapperEnvironment: mapperEnvironment,
+                schemes: schemes,
+                testPlanConfiguration: testPlanConfiguration
+            )
+
+            var writtenGraphDirectories: Set<AbsolutePath> = []
+
             if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 derivedDataPath: derivedDataPath,
                 relativeTo: path
             ) {
-                let selectiveTestingGraph = computeSelectiveTestingGraph(
-                    mapperEnvironment: mapperEnvironment,
-                    schemes: schemes,
-                    testPlanConfiguration: testPlanConfiguration
+                try await fileSystem.writeAsJSON(
+                    selectiveTestingGraph,
+                    at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
                 )
-                let selectiveTestingGraphPath = testProductsPath.appending(
-                    component: SelectiveTestingGraph.fileName
-                )
-                try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
+                writtenGraphDirectories.insert(testProductsPath)
 
                 await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
 
@@ -616,7 +622,36 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     )
                 }
             }
+
+            // Also persist the graph next to any `.xctestrun` files in derived data. CI pipelines
+            // that cache raw xctestrun output (rather than an `.xctestproducts` bundle) can then
+            // hand it to a later `tuist test --without-building -- -xctestrun <path>` invocation,
+            // which reuses the graph and skips project generation entirely.
+            for xctestrunDirectory in try await xctestrunOutputDirectories(derivedDataPath: derivedDataPath)
+                where !writtenGraphDirectories.contains(xctestrunDirectory)
+            {
+                try await fileSystem.writeAsJSON(
+                    selectiveTestingGraph,
+                    at: xctestrunDirectory.appending(component: SelectiveTestingGraph.fileName)
+                )
+                writtenGraphDirectories.insert(xctestrunDirectory)
+            }
         }
+    }
+
+    /// xcodebuild emits `.xctestrun` files at the top of `<derivedData>/Build/Products/` — the
+    /// `.xctest`, `.framework`, and `.dSYM` bundles that share that directory can contain thousands
+    /// of nested files, so a recursive glob is wasteful. Stick to the shallow location that Xcode
+    /// actually writes to.
+    private func xctestrunOutputDirectories(derivedDataPath: AbsolutePath?) async throws -> [AbsolutePath] {
+        guard let derivedDataPath else { return [] }
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        guard try await fileSystem.exists(buildProductsPath) else { return [] }
+        let hasXctestrun = try await !fileSystem
+            .glob(directory: buildProductsPath, include: ["*.xctestrun"])
+            .collect()
+            .isEmpty
+        return hasXctestrun ? [buildProductsPath] : []
     }
 
     // MARK: - Quarantine
@@ -1015,6 +1050,45 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return absolute
         }
         return try? AbsolutePath(validating: value, relativeTo: path)
+    }
+
+    private func xctestrunPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
+        guard let index = arguments.firstIndex(of: "-xctestrun"),
+              arguments.indices.contains(index + 1)
+        else { return nil }
+        let value = arguments[index + 1]
+        if let absolute = try? AbsolutePath(validating: value) {
+            return absolute
+        }
+        return try? AbsolutePath(validating: value, relativeTo: path)
+    }
+
+    /// Locates the directory that holds a persisted `selective-testing-graph.json`, either as
+    /// contents of a `.xctestproducts` bundle passed via `-testProductsPath`, or alongside a raw
+    /// `.xctestrun` file passed via `-xctestrun`. Returning a value lets `test --without-building`
+    /// take the bundle fast path and skip project generation.
+    ///
+    /// Precedence matches xcodebuild's own input-mode precedence: if `-testProductsPath` is
+    /// present it owns the test products, so we must only ever read a graph from that bundle. We
+    /// never fall through to a `-xctestrun` sibling in that case, because doing so could pair the
+    /// build products from the bundle with a graph computed for unrelated test-run configuration.
+    private func selectiveTestingBundlePath(
+        passthroughXcodeBuildArguments: [String],
+        relativeTo path: AbsolutePath
+    ) async throws -> AbsolutePath? {
+        if let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path) {
+            if try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName)) {
+                return testProductsPath
+            }
+            return nil
+        }
+        if let xctestrunPath = xctestrunPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path) {
+            let siblingDirectory = xctestrunPath.parentDirectory
+            if try await fileSystem.exists(siblingDirectory.appending(component: SelectiveTestingGraph.fileName)) {
+                return siblingDirectory
+            }
+        }
+        return nil
     }
 
     private func buildTestWithoutBuildingArguments(
