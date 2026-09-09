@@ -64,7 +64,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sets a uniform enterprise egress floor across the bare-metal regions" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west", "eu-east", "us-central"] do
         assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
       end
 
@@ -104,7 +104,7 @@ defmodule Tuist.Kura.RegionsTest do
       # Safe here and not before: a tiered floor sits far below its ceiling, so
       # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
       # it the pod's cgroup memory.min. That gate ships in this same change.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west", "eu-east", "us-central"] do
         assert Regions.memory_governed?(Regions.get(id))
       end
 
@@ -114,7 +114,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "bin-packs memory ceilings only where a node budget is advertised" do
       # Every managed region runs on a bare-metal pool the CAPI provider patches
       # with a tuist.dev/memory-ceiling-mib budget.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west", "eu-east", "us-central"] do
         assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
       end
 
@@ -125,7 +125,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sizes the managed regions' storage per tier" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west", "eu-east", "us-central"] do
         assert Regions.storage_governed?(Regions.get(id))
       end
 
@@ -354,7 +354,9 @@ defmodule Tuist.Kura.RegionsTest do
         # go unclaimed the moment it was switched on, and nothing else in the
         # tree ties the two files together.
         "ap-southeast" => "kura-ap-southeast-ingress-nginx",
-        "sa-west" => "kura-sa-west-ingress-nginx"
+        "sa-west" => "kura-sa-west-ingress-nginx",
+        "eu-east" => "kura-eu-east-ingress-nginx",
+        "us-central" => "kura-us-central-ingress-nginx"
       }
 
       for {id, platform_ingress_key} <- platform_ingress_keys do
@@ -396,7 +398,11 @@ defmodule Tuist.Kura.RegionsTest do
         # unstated instead of guessed.
         "ap-southeast" => %{country: "SG", subdivision: nil},
         # Vultr Santiago, in the Región Metropolitana.
-        "sa-west" => %{country: "CL", subdivision: "CL-RM"}
+        "sa-west" => %{country: "CL", subdivision: "CL-RM"},
+        # OVHcloud Warsaw, in the Masovian Voivodeship.
+        "eu-east" => %{country: "PL", subdivision: "PL-MZ"},
+        # Vultr Chicago, in Illinois.
+        "us-central" => %{country: "US", subdivision: "US-IL"}
       }
 
       for {id, location} <- locations do

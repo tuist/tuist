@@ -358,7 +358,7 @@ kuraController:
 # on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -830,6 +830,27 @@ vultrFleet:
     item: VULTR_API
 
 vultrFleets:
+  # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
+  # in the US interior; the plan and shape match sa-west exactly, so the machine
+  # kind, the disk conversion and the fleet wiring are the ones already proven
+  # there.
+  #
+  # Disabled until the box is ordered and converted. The self-join refuses a box
+  # whose /data cannot enforce project quotas, and an enabled fleet with no
+  # adoptable box wedges `helm --wait` for every production deploy.
+  us-central:
+    enabled: false
+    replicas: 1
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
   # South America West (Santiago), on Vultr because no other provider in the
   # fleet sells bare metal in South America.
   #
@@ -892,6 +913,26 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
+  # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
+  # metered provider where an unmetered one is available.
+  #
+  # Disabled until a box is ordered, prepped and marked. An enabled fleet with no
+  # adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy, not just this region.
+  eu-east:
+    enabled: false
+    replicas: 1
+    nodePool: kura-eu-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
+      offer: advance-1
+      datacenter: waw
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   us-east:
     enabled: true
     replicas: 2
