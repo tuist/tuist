@@ -2312,6 +2312,11 @@ runnersFleet:
     #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
     #   # Linux block); override here to add extra labels.
     #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
+    #   # Optional. Host fleet whose Nodes this pool's runners land on;
+    #   # defaults to this block's own fleet. Set it to place work on a
+    #   # macOS fleet other than runnersFleet, which today means the
+    #   # rack-owned minis in `rackFleet`.
+    #   fleetSelector: ""
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336

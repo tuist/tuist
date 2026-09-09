@@ -989,7 +989,31 @@ runnersFleet:
   # constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
   runnerImageSemver: ""
-  pools: []
+  # One explicit pool placed on the BER1 rack fleet rather than the rented
+  # Scaleway minis, so a real GitHub Actions job can run on hardware we own.
+  # `runs-on: tuist-ber1-smoke` reaches this server's webhook handler, which
+  # matches the label to this pool and dispatches a runner onto a rack Node.
+  #
+  # This key is the one that counts: an earlier `pools:` in this same mapping
+  # would be silently discarded, because YAML resolves duplicate keys last-wins
+  # and Helm never warns.
+  #
+  # A fixed replica rather than autoscaling: the fleet allocator apportions
+  # guest slots across the macOS pools of ONE fleet, and this pool deliberately
+  # sits in another, so an explicit count keeps it out of that arithmetic. It
+  # costs the rack's single guest slot, which nothing else competes for.
+  #
+  # The image is the 26.6 runner because the prototype host runs macOS 26.6 and
+  # a Tart guest cannot be newer than its host.
+  pools:
+    - name: ber1
+      runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
+      dispatchLabel: tuist-ber1-smoke
+      fleetSelector: tuist-tuist-rack-fleet
+      replicas: 1
+      pod:
+        cpuMilli: 6000
+        memoryMB: 14336
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
 # Tart images are global GHCR artifacts, so only the production fleet
