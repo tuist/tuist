@@ -7,15 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// zz_generated.deepcopy.go is written by controller-gen, which skips any type
-// that already declares a DeepCopyInto method. A pointer, map or slice field on
-// a skipped type is shallow-copied by `*out = *in`, so the copy aliases the
-// original — which silently breaks controller-runtime's cache isolation: a
-// reconciler mutating what it believes is its own copy corrupts the cached
-// object and the patch baseline computed from it. The compiler cannot catch it,
-// and neither can regenerating, which produces no diff for a skipped type. So
-// assert it here: every reference field must survive a round trip through
-// DeepCopy with its own backing memory.
+// zz_generated.deepcopy.go is written by controller-gen through
+// `mise run capi-scaleway-applesilicon:generate`. A pointer, map or slice field
+// added to a spec or status without a matching block there is shallow-copied by
+// `*out = *in`, so the copy aliases the original, which silently breaks
+// controller-runtime's cache isolation: a reconciler mutating what it believes
+// is its own copy corrupts the cached object and the patch baseline computed
+// from it. The generator gets this right, but only for the types it covers: one
+// declaring its own DeepCopyInto is skipped entirely, and regenerating then
+// produces no diff to catch it. The compiler catches neither, so assert it
+// here: every reference field must survive a round trip through DeepCopy with
+// its own backing memory.
 func TestScalewayAppleSiliconMachineStatusDeepCopyDoesNotAliasPointers(t *testing.T) {
 	reason := "TartKubeletUpdateExceededRetries"
 	message := "tart-kubelet update failed 5 times"
