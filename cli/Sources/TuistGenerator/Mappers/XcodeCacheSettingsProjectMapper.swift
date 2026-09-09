@@ -17,17 +17,20 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
     private let kuraEnabled: Bool
     private let casPluginCandidates: [AbsolutePath]
     private let fileSystem: FileSysteming
+    private let cacheSocketService: CacheSocketServicing
 
     public init(
         tuist: Tuist,
         kuraEnabled: Bool = false,
         casPluginCandidates: [AbsolutePath] = [],
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        cacheSocketService: CacheSocketServicing = CacheSocketService()
     ) {
         self.tuist = tuist
         self.kuraEnabled = kuraEnabled
         self.casPluginCandidates = casPluginCandidates
         self.fileSystem = fileSystem
+        self.cacheSocketService = cacheSocketService
     }
 
     public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
@@ -103,6 +106,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                         Environment.current.casProxySocketPathString()
                     )
+                    warnIfCASProxyIsUnreachable(fullHandle: fullHandle)
                 } else {
                     // Kura is enabled but the bundled dylib is absent, so the build
                     // silently falls back to local-only caching (no remote). Warn
@@ -131,6 +135,16 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         )
 
         return (project, [])
+    }
+
+    /// The proxy unlinks its socket at bind and never at exit, so the file on disk
+    /// outlives the process and only a `connect()` tells a live proxy from a dead one.
+    private func warnIfCASProxyIsUnreachable(fullHandle: String) {
+        let socketPath = Environment.current.casProxySocketPath()
+        guard !cacheSocketService.canConnect(to: socketPath) else { return }
+        Logger.current.warning(
+            "Xcode Cache is enabled for \(fullHandle) but nothing is listening on the CAS proxy socket at \(socketPath.pathString). This build will use local-only compilation caching with no remote cache. Run `tuist setup cache` to start the proxy."
+        )
     }
 
     /// Whether the selected Xcode's build system implements the source/build
