@@ -4,7 +4,9 @@
 
 use std::time::Duration;
 
+use axum::http;
 use tokio::net::TcpListener;
+use tower::ServiceExt;
 
 use crate::{
     artifact::producer::ArtifactProducer,
@@ -104,6 +106,10 @@ async fn node(region: &'static str, tune: impl FnOnce(&mut crate::config::Config
         .store
         .run_backfill_index_build()
         .expect("index build");
+    // The view a node publishes about itself says `serving`; the gateway
+    // rule ranks a joining node behind a serving one, so without this two
+    // nodes of a region each elect the other and neither takes the role.
+    context.state.runtime.mark_serving();
     let app = internal_router(context.state.clone());
     let server = tokio::spawn(async move {
         axum::serve(listener, app).await.expect("test server");
@@ -259,6 +265,127 @@ async fn regions_of_one_converge_through_the_ascending_read() {
         us.state().store.sync_feed().head() == 0,
         "no sibling asked, so no rows yet"
     );
+}
+
+// A-28: three nodes, two regions. The gateway serves the remote's ascending
+// read only up to what its sibling link has delivered, so a record that
+// link could still be carrying cannot be stepped over. The withheld entry's
+// own recovery through the cursor is asserted at the endpoint level in
+// `sync::tests`; here the link's frontier is real and moves on its own.
+#[tokio::test(flavor = "multi_thread", worker_threads = 6)]
+async fn a_gateway_lists_a_region_read_only_up_to_its_replica_link_frontier() {
+    let one = node("local", |_| {}).await;
+    let two = node("local", |_| {}).await;
+    let remote = node("eu", |_| {}).await;
+    one.see(&[&two, &remote]);
+    two.see(&[&one, &remote]);
+    remote.see(&[&one, &two]);
+    let (gateway, writer) = if one.state().sync.own_gateway() {
+        (&one, &two)
+    } else {
+        (&two, &one)
+    };
+    assert!(gateway.state().sync.own_gateway());
+    assert!(!writer.state().sync.own_gateway());
+    assert!(remote.state().sync.own_gateway());
+    assert_eq!(
+        remote
+            .state()
+            .sync
+            .link_statuses()
+            .iter()
+            .map(|status| status.peer.as_str())
+            .collect::<Vec<_>>(),
+        vec![gateway.url.as_str()],
+        "the remote reads the region through its gateway"
+    );
+
+    // End to end: writer -> gateway over the feed -> remote over the
+    // ascending read, which is only possible once the gateway's link
+    // frontier has passed the record's version.
+    let warm = writer.write("warm", b"w").await;
+    remote.wait_for(&warm).await;
+    let replica_frontier = || {
+        gateway
+            .state()
+            .sync
+            .link_statuses()
+            .into_iter()
+            .find(|status| status.kind == LinkKind::Replica)
+            .expect("the gateway keeps a replica link")
+            .frontier_ms
+    };
+    let warm_version = gateway
+        .state()
+        .store
+        .manifest(&warm)
+        .expect("read")
+        .expect("present")
+        .version_ms;
+    assert!(
+        replica_frontier() > warm_version,
+        "the link frontier passed the record it delivered"
+    );
+
+    // Hold the frontier at a record's own version: the bound sits one
+    // millisecond below it, and the gateway lists nothing that far up.
+    let held = gateway.write("held", b"h").await;
+    let held_version = gateway
+        .state()
+        .store
+        .manifest(&held)
+        .expect("read")
+        .expect("present")
+        .version_ms;
+    gateway
+        .state()
+        .sync
+        .set_replica_link_frontier(&writer.url, held_version);
+    assert_eq!(
+        gateway.state().sync.listing_bound(gateway.state()),
+        held_version - 1
+    );
+    assert!(
+        !ascending_lists(gateway, warm_version, &held).await,
+        "an entry at the replica link's frontier is withheld"
+    );
+
+    // The link refreshes its frontier on its own, and the record follows.
+    for _ in 0..200 {
+        if replica_frontier() > held_version {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(replica_frontier() > held_version, "the frontier moved on");
+    assert!(ascending_lists(gateway, warm_version, &held).await);
+    remote.wait_for(&held).await;
+}
+
+/// Whether the node's ascending region listing shows `artifact_id`.
+async fn ascending_lists(node: &Node, from_version_ms: u64, artifact_id: &str) -> bool {
+    let response = crate::http::internal_router(node.state().clone())
+        .oneshot(
+            tokio::task::block_in_place(|| {
+                http::Request::builder()
+                    .uri(format!(
+                        "/_internal/backfill/entries?order=asc&origin_region=local&limit=100&from_version_ms={from_version_ms}"
+                    ))
+                    .body(axum::body::Body::empty())
+            })
+            .expect("request"),
+        )
+        .await
+        .expect("route");
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body");
+    let page: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+    page["entries"]
+        .as_array()
+        .expect("entries")
+        .iter()
+        .any(|entry| entry["record_id"].as_str() == Some(artifact_id))
 }
 
 // A-27: a sibling that flaps through the membership view keeps charging the

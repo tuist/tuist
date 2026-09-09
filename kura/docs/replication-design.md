@@ -591,12 +591,29 @@ seconds as the replica link (D-8); a failed read retries on the backoff the back
 already uses (250 ms doubling to 5 s). Every listing response carries the
 peer's `now`, a new field on `/_internal/backfill/entries`.
 
-The ascending read also carries a settle guard. A record's `version_ms` is
-stamped before its batch commits, and batches commit in any order, so a puller
-that lists up to the newest committed entry could skip a lower entry whose
-batch is still landing. The serving node therefore never lists an entry
-younger than `now − KURA_SYNC_REGION_SETTLE_MS` (default 2 s) — the ascending
-read's equivalent of the feed's contiguous head (D-6).
+The ascending read is bounded by a **frontier**, so the serving node lists an
+entry only once nothing with a lower `version_ms` can still arrive on it
+(D-24). Two things can put a record below what has already been listed. Its
+own batch may still be landing — `version_ms` is stamped before the commit,
+and batches commit in any order. And it may still be in flight from the
+sibling, which delivers in page-sized batches long after the stamp and out of
+version order; that one is unbounded by any clock offset, and it is what a
+`now − settle` guard misses.
+
+Both are answered by the arrival feed's own ordering. A seq and a wall-clock
+stamp are taken together at allocation, and a write this node generates takes
+its `version_ms` from that stamp, so versions order like seqs. The feed's
+**frontier** is then the stamp of the lowest in-flight seq (or `now` when
+none): every server-generated record below it has committed. Each forward
+response carries the frontier, and a puller keeps the last one per link — the
+snapshot's, the page's when it leaves the link caught up, otherwise the last
+applied row's arrival stamp, since the rows above it were stamped no earlier.
+The serving bound is the minimum of this node's own frontier and every open
+replica link's, each exclusive, and never above `now − KURA_SYNC_REGION_SETTLE_MS`.
+A link that has not settled or has never reported bounds everything: the
+listing waits rather than skipping a version that link may yet deliver.
+`kura_region_listing_bound_lag_seconds` reports `now` minus the bound. A
+region of one carries no feed and keeps the settle window alone.
 
 **The page cursor is the full index key, the watermark is only its
 `version_ms`.** `version_ms` has millisecond granularity and a busy region
@@ -1222,8 +1239,8 @@ to re-check when a measurement disagrees.
 | --- | --- | --- |
 | Pass-start buffer (§4.4) — `KURA_SYNC_PASS_START_BUFFER_MS` | 10 min | Covers the origin region's own lag when the watermark last advanced; the tail is that region's rollout. Cost is listing only, horizon-floored. Re-check against the observed distribution of (arrival at the origin's gateway − `version_ms`). |
 | Feed cap (§3.1) — `KURA_SYNC_FEED_MAX_ROWS` | 1,000,000 rows (~100 MB) | Must hold the writes that land during the longest backward pass a sibling can need, or recovery loops. Re-check against peak write rate × cold-pass duration. |
-| Long-poll wait (§3.1, §4.1) — `KURA_SYNC_LONG_POLL_SECS` | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8). Idle polls re-check every second, bounding a missed wake; the ceiling is 60 s. Bounds how long a cleanly idle link goes without a proof of life. |
-| Settle guard on ascending reads (§4.1) — `KURA_SYNC_REGION_SETTLE_MS` | 2 s | The serving node never lists an entry younger than this: batches commit in any order after their `version_ms` is stamped, and a lower entry still landing would be skipped by a puller that read past it (D-6). Re-check against the observed commit latency under load. |
+| Long-poll wait (§3.1, §4.1) — `KURA_SYNC_LONG_POLL_SECS` | 25 s | Below the peer client's 30 s idle read timeout, which every internal request shares — a 30 s hold would race it (D-8). Idle polls re-check every second, bounding a missed wake; the ceiling is 60 s. Bounds how long a cleanly idle link goes without a proof of life. The replica link caps its own wait at the settle window instead, because its response carries the frontier the serving bound reads (D-24); a committed row still returns at once, so the cap costs one idle loopback request per window and no latency. |
+| Region-of-one bound on ascending reads (§4.1) — `KURA_SYNC_REGION_SETTLE_MS` | 2 s | Where there is no arrival feed — a region of one — the serving node lists nothing younger than this, because batches commit in any order after their `version_ms` is stamped (D-6). Where there is a feed the frontier is exact and this is only the ceiling on it (D-24). Re-check against the observed commit latency under load. |
 | Feed stale-peer window (§3.1) — `KURA_SYNC_FEED_STALE_PEER_SECS` | 30 min | The feed turns off, dropping its rows, once no sibling has asked for this long; the mesh's own stale-peer window, so a sibling that is merely restarting never loses its feed. |
 | Drain margin (§3.5) — `KURA_SYNC_DRAIN_MARGIN_MS` | 5 s | Subtracted from the termination grace period to leave the process time to exit cleanly after the gate; the gate itself is the drain wait below. |
 | The flip (§5.2) — `KURA_REPLICATION_PULL`, account flag `kura_replication_pull` | off | Per node by env, per account by the server flag rendered into each managed instance's spec and its manifest revision, so the flip rolls; either source makes the node advertise `pulling`. |

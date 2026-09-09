@@ -161,7 +161,9 @@ other length, so widening it would break the listing under rollback. The
 ascending read looks the origin up per row (manifest cache first); the cost
 is bounded by the page and paid only by forward region reads.
 
-**D-6 — Ascending reads carry a settle guard.** A record's `version_ms` is
+**D-6 — Ascending reads carry a settle guard.** *(Superseded by D-24 on
+any node that carries an arrival feed; it remains the whole rule for a
+region of one, which has none.)* A record's `version_ms` is
 stamped before its batch commits, and batches commit in any order, so a
 puller that lists up to the newest committed entry can skip a lower entry
 whose batch is still landing. The serving node never lists an entry younger
@@ -513,6 +515,65 @@ warm one). The coordinator now owns one counter per peer, handed to every
 task it spawns for that peer and cleared on a successful bootstrap, which
 restores the legacy cycle's property without fixing the membership.
 
+**D-24 — The ascending read's guard is a frontier, not a clock offset.**
+D-6 assumed every entry a node holds was committed within the settle window
+of its stamp. That is true of a node's own writes and false of what it
+receives from its same-region sibling: those arrive in page-sized batches
+long after their stamp (up to 29 s in Ring D), out of version order, so an
+entry can land *below* a remote reader's cursor and never be listed forward
+again. §3.4 measured it as a stable 1–9 misses per 200-action seed, and
+raising `KURA_SYNC_REGION_SETTLE_MS` on the serving region to 20 s turned
+the same read into 200/200 — the mechanism, but not a fix: the right
+constant is the sibling's worst delivery lag, which is unbounded.
+
+The guard is now exact, in three parts.
+
+*One stamp per record.* The feed allocates its seq and reads the wall clock
+together under the in-flight lock, carries that stamp on the ticket, and
+uses it as the row's `arrived_at_ms`. A write this node generates takes its
+`version_ms` from the same stamp instead of a separate `now_ms()` at spec
+build: `PersistArtifactSpec::server_stamped` marks those sites, their
+`version_ms` is `0` until staging resolves it, and the two prechecks compare
+at the clock instead (below the stamp staging will give it, so the
+last-writer-wins and tombstone gates stay conservative). A client-supplied
+version and a replicated apply keep the version they arrived with; a local
+namespace delete is stamped like a write, which means it holds its ticket
+across the namespace scan — deletes are rare enough for that to beat a
+tombstone the frontier cannot bound. `created_at_ms` follows `version_ms` as
+it always did, both being `persisted_version_ms` of the same value.
+
+*The frontier.* `SyncFeedState::frontier_ms` is the stamp of the lowest
+in-flight seq, or `now` when nothing is in flight. Because stamps order like
+seqs, every server-generated record with `version_ms < frontier_ms` has
+committed and is in the index. It rides both forward responses as an
+additive `frontier_ms`, and the replica link keeps the last one it was told
+per link: the snapshot's at bootstrap; the page's when a page leaves it
+caught up; the last applied entry's `arrived_at_ms` when it does not, since
+every row above that one carries a stamp at least as high.
+
+*The bound.* `SyncCoordinator::listing_bound` is the minimum of the feed's
+own frontier (or `now − settle` where there is no feed — a region of one is
+unchanged) and every open replica link's frontier, each exclusive, and the
+ascending read serves `min(now − settle, bound)`. A link that has not
+settled, or that has never reported, bounds everything: the listing waits
+rather than skipping a version that link may still deliver. That is
+deliberate — a stalled sibling pauses cross-region delivery instead of
+losing it — and `kura_region_listing_bound_lag_seconds` is what makes the
+pause visible. A peer too old to send a frontier leaves the link on the
+rows' own stamps, and on its clock when a caught-up page carries no rows,
+which is the settle-window exposure D-6 already had.
+
+One consequence had to be paid for: the bound only moves when a response
+carries a fresh frontier, so an idle sibling holding a 25 s long poll would
+have left a gateway's own writes unlistable for that long. The replica
+link's forward `wait` is therefore capped at the settle window. A committed
+row still returns the instant it lands — the cap changes nothing about row
+latency — and it costs one idle request per window on loopback. The region
+link keeps the full `KURA_SYNC_LONG_POLL_SECS`; only the loopback link pays.
+
+D-6 stands only where there is no feed. Ring A covers the pieces as A-28a–d
+plus the three-node link case; §3.5 is the fleet rerun.
+
 ### 3.4 Ring D — sustained REAPI load on k02 (2026-09-08)
 
 The first run that drives the mesh through the REAPI surface for a sustained
@@ -568,7 +629,8 @@ seed, ~75 s after it was written): 96%, 98%, 98%, 100%, 96%, 98%, 98% —
   regions the public Service served from the non-gateway replica and the
   gateways carried peer traffic only.
 
-**What it does not establish — a persistent cross-region gap (open).**
+**What it does not establish — a persistent cross-region gap.** *(Diagnosed as
+the settle-guard defect, fixed by D-24, re-measured in §3.5.)*
 D-5 fails. Reading a seed back from the region that did not write it returns
 the *same* hit count long after the mesh is quiescent as it did during the run
 (193/197/195/199/191/195/196 in-run, byte-identical in `verify.csv`), so the
@@ -680,7 +742,7 @@ The other four seeds read 200/200 in the run and in both verifies. Seeds 1 and 2
 were written before the last restart on the side that had to serve them; seeds 6
 and 8 were written after it, and stay three actions short — the two verify passes
 are byte identical, so they are stuck rather than lagging. That is exactly what
-the settle-guard defect predicts (`replication-design.md` §11 follow-up; the
+the settle-guard defect predicts (D-24; the
 investigation's tooling and evidence are in the harness under
 `~/.config/tuist/k01/replication/settle/`): a restarting node runs a buffered
 backward pass that recovers records the ascending, settle-bounded read had
@@ -700,3 +762,87 @@ controller-revision diff are in the harness repo under
 `~/.config/tuist/k01/replication/load/runs/20260908-2045-k02-ringd-chaos/`
 (`summary.md`, `findings.md`, `events.md`, `pods.csv`, `iterations.csv`,
 `verify1.csv`, `verify2.csv`, `cpu-band-roll.txt`).
+
+### 3.5 Ring D batch 1, rerun on D-24 (2026-09-09)
+
+Same cluster (`k02`, 3 microVM nodes), same topology, same load as §3.4's
+batch 1 — 8 iterations at a 75 s period, `--jobs=4`, 200 `genrule`s
+(68.3 MiB of incompressible payload each), alternating regions, 3,000 actions
+over 540 s = 333 actions/min — with the branch rebuilt to include D-24.
+
+`kura-runtime` digest `sha256:c0437d29…`, verified per pod:
+
+| pod | node | role | image digest |
+| --- | --- | --- | --- |
+| tuist-kura-0 | k02-0 | gateway `local` | `sha256:c0437d29…` |
+| tuist-kura-1 | k02-0 | client-serving `local` | `sha256:c0437d29…` |
+| tuist-kura-sh-0 | k02-0 | self-hosted stand-in `local` | `sha256:c0437d29…` |
+| tuist-kura-eu-0 | k02-2 | gateway `eu` | `sha256:c0437d29…` |
+| tuist-kura-eu-1 | k02-2 | client-serving `eu` | `sha256:c0437d29…` |
+
+The deploy needed two harness fixes, both committed there: the `KuraInstance`
+image was a fixed `:selfhost` tag pulled `IfNotPresent`, so containerd's cached
+layer kept every pod on the *previous* binary through a full rebuild — the CR
+is now applied by digest, which both forces the pull and rolls the sets — and
+`deploy.sh` re-applies its own two instance manifests, which silently dropped
+`KURA_REPLICATION_PULL` (`regions.sh flip k02 true` restores it, and the
+gateway of `local` came back to `tuist-kura-0`).
+
+Before the run: one gateway per region (`tuist-kura-0`, `tuist-kura-eu-0`),
+every link `forward`/`settled` with `lag_entries` 0, feeds enabled, outbox 0
+on all five pods.
+
+| pod | node | CPU s | mean/peak WS MB | rx MB | tx MB | REAPI r/w MB | data dir MB | max outbox | max fwd lag | max bound lag s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| tuist-kura-0 (gw local) | k02-0 | 22.5 | 41 / 65 | 576 | 851 | 0.0 / 0.0 | 3107 (+560) | 0 | 0 | 26 |
+| tuist-kura-1 | k02-0 | 20.2 | 44 / 70 | 578 | 1055 | 478.4 / 274.3 | 3023 (+561) | 0 | 0 | 10 |
+| tuist-kura-sh-0 | k02-0 | 17.4 | 40 / 53 | 571 | 16 | 0.0 / 0.0 | 3054 (+562) | 0 | 0 | 28 |
+| tuist-kura-eu-0 (gw eu) | k02-2 | 20.5 | 40 / 59 | 575 | 573 | 0.0 / 0.0 | 3016 (+570) | 0 | 0 | 17 |
+| tuist-kura-eu-1 | k02-2 | 19.5 | 35 / 58 | 579 | 845 | 546.7 / 274.3 | 2946 (+569) | 0 | 0 | 7 |
+
+(The data-dir deltas are against batch 2's closing figures, the last measurement
+these volumes carry; there was no write between the two runs.)
+
+**The defect is gone.**
+
+* Every in-run cross-region read is **200/200**: 7 reads, 1,400 of 1,400
+  actions, against batch 1's 96/98/98/100/96/98/98% (1,366 of 1,400).
+* `verify.sh` reads all **eight** seeds back from the region that did not write
+  them at **200/200**, where batch 1's verify was byte-identical to its short
+  in-run reads and never repaired.
+* The idle-mesh reproduction from the settle investigation — one 200-action
+  write into `local` on a quiescent mesh, read from `eu` two minutes later —
+  now returns **200/200** (03:02:45 write, 03:05:07 read). It returned 195/200
+  at two minutes and still 195/200 at six before D-24.
+* Every Bazel invocation exited 0; write builds 14.1–16.7 s, read builds
+  0.8–1.5 s, both in batch 1's range.
+
+**The new gauge shows the mechanism.** `kura_region_listing_bound_lag_seconds`
+sits at 0–1 s on every pod while the mesh is quiet, and rises on each gateway
+in step with its own region's write burst — peaks of 26 s on `tuist-kura-0`,
+17 s on `tuist-kura-eu-0`, 28 s on `tuist-kura-sh-0` — then returns to 0–1 s
+within one 15 s sample. That is the replica link's backlog holding the listing
+back, and it lines up with the up-to-29 s delivery lag the investigation
+measured: those are exactly the windows in which the old `now − 2 s` guard was
+listing past records still in flight from the sibling.
+
+**Steady state is unchanged.** Outbox 0 at all 60 samples on all five pods,
+forward cursor lag 0 everywhere (batch 1 had one 29-entry sample), every link
+`forward`/`settled` before and after, `gateway_role_changes` and
+`peer_connection_failures` flat through the run, memory pressure 0, no capacity
+shed of any kind, `kura_sync_forward_index_dropped_total`,
+`kura_sync_forward_drain_timeout_total` and `kura_sync_forward_fell_behind_total`
+all 0/absent, and the busiest pod peaked at 70 MB of working set and 22.5 CPU
+seconds over 885 s. Client traffic and the peer plane still separate: the REAPI
+byte counters moved only on `tuist-kura-1` and `tuist-kura-eu-1`.
+
+**The watermark sawtooth got slightly tighter.** `kura_region_watermark_age_seconds`
+still resets once per iteration and never ratchets; the reset level is now
+**3–5 s** on both gateways (batch 1: 5–8 s), which is the settle-window poll
+the replica link now runs showing up as a fresher bound. The climb between
+resets is the other region's idle period, as before.
+
+Raw data (`pods.csv` with the new `region_listing_bound_lag` column,
+`iterations.csv`, `verify.csv`, mesh state before and after, the load log) is in
+the harness under
+`~/.config/tuist/k01/replication/load/runs/20260908-2345-k02-ringd-d24/`.

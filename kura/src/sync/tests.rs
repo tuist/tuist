@@ -640,6 +640,258 @@ async fn ascending_index_read_filters_pages_and_settles() {
     assert!(params.is_empty());
 }
 
+// A-28b: a write this node generates takes its version from the feed
+// ticket's stamp, so versions order like seqs; an explicit version — a
+// replicated apply, or a delete carrying the origin's — is never rewritten.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn server_generated_versions_come_from_the_feed_ticket() {
+    let context = test_context(|_| {}).await;
+    let store = &context.state.store;
+    snapshot(&context).await;
+
+    let mut writes = tokio::task::JoinSet::new();
+    for index in 0..16 {
+        let store = store.clone();
+        writes.spawn(async move {
+            store
+                .persist_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &format!("concurrent-{index}"),
+                    "application/octet-stream",
+                    b"v",
+                )
+                .await
+                .expect("write should persist")
+        });
+    }
+    let mut versions = HashMap::new();
+    while let Some(manifest) = writes.join_next().await {
+        let manifest = manifest.expect("write task");
+        versions.insert(manifest.artifact_id.clone(), manifest.version_ms);
+    }
+
+    let rows = store.sync_feed_page(0, 100).expect("page");
+    assert_eq!(rows.len(), 16, "one row per write");
+    for row in &rows {
+        assert_eq!(
+            row.version_ms, row.arrived_at_ms,
+            "the row's version is the stamp its seq was allocated at"
+        );
+        assert_eq!(
+            versions.get(&row.record_id),
+            Some(&row.version_ms),
+            "the manifest carries the same version as its row"
+        );
+    }
+    let ordered: Vec<u64> = rows.iter().map(|row| row.version_ms).collect();
+    let mut sorted = ordered.clone();
+    sorted.sort_unstable();
+    assert_eq!(
+        ordered, sorted,
+        "concurrent writes are versioned in seq order"
+    );
+
+    // An explicit version rides through untouched, and so does its row.
+    let base = now_ms() - 60_000;
+    store
+        .apply_replicated_inline_artifact_from_bytes_with(
+            ApplyProvenance {
+                origin_region: Some("eu"),
+                sync_feed_row: true,
+            },
+            ArtifactProducer::Xcode,
+            "ios",
+            "from-eu",
+            "application/octet-stream",
+            b"v",
+            base,
+            None,
+            None,
+        )
+        .await
+        .expect("apply");
+    let applied = artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "from-eu");
+    assert_eq!(
+        store
+            .manifest(&applied)
+            .expect("read")
+            .expect("present")
+            .version_ms,
+        base,
+        "a replicated apply keeps the origin's stamp"
+    );
+    let row = store
+        .sync_feed_page(0, 100)
+        .expect("page")
+        .into_iter()
+        .find(|row| row.record_id == applied)
+        .expect("the cross-region apply earned a row");
+    assert_eq!(row.version_ms, base);
+    assert!(
+        row.arrived_at_ms > row.version_ms,
+        "its arrival is now, its version is the origin's"
+    );
+
+    // Tombstones follow the same split: local stamped, replicated kept.
+    let local = store.delete_namespace("ios").await.expect("delete");
+    let tombstone = store
+        .sync_feed_page(0, 100)
+        .expect("page")
+        .into_iter()
+        .find(|row| row.kind == SyncFeedKind::Record(BackfillRecordKind::NamespaceTombstone))
+        .expect("the delete earned a row");
+    assert_eq!(
+        (tombstone.version_ms, tombstone.arrived_at_ms),
+        (local, local),
+        "a local delete is stamped from its ticket"
+    );
+    store
+        .apply_replicated_namespace_delete("android", local + 5)
+        .await
+        .expect("replicated delete");
+    let replicated = store
+        .sync_feed_page(0, 100)
+        .expect("page")
+        .into_iter()
+        .rfind(|row| row.kind == SyncFeedKind::Record(BackfillRecordKind::NamespaceTombstone))
+        .expect("row");
+    assert_eq!(replicated.version_ms, local + 5);
+}
+
+async fn ascending(context: &TestContext, query: &str) -> Value {
+    let response = internal_router(context.state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/_internal/backfill/entries?order=asc&origin_region=local&limit=10{query}"
+                ))
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("route");
+    assert_eq!(response.status(), StatusCode::OK);
+    body_json(response).await
+}
+
+fn listed_versions(page: &Value) -> Vec<u64> {
+    page["entries"]
+        .as_array()
+        .expect("entries")
+        .iter()
+        .map(|entry| entry["version_ms"].as_u64().expect("version"))
+        .collect()
+}
+
+// A-28c: the ascending listing stops at the coordinator's bound, so an
+// entry a replica link could still deliver below it is withheld — and the
+// cursor the requester was given earlier still reaches it once it is not.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
+    let context = test_context(|config| config.replication_pull = true).await;
+    let store = &context.state.store;
+    let base = now_ms() - 60_000;
+    for (key, version_ms) in [("early", base + 10), ("late", base + 20)] {
+        store
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: Some("local"),
+                    sync_feed_row: true,
+                },
+                ArtifactProducer::Xcode,
+                "ios",
+                key,
+                "application/octet-stream",
+                b"v",
+                version_ms,
+                None,
+                None,
+            )
+            .await
+            .expect("apply");
+    }
+    store.run_backfill_index_build().expect("index build");
+
+    let sibling = "http://127.0.0.1:1";
+    context
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            url: sibling.to_owned(),
+            region: "local".to_owned(),
+            serving: true,
+            draining: false,
+            pulling: true,
+            knows_me: true,
+        }]);
+    context.state.sync.evaluate(&context.state);
+
+    // The link has yet to report: nothing may be listed at all, because
+    // anything it has not delivered could sort below what we would show.
+    assert_eq!(context.state.sync.listing_bound(&context.state), 0);
+    let page = ascending(&context, &format!("&from_version_ms={base}")).await;
+    assert!(listed_versions(&page).is_empty(), "held: {page}");
+
+    context
+        .state
+        .sync
+        .set_replica_link_frontier(sibling, base + 20);
+    assert_eq!(
+        context.state.sync.listing_bound(&context.state),
+        base + 19,
+        "the bound is exclusive of the frontier"
+    );
+    let page = ascending(&context, &format!("&from_version_ms={base}")).await;
+    assert_eq!(
+        listed_versions(&page),
+        vec![base + 10],
+        "the entry at the frontier is withheld"
+    );
+    let cursor = page["next_after"].as_str().expect("cursor").to_owned();
+
+    context
+        .state
+        .sync
+        .set_replica_link_frontier(sibling, now_ms());
+    let page = ascending(
+        &context,
+        &format!(
+            "&from_version_ms={base}&after={}",
+            crate::utils::url_encode(&cursor)
+        ),
+    )
+    .await;
+    assert_eq!(
+        listed_versions(&page),
+        vec![base + 20],
+        "the cursor from the bounded page still reaches the withheld entry"
+    );
+}
+
+// A-28d: with no feed and no links — a region of one — the bound is the
+// settle window, exactly as before D-24.
+#[tokio::test]
+async fn without_a_feed_the_bound_is_the_settle_window() {
+    let context = test_context(|_| {}).await;
+    assert!(!context.state.store.sync_feed().enabled());
+    let settle = context.state.config.sync_region_settle_ms;
+    let bound = context.state.sync.listing_bound(&context.state);
+    let expected = now_ms() - settle;
+    assert!(
+        bound <= expected && expected - bound < 1_000,
+        "bound {bound} should sit a settle window ({settle} ms) behind {expected}"
+    );
+
+    let store = &context.state.store;
+    write_inline(store, "young", b"v").await;
+    store.run_backfill_index_build().expect("index build");
+    let page = ascending(&context, "&from_version_ms=0").await;
+    assert!(
+        listed_versions(&page).is_empty(),
+        "a write inside the settle window is not listed yet: {page}"
+    );
+}
+
 // The status probe advertises what the role rule needs.
 #[tokio::test]
 async fn status_advertises_traffic_state_pulling_and_incarnation() {

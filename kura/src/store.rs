@@ -720,6 +720,7 @@ impl StagedBackfillSegmentApply {
             trunk: None,
             origin_region: self.origin_region.as_deref(),
             sync_feed_row,
+            server_stamped: false,
         }
     }
 }
@@ -752,6 +753,7 @@ impl StagedBackfillInlineApply {
             trunk: None,
             origin_region: self.origin_region.as_deref(),
             sync_feed_row,
+            server_stamped: false,
         }
     }
 }
@@ -791,6 +793,35 @@ struct PersistArtifactSpec<'a> {
     /// rule): a client write or a cross-region apply does, an apply that
     /// arrived from the sibling never does.
     sync_feed_row: bool,
+    /// Whether this node generates the version: `version_ms` is then unset
+    /// (`0`) and resolved at staging from the feed ticket's stamp, so the
+    /// version order of this node's writes matches their feed order and the
+    /// frontier bounds them exactly (D-24). A replicated apply keeps the
+    /// origin's stamp and sets this `false`.
+    server_stamped: bool,
+}
+
+impl PersistArtifactSpec<'_> {
+    /// The version the last-writer-wins and tombstone gates compare at. A
+    /// server-stamped write has none yet, and the clock read here is at or
+    /// below the stamp staging will give it, so the gates stay conservative.
+    fn precheck_version_ms(&self) -> u64 {
+        if self.server_stamped {
+            now_ms()
+        } else {
+            self.version_ms
+        }
+    }
+}
+
+/// Who stamps a namespace tombstone's version.
+#[derive(Clone, Copy, Debug)]
+enum TombstoneVersion {
+    /// This node's own delete: stamped from the feed ticket (D-24).
+    Local,
+    /// A replicated delete, at the origin's version. `0` is the node-local
+    /// purge, which deletes everything and earns no row (INV-8).
+    At(u64),
 }
 
 /// Where a replicated apply came from, for the two fields of
@@ -1846,12 +1877,13 @@ impl Store {
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms: 0,
             replication_targets,
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
             sync_feed_row: true,
+            server_stamped: true,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
@@ -1906,6 +1938,7 @@ impl Store {
             trunk: None,
             origin_region: provenance.origin_region,
             sync_feed_row: provenance.sync_feed_row,
+            server_stamped: false,
         };
         Ok(self
             .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
@@ -2030,20 +2063,18 @@ impl Store {
             Some(existing) => self.storage_exists(existing).await?,
             None => false,
         };
+        let version_ms = spec.precheck_version_ms();
         if let Some(existing_manifest) = &existing
             && already_present
-            && (manifest_version_ms(existing_manifest) >= spec.version_ms || spec.version_ms == 0)
+            && (manifest_version_ms(existing_manifest) >= version_ms || version_ms == 0)
         {
             self.note_artifact_exists(artifact_id);
             return Ok(SegmentApplyPrecheck::Ignored {
-                outcome: PersistArtifactOutcome::ignored(
-                    existing_manifest.clone(),
-                    spec.version_ms,
-                ),
+                outcome: PersistArtifactOutcome::ignored(existing_manifest.clone(), version_ms),
                 already_present,
             });
         }
-        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
+        if self.namespace_tombstone_blocks(spec.namespace_id, version_ms)? {
             return Ok(SegmentApplyPrecheck::Ignored {
                 outcome: PersistArtifactOutcome::IgnoredTombstone,
                 already_present,
@@ -2113,7 +2144,8 @@ impl Store {
         feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<ArtifactManifest, String> {
         let artifact_id = artifact_id.to_owned();
-        let persisted_version_ms = persisted_version_ms(spec.version_ms);
+        let ticket = self.allocate_sync_feed_ticket(spec.sync_feed_row);
+        let persisted_version_ms = staged_version_ms(spec, ticket.as_ref());
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
             producer: spec.producer,
@@ -2202,14 +2234,16 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
-        if spec.sync_feed_row {
-            feed.extend(self.stage_sync_feed_row(
+        if let Some(ticket) = ticket {
+            self.stage_sync_feed_row_with(
                 batch,
+                &ticket,
                 SyncFeedKind::Record(backfill_record_kind(&manifest)),
                 &manifest.artifact_id,
                 manifest_version_ms(&manifest),
                 Some(manifest.size),
-            ));
+            );
+            feed.push(ticket);
         }
         *bulk_outbox += self.append_artifact_replication_messages(
             batch,
@@ -2979,20 +3013,18 @@ impl Store {
         // Widens the read-to-commit window a racing writer would have to hit.
         self.hit_failpoint(FailpointName::AfterInlineManifestReadBeforeCommit)
             .await?;
+        let version_ms = spec.precheck_version_ms();
         if let Some(existing_manifest) = &existing
             && existing_manifest.inline
             && self.inline_bytes(artifact_id)?.is_some()
-            && (manifest_version_ms(existing_manifest) >= spec.version_ms || spec.version_ms == 0)
+            && (manifest_version_ms(existing_manifest) >= version_ms || version_ms == 0)
         {
             self.note_artifact_exists(artifact_id);
             return Ok(InlineApplyPrecheck::Ignored {
-                outcome: PersistArtifactOutcome::ignored(
-                    existing_manifest.clone(),
-                    spec.version_ms,
-                ),
+                outcome: PersistArtifactOutcome::ignored(existing_manifest.clone(), version_ms),
             });
         }
-        if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
+        if self.namespace_tombstone_blocks(spec.namespace_id, version_ms)? {
             return Ok(InlineApplyPrecheck::Ignored {
                 outcome: PersistArtifactOutcome::IgnoredTombstone,
             });
@@ -3020,7 +3052,8 @@ impl Store {
         feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_id.to_owned();
-        let persisted_version_ms = persisted_version_ms(spec.version_ms);
+        let ticket = self.allocate_sync_feed_ticket(spec.sync_feed_row);
+        let persisted_version_ms = staged_version_ms(spec, ticket.as_ref());
 
         let manifest = ArtifactManifest {
             artifact_id: artifact_id.clone(),
@@ -3129,14 +3162,16 @@ impl Store {
             );
         }
         self.stage_backfill_index_update(batch, existing, &manifest);
-        if spec.sync_feed_row {
-            feed.extend(self.stage_sync_feed_row(
+        if let Some(ticket) = ticket {
+            self.stage_sync_feed_row_with(
                 batch,
+                &ticket,
                 SyncFeedKind::Record(backfill_record_kind(&manifest)),
                 &manifest.artifact_id,
                 manifest_version_ms(&manifest),
                 Some(manifest.size),
-            ));
+            );
+            feed.push(ticket);
         }
         *bulk_outbox += self.append_artifact_replication_messages(
             batch,
@@ -4796,12 +4831,13 @@ impl Store {
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms: 0,
             replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
             sync_feed_row: true,
+            server_stamped: true,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -4848,12 +4884,13 @@ impl Store {
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms: 0,
             replication_targets,
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
             sync_feed_row: true,
+            server_stamped: true,
         };
         let (outcome, already_present) = self
             .persist_segment_artifact_with_version(
@@ -4881,12 +4918,13 @@ impl Store {
             namespace_id,
             key,
             content_type,
-            version_ms: now_ms(),
+            version_ms: 0,
             replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
             sync_feed_row: true,
+            server_stamped: true,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -4980,44 +5018,18 @@ impl Store {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
-        self.persist_inline_artifact_from_bytes_at_version_and_enqueue(
-            producer,
-            namespace_id,
-            key,
-            content_type,
-            bytes,
-            now_ms(),
-            replication_targets,
-            branch,
-            trunk,
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn persist_inline_artifact_from_bytes_at_version_and_enqueue(
-        &self,
-        producer: ArtifactProducer,
-        namespace_id: &str,
-        key: &str,
-        content_type: &str,
-        bytes: &[u8],
-        version_ms: u64,
-        replication_targets: &[String],
-        branch: Option<&str>,
-        trunk: Option<&str>,
-    ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
             key,
             content_type,
-            version_ms,
+            version_ms: 0,
             replication_targets,
             branch,
             trunk,
             origin_region: Some(&self.region),
             sync_feed_row: true,
+            server_stamped: true,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -5053,6 +5065,7 @@ impl Store {
             trunk: None,
             origin_region: None,
             sync_feed_row: false,
+            server_stamped: false,
         };
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -5125,6 +5138,7 @@ impl Store {
             trunk,
             origin_region: provenance.origin_region,
             sync_feed_row: provenance.sync_feed_row,
+            server_stamped: false,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -5165,6 +5179,7 @@ impl Store {
             trunk: None,
             origin_region,
             sync_feed_row: batch.feed_rows,
+            server_stamped: false,
         };
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         {
@@ -5224,6 +5239,7 @@ impl Store {
             trunk: None,
             origin_region,
             sync_feed_row: batch.feed_rows,
+            server_stamped: false,
         };
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         let size = self.io.metadata_len(staged.path).await?;
@@ -5512,10 +5528,9 @@ impl Store {
 
     #[cfg(test)]
     pub async fn delete_namespace(&self, namespace_id: &str) -> Result<u64, String> {
-        let version_ms = now_ms();
-        self.delete_namespace_with_version(namespace_id, version_ms, &[], true)
+        self.delete_namespace_with_version(namespace_id, TombstoneVersion::Local, &[], true)
             .await
-            .map(|_| version_ms)
+            .map(|outcome| outcome.1)
     }
 
     pub async fn delete_namespace_and_enqueue(
@@ -5523,10 +5538,14 @@ impl Store {
         namespace_id: &str,
         replication_targets: &[String],
     ) -> Result<u64, String> {
-        let version_ms = now_ms();
-        self.delete_namespace_with_version(namespace_id, version_ms, replication_targets, true)
-            .await
-            .map(|_| version_ms)
+        self.delete_namespace_with_version(
+            namespace_id,
+            TombstoneVersion::Local,
+            replication_targets,
+            true,
+        )
+        .await
+        .map(|outcome| outcome.1)
     }
 
     pub async fn apply_replicated_namespace_delete(
@@ -5547,17 +5566,38 @@ impl Store {
         version_ms: u64,
         sync_feed_row: bool,
     ) -> Result<NamespaceDeleteOutcome, String> {
-        self.delete_namespace_with_version(namespace_id, version_ms, &[], sync_feed_row)
-            .await
+        self.delete_namespace_with_version(
+            namespace_id,
+            TombstoneVersion::At(version_ms),
+            &[],
+            sync_feed_row,
+        )
+        .await
+        .map(|outcome| outcome.0)
     }
 
+    /// Returns the outcome and the version the tombstone was written at.
+    /// A local delete is stamped from its feed ticket, which is therefore
+    /// held — pinning the feed head and the frontier — across the namespace
+    /// scan; deletes are rare enough for that to be the cheaper trade
+    /// against a tombstone whose version the frontier cannot bound (D-24).
     async fn delete_namespace_with_version(
         &self,
         namespace_id: &str,
-        version_ms: u64,
+        version: TombstoneVersion,
         replication_targets: &[String],
         sync_feed_row: bool,
-    ) -> Result<NamespaceDeleteOutcome, String> {
+    ) -> Result<(NamespaceDeleteOutcome, u64), String> {
+        let mut ticket = match version {
+            TombstoneVersion::Local => self.allocate_sync_feed_ticket(sync_feed_row),
+            TombstoneVersion::At(_) => None,
+        };
+        let version_ms = match version {
+            TombstoneVersion::Local => ticket
+                .as_ref()
+                .map_or_else(now_ms, |ticket| ticket.stamp_ms()),
+            TombstoneVersion::At(version_ms) => version_ms,
+        };
         let prefix = format!("{namespace_id}\0");
         let mut batch = WriteBatch::default();
         let mut blob_paths = Vec::new();
@@ -5581,7 +5621,7 @@ impl Store {
             && let Some(current_tombstone) = previous_tombstone
             && current_tombstone >= version_ms
         {
-            return Ok(NamespaceDeleteOutcome::IgnoredOlder);
+            return Ok((NamespaceDeleteOutcome::IgnoredOlder, version_ms));
         }
         let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
             &[]
@@ -5715,14 +5755,19 @@ impl Store {
                 replication_targets,
             )?;
             // INV-8: `delete_everything` stays node-local and earns no row.
-            if sync_feed_row {
-                feed.extend(self.stage_sync_feed_row(
+            if let Some(ticket) = ticket
+                .take()
+                .or_else(|| self.allocate_sync_feed_ticket(sync_feed_row))
+            {
+                self.stage_sync_feed_row_with(
                     &mut batch,
+                    &ticket,
                     SyncFeedKind::Record(BackfillRecordKind::NamespaceTombstone),
                     namespace_id,
                     version_ms,
                     None,
-                ));
+                );
+                feed.push(ticket);
             }
         }
 
@@ -5744,7 +5789,7 @@ impl Store {
         self.hit_failpoint(FailpointName::AfterApplyReplicatedTombstone)
             .await?;
 
-        Ok(NamespaceDeleteOutcome::Applied)
+        Ok((NamespaceDeleteOutcome::Applied, version_ms))
     }
 
     pub fn start_multipart_upload(
@@ -7470,6 +7515,14 @@ impl Store {
     /// would exceed it (INV-7: the write is never refused). `None` while the
     /// feed is off. The returned ticket must be committed after the batch
     /// lands (`commit_sync_feed_tickets`) or dropped on failure.
+    /// Leases the next feed seq, stamped at the instant it is taken, or
+    /// `None` when the feed is off. Separate from the row write because a
+    /// server-generated record takes its `version_ms` from the stamp, and so
+    /// has to hold the ticket before its manifest is built (D-24).
+    fn allocate_sync_feed_ticket(&self, wanted: bool) -> Option<SyncFeedTicket> {
+        (wanted && self.sync_feed.enabled()).then(|| self.sync_feed.allocate())
+    }
+
     fn stage_sync_feed_row(
         &self,
         batch: &mut WriteBatch,
@@ -7478,14 +7531,24 @@ impl Store {
         version_ms: u64,
         size: Option<u64>,
     ) -> Option<SyncFeedTicket> {
-        if !self.sync_feed.enabled() {
-            return None;
-        }
-        let ticket = self.sync_feed.allocate();
+        let ticket = self.allocate_sync_feed_ticket(true)?;
+        self.stage_sync_feed_row_with(batch, &ticket, kind, record_id, version_ms, size);
+        Some(ticket)
+    }
+
+    fn stage_sync_feed_row_with(
+        &self,
+        batch: &mut WriteBatch,
+        ticket: &SyncFeedTicket,
+        kind: SyncFeedKind,
+        record_id: &str,
+        version_ms: u64,
+        size: Option<u64>,
+    ) {
         batch.put_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
             sync_feed_key(ticket.seq()),
-            encode_sync_feed_value(kind, record_id, version_ms, size, now_ms()),
+            encode_sync_feed_value(kind, record_id, version_ms, size, ticket.stamp_ms()),
         );
         let floor = self.sync_feed.floor();
         let cap = self.sync_feed.cap();
@@ -7498,7 +7561,6 @@ impl Store {
                 .metrics()
                 .record_sync_feed_dropped(new_floor - floor);
         }
-        Some(ticket)
     }
 
     /// Range-deletes every row at or below `new_floor` and persists the
@@ -9935,12 +9997,16 @@ fn commit_sync_feed_tickets(tickets: Vec<SyncFeedTicket>) {
     }
 }
 
-fn persisted_version_ms(version_ms: u64) -> u64 {
-    if version_ms == 0 {
-        now_ms()
-    } else {
-        version_ms
+/// The version a staged record is written at. A server-stamped write takes
+/// the feed ticket's allocation stamp, so its version and its feed row's
+/// `arrived_at_ms` are the same instant and the frontier bounds it exactly
+/// (D-24); with the feed off there is no ticket and no reader to bound, so
+/// the clock at staging stands in.
+fn staged_version_ms(spec: &PersistArtifactSpec<'_>, ticket: Option<&SyncFeedTicket>) -> u64 {
+    if spec.version_ms != 0 {
+        return spec.version_ms;
     }
+    ticket.map_or_else(now_ms, SyncFeedTicket::stamp_ms)
 }
 
 /// Every outbox key at or past this prefix belongs to the bulk lane. Keys are
@@ -10501,12 +10567,13 @@ mod tests {
                         namespace_id: "direct-memory-write-benchmark",
                         key: &key,
                         content_type: "application/octet-stream",
-                        version_ms: now_ms(),
+                        version_ms: 0,
                         replication_targets: &[],
                         branch: None,
                         trunk: None,
                         origin_region: None,
                         sync_feed_row: false,
+                        server_stamped: true,
                     };
                     let result = if direct {
                         store

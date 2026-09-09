@@ -13,9 +13,15 @@
 //! whose batch is still in flight and never see it. Serving only up to the
 //! lowest in-flight seq minus one closes that gap; an aborted batch releases
 //! its seq so a gap never pins the head.
+//!
+//! Allocation also stamps the wall clock, under the same lock, and that stamp
+//! is both the row's `arrived_at_ms` and — for a write this node generates —
+//! the record's `version_ms` (D-24). Stamps are therefore ordered like seqs,
+//! which is what lets [`SyncFeedState::frontier_ms`] state an exact bound:
+//! nothing with a lower stamp can still be in flight.
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -25,7 +31,7 @@ use std::{
 
 use tokio::sync::Notify;
 
-use crate::utils::BackfillRecordKind;
+use crate::utils::{BackfillRecordKind, now_ms};
 
 /// Key prefix of the feed rows: `sync/fwd/` ++ seq (8-byte big-endian).
 pub const SYNC_FEED_PREFIX: &str = "sync/fwd/";
@@ -251,8 +257,13 @@ pub struct SyncFeedState {
     incarnation: u64,
     /// Next seq to allocate.
     next_seq: AtomicU64,
-    /// Seqs allocated whose batch has not resolved yet.
-    inflight: Mutex<BTreeSet<u64>>,
+    /// Seqs allocated whose batch has not resolved yet, with the wall clock
+    /// each was stamped at.
+    inflight: Mutex<BTreeMap<u64, u64>>,
+    /// The newest stamp handed out, read and written under `inflight`: a
+    /// wall clock that steps backwards must not hand a higher seq a lower
+    /// stamp, or the frontier would stop bounding the seqs above it.
+    last_stamp_ms: AtomicU64,
     /// Highest seq that has been trimmed away (exclusive lower bound of the
     /// retained range). Rows with `seq <= floor` are gone.
     floor: AtomicU64,
@@ -270,12 +281,19 @@ pub struct SyncFeedState {
 pub struct SyncFeedTicket {
     feed: Arc<SyncFeedState>,
     seq: u64,
+    stamp_ms: u64,
     committed: bool,
 }
 
 impl SyncFeedTicket {
     pub fn seq(&self) -> u64 {
         self.seq
+    }
+
+    /// The wall clock the seq was allocated at: the row's `arrived_at_ms`,
+    /// and the `version_ms` of a write this node generates (D-24).
+    pub fn stamp_ms(&self) -> u64 {
+        self.stamp_ms
     }
 
     pub fn commit(mut self) {
@@ -299,7 +317,8 @@ impl SyncFeedState {
         Self {
             incarnation,
             next_seq: AtomicU64::new(last_seq + 1),
-            inflight: Mutex::new(BTreeSet::new()),
+            inflight: Mutex::new(BTreeMap::new()),
+            last_stamp_ms: AtomicU64::new(0),
             floor: AtomicU64::new(floor),
             enabled: AtomicBool::new(enabled),
             cap,
@@ -337,9 +356,21 @@ impl SyncFeedState {
     /// The contiguous committed head: every seq at or below it has resolved.
     pub fn head(&self) -> u64 {
         let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
-        match inflight.first() {
-            Some(&lowest) => lowest - 1,
+        match inflight.first_key_value() {
+            Some((&lowest, _)) => lowest - 1,
             None => self.next_seq.load(Ordering::Acquire) - 1,
+        }
+    }
+
+    /// The instant below which every allocation has committed: the stamp of
+    /// the lowest in-flight seq, or now when none is. Every server-generated
+    /// record with `version_ms < frontier_ms` is therefore already in the
+    /// index (D-24).
+    pub fn frontier_ms(&self) -> u64 {
+        let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        match inflight.first_key_value() {
+            Some((_, &stamp)) => stamp,
+            None => now_ms().max(self.last_stamp_ms.load(Ordering::Relaxed)),
         }
     }
 
@@ -360,14 +391,18 @@ impl SyncFeedState {
     /// Allocates the next seq for a row being staged. The store must
     /// `commit` the ticket after the batch write or drop it on failure.
     pub fn allocate(self: &Arc<Self>) -> SyncFeedTicket {
+        // Seq and stamp are taken together under the lock, so a higher seq
+        // never carries a lower stamp and the frontier is exact.
+        let mut inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
         let seq = self.next_seq.fetch_add(1, Ordering::AcqRel);
-        self.inflight
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .insert(seq);
+        let stamp_ms = now_ms().max(self.last_stamp_ms.load(Ordering::Relaxed));
+        self.last_stamp_ms.store(stamp_ms, Ordering::Relaxed);
+        inflight.insert(seq, stamp_ms);
+        drop(inflight);
         SyncFeedTicket {
             feed: Arc::clone(self),
             seq,
+            stamp_ms,
             committed: false,
         }
     }
@@ -559,6 +594,47 @@ mod tests {
         assert_eq!(feed.head(), 13, "an aborted seq is a gap the head passes");
         fourth.commit();
         assert_eq!(feed.head(), 14);
+    }
+
+    // A-28a: the stamp taken at allocation orders with the seq, and the
+    // frontier is the lowest in-flight stamp until every ticket resolves.
+    #[test]
+    fn stamps_order_with_seqs_and_the_frontier_follows_the_lowest_inflight() {
+        let feed = Arc::new(SyncFeedState::new(1, 0, 0, true, 1000));
+        let before = now_ms();
+        let first = feed.allocate();
+        std::thread::sleep(std::time::Duration::from_millis(3));
+        let second = feed.allocate();
+        std::thread::sleep(std::time::Duration::from_millis(3));
+        let third = feed.allocate();
+        assert!(first.stamp_ms() >= before);
+        assert!(
+            first.stamp_ms() <= second.stamp_ms() && second.stamp_ms() <= third.stamp_ms(),
+            "stamps are non-decreasing in seq"
+        );
+        assert!(
+            first.stamp_ms() < third.stamp_ms(),
+            "distinct allocations separated in time carry distinct stamps"
+        );
+
+        assert_eq!(
+            feed.frontier_ms(),
+            first.stamp_ms(),
+            "the lowest in-flight allocation bounds the frontier"
+        );
+        // Out-of-order commits do not move it past a lower in-flight stamp.
+        third.commit();
+        assert_eq!(feed.frontier_ms(), first.stamp_ms());
+        let first_stamp = first.stamp_ms();
+        first.commit();
+        assert_eq!(feed.frontier_ms(), second.stamp_ms());
+        // An aborted ticket releases its stamp exactly as it releases its seq.
+        drop(second);
+        let frontier = feed.frontier_ms();
+        assert!(
+            frontier >= first_stamp && frontier >= now_ms().saturating_sub(1),
+            "with nothing in flight the frontier is now, got {frontier}"
+        );
     }
 
     #[test]

@@ -2685,8 +2685,9 @@ async fn internal_backfill_entries(
     }
 }
 
-/// The forward region read: ascending from the requester's watermark,
-/// never past `now - settle`, long-polling while caught up (design §4.1).
+/// The forward region read: ascending from the requester's watermark, never
+/// past the point where a lower version could still arrive here, long-polling
+/// while caught up (design §4.1).
 async fn internal_backfill_entries_ascending(
     state: &SharedState,
     query: &BackfillEntriesQuery,
@@ -2699,7 +2700,11 @@ async fn internal_backfill_entries_ascending(
     loop {
         let notified = state.store.sync_feed().notified();
         tokio::pin!(notified);
-        let max_version_ms = now_ms().saturating_sub(settle);
+        // Re-read every iteration: a replica apply that lands during the
+        // long poll both notifies and moves the bound (D-24).
+        let max_version_ms = now_ms()
+            .saturating_sub(settle)
+            .min(state.sync.listing_bound(state));
         let page = match state.store.backfill_index_page_ascending(
             query.from_version_ms,
             query.after.as_deref(),
@@ -2770,6 +2775,11 @@ pub struct SyncForwardPage {
     pub next: u64,
     pub head: u64,
     pub now: u64,
+    /// The instant below which every allocation on this feed has committed
+    /// (design §4.1). Additive: a peer that predates it sends nothing and
+    /// the reader falls back to the rows' own stamps.
+    #[serde(default)]
+    pub frontier_ms: u64,
 }
 
 /// `GET /_internal/sync/forward` without `after`: the snapshot a
@@ -2782,6 +2792,9 @@ pub struct SyncForwardHead {
     #[serde(default)]
     pub watermarks: BTreeMap<String, u64>,
     pub now: u64,
+    /// As on [`SyncForwardPage`]: the link's frontier at the snapshot.
+    #[serde(default)]
+    pub frontier_ms: u64,
 }
 
 /// The `410 Gone` body: the cursor names rows this node no longer has
@@ -2858,6 +2871,7 @@ async fn internal_sync_forward(
             floor: feed.floor(),
             watermarks,
             now: now_ms(),
+            frontier_ms: feed.frontier_ms(),
         })
         .into_response();
     };
@@ -2927,6 +2941,7 @@ async fn internal_sync_forward(
                 next,
                 head: feed.head(),
                 now: now_ms(),
+                frontier_ms: feed.frontier_ms(),
             })
             .into_response();
         }

@@ -23125,6 +23125,98 @@
             "version": "13.3.0-32457798232"
           }
         }
+      },
+      "panel-231": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_region_listing_bound_lag_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "How far behind now this node's ascending region listing stops: `now` minus the newest `version_ms` it will show a remote gateway. The floor is the settle window (2 s) on a node with no arrival feed; with a sibling it follows the replica link's frontier, so it rises exactly when that link falls behind and the listing waits rather than skipping a version still in flight. Sustained high values on a gateway mean its sibling link is stalled — check `sync_forward_cursor_lag_entries` and the link phase — and cross-region delivery is paused, not lost.\n\nPrometheus name: `kura_region_listing_bound_lag_seconds`",
+          "id": 231,
+          "links": [],
+          "title": "region_listing_bound_lag_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -25647,11 +25739,24 @@
                         "x": 8,
                         "y": 35
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-231"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 35
+                      }
                     }
                   ]
                 }
               },
-              "title": "Pull replication (17)"
+              "title": "Pull replication (18)"
             }
           },
           {

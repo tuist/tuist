@@ -125,6 +125,7 @@ pub struct MetricsInner {
     sync_pull_links: Family<SyncLinkLabels, Gauge>,
     region_sync_last_success_age_seconds: Family<SyncRegionLabels, Gauge>,
     region_watermark_age_seconds: Family<SyncRegionLabels, Gauge>,
+    region_listing_bound_lag_seconds: Gauge,
     region_sync_entries_listed: Family<SyncRegionLabels, Counter>,
     region_sync_bytes_fetched: Family<SyncRegionLabels, Counter>,
     region_sync_last_cycle_duration_seconds: Family<SyncRegionLabels, Gauge>,
@@ -699,6 +700,7 @@ impl Metrics {
         let sync_pull_links = Family::<SyncLinkLabels, Gauge>::default();
         let region_sync_last_success_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let region_watermark_age_seconds = Family::<SyncRegionLabels, Gauge>::default();
+        let region_listing_bound_lag_seconds = Gauge::default();
         let region_sync_entries_listed = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_bytes_fetched = Family::<SyncRegionLabels, Counter>::default();
         let region_sync_last_cycle_duration_seconds = Family::<SyncRegionLabels, Gauge>::default();
@@ -1303,6 +1305,11 @@ impl Metrics {
             "kura_region_watermark_age_seconds",
             "Age of the region watermark, by origin region",
             region_watermark_age_seconds.clone(),
+        );
+        registry.register(
+            "kura_region_listing_bound_lag_seconds",
+            "Seconds between now and the newest version_ms this node serves to an ascending region read",
+            region_listing_bound_lag_seconds.clone(),
         );
         registry.register(
             "kura_region_sync_entries_listed_total",
@@ -1935,6 +1942,7 @@ impl Metrics {
                 sync_pull_links,
                 region_sync_last_success_age_seconds,
                 region_watermark_age_seconds,
+                region_listing_bound_lag_seconds,
                 region_sync_entries_listed,
                 region_sync_bytes_fetched,
                 region_sync_last_cycle_duration_seconds,
@@ -2708,6 +2716,10 @@ impl Metrics {
                 region: region.to_owned(),
             })
             .set(seconds as i64);
+    }
+
+    pub fn set_region_listing_bound_lag(&self, seconds: u64) {
+        self.region_listing_bound_lag_seconds.set(seconds as i64);
     }
 
     pub fn clear_region_sync_gauges(&self, region: &str) {

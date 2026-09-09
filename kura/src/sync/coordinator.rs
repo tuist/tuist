@@ -67,6 +67,10 @@ pub struct LinkStatus {
     pub last_success: Option<Instant>,
     /// Replica links: rows between our cursor and the sibling's head.
     pub lag_entries: u64,
+    /// Replica links: the instant below which nothing more can arrive over
+    /// this link, so the serving listing may not go past it (D-24). `0`
+    /// until the link has settled and reported one.
+    pub frontier_ms: u64,
 }
 
 /// Shared between a link task and the coordinator.
@@ -267,6 +271,10 @@ impl SyncCoordinator {
                 );
             }
         }
+        drop(links);
+        let now = now_ms();
+        app.metrics
+            .set_region_listing_bound_lag(now.saturating_sub(self.listing_bound(app)) / 1000);
     }
 
     /// The feed's gauges, and its switch-off once no sibling has asked for
@@ -301,6 +309,45 @@ impl SyncCoordinator {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner) = false;
         });
+    }
+
+    /// The inclusive `version_ms` ceiling this node may serve to an
+    /// ascending region read (design §4.1, D-24). Its own writes are bounded
+    /// by the feed's frontier — every allocation below it has committed —
+    /// and each open replica link by its own frontier, because a record the
+    /// sibling stamped below that instant has already been applied here. A
+    /// link that has not settled or has yet to report bounds everything: the
+    /// listing waits rather than skipping a version it may still receive.
+    pub fn listing_bound(&self, app: &SharedState) -> u64 {
+        let feed = app.store.sync_feed();
+        let mut bound = if feed.enabled() {
+            feed.frontier_ms().saturating_sub(1)
+        } else {
+            now_ms().saturating_sub(app.config.sync_region_settle_ms)
+        };
+        let links = self.links.lock().unwrap_or_else(PoisonError::into_inner);
+        for link in links.replica.values() {
+            let status = link.status.snapshot();
+            let link_bound = if status.settled && status.frontier_ms > 0 {
+                status.frontier_ms - 1
+            } else {
+                0
+            };
+            bound = bound.min(link_bound);
+        }
+        bound
+    }
+
+    /// Drives [`Self::listing_bound`] from a test without a live sibling.
+    #[cfg(test)]
+    pub fn set_replica_link_frontier(&self, peer: &str, frontier_ms: u64) {
+        let links = self.links.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(link) = links.replica.get(peer) {
+            link.status.update(|status| {
+                status.settled = true;
+                status.frontier_ms = frontier_ms;
+            });
+        }
     }
 
     /// Every link this node keeps open, for `/status/cluster`.
@@ -391,6 +438,7 @@ fn spawn_link(
         settled: false,
         last_success: None,
         lag_entries: 0,
+        frontier_ms: 0,
     });
     let task_app = app.clone();
     let task_peer = peer.to_owned();
