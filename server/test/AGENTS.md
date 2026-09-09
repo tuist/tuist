@@ -12,3 +12,4 @@ This directory contains ExUnit tests for the Tuist Server.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+- Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`.

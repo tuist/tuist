@@ -41,7 +41,7 @@ defmodule Tuist.Repo.Migrations.RenameEuCentralKuraRegionToEuWest do
              :kura_account_region_policies,
              :kura_account_region_policies_service_region_valid,
              check:
-               "service_region IN ('us-east', 'eu-west', 'us-west', 'ap-southeast', 'sa-west')"
+               "service_region IN ('us-east', 'eu-west', 'us-west', 'ap-southeast', 'sa-west', 'eu-east', 'us-central')"
            )
   end
 
@@ -59,7 +59,7 @@ defmodule Tuist.Repo.Migrations.RenameEuCentralKuraRegionToEuWest do
              :kura_account_region_policies,
              :kura_account_region_policies_service_region_valid,
              check:
-               "service_region IN ('us-east', 'eu-central', 'us-west', 'ap-southeast', 'sa-west')"
+               "service_region IN ('us-east', 'eu-central', 'us-west', 'ap-southeast', 'sa-west', 'eu-east', 'us-central')"
            )
   end
 

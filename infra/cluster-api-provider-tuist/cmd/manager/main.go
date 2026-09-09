@@ -47,6 +47,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
@@ -278,6 +279,11 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackHostQuarantineRetryAfter time.Duration
+	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
+		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
+			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
+			"which strands the host unless something can write rackhosts/status.")
 	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
 		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
 			"Recovers a host that was merely unreachable when the operator tried to push, "+
@@ -589,6 +595,54 @@ func main() {
 		RunnerResolver:                runnerResolver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
+		os.Exit(1)
+	}
+
+	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
+	// inventory of physical hosts, and the machine kind that claims from it.
+	//
+	// Both are registered unconditionally, unlike the provider-backed kinds
+	// that stay dormant until an env wires credentials. They need none: the
+	// pool is Kubernetes objects, and with no RackHost declared they simply
+	// have nothing to reconcile. Gating them on a flag would only add a way for
+	// an env to have inventory that nothing acts on.
+	powerRegistry := power.NewRegistry()
+	if err := (&macos.RackHostReconciler{
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Power:                powerRegistry,
+		SecretsNamespace:     secretsNamespace,
+		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackHostReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&macos.RackAppleSiliconMachineReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		CredentialsManager: credsManager,
+		Recorder:           mgr.GetEventRecorderFor("rackapplesiliconmachine-controller"),
+		Kubeconfig:         kubeconfigBuilder,
+		// The same fleet config the Scaleway kind gets: a rack mini and a
+		// rented one run the same host config, which is what lets one workload
+		// target both and one operator image roll both.
+		FleetConfig:                   fleetConfig,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
+		TartKubeletBinarySHA:          binarySHA,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		Power:                         powerRegistry,
+		SecretsNamespace:              secretsNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
 	}
 

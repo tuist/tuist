@@ -281,7 +281,7 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 
 Optional `start_ms` and `end_ms` select steps overlapping a time range in milliseconds from build start; the end is exclusive. Both tools accept a build UUID or dashboard URL as `build_run_id`. Pass the returned step `id` unchanged as `step_id` to retrieve its log. Logs retain up to 64 KiB per step, with `log_truncated` indicating omitted output.
 
-Step collection currently requires explicit account opt-in and is disabled by default. Recorded step data is retained for 90 days. The list response includes `availability`: `available` when recorded steps exist, even if filters match none; `processing` when the build is still processing and has no steps yet; or `unavailable` when steps were not recorded or have expired.
+Steps are collected by default when Xcode builds are processed. Recorded step data is retained for 90 days. The list response includes `availability`: `available` when recorded steps exist, even if filters match none; `processing` when the build is still processing and has no steps yet; or `unavailable` when steps were not recorded or have expired.
 
 The same operations are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps` and `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`, with the same filters and pagination. Both require read access to the build's project.
 

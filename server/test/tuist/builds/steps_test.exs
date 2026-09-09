@@ -3,13 +3,7 @@ defmodule Tuist.Builds.StepsTest do
   use Mimic
 
   alias Tuist.Builds.Steps
-  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.RunsFixtures
-
-  setup do
-    stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-    :ok
-  end
 
   @step %{
     event_id: 1,

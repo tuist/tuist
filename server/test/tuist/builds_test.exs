@@ -4,17 +4,11 @@ defmodule Tuist.BuildsTest do
 
   alias Tuist.Builds
   alias Tuist.Builds.Timeline
-  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "build_timeline/1" do
-    setup do
-      stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-      :ok
-    end
-
     test "stores relative timings, isolates builds, and deduplicates processing retries" do
       event = %{
         event_id: 1,

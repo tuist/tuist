@@ -250,6 +250,10 @@ defmodule Tuist.Docs.Sidebar do
               %Item{
                 label: "Gradle",
                 slug: "/en/guides/features/test-insights/flaky-tests/gradle"
+              },
+              %Item{
+                label: "Bazel",
+                slug: "/en/guides/features/test-insights/flaky-tests/bazel"
               }
             ]
           },
