@@ -1642,7 +1642,7 @@ says so, which matters once a region has boxes with different budgets.
 
 ```promql
 count by (instance) (
-  node_load1{job="tuist-macos-node-exporter"}
+  node_load1{job="tuist-macos-node-exporter", instance!~".*-rack-fleet-.*"}
 )
 unless
 count by (instance) (
@@ -1675,6 +1675,23 @@ drift loop keys on desired config, not live host state.
 the same job works. The `unless` yields one series per host that is scraping but
 has no VLAN, and nothing at all in the healthy case, which is why **No Data**
 must be **Normal** here.
+
+Rack-owned Macs have no Scaleway Private Network, so the instance exclusion
+must remain. Their cache path needs a separate check when it is introduced.
+
+Both sides of this query must survive metric filtering. On 2026-09-09 the
+non-production remote-write allow-list retained `node_load1` but dropped
+`node_network_transmit_bytes_total`, falsely firing for both canary Macs.
+The destination rules retain VLAN transmit series from
+`job="tuist-macos-node-exporter"` specifically to preserve this check without
+restoring every network interface's metrics.
+
+Before re-running bootstrap, compare Grafana's result with the host's raw
+`http://<Node InternalIP>:9100/metrics` over the tailnet. If it exports
+`node_network_transmit_bytes_total{device="vlan0"}` and
+`node_scrape_collector_success{collector="netdev"} 1` but Grafana has no VLAN
+series, investigate Alloy's scrape and remote-write filters. A missing series
+in Grafana alone does not prove the device is absent on the host.
 
 Residual gap, deliberately not covered: a VLAN that exists but has lost its DHCP
 address also has no PN route and is invisible to both rules. node_exporter runs
