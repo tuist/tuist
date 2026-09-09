@@ -1714,6 +1714,45 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "reset_free_tier/1" do
+    test "zeroes the counter so the account is no longer blocked" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 2,
+          preload: [:account]
+        )
+
+      assert Billing.cache_access_blocked?(account)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert account.current_month_remote_cache_hits_count == 0
+      refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
+    end
+
+    test "moves the counting window forward so the nightly recount does not undo it" do
+      # Given
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: 500,
+          preload: [:account]
+        )
+
+      before = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert DateTime.after?(account.free_tier_reset_at, before)
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given
