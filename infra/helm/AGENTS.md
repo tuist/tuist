@@ -23,7 +23,18 @@ This node covers Helm assets under `infra/helm/`.
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
 
+## Staging CAPI rename recovery
+
+The legacy `StaticAppleSiliconMachine` and template CRDs are retained alongside
+`RackAppleSiliconMachine` for Helm release compatibility. Staging's failed
+September 9, 2026 rollback still references the legacy kinds; Helm cannot build
+the current release manifest to upgrade it when those CRDs are absent. These
+definitions are copied unchanged from `4fbea028` and create no machines. Keep
+them installed until no retained Helm revision needs the old kinds. The active
+controller and fleet templates use the Rack kinds.
+
 ## Related Context
+
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`
