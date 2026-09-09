@@ -503,6 +503,25 @@ Check `spec.replicas` and that it owns no Machines before deleting a MachineSet:
 the other MachineSets under a MachineDeployment are its rollout history and are
 not stale.
 
+**Restart CAPI core afterwards.** Its Machine and MachineSet controllers start a
+dynamic watch per infrastructure kind they encounter, and that watch lives for
+the process lifetime: nothing tears it down when the CRD goes away. The
+controller is left listing a kind the apiserver no longer serves, roughly five
+lines a minute forever, which on an otherwise silent pod is its entire log
+output:
+
+```
+failed to list infrastructure.cluster.x-k8s.io/v1alpha1, Kind=<OldKind>:
+the server could not find the requested resource
+```
+
+```bash
+kubectl rollout restart deploy/capi-controller-manager -n capi-system
+```
+
+Nothing else reconciles the old kind, so this is log volume rather than a fleet
+fault, and no fleet changes across the restart.
+
 ## Module layout
 
 ```
