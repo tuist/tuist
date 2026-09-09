@@ -252,7 +252,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     secret: secret
   } do
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [
         %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
         %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
@@ -340,7 +340,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     secret: secret
   } do
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [%{"url" => "https://internal-pod.kura.svc:7443", "gateway" => true}]
     )
 
@@ -401,7 +401,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     gateway_url = "https://kura-eu-0.peer:7443"
 
     KuraFixtures.active_server_fixture(account,
-      region: "eu-central",
+      region: "eu-west",
       peer_roles: [%{"url" => gateway_url, "gateway" => true}]
     )
 
@@ -417,7 +417,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert %{
              "peers" => [],
-             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-central", "gateway" => true}],
+             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-west", "gateway" => true}],
              "replication_pull" => true,
              "refresh_interval_seconds" => interval
            } = json_response(conn, 200)
@@ -433,7 +433,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
     stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
 
-    KuraFixtures.active_server_fixture(account, region: "eu-central")
+    KuraFixtures.active_server_fixture(account, region: "eu-west")
     reject(&Client.get_kura_instance/3)
 
     conn =

@@ -103,15 +103,21 @@ ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
-kura-eu-central-ingress-nginx:
+kura-eu-west-ingress-nginx:
   enabled: false
   controller:
     replicaCount: 2
-    electionID: kura-eu-central-ingress-nginx-leader
-    ingressClass: kura-eu-central
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
     ingressClassResource:
-      name: kura-eu-central
-      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+      name: kura-eu-west
+      controllerValue: k8s.io/kura-eu-west-ingress-nginx
+      # The region was renamed from eu-central. Until the server has
+      # re-rendered every KuraInstance in it, its Ingresses still name the old
+      # class, and this keeps them claimed by the renamed controller. Remove
+      # once no Ingress in the region carries kura-eu-central.
+      aliases:
+        - kura-eu-central
     publishService:
       enabled: true
     service:
@@ -170,31 +176,6 @@ kura-eu-central-ingress-nginx:
     metrics:
       enabled: true
 
-# Declared while the region is gated off everywhere, for the same reason
-# kura-sa-west is: a region whose ingress class no controller declares has its
-# Ingresses go unclaimed the moment it is switched on. eu-west is the correctly
-# named successor to eu-central, the same Paris Dedibox hardware, and it stays
-# off until that fleet is split between the two node pools.
-kura-eu-west-ingress-nginx:
-  enabled: false
-  controller:
-    replicaCount: 2
-    electionID: kura-eu-west-ingress-nginx-leader
-    ingressClass: kura-eu-west
-    ingressClassResource:
-      name: kura-eu-west
-      controllerValue: k8s.io/kura-eu-west-ingress-nginx
-    publishService:
-      enabled: true
-    service:
-      type: LoadBalancer
-      externalTrafficPolicy: Local
-      annotations: {}
-    admissionWebhooks: *kuraGatewayAdmissionWebhooks
-    config: *kuraGatewayNginxConfig
-    metrics:
-      enabled: true
-
 kura-ca-east-ingress-nginx:
   enabled: false
   controller:
@@ -212,7 +193,7 @@ kura-ca-east-ingress-nginx:
       annotations: {}
     admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
-    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # eu-west block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
     config: *kuraGatewayNginxConfig
     metrics:

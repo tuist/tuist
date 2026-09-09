@@ -36,7 +36,7 @@ mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-<environment>
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
 sets the provider-specific LoadBalancer annotations + any LB-specific
 ingress-nginx config. The production `values-tuist.yaml` overlay also enables
-three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
+three Kura-specific ingress-nginx aliases (`kura-eu-west`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
 

@@ -97,7 +97,7 @@ defmodule Tuist.Kura.AccountPolicies do
   # deterministic default breaks no residency promise, and it is what these
   # accounts resolve to today.
   @residency_defaults %{
-    europe: "eu-central",
+    europe: "eu-west",
     usa: "us-east",
     all: "us-east"
   }

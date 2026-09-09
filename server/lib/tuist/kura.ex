@@ -1352,11 +1352,11 @@ defmodule Tuist.Kura do
   end
 
   # Tier 2, interim until the Linux fleets get a node-local private
-  # region (tier 1). eu-central is hardcoded: every runner fleet is
+  # region (tier 1). eu-west is hardcoded: every runner fleet is
   # colocated with it today, so it's the instance the CLI's latency
   # race would pick from a runner — and both URL forms route through
   # the same pinned per-instance Service, so same pod. Without an
-  # eu-central instance the race is moot (every public form is
+  # eu-west instance the race is moot (every public form is
   # unreachable from a runner), so the first candidate wins: a
   # cross-region cache beats none. No readiness heartbeat needed — the
   # in-cluster Service already drops not-ready pods. Linux-only because
@@ -1365,7 +1365,7 @@ defmodule Tuist.Kura do
   defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
     servers = managed_cli_endpoint_servers(account)
 
-    server = Enum.find(servers, &(&1.region == "eu-central")) || List.first(servers)
+    server = Enum.find(servers, &(&1.region == "eu-west")) || List.first(servers)
 
     in_cluster_url(server, account)
   end

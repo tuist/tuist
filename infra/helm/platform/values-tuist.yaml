@@ -60,10 +60,10 @@ ingress-nginx:
 # ingress class and then to the selected Kura pod. Keep the controller
 # pods on the same regional Kura pools so the Hetzner LoadBalancer,
 # ingress-nginx, and Kura pods stay local to the region.
-kura-eu-central-ingress-nginx:
+kura-eu-west-ingress-nginx:
   enabled: true
   controller:
-    # eu-central is cut over to the Dedibox bare-metal box: the regional gateway
+    # eu-west is cut over to the Dedibox bare-metal box: the regional gateway
     # runs on the box's host network so serving traffic hits the box NIC directly
     # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
     # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
@@ -91,42 +91,12 @@ kura-eu-central-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
-# EU West (Paris, Scaleway Dedibox), the correctly named successor to
-# eu-central on the same hardware. Identical host-network shape: the gateway
-# binds the box's public IP because Dedibox has no Hetzner LB.
-#
-# Disabled until the region is served. It flips to true alongside the
-# TUIST_KURA_AVAILABLE_REGIONS entry and the kura-eu-west node pool, which is
-# carved out of the Dedibox fleet eu-central runs on today; until that pool has
-# a node this would schedule nothing anyway.
-kura-eu-west-ingress-nginx:
-  enabled: false
-  controller:
-    kind: DaemonSet
-    hostNetwork: true
-    dnsPolicy: ClusterFirstWithHostNet
-    reportNodeInternalIp: true
-    config:
-      use-proxy-protocol: "false"
-    nodeSelector:
-      node.cluster.x-k8s.io/pool: kura-eu-west
-    tolerations:
-      - key: tuist.dev/kura-cache
-        operator: Exists
-        effect: NoSchedule
-    publishService:
-      enabled: false
-    service:
-      type: ClusterIP
-      externalTrafficPolicy: ""
-      annotations: {}
-
 kura-us-east-ingress-nginx:
   enabled: true
   controller:
     # US East is on the OVH Vint Hill (VA) bare-metal box: the regional gateway
     # runs host-network so serving traffic hits the box NIC directly (OVH has no
-    # Hetzner LB), the same shape as eu-central on Dedibox above.
+    # Hetzner LB), the same shape as eu-west on Dedibox above.
     # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
     # into each Ingress status so external-dns resolves the per-account hosts.
     kind: DaemonSet

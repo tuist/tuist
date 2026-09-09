@@ -360,12 +360,12 @@ A minimal direct-binary deployment still looks like:
 KURA_PORT=4000 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
-KURA_REGION=eu-central \
+KURA_REGION=eu-west \
 KURA_TMP_DIR=/var/cache/kura/tmp \
 KURA_DATA_DIR=/var/cache/kura \
 KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \
-KURA_OTEL_SERVICE_NAME=kura-eu-central \
+KURA_OTEL_SERVICE_NAME=kura-eu-west \
 KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
@@ -423,7 +423,7 @@ Both values come from deployment configuration alone: resolution is a pure funct
 
 1. `KURA_NODE_COUNTRY` env var (2-letter ISO 3166-1 code), set from the datacenter the node runs in.
 2. The country prefix of `KURA_NODE_SUBDIVISION`, when only the subdivision is configured (`US-CA` -> `US`).
-3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-central` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
+3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-west` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
 
 Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-CA`) and nothing else. Neither attribute has a runtime discovery path, so an unconfigured node simply does not stamp it — `geo.region.iso_code` whenever the subdivision is unset, and `geo.country.iso_code` when all three country steps come up empty.
 

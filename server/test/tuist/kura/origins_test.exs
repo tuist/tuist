@@ -99,7 +99,7 @@ defmodule Tuist.Kura.OriginsTest do
 
       assert [
                %{origin: "US-OR", region: "us-west", run_count: 30, demand_count: 1},
-               %{origin: "FR", region: "eu-central", run_count: 10, demand_count: 2}
+               %{origin: "FR", region: "eu-west", run_count: 10, demand_count: 2}
              ] = Origins.traffic_mix(account, 14)
     end
 
