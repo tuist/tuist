@@ -76,11 +76,11 @@
      default, it slides in left-to-right while the button widens to fit it. */
   & .noora-button > span + svg {
     transform: translateX(calc(-1 * var(--noora-spacing-3)));
+    opacity: 0;
     transition:
       transform 200ms var(--ease-out-cubic),
       width 200ms var(--ease-out-cubic),
       opacity 200ms var(--ease-out-cubic);
-    opacity: 0;
     width: 0;
   }
 
@@ -94,8 +94,8 @@
   @media (prefers-reduced-motion: reduce) {
     & .noora-button > span + svg {
       transform: none;
-      transition: none;
       opacity: 1;
+      transition: none;
       width: var(--noora-button-icon-size);
     }
   }
@@ -982,13 +982,13 @@
             & > [data-part="marker"] {
               flex-shrink: 0;
               box-sizing: border-box;
-              width: 10px;
-              height: 10px;
               /* 6px between the swatch and its label; the row's spacing-2 flex
                  gap already contributes, so add only the difference. */
               margin-right: calc(6px - var(--noora-spacing-2));
               border: 1px solid var(--marketing-illustration-neutral-3);
               border-radius: 1px;
+              width: 10px;
+              height: 10px;
 
               &[data-state="ran"] {
                 border-color: var(--noora-purple-500);
@@ -998,10 +998,10 @@
               /* Flaky cells are a yellow outline with an inset filled square;
                  padding + content-box clip reproduce the gap between them. */
               &[data-state="flaky"] {
-                padding: 2px;
                 border-color: var(--noora-yellow-600);
                 background: var(--noora-yellow-500);
                 background-clip: content-box;
+                padding: 2px;
               }
             }
 
