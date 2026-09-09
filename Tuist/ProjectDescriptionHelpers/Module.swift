@@ -1694,6 +1694,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
