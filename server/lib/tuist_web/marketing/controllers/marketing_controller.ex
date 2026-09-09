@@ -636,7 +636,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     if Design.new?(conn, :newsletter) do
       conn
       |> assign(:new_design, true)
-      |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number))
+      |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
       |> render(:newsletter_new, layout: false)
     else
       render(conn, :newsletter, layout: false)

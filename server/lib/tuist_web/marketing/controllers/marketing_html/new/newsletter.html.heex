@@ -53,9 +53,11 @@ the page stays put and the server's message shows under the row. --%>
 
     <%!-- Past issues (Figma: eyebrow and title over a hairline list, one
     row per issue — number, title, date — each linking to the issue page).
-    Rows render oldest first like the comp; the neutral button above the
-    list flips the order in place through NewsletterIssuesSort, so sorting
-    never round-trips. --%>
+    Rows render newest first; the neutral button above the list flips the
+    order in place through NewsletterIssuesSort, so sorting never
+    round-trips. The hook mirrors the direction into the button's
+    data-state, which Noora's icon transition watches to morph the glyph
+    between the descending and ascending sort icons. --%>
     <section data-part="issues" aria-labelledby="newsletter-issues-title">
       <div data-part="text">
         <span data-part="eyebrow">{dgettext("marketing", "Issues")}</span>
@@ -69,16 +71,23 @@ the page stays put and the server's message shows under the row. --%>
           size="large"
           phx-hook="NewsletterIssuesSort"
           data-target="newsletter-issues-list"
-          data-direction="ascending"
+          data-state="descending"
           data-label-ascending={dgettext("marketing", "Sort issues newest first")}
           data-label-descending={dgettext("marketing", "Sort issues oldest first")}
-          aria-label={dgettext("marketing", "Sort issues newest first")}
+          aria-label={dgettext("marketing", "Sort issues oldest first")}
           aria-controls="newsletter-issues-list"
         >
-          <.sort_icon size={16} />
+          <Noora.Icon.icon
+            id="newsletter-issues-sort-icon"
+            name="sort_descending_small_big"
+            active_name="sort_ascending_small_big"
+            transition="morph"
+            watch="#newsletter-issues-sort"
+            active_state="ascending"
+          />
         </.neutral_button>
       </div>
-      <ol id="newsletter-issues-list" data-part="list" data-direction="ascending">
+      <ol id="newsletter-issues-list" data-part="list" data-direction="descending">
         <li
           :for={issue <- @issues}
           data-part="row"

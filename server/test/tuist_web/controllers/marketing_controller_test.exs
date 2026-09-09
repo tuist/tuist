@@ -342,7 +342,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "/marketing/assets/bundle-new.css"
     end
 
-    test "lists every past issue oldest first with the sort control when the flag is on", %{conn: conn} do
+    test "lists every past issue newest first with the sort control when the flag is on", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
         :new_marketing_newsletter -> true
         _flag -> false
@@ -359,7 +359,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
         |> Regex.scan(html)
         |> Enum.map(fn [_, number] -> String.to_integer(number) end)
 
-      expected = Newsletter.issues() |> Enum.map(& &1.number) |> Enum.sort()
+      expected = Newsletter.issues() |> Enum.map(& &1.number) |> Enum.sort(:desc)
       assert numbers == expected
       assert html =~ ~s(href="/newsletter/issues/#{List.first(expected)}")
     end

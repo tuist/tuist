@@ -271,16 +271,25 @@
     }
   }
 
-  /* Past issues frame (newsletter page only): the section intro 96px
-     above the eyebrow at 8px sides like the other pages' sections, the sort
-     control 16px in from the card edge, then the hairline list flush with
-     the card's sides. Each row is a 66px link (Figma: 20px above and below
-     a 26px line) — the issue number in a fixed 50px column, the title, and
-     the date pinned to the right edge. */
+  /* Past issues frame (newsletter page only): the section intro 72px
+     above the eyebrow at 8px sides, the sort control on the rows' inset
+     with 12px between it and the hairline list, which runs flush with the
+     card's sides. Each row is a 66px link (Figma: 20px above and below
+     a 26px line) — the issue number (heading medium) in a fixed 50px
+     column, then the title and the date (body medium) pinned to the right
+     edge. */
   & > [data-part="issues"] {
+    /* One left inset for the sort control and the rows' numbers, so their
+       left edges always line up: 24px on desktop, 16px on phones. */
+    --issues-inset: var(--noora-spacing-8);
+
     display: flex;
     flex-direction: column;
-    padding-top: var(--noora-spacing-16);
+    padding-top: var(--noora-spacing-14);
+
+    @media (max-width: 720px) {
+      --issues-inset: var(--noora-spacing-6);
+    }
 
     & > [data-part="text"] {
       display: flex;
@@ -306,7 +315,7 @@
       display: flex;
       align-items: center;
       margin-top: var(--noora-spacing-11);
-      padding: 0 var(--noora-spacing-6) var(--noora-spacing-4);
+      padding: 0 var(--issues-inset) var(--noora-spacing-5);
     }
 
     & > [data-part="list"] {
@@ -325,7 +334,7 @@
         align-items: center;
         transition: background 0.2s ease;
         outline-offset: -2px;
-        padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-8);
+        padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7) var(--issues-inset);
         color: var(--noora-surface-label-primary);
         text-decoration: none;
 
@@ -341,12 +350,12 @@
       }
 
       & [data-part="issue-title"] {
-        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         text-wrap: pretty;
       }
 
       & [data-part="date"] {
-        font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         text-align: right;
         white-space: nowrap;
       }
@@ -356,8 +365,10 @@
       @media (max-width: 720px) {
         & [data-part="link"] {
           grid-template-columns: auto minmax(0, 1fr);
-          row-gap: var(--noora-spacing-2);
-          padding: var(--noora-spacing-7) var(--noora-spacing-6);
+          /* The number hugs its width here, so it needs a wider gutter than
+             the fixed desktop column to keep clear of the title. */
+          gap: var(--noora-spacing-2) var(--noora-spacing-6);
+          padding: var(--noora-spacing-7) var(--noora-spacing-6) var(--noora-spacing-7) var(--issues-inset);
         }
 
         & [data-part="number"] {
