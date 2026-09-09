@@ -29,126 +29,157 @@ defmodule Tuist.Accounts.UserNotifier do
     end
   end
 
-  # Shared transactional chrome, styled after the redesigned marketing site:
-  # 600px bordered cards stacked 2px apart on the grey page surface, Inter for copy,
-  # Geist Mono for eyebrows, square corners and hairline dividers. Gmail
-  # drops the web fonts and falls back to the system sans/mono stacks.
-  defp html_email(body, icon_url, title \\ "Email Confirmation", locale \\ "en") do
+  @font "'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+  @purple "rgb(111, 44, 255)"
+
+  # Renders a transactional email in the marketing site's design language,
+  # within what mail clients allow: tables, inline styles, the palette as
+  # hex values (Gmail drops <style> blocks, so only the dark-mode guard for
+  # the button lives in one). The same shell as the newsletter issue: a
+  # masthead box with the wordmark, one bordered content box on the
+  # tertiary ground, and a muted footer line. Every text value is escaped
+  # here, so callers pass plain strings (interpolated names, emails).
+  # Class rules for the emails that bring their own body HTML (html_email/4).
+  @body_styles """
+    .container {
+      padding: 0;
+    }
+    h1 {
+      font-weight: 400;
+      font-size: 28px;
+      line-height: 34px;
+      letter-spacing: -0.01em;
+      margin: 0 0 16px 0;
+      color: #191A1B;
+      text-align: center;
+      text-wrap: balance;
+    }
+    p {
+      font-size: 14px;
+      line-height: 20px;
+      margin: 0 0 16px 0;
+      color: #535659;
+      text-align: center;
+    }
+    a {
+      color: #6F2CFF;
+    }
+    .eyebrow {
+      font-family: "Geist Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 16px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #535659;
+    }
+    .button {
+      display: inline-block;
+      padding: 6px 8px;
+      background-color: #6F2CFF;
+      border: 1px solid #5F01E5;
+      border-radius: 6px;
+      color: #FDFDFD !important;
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .button:hover {
+      background-color: #5F01E5;
+    }
+  """
+
+  # The redesigned emails describe their content and let the shell lay it
+  # out: a title, paragraphs, an optional button and note.
+  defp html_email(%{title: title, paragraphs: paragraphs} = content, icon_url) do
+    button = Map.get(content, :button)
+    note = Map.get(content, :note)
+
+    inner = """
+                    <h1 style="margin: 0; font-family: #{@font}; font-size: 24px; line-height: 32px; font-weight: 400; letter-spacing: -0.01em; color: #191a1b;">#{escape(title)}</h1>
+    #{Enum.map_join(paragraphs, "\n", &paragraph/1)}
+    #{button_html(button)}
+    #{note_html(note)}
+    """
+
+    chrome(title, inner, icon_url, "", "en")
+  end
+
+  # Emails that build their own body HTML (the Air usage notifications from
+  # #13050) pass it here with its title and locale; they get the same
+  # masthead, content box and footer, and the class rules in @body_styles
+  # that their markup relies on.
+  defp html_email(body, icon_url, title, locale) when is_binary(body) do
+    chrome(title, body, icon_url, @body_styles, locale)
+  end
+
+  # One shell for both forms: the masthead box with the wordmark, the content
+  # box on the tertiary ground, the footer box.
+  defp chrome(title, inner, icon_url, extra_styles, locale) do
+    year = Date.utc_today().year
+
     """
     <!DOCTYPE html>
-    <html lang="#{locale |> String.replace("_", "-") |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()}">
+    <html lang="#{String.replace(locale, "_", "-")}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="color-scheme" content="light only" />
         <meta name="supported-color-schemes" content="light only" />
-        <title>#{title |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()}</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet" />
+        <title>#{escape(title)}</title>
         <style>
-        body {
-          margin: 0;
-          padding: 0;
-          background-color: #F7F7F7;
-          color: #191A1B;
-          font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Georgian", Helvetica, Arial, sans-serif;
-          -webkit-font-smoothing: antialiased;
-        }
-        .container {
-          padding: 40px 40px 8px;
-        }
-        h1 {
-          font-weight: 400;
-          font-size: 28px;
-          line-height: 34px;
-          letter-spacing: -0.01em;
-          margin: 0 0 16px 0;
-          color: #191A1B;
-          text-align: center;
-          text-wrap: balance;
-        }
-        p {
-          font-size: 14px;
-          line-height: 20px;
-          margin: 0 0 16px 0;
-          color: #535659;
-          text-align: center;
-        }
-        a {
-          color: #6F2CFF;
-        }
-        .eyebrow {
-          font-family: "Geist Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-          font-size: 12px;
-          line-height: 16px;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-          color: #535659;
-        }
-        .button {
-          display: inline-block;
-          padding: 6px 8px;
-          background-color: #6F2CFF;
-          border: 1px solid #5F01E5;
-          border-radius: 6px;
-          color: #FDFDFD !important;
-          font-size: 14px;
-          line-height: 20px;
-          font-weight: 500;
-          text-decoration: none;
-        }
-        .button:hover {
-          background-color: #5F01E5;
-        }
-        footer p {
-          font-size: 12px;
-          line-height: 16px;
-          margin: 0 0 8px 0;
-          color: #707478;
-        }
-        footer a {
-          color: #535659;
-        }
-        @media only screen and (max-width: 640px) {
-          .container {
-            padding: 32px 20px 8px !important;
+          @media (prefers-color-scheme: dark) {
+            .button-primary {
+              background-color: #{@purple} !important;
+              border-color: #{@purple} !important;
+              color: #fdfdfd !important;
+            }
           }
-        }
-        </style>
+          [data-ogsc] .button-primary,
+          [data-ogsb] .button-primary {
+            background-color: #{@purple} !important;
+            border-color: #{@purple} !important;
+            color: #fdfdfd !important;
+          }
+    #{extra_styles}        </style>
       </head>
-      <body style="margin: 0; padding: 0; background-color: #F7F7F7;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F7F7F7;">
+      <body style="margin: 0; padding: 0; background: #f7f7f7; font-family: #{@font}; -webkit-font-smoothing: antialiased;">
+        <table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" style="width: 100% !important; max-width: 560px; padding: 24px 8px 40px; box-sizing: border-box;">
           <tr>
-            <td align="center" style="padding: 32px 8px;">
-              <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width: 100%; max-width: 600px;">
+            <td>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border: 1px solid #eff0f1; background: #fdfdfd; border-collapse: separate;">
                 <tr>
-                  <td align="center" style="padding: 28px 40px; border: 1px solid #EFF0F1; background-color: #FDFDFD;">
-                    <img src="#{icon_url}" alt="Tuist" width="100" height="40" style="display: block; width: 100px; height: 40px; border: 0;" />
-                  </td>
-                </tr>
-                <tr>
-                  <td style="height: 2px; font-size: 0; line-height: 0;"></td>
-                </tr>
-                <tr>
-                  <td style="border: 1px solid #EFF0F1; background-color: #FDFDFD;">
-                    #{body}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="height: 2px; font-size: 0; line-height: 0;"></td>
-                </tr>
-                <tr>
-                  <td align="center" style="padding: 20px 40px 24px; border: 1px solid #EFF0F1; background-color: #FDFDFD;">
-                    <footer>
-                      <p>
-                        This email was sent by Tuist. By using our services, you agree to our <a href="https://tuist.dev/terms">terms of service</a> and <a href="https://tuist.dev/privacy">privacy policy</a>.
-                      </p>
-                      <p style="margin: 0;">© Tuist GmbH #{Date.utc_today().year}. All rights reserved.</p>
-                    </footer>
+                  <td style="padding: 20px 32px;">
+                    <a href="#{escape(Environment.app_url())}" style="display: inline-block; text-decoration: none;">
+                      <img src="#{escape(icon_url)}" alt="Tuist" width="82" height="36" style="display: block; width: 82px; height: 36px; border: 0;" />
+                    </a>
                   </td>
                 </tr>
               </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 2px; line-height: 2px; font-size: 2px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border: 1px solid #eff0f1; background: #fdfdfd; border-collapse: separate;">
+                <tr>
+                  <td style="padding: 40px 32px;">
+    #{inner}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 24px 32px 0; text-align: center;">
+              <p style="margin: 0; font-family: #{@font}; font-size: 12px; line-height: 18px; color: #535659;">
+                #{escape(dgettext("dashboard_account", "This email was sent by Tuist. By using our services, you agree to our"))}
+                <a href="#{escape(Environment.app_url(path: "/terms"))}" style="color: #535659; text-decoration: underline;">#{escape(dgettext("dashboard_account", "terms of service"))}</a>.
+                <br />
+                &copy; Tuist GmbH #{year}. #{escape(dgettext("dashboard_account", "All rights reserved."))}
+              </p>
             </td>
           </tr>
         </table>
@@ -156,6 +187,26 @@ defmodule Tuist.Accounts.UserNotifier do
     </html>
     """
   end
+
+  defp paragraph(text) do
+    ~s(<p style="margin: 16px 0 0; font-family: #{@font}; font-size: 16px; line-height: 24px; color: #191a1b;">#{escape(text)}</p>)
+  end
+
+  defp button_html(nil), do: ""
+
+  defp button_html({label, url}) do
+    ~s(<p style="margin: 28px 0 0;"><a class="button-primary" href="#{escape(url)}" style="display: inline-block; font-family: #{@font}; font-size: 14px; line-height: 20px; font-weight: 500; color: #fdfdfd; background: #{@purple}; border: 1px solid #{@purple}; border-radius: 6px; padding: 8px 16px; text-decoration: none;">#{escape(label)}</a></p>)
+  end
+
+  defp note_html(nil), do: ""
+
+  defp note_html(lines) when is_list(lines) do
+    ~s(<p style="margin: 28px 0 0; font-family: #{@font}; font-size: 14px; line-height: 20px; color: #535659;">#{Enum.map_join(lines, "<br />", &escape/1)}</p>)
+  end
+
+  defp note_html(text), do: note_html([text])
+
+  defp escape(value), do: value |> to_string() |> Plug.HTML.html_escape()
 
   @doc """
   Deliver instructions to confirm account.
@@ -165,22 +216,15 @@ defmodule Tuist.Accounts.UserNotifier do
     |> build_email(
       dgettext("dashboard_account", "Confirmation instructions"),
       html_email(
-        """
-            <div class="container">
-                <h1>#{dgettext("dashboard_account", "You're Almost Set!")}</h1>
-                <p>
-                  #{dgettext("dashboard_account", "To start using Tuist, verify your email and you are good to go:")}
-                </p>
-                <p style="padding-top: 16px; padding-bottom: 16px;">
-                  <a href="#{confirmation_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Confirm your email")}</a>
-                </p>
-                <p style="font-size: 14px; color: #555555;">
-                 #{dgettext("dashboard_account", "You received this email because you recently signed up for a Tuist account.")}
-                 <br/>
-                 #{dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")}
-                </p>
-            </div>
-        """,
+        %{
+          title: dgettext("dashboard_account", "You're Almost Set!"),
+          paragraphs: [dgettext("dashboard_account", "To start using Tuist, verify your email and you are good to go:")],
+          button: {dgettext("dashboard_account", "Confirm your email"), confirmation_url},
+          note: [
+            dgettext("dashboard_account", "You received this email because you recently signed up for a Tuist account."),
+            dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
+          ]
+        },
         Environment.email_icon_url()
       )
     )
@@ -195,22 +239,22 @@ defmodule Tuist.Accounts.UserNotifier do
       user.email,
       dgettext("dashboard_account", "Reset password instructions"),
       html_email(
-        """
-            <div class="container">
-              <h1>#{dgettext("dashboard_account", "Did you request to reset your password?")}</h1>
-              <p>
-                #{dgettext("dashboard_account", "Hola %{name}, you can reset your password by clicking the button below:", name: user.account.name)}
-              </p>
-              <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{reset_password_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Reset your password")}</a>
-              </p>
-              <p style="font-size: 14px; color: #555555; text-align: center;">
-                 #{dgettext("dashboard_account", "You received this email because you requested a password reset for your Tuist account.")}
-                 <br/>
-                 #{dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")}
-                </p>
-            </div>
-        """,
+        %{
+          title: dgettext("dashboard_account", "Did you request to reset your password?"),
+          paragraphs: [
+            dgettext("dashboard_account", "Hola %{name}, you can reset your password by clicking the button below:",
+              name: user.account.name
+            )
+          ],
+          button: {dgettext("dashboard_account", "Reset your password"), reset_password_url},
+          note: [
+            dgettext(
+              "dashboard_account",
+              "You received this email because you requested a password reset for your Tuist account."
+            ),
+            dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
+          ]
+        },
         Environment.email_icon_url()
       )
     )
@@ -224,21 +268,14 @@ defmodule Tuist.Accounts.UserNotifier do
       email,
       "Your Tuist agent sign-in code",
       html_email(
-        """
-            <div class="container">
-              <h1>View your Tuist sign-in code</h1>
-              <p>
-                An agent is requesting access to Tuist on your behalf.
-                Open the secure page below to view the one-time code, then read it back to the agent.
-              </p>
-              <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{claim_view_url}" style="color: #ffffff;" class="button">View sign-in code</a>
-              </p>
-              <p style="font-size: 14px; color: #555555; text-align: center;">
-                If you did not ask an agent to connect to Tuist, ignore this email.
-              </p>
-            </div>
-        """,
+        %{
+          title: "View your Tuist sign-in code",
+          paragraphs: [
+            "An agent is requesting access to Tuist on your behalf. Open the secure page below to view the one-time code, then read it back to the agent."
+          ],
+          button: {"View sign-in code", claim_view_url},
+          note: "If you did not ask an agent to connect to Tuist, ignore this email."
+        },
         Environment.email_icon_url()
       )
     )
@@ -256,17 +293,23 @@ defmodule Tuist.Accounts.UserNotifier do
       invitee_email,
       dgettext("dashboard_account", "Invitation to %{organization_name}", organization_name: organization_name),
       html_email(
-        """
-            <div class="container">
-              <h1>#{dgettext("dashboard_account", "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}", organization_name: organization_name, inviter_email: inviter_email)}</h1>
-              <p>
-                #{dgettext("dashboard_account", "Hola %{invitee_email}, you can join the organization by clicking the button below:", invitee_email: invitee_email)}
-              </p>
-              <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Accept invitation")}</a>
-              </p>
-            </div>
-        """,
+        %{
+          title:
+            dgettext(
+              "dashboard_account",
+              "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}",
+              organization_name: organization_name,
+              inviter_email: inviter_email
+            ),
+          paragraphs: [
+            dgettext(
+              "dashboard_account",
+              "Hola %{invitee_email}, you can join the organization by clicking the button below:",
+              invitee_email: invitee_email
+            )
+          ],
+          button: {dgettext("dashboard_account", "Accept invitation"), url}
+        },
         Environment.email_icon_url()
       )
     )
@@ -295,23 +338,30 @@ defmodule Tuist.Accounts.UserNotifier do
 
     body =
       html_email(
-        """
-            <div class="container">
-              <h1>#{dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization", organization_name: organization_name)}</h1>
-              <p>
-                #{dgettext("dashboard_account", "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).", user_email: user_email, organization_name: organization_name)}
-              </p>
-              <p>
-                #{dgettext("dashboard_account", "If you expected this, no action is needed. You can open the organization here:")}
-              </p>
-              <p style="padding-top: 16px; padding-bottom: 16px;">
-                <a href="#{organization_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name)}</a>
-              </p>
-              <p>
-                #{dgettext("dashboard_account", "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.", organization_name: organization_name)}
-              </p>
-            </div>
-        """,
+        %{
+          title: subject,
+          paragraphs: [
+            dgettext(
+              "dashboard_account",
+              "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).",
+              user_email: user_email,
+              organization_name: organization_name
+            ),
+            dgettext(
+              "dashboard_account",
+              "If you expected this, no action is needed. You can open the organization here:"
+            )
+          ],
+          button:
+            {dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name),
+             organization_url},
+          note:
+            dgettext(
+              "dashboard_account",
+              "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.",
+              organization_name: organization_name
+            )
+        },
         Environment.email_icon_url()
       )
 
@@ -480,19 +530,22 @@ defmodule Tuist.Accounts.UserNotifier do
   Deliver instructions to update a user email.
   """
   def deliver_update_email_instructions(user, url) do
-    deliver(user.email, "Update email instructions", """
-
-    ==============================
-
-    Hi #{user.email},
-
-    You can change your email by visiting the URL below:
-
-    #{url}
-
-    If you didn't request this change, please ignore this.
-
-    ==============================
-    """)
+    deliver(
+      user.email,
+      dgettext("dashboard_account", "Update email instructions"),
+      html_email(
+        %{
+          title: dgettext("dashboard_account", "Update your email"),
+          paragraphs: [
+            dgettext("dashboard_account", "Hi %{email}, you can change your email by clicking the button below:",
+              email: user.email
+            )
+          ],
+          button: {dgettext("dashboard_account", "Update your email"), url},
+          note: dgettext("dashboard_account", "If you didn't request this change, please ignore this email.")
+        },
+        Environment.email_icon_url()
+      )
+    )
   end
 end
