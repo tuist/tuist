@@ -13,6 +13,11 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- Build ingestion reads `feature_flags` through the restricted processor role,
+  even when Xcode build step collection is disabled. Keep its read grant in
+  `Release` and `infra/cnpg/tuist-processor-grants.sql` in sync; every migration
+  revokes processor table privileges before restoring the allowlist.
+
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
   Its query options suppress application SQL logging without overriding managed
   ClickHouse logging policy; server password masking requires valid dictionary DDL.
