@@ -16,6 +16,8 @@ run_as_test_user() {
   cleanup_project() {
     local result=$?
     set +e
+    cp "$HOME/.local/state/tuist/$label."*.log "$artifacts/" 2>/dev/null
+    launchctl print "user/$(id -u)/$label" > "$artifacts/daemon-status.log" 2>&1
     "$tuist_binary" teardown cache --path "$fixture" > "$artifacts/cleanup-cache.log" 2>&1
     if [[ "$project_created" == 1 ]]; then
       if ! "$tuist_binary" project delete "$full_handle" --path "$fixture" > "$artifacts/cleanup-project.log" 2>&1; then
@@ -84,12 +86,23 @@ SWIFT
   "$tuist_binary" generate --path "$fixture" --no-open > "$artifacts/generate.log" 2>&1
   build() {
     local name="$1"
-    "$tuist_binary" xcodebuild build \
+    "$tuist_binary" xcodebuild build --verbose \
       -project "$fixture/HeadlessCacheE2E.xcodeproj" -scheme HeadlessCacheE2E \
       -destination 'platform=macOS' -derivedDataPath "$derived_data" \
       "COMPILATION_CACHE_CAS_PATH=$HOME/cas-$name" \
       CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
       > "$artifacts/build-$name.log" 2>&1
+    python3 - "$derived_data/Logs/Build" > "$artifacts/cache-$name.log" <<'PYTHON'
+import gzip
+import pathlib
+import re
+import sys
+
+for log in pathlib.Path(sys.argv[1]).glob("*.xcactivitylog"):
+    data = gzip.decompress(log.read_bytes())
+    for match in re.finditer(rb"(?:Swift|Clang) caching (?:query|materialize|upload) key[^\x00-\x1f]{0,160}|cache key query miss", data):
+        print(match.group().decode("utf-8", errors="replace"))
+PYTHON
   }
   build cold
   echo "Cold Xcode build succeeded"
@@ -106,9 +119,10 @@ SWIFT
   for attempt in 1 2 3 4 5 6; do
     rm -rf "$derived_data"
     build "warm-$attempt"
-    if grep -q 'cacheable tasks (100%)' "$artifacts/build-warm-$attempt.log"; then
+    if grep -q 'caching materialize key' "$artifacts/cache-warm-$attempt.log" &&
+      ! grep -q 'cache key query miss' "$artifacts/cache-warm-$attempt.log"; then
       hit=1
-      echo "Clean rebuild with an empty local CAS achieved 100% remote cache hits"
+      echo "Clean rebuild materialized cached compilation results with an empty local CAS and no remote misses"
       break
     fi
     sleep 10
