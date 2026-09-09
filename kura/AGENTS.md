@@ -15,7 +15,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
-  - `test/e2e/multipart-admission/` provides a real-binary multipart burst comparison, including verified download round trips.
+  - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 - Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
