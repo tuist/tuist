@@ -3035,13 +3035,20 @@ clickhouse:
       # leaving a gap between them. RFC 3339, for example
       # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
       cutoff: ""
-      # Run the step as an ordinary Job rather than a deploy hook, so the
-      # release does not wait for it. For the schema clone and the parity
-      # checks, which take seconds to minutes, waiting is what makes the
-      # deploy's result meaningful. For the backfill it is the opposite: helm
-      # waits for hook Jobs, so a copy of a production-sized dataset would hold
-      # the release for hours and then fail it on the deadline below, rolling
-      # the release back with it.
+      # BROKEN under helm 4, and left here only so the values keep their shape
+      # while a replacement is chosen. Do not set it to true.
+      #
+      # The intent was to run the step as an ordinary Job rather than a deploy
+      # hook, so the release would not wait for it: waiting is what makes the
+      # deploy's result meaningful for the schema clone and the parity checks,
+      # which take seconds to minutes, and is the opposite of what a
+      # production-sized copy wants.
+      #
+      # That relied on helm 3, whose `--wait` covered pods and workloads but
+      # not Jobs. Helm 4 waits on Jobs too, so an ordinary Job is not
+      # background at all: the release blocks on it, and a Job that fails
+      # fails the release. Arming it on canary rolled back three releases in a
+      # row on `resource Job/... not ready. status: Failed`.
       #
       # The task takes an advisory lock, so a second deploy while a copy is
       # running starts a Job that exits immediately rather than a second copy.
