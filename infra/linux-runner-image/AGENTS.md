@@ -209,8 +209,8 @@ rather than whichever awk the CI runner happens to ship.
 
 `run-job_test.sh` exercises the generated job-start hook, including
 late environment-file expansion and jobs without a cache endpoint.
-`.github/workflows/linux-runner-gradle-cache-smoke.yml` validates a
-deployed image with a real Docker job container. Select the runner
+`.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
+enabled validates a deployed image with a real Docker job container. Select the runner
 profile, matching server URL, and an existing Gradle project authorized
 for the repository's OIDC token. It requires the injected endpoint to
 be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
