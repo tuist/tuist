@@ -206,14 +206,17 @@ defmodule Tuist.Kura.PlacementProposals do
     open = Map.get(inputs.open_proposals, account.id)
     plan = AccountPolicies.sizing_plan(account)
 
-    if placeable?(account) do
+    if placeable?(account) and known_regions?(account, inputs) do
       converge_placeable_account(account, open, plan, inputs, today, policy)
     else
       # An account resolution refuses has nowhere to be placed, and the
       # lifecycle will never provision for it. Deciding anything for one would
       # be acting on an instance set that cannot be converged: a relocation
       # would retire its source and leave it with strictly fewer instances
-      # every time, ending at none.
+      # every time, ending at none. An account holding a region the catalog
+      # does not name is left alone for the same reason: the rows can name one
+      # for the length of a deploy that renames a region, and read as a
+      # misplacement that would move the account off an instance serving it.
       if open, do: supersede(open, "sweep")
       :none
     end
@@ -221,6 +224,13 @@ defmodule Tuist.Kura.PlacementProposals do
 
   defp placeable?(account) do
     match?({:ok, _resolution}, AccountPolicies.resolve(account))
+  end
+
+  defp known_regions?(account, inputs) do
+    placer_rows = Map.get(inputs.placer_regions, account.id, [])
+    live = Map.get(inputs.live_regions, account.id, [])
+
+    placer_rows |> serving_from(live) |> Enum.all?(&Regions.exists?/1)
   end
 
   defp converge_placeable_account(account, open, plan, inputs, today, policy) do

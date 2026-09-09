@@ -218,6 +218,12 @@ defmodule Tuist.Kura.Lifecycle do
     servers = live_servers(account.id)
 
     cond do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. The instance there is still serving, and
+      # a drain scheduled now would outlive the window that made it look wrong.
+      not Regions.exists?(region_id) ->
+        :ok
+
       # Nothing left to drain: the instance is already gone, so the row has
       # done its job and the region is free to be chosen again on its merits.
       is_nil(Enum.find(servers, &(&1.region == region_id))) ->
