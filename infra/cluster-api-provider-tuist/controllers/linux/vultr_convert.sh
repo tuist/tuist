@@ -7,6 +7,25 @@ set -euo pipefail
 
 log() { echo "prep-vultr: $*"; }
 
+# The Vultr image ships ufw enabled and default-deny; the OVH and Dedibox images
+# ship no host firewall at all. It admits only SSH, so the box joins and reports
+# Ready -- the kubelet's outbound path to the apiserver is untouched -- while
+# every pod on it is cut off: Cilium's VXLAN (8472/udp) and health probes
+# (4240/tcp) are dropped on arrival from the other nodes, and the apiserver
+# cannot reach the kubelet on 10250 for logs, exec or metrics. Cilium already
+# programs this node's iptables, so a second filtering layer it does not know
+# about turns every future cluster port into a Vultr-only outage. Runs ahead of
+# the conversion so a box that fails the disk gates still ends up reachable.
+if command -v ufw >/dev/null 2>&1; then
+  if ufw status | grep '^Status: active' >/dev/null; then
+    ufw disable >/dev/null
+    log "disabled ufw"
+  else
+    log "ufw already inactive"
+  fi
+  ufw status | grep '^Status: inactive' >/dev/null || { log "ufw is still active"; exit 1; }
+fi
+
 # An existing /data is not proof of a good /data: one that is ext4, or mounted
 # without project quotas, would leave every cache volume unbounded. So skip the
 # conversion but always fall through to the gates below, which decide.

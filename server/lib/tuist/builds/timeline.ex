@@ -1,52 +1,29 @@
 defmodule Tuist.Builds.Timeline do
   @moduledoc """
-  Time-windowed views of recorded build steps, with a surrounding buffer for local zooming.
+  Full-build metadata for local timeline zooming, panning and search. Logs load separately.
   """
   import Ecto.Query
 
   alias Tuist.Builds.Step
   alias Tuist.ClickHouseRepo
 
-  @buffer 60_000
-
   def load(build_id, opts \\ []) do
-    search = opts |> Keyword.get(:search, "") |> String.slice(0, 512)
-    base = from(e in Step, hints: ["FINAL"], where: e.build_run_id == ^build_id)
-
-    summary = Keyword.get(opts, :summary)
-
-    {total, duration} =
-      case summary do
-        %{total_count: total, duration: duration} -> {total, duration}
-        _ -> ClickHouseRepo.one(from(e in base, select: {count(), max(fragment("? + ?", e.start_ms, e.duration_ms))}))
-      end
-
-    base = search_query(base, search)
-
-    total = if search == "", do: total, else: ClickHouseRepo.one(from(e in base, select: count()))
-    duration = max(duration || 0, Keyword.get(opts, :duration, 1))
-    span = min(max(Keyword.get(opts, :span, duration), 1), duration)
-    start = min(max(Keyword.get(opts, :start, 0), 0), max(duration - span, 0))
-    loaded_start = max(0, start - @buffer)
-    finish = min(duration, start + span + @buffer)
-    scoped = from(e in base, where: e.start_ms < ^finish and fragment("? + ?", e.start_ms, e.duration_ms) > ^loaded_start)
-
     events =
       ClickHouseRepo.all(
-        from(e in scoped,
+        from(e in Step,
+          hints: ["FINAL"],
+          where: e.build_run_id == ^build_id,
           order_by: [asc: e.start_ms, asc: e.event_id],
           select: map(e, [:event_id, :title, :target, :project, :category, :start_ms, :duration_ms, :status])
         )
       )
 
-    %{
-      events: events,
-      total_count: total,
-      duration: duration,
-      range: %{start: start, span: span},
-      loaded_range: %{start: loaded_start, span: finish - loaded_start},
-      max_span: duration
-    }
+    duration =
+      Enum.reduce(events, Keyword.get(opts, :duration, 1), fn event, duration ->
+        max(duration, event.start_ms + event.duration_ms)
+      end)
+
+    %{events: events, total_count: length(events), duration: duration}
   end
 
   def target_count(build_id) do

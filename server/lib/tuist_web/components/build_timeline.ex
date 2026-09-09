@@ -27,7 +27,7 @@ defmodule TuistWeb.Components.BuildTimeline do
           subtitle={
             dgettext(
               "dashboard_builds",
-              "This build has no recorded step timings. Timelines are available for newly processed builds and are retained for 90 days."
+              "This build has no recorded step timings. Recorded steps are retained for 90 days."
             )
           }
         />
@@ -127,9 +127,6 @@ defmodule TuistWeb.Components.BuildTimeline do
                     <span data-kind="failure">{dgettext("dashboard_builds", "Failed")}</span>
                     <output data-part="range"></output>
                   </div>
-                  <p data-part="range-error" role="alert" hidden>
-                    {dgettext("dashboard_builds", "Unable to load this time range. Try again.")}
-                  </p>
                 </div>
                 <canvas data-part="step-ruler" aria-hidden="true"></canvas>
                 <div data-part="scrollport">
@@ -221,6 +218,9 @@ defmodule TuistWeb.Components.BuildTimeline do
             </aside>
           </div>
           <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
+          <p data-part="no-recorded-steps" hidden>
+            {dgettext("dashboard_builds", "No steps were recorded for this build.")}
+          </p>
           <p data-part="no-matches" hidden>
             {dgettext("dashboard_builds", "No steps in this time range match your filters.")}
           </p>

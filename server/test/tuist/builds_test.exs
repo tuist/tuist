@@ -4,11 +4,17 @@ defmodule Tuist.BuildsTest do
 
   alias Tuist.Builds
   alias Tuist.Builds.Timeline
+  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "build_timeline/1" do
+    setup do
+      stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
+      :ok
+    end
+
     test "stores relative timings, isolates builds, and deduplicates processing retries" do
       event = %{
         event_id: 1,
@@ -53,7 +59,7 @@ defmodule Tuist.BuildsTest do
       assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
     end
 
-    test "range and search find late steps and keyboard navigation stays in the build and search" do
+    test "full metadata includes late steps and keyboard navigation stays in the build and search" do
       steps =
         Stream.map(1..1600, fn id ->
           %{
@@ -79,12 +85,6 @@ defmodule Tuist.BuildsTest do
       assert length(events) == 1600
       assert Enum.any?(events, &(&1.start_ms > 15_000))
 
-      assert %{events: buffered, range: %{start: 16_000, span: 5}} =
-               Builds.build_timeline(build.id, start: 16_000, span: 5)
-
-      assert Enum.any?(buffered, &(&1.event_id == 1600))
-      assert %{events: [%{event_id: 1600}], total_count: 1} = Builds.build_timeline(build.id, search: "COMPILE 1600")
-      assert %{events: []} = Builds.build_timeline(build.id, search: "Wrong")
       assert 1 == Builds.build_timeline_target_count(build.id)
       assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
       assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
@@ -92,7 +92,7 @@ defmodule Tuist.BuildsTest do
       assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
     end
 
-    test "opens with the entire build visible and still buffers zoomed-in windows" do
+    test "loads the entire build including late steps" do
       steps =
         for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
           %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
@@ -100,36 +100,9 @@ defmodule Tuist.BuildsTest do
 
       {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
 
-      assert %{
-               range: %{start: 0, span: 901_000.0},
-               max_span: 901_000.0,
-               loaded_range: %{start: 0, span: 901_000.0},
-               events: events
-             } = Builds.build_timeline(build.id)
-
+      assert %{duration: 901_000.0, events: events} = Builds.build_timeline(build.id)
       assert Enum.map(events, & &1.event_id) == [1, 2, 3, 4]
-      assert %{range: %{start: 0, span: 901_000.0}} = Builds.build_timeline(build.id, span: 2_000_000)
-      assert %{range: %{span: 10_000}, events: late} = Builds.build_timeline(build.id, start: 870_000, span: 10_000)
-      assert Enum.map(late, & &1.event_id) == [4]
-    end
-
-    test "reuses the server-held summary for scrolling without aggregate queries" do
-      {:ok, build} =
-        RunsFixtures.build_fixture(
-          build_steps: [
-            %{event_id: 1, title: "Compile", start_ms: 100_000.0, duration_ms: 2000.0, status: "success"}
-          ]
-        )
-
-      timeline = Builds.build_timeline(build.id)
-      stub(Tuist.ClickHouseRepo, :one, fn _ -> flunk("scrolling should not requery the build summary") end)
-
-      assert %{events: [%{event_id: 1}], total_count: 1, duration: 102_000.0} =
-               Builds.build_timeline(build.id,
-                 start: 100_000,
-                 span: 1000,
-                 summary: Map.take(timeline, [:total_count, :duration])
-               )
+      assert %{duration: 1_000_000} = Builds.build_timeline(build.id, duration: 1_000_000)
     end
 
     test "fetches logs separately and scopes them to their build" do

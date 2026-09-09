@@ -1,6 +1,4 @@
 import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
-import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
-import { TimelineCache } from "./BuildTimelineCache.mjs";
 import { densityLayout } from "./BuildTimelineDensity.mjs";
 import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
 import { bindInspectorResize } from "./BuildTimelineResize.mjs";
@@ -19,7 +17,6 @@ import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
 import { bindDragFocus } from "./BuildTimelineFocus.mjs";
 
 let nextLogRequest = 0;
-let nextRangeRequest = 0;
 let nextNavigationRequest = 0;
 
 export default {
@@ -62,10 +59,6 @@ export default {
     this.maxSpan = this.duration;
     this.range = { start: 0, span: this.duration };
     this.initialRange = { ...this.range };
-    this.prefetch = new TimelinePrefetch();
-    this.cache = new TimelineCache();
-    this.cache.add(timeline.loaded_range || this.range, this.events);
-    this.rangeInFlight = false;
     this.logRequest = ++nextLogRequest;
     this.palette = null;
     this.part("payload-loading").hidden = true;
@@ -73,8 +66,6 @@ export default {
     this.part("timeline-content").hidden = false;
     this.part("summary").hidden = false;
     this.requestLog = debounce((event, request) => this.loadLog(event, request), 150, this.abort.signal);
-    this.rangeRequest = ++nextRangeRequest;
-    this.requestRange = () => this.loadRange();
     this.navigationRequest = ++nextNavigationRequest;
     this.stepHandler = this.handleEvent("timeline-step", ({ request_id, step }) => {
       if (request_id !== this.navigationRequest || !step || this.abort.signal.aborted) return;
@@ -82,7 +73,6 @@ export default {
       this.select(event);
       this.setRange(event.start_ms - event.duration_ms * 0.1, Math.max(1, event.duration_ms * 1.2));
     });
-    this.rangeHandler = this.handleEvent("timeline-range", (response) => this.receiveRange(response));
     this.logHandler = this.handleEvent("timeline-log", (response) => this.receiveLog(response));
     const on = (el, name, fn, options = {}) => el.addEventListener(name, fn, { ...options, signal: this.abort.signal });
     this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
@@ -171,14 +161,12 @@ export default {
       this.hideTooltip();
       this.cancelFocus();
       if (Math.abs(this.scrollport.scrollLeft - this.lastScrollLeft) > 0.5) {
-        const previousStart = this.range.start;
         this.range.start = scrollStart(
           this.scrollport.scrollLeft,
           this.scrollport.scrollWidth - this.scrollport.clientWidth,
           this.range,
           this.duration,
         );
-        this.prefetch.pan(previousStart, this.range.start);
         this.relayout();
       }
       this.scheduleDraw();
@@ -215,7 +203,7 @@ export default {
     }
     const resize = () => {
       this.resizeInspector();
-      this.relayout(false);
+      this.relayout();
     };
     on(window, "resize", resize);
     this.resize = new ResizeObserver(resize);
@@ -223,7 +211,7 @@ export default {
     this.resize.observe(this.part("timeline-chart"));
     this.resize.observe(this.scrollport);
     this.filtered = this.events;
-    this.relayout(false);
+    this.relayout();
   },
 
   updated() {
@@ -240,8 +228,6 @@ export default {
     this.abort.abort();
     if (this.logHandler) this.removeHandleEvent(this.logHandler);
     this.logHandler = null;
-    if (this.rangeHandler) this.removeHandleEvent(this.rangeHandler);
-    this.rangeHandler = null;
     if (this.stepHandler) this.removeHandleEvent(this.stepHandler);
     this.stepHandler = null;
     for (const indicator of this.scrollIndicators || []) {
@@ -257,10 +243,6 @@ export default {
   filter() {
     this.search = this.control("search").value;
     this.select(null);
-    this.prefetch = new TimelinePrefetch();
-    this.cache = new TimelineCache();
-    this.rangeRequest = ++nextRangeRequest;
-    this.rangeInFlight = false;
     const search = this.search.toLowerCase().slice(0, 512);
     this.events = search
       ? this.allEvents.filter((event) =>
@@ -268,51 +250,14 @@ export default {
         )
       : this.allEvents;
     this.filtered = this.events;
-    this.cache.add({ start: 0, span: this.duration }, this.events);
     this.relayout();
   },
 
-  relayout(fetch = true) {
+  relayout() {
     this.cancelFocus();
     this.layoutDirty = true;
     this.hideTooltip();
-    this.chart.setAttribute("aria-busy", String(!this.cache.contains(this.range)));
-    const { needed } = this.prefetch.plan(this.range, this.duration);
-    if (fetch && !this.cache.contains(needed)) this.requestRange();
     this.scheduleDraw();
-  },
-
-  loadRange() {
-    if (this.rangeInFlight) return;
-    this.rangeInFlight = true;
-    const request = (this.rangeRequest = ++nextRangeRequest);
-    this.rangeStartedAt = performance.now();
-    this.part("range-error").hidden = true;
-    this.pushEvent("load-timeline-range", {
-      version: Number(this.payload),
-      request_id: request,
-      ...this.prefetch.plan(this.range, this.duration).request,
-      search: this.search,
-    })
-      .then((reply) => {
-        if (reply?.error) this.receiveRange({ request_id: request, error: true });
-      })
-      .catch(() => this.receiveRange({ request_id: request, error: true }));
-  },
-
-  receiveRange({ request_id, timeline, error }) {
-    if (this.abort.signal.aborted || request_id !== this.rangeRequest) return;
-    this.rangeInFlight = false;
-    this.part("range-error").hidden = !error;
-    if (error) {
-      this.relayout(false);
-      return;
-    }
-    this.cache.add(timeline.loaded_range || timeline.range, normalizeEvents(timeline.events));
-    this.events = this.cache.events;
-    this.filtered = this.events;
-    this.prefetch.received(performance.now() - this.rangeStartedAt);
-    this.relayout();
   },
 
   syncScroll() {
@@ -420,8 +365,8 @@ export default {
         this.layoutDirty = false;
         this.syncScroll();
         this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
-        this.part("no-matches").hidden =
-          this.chart.getAttribute("aria-busy") === "true" || this.layout.events.length > 0;
+        this.part("no-recorded-steps").hidden = this.allEvents.length > 0;
+        this.part("no-matches").hidden = !this.search || !this.allEvents.length || this.layout.events.length > 0;
       }
       this.draw();
     });
@@ -503,21 +448,6 @@ export default {
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    for (const missing of this.cache.missing(this.range)) {
-      const left = Math.max(inset, x(missing.start));
-      const right = Math.min(width - inset, x(missing.start + missing.span));
-      const size = right - left;
-      ctx.fillStyle = colors.secondary;
-      ctx.fillRect(left, 0, size, height);
-      ctx.fillStyle = colors.border;
-      ctx.globalAlpha = 0.3;
-      for (let row = 0; row < 5; row++) {
-        ctx.beginPath();
-        ctx.roundRect(left + 4, 10 + row * 26, Math.max(0, (size - 8) * (0.8 - (row % 3) * 0.15)), 18, 3);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
     this.rectsByLane = [];
     for (const event of this.layout.events) {
       const gap = Math.min(2, event.rowHeight * 0.1);

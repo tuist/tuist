@@ -110,6 +110,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)`.
     func createTest(_ input: Operations.createTest.Input) async throws -> Operations.createTest.Output
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    func createStressPlan(_ input: Operations.createStressPlan.Input) async throws -> Operations.createStressPlan.Output
     /// List recorded Xcode build steps without logs.
     ///
     /// Steps are retained for 90 days. Times are milliseconds from build start. Step IDs are decimal strings preserving UInt64 precision. Unavailable means steps were not recorded or have expired. Time filters select overlapping steps; end_ms is exclusive.
@@ -1096,6 +1103,23 @@ extension APIProtocol {
         body: Operations.createTest.Input.Body? = nil
     ) async throws -> Operations.createTest.Output {
         try await createTest(Operations.createTest.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    public func createStressPlan(
+        path: Operations.createStressPlan.Input.Path,
+        headers: Operations.createStressPlan.Input.Headers = .init(),
+        body: Operations.createStressPlan.Input.Body? = nil
+    ) async throws -> Operations.createStressPlan.Output {
+        try await createStressPlan(Operations.createStressPlan.Input(
             path: path,
             headers: headers,
             body: body
@@ -3178,6 +3202,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
             public var status: Components.Schemas.TestParams.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
+            public var stress_new_tests: Components.Schemas.StressNewTestsResult?
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload`.
             public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                 /// The duration of the test module in milliseconds.
@@ -3284,6 +3310,17 @@ public enum Components {
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                             public var repetition_number: Swift.Int
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case run = "run"
+                                case stress = "stress"
+                            }
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                             /// The status.
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -3301,22 +3338,26 @@ public enum Components {
                             ///   - duration: The duration in milliseconds.
                             ///   - name: The name of the repetition.
                             ///   - repetition_number: The repetition attempt number.
+                            ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                             ///   - status: The status.
                             public init(
                                 duration: Swift.Int? = nil,
                                 name: Swift.String,
                                 repetition_number: Swift.Int,
+                                source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                 status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                             ) {
                                 self.duration = duration
                                 self.name = name
                                 self.repetition_number = repetition_number
+                                self.source = source
                                 self.status = status
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
                                 case name
                                 case repetition_number
+                                case source
                                 case status
                             }
                         }
@@ -3461,12 +3502,24 @@ public enum Components {
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                         public var repetition_number: Swift.Int
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case run = "run"
+                            case stress = "stress"
+                        }
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                         /// The status of this repetition attempt.
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case skipped = "skipped"
                         }
                         /// The status of this repetition attempt.
                         ///
@@ -3478,22 +3531,26 @@ public enum Components {
                         ///   - duration: The duration of this repetition in milliseconds.
                         ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                         ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                        ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                         ///   - status: The status of this repetition attempt.
                         public init(
                             duration: Swift.Int? = nil,
                             name: Swift.String,
                             repetition_number: Swift.Int,
+                            source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                             status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                         ) {
                             self.duration = duration
                             self.name = name
                             self.repetition_number = repetition_number
+                            self.source = source
                             self.status = status
                         }
                         public enum CodingKeys: String, CodingKey {
                             case duration
                             case name
                             case repetition_number
+                            case source
                             case status
                         }
                     }
@@ -3691,6 +3748,7 @@ public enum Components {
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - status: The status of the test run.
+            ///   - stress_new_tests:
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
@@ -3716,6 +3774,7 @@ public enum Components {
                 shard_plan_id: Swift.String? = nil,
                 skip_test_identifiers: [Swift.String]? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
+                stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
             ) {
@@ -3741,6 +3800,7 @@ public enum Components {
                 self.shard_plan_id = shard_plan_id
                 self.skip_test_identifiers = skip_test_identifiers
                 self.status = status
+                self.stress_new_tests = stress_new_tests
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
             }
@@ -3767,6 +3827,7 @@ public enum Components {
                 case shard_plan_id
                 case skip_test_identifiers
                 case status
+                case stress_new_tests
                 case test_modules
                 case xcode_version
             }
@@ -3781,6 +3842,7 @@ public enum Components {
             public var name: Swift.String?
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -3789,12 +3851,14 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case result_bundle = "result_bundle"
+                case stress_result_bundle = "stress_result_bundle"
                 case invocation_record = "invocation_record"
                 case result_bundle_object = "result_bundle_object"
                 case session = "session"
             }
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -6210,6 +6274,315 @@ public enum Components {
                 case suites
             }
         }
+        /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
+        ///
+        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult`.
+        public struct StressNewTestsResult: Codable, Hashable, Sendable {
+            /// How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/excluded_count`.
+            public var excluded_count: Swift.Int
+            /// Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/has_result_bundle`.
+            public var has_result_bundle: Swift.Bool?
+            /// How many test cases have run in CI on the default branch, as the plan measured it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/known_count`.
+            public var known_count: Swift.Int?
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
+            @frozen public enum modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case report = "report"
+                case enforce = "enforce"
+            }
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
+            public var mode: Components.Schemas.StressNewTestsResult.modePayload
+            /// How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/new_count`.
+            public var new_count: Swift.Int
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
+            @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case passed = "passed"
+                case disagreed = "disagreed"
+                case skipped = "skipped"
+                case no_candidates = "no_candidates"
+            }
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
+            public var outcome: Components.Schemas.StressNewTestsResult.outcomePayload
+            /// Why the gate ran nothing, when `outcome` is `skipped`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/skip_reason`.
+            @frozen public enum skip_reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case first_pass_failed = "first_pass_failed"
+                case no_default_branch = "no_default_branch"
+                case no_default_branch_history = "no_default_branch_history"
+                case bulk_change = "bulk_change"
+                case plan_unavailable = "plan_unavailable"
+            }
+            /// Why the gate ran nothing, when `outcome` is `skipped`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/skip_reason`.
+            public var skip_reason: Components.Schemas.StressNewTestsResult.skip_reasonPayload?
+            /// How many candidates the gate reran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/stressed_count`.
+            public var stressed_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload`.
+            public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                /// How many of those repetitions failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/failed_repetitions`.
+                public var failed_repetitions: Swift.Int
+                /// Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/is_quarantined`.
+                public var is_quarantined: Swift.Bool?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/name`.
+                public var name: Swift.String
+                /// What the gate concluded for this candidate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/outcome`.
+                @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case passed = "passed"
+                    case disagreed = "disagreed"
+                    case excluded_too_slow = "excluded_too_slow"
+                    case excluded_candidate_cap = "excluded_candidate_cap"
+                    case not_stressed_ceiling = "not_stressed_ceiling"
+                    case not_stressed_error = "not_stressed_error"
+                }
+                /// What the gate concluded for this candidate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/outcome`.
+                public var outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload`.
+                public struct repetition_resultsPayloadPayload: Codable, Hashable, Sendable {
+                    /// Duration of this repetition in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/duration`.
+                    public var duration: Swift.Int?
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public struct failurePayload: Codable, Hashable, Sendable {
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case assertion_failure = "assertion_failure"
+                            case error_thrown = "error_thrown"
+                            case issue_recorded = "issue_recorded"
+                        }
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        public var issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload?
+                        /// The line the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/line_number`.
+                        public var line_number: Swift.Int?
+                        /// The failure message.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/message`.
+                        public var message: Swift.String?
+                        /// The source file the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/path`.
+                        public var path: Swift.String?
+                        /// Creates a new `failurePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - issue_type: The kind of failure.
+                        ///   - line_number: The line the failure points at.
+                        ///   - message: The failure message.
+                        ///   - path: The source file the failure points at.
+                        public init(
+                            issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload? = nil,
+                            line_number: Swift.Int? = nil,
+                            message: Swift.String? = nil,
+                            path: Swift.String? = nil
+                        ) {
+                            self.issue_type = issue_type
+                            self.line_number = line_number
+                            self.message = message
+                            self.path = path
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case issue_type
+                            case line_number
+                            case message
+                            case path
+                        }
+                    }
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public var failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload?
+                    /// The 1-based position of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/repetition_number`.
+                    public var repetition_number: Swift.Int
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case skipped = "skipped"
+                    }
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    public var status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    /// Creates a new `repetition_resultsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: Duration of this repetition in milliseconds.
+                    ///   - failure: The failure this repetition produced, when it failed.
+                    ///   - repetition_number: The 1-based position of this repetition.
+                    ///   - status: The result of this repetition.
+                    public init(
+                        duration: Swift.Int? = nil,
+                        failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload? = nil,
+                        repetition_number: Swift.Int,
+                        status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    ) {
+                        self.duration = duration
+                        self.failure = failure
+                        self.repetition_number = repetition_number
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case failure
+                        case repetition_number
+                        case status
+                    }
+                }
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public typealias repetition_resultsPayload = [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload]
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public var repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload?
+                /// How many times the gate ran the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetitions`.
+                public var repetitions: Swift.Int
+                /// The suite (class) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/suite_name`.
+                public var suite_name: Swift.String?
+                /// Creates a new `test_casesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - failed_repetitions: How many of those repetitions failed.
+                ///   - is_quarantined: Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - outcome: What the gate concluded for this candidate.
+                ///   - repetition_results: Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///   - repetitions: How many times the gate ran the test case.
+                ///   - suite_name: The suite (class) of the test case.
+                public init(
+                    failed_repetitions: Swift.Int,
+                    is_quarantined: Swift.Bool? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload,
+                    repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload? = nil,
+                    repetitions: Swift.Int,
+                    suite_name: Swift.String? = nil
+                ) {
+                    self.failed_repetitions = failed_repetitions
+                    self.is_quarantined = is_quarantined
+                    self.module_name = module_name
+                    self.name = name
+                    self.outcome = outcome
+                    self.repetition_results = repetition_results
+                    self.repetitions = repetitions
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case failed_repetitions
+                    case is_quarantined
+                    case module_name
+                    case name
+                    case outcome
+                    case repetition_results
+                    case repetitions
+                    case suite_name
+                }
+            }
+            /// Every candidate the gate examined.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_cases`.
+            public typealias test_casesPayload = [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload]
+            /// Every candidate the gate examined.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_cases`.
+            public var test_cases: Components.Schemas.StressNewTestsResult.test_casesPayload
+            /// Creates a new `StressNewTestsResult`.
+            ///
+            /// - Parameters:
+            ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
+            ///   - has_result_bundle: Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
+            ///   - known_count: How many test cases have run in CI on the default branch, as the plan measured it.
+            ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
+            ///   - outcome: `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///   - skip_reason: Why the gate ran nothing, when `outcome` is `skipped`.
+            ///   - stressed_count: How many candidates the gate reran.
+            ///   - test_cases: Every candidate the gate examined.
+            public init(
+                excluded_count: Swift.Int,
+                has_result_bundle: Swift.Bool? = nil,
+                known_count: Swift.Int? = nil,
+                mode: Components.Schemas.StressNewTestsResult.modePayload,
+                new_count: Swift.Int,
+                outcome: Components.Schemas.StressNewTestsResult.outcomePayload,
+                skip_reason: Components.Schemas.StressNewTestsResult.skip_reasonPayload? = nil,
+                stressed_count: Swift.Int,
+                test_cases: Components.Schemas.StressNewTestsResult.test_casesPayload
+            ) {
+                self.excluded_count = excluded_count
+                self.has_result_bundle = has_result_bundle
+                self.known_count = known_count
+                self.mode = mode
+                self.new_count = new_count
+                self.outcome = outcome
+                self.skip_reason = skip_reason
+                self.stressed_count = stressed_count
+                self.test_cases = test_cases
+            }
+            public enum CodingKeys: String, CodingKey {
+                case excluded_count
+                case has_result_bundle
+                case known_count
+                case mode
+                case new_count
+                case outcome
+                case skip_reason
+                case stressed_count
+                case test_cases
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestRunStatus`.
         @frozen public enum TestRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -6220,6 +6593,242 @@ public enum Components {
         @frozen public enum BuildFileType: String, Codable, Hashable, Sendable, CaseIterable {
             case swift = "swift"
             case c = "c"
+        }
+        /// Which of the reported test cases have not run in CI on the project's default branch in the trailing ninety days, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.
+        ///
+        /// - Remark: Generated from `#/components/schemas/StressPlan`.
+        public struct StressPlan: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload`.
+            public struct candidatesPayloadPayload: Codable, Hashable, Sendable {
+                /// `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/excluded_reason`.
+                @frozen public enum excluded_reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case too_slow = "too_slow"
+                    case candidate_cap = "candidate_cap"
+                }
+                /// `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/excluded_reason`.
+                public var excluded_reason: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/name`.
+                public var name: Swift.String
+                /// How many times to rerun the test case, priced from its duration on the project's curve. 0 when excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/repetitions`.
+                public var repetitions: Swift.Int
+                /// The suite (class) of the test case, or an empty string.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/suite_name`.
+                public var suite_name: Swift.String
+                /// Creates a new `candidatesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - excluded_reason: `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - repetitions: How many times to rerun the test case, priced from its duration on the project's curve. 0 when excluded.
+                ///   - suite_name: The suite (class) of the test case, or an empty string.
+                public init(
+                    excluded_reason: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    repetitions: Swift.Int,
+                    suite_name: Swift.String
+                ) {
+                    self.excluded_reason = excluded_reason
+                    self.module_name = module_name
+                    self.name = name
+                    self.repetitions = repetitions
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case excluded_reason
+                    case module_name
+                    case name
+                    case repetitions
+                    case suite_name
+                }
+            }
+            /// The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidates`.
+            public typealias candidatesPayload = [Components.Schemas.StressPlan.candidatesPayloadPayload]
+            /// The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidates`.
+            public var candidates: Components.Schemas.StressPlan.candidatesPayload
+            /// The guard that kept the gate from producing candidates, if one fired.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/guard`.
+            public struct _guardPayload: Codable, Hashable, Sendable {
+                /// `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
+                @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case no_default_branch = "no_default_branch"
+                    case no_default_branch_history = "no_default_branch_history"
+                    case bulk_change = "bulk_change"
+                }
+                /// `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
+                public var kind: Components.Schemas.StressPlan._guardPayload.kindPayload
+                /// How many test cases have run in CI on the default branch.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/known_count`.
+                public var known_count: Swift.Int
+                /// How many reported test cases had no default-branch history.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/new_count`.
+                public var new_count: Swift.Int
+                /// Creates a new `_guardPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///   - known_count: How many test cases have run in CI on the default branch.
+                ///   - new_count: How many reported test cases had no default-branch history.
+                public init(
+                    kind: Components.Schemas.StressPlan._guardPayload.kindPayload,
+                    known_count: Swift.Int,
+                    new_count: Swift.Int
+                ) {
+                    self.kind = kind
+                    self.known_count = known_count
+                    self.new_count = new_count
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case known_count
+                    case new_count
+                }
+            }
+            /// The guard that kept the gate from producing candidates, if one fired.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/guard`.
+            public var _guard: Components.Schemas.StressPlan._guardPayload?
+            /// How many test cases have run in CI on the default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/known_count`.
+            public var known_count: Swift.Int
+            /// The project's stress parameters, so the client can report which bound bit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/parameters`.
+            public struct parametersPayload: Codable, Hashable, Sendable {
+                /// Minimum number of new test cases before the bulk-change guard applies.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_floor`.
+                public var bulk_change_floor: Swift.Int
+                /// Share of the known test cases above which the bulk-change guard fires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_ratio`.
+                public var bulk_change_ratio: Swift.Double
+                /// Maximum number of candidates a run stresses.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/candidate_cap`.
+                public var candidate_cap: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload`.
+                public struct repetition_curvePayloadPayload: Codable, Hashable, Sendable {
+                    /// Upper bound of the bucket in milliseconds, inclusive.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload/max_duration_ms`.
+                    public var max_duration_ms: Swift.Int
+                    /// Repetitions for test cases in the bucket.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload/repetitions`.
+                    public var repetitions: Swift.Int
+                    /// Creates a new `repetition_curvePayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - max_duration_ms: Upper bound of the bucket in milliseconds, inclusive.
+                    ///   - repetitions: Repetitions for test cases in the bucket.
+                    public init(
+                        max_duration_ms: Swift.Int,
+                        repetitions: Swift.Int
+                    ) {
+                        self.max_duration_ms = max_duration_ms
+                        self.repetitions = repetitions
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case max_duration_ms
+                        case repetitions
+                    }
+                }
+                /// Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curve`.
+                public typealias repetition_curvePayload = [Components.Schemas.StressPlan.parametersPayload.repetition_curvePayloadPayload]
+                /// Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curve`.
+                public var repetition_curve: Components.Schemas.StressPlan.parametersPayload.repetition_curvePayload
+                /// Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/wall_clock_ceiling_ms`.
+                public var wall_clock_ceiling_ms: Swift.Int
+                /// Creates a new `parametersPayload`.
+                ///
+                /// - Parameters:
+                ///   - bulk_change_floor: Minimum number of new test cases before the bulk-change guard applies.
+                ///   - bulk_change_ratio: Share of the known test cases above which the bulk-change guard fires.
+                ///   - candidate_cap: Maximum number of candidates a run stresses.
+                ///   - repetition_curve: Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///   - wall_clock_ceiling_ms: Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
+                public init(
+                    bulk_change_floor: Swift.Int,
+                    bulk_change_ratio: Swift.Double,
+                    candidate_cap: Swift.Int,
+                    repetition_curve: Components.Schemas.StressPlan.parametersPayload.repetition_curvePayload,
+                    wall_clock_ceiling_ms: Swift.Int
+                ) {
+                    self.bulk_change_floor = bulk_change_floor
+                    self.bulk_change_ratio = bulk_change_ratio
+                    self.candidate_cap = candidate_cap
+                    self.repetition_curve = repetition_curve
+                    self.wall_clock_ceiling_ms = wall_clock_ceiling_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case bulk_change_floor
+                    case bulk_change_ratio
+                    case candidate_cap
+                    case repetition_curve
+                    case wall_clock_ceiling_ms
+                }
+            }
+            /// The project's stress parameters, so the client can report which bound bit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/parameters`.
+            public var parameters: Components.Schemas.StressPlan.parametersPayload
+            /// Creates a new `StressPlan`.
+            ///
+            /// - Parameters:
+            ///   - candidates: The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///   - _guard: The guard that kept the gate from producing candidates, if one fired.
+            ///   - known_count: How many test cases have run in CI on the default branch.
+            ///   - parameters: The project's stress parameters, so the client can report which bound bit.
+            public init(
+                candidates: Components.Schemas.StressPlan.candidatesPayload,
+                _guard: Components.Schemas.StressPlan._guardPayload? = nil,
+                known_count: Swift.Int,
+                parameters: Components.Schemas.StressPlan.parametersPayload
+            ) {
+                self.candidates = candidates
+                self._guard = _guard
+                self.known_count = known_count
+                self.parameters = parameters
+            }
+            public enum CodingKeys: String, CodingKey {
+                case candidates
+                case _guard = "guard"
+                case known_count
+                case parameters
+            }
         }
         /// The maximum number of runs to return in a single page.
         ///
@@ -8079,6 +8688,70 @@ public enum Components {
                 case id
                 case object
                 case _type = "type"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/StressPlanParams`.
+        public struct StressPlanParams: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload`.
+            public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                /// Duration of the test case in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/duration`.
+                public var duration: Swift.Int?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/name`.
+                public var name: Swift.String
+                /// The suite (class) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/suite_name`.
+                public var suite_name: Swift.String?
+                /// Creates a new `test_casesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - duration: Duration of the test case in milliseconds.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - suite_name: The suite (class) of the test case.
+                public init(
+                    duration: Swift.Int? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    suite_name: Swift.String? = nil
+                ) {
+                    self.duration = duration
+                    self.module_name = module_name
+                    self.name = name
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case duration
+                    case module_name
+                    case name
+                    case suite_name
+                }
+            }
+            /// The test cases that executed and were not skipped, with the duration the run measured for each.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_cases`.
+            public typealias test_casesPayload = [Components.Schemas.StressPlanParams.test_casesPayloadPayload]
+            /// The test cases that executed and were not skipped, with the duration the run measured for each.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_cases`.
+            public var test_cases: Components.Schemas.StressPlanParams.test_casesPayload
+            /// Creates a new `StressPlanParams`.
+            ///
+            /// - Parameters:
+            ///   - test_cases: The test cases that executed and were not skipped, with the duration the run measured for each.
+            public init(test_cases: Components.Schemas.StressPlanParams.test_casesPayload) {
+                self.test_cases = test_cases
+            }
+            public enum CodingKeys: String, CodingKey {
+                case test_cases
             }
         }
         /// A user.
@@ -19720,6 +20393,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
                     public var status: Operations.createTest.Input.Body.jsonPayload.statusPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
+                    public var stress_new_tests: Components.Schemas.StressNewTestsResult?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload`.
                     public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                         /// The duration of the test module in milliseconds.
@@ -19826,6 +20501,17 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                                     public var repetition_number: Swift.Int
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case run = "run"
+                                        case stress = "stress"
+                                    }
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                     /// The status.
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -19843,22 +20529,26 @@ public enum Operations {
                                     ///   - duration: The duration in milliseconds.
                                     ///   - name: The name of the repetition.
                                     ///   - repetition_number: The repetition attempt number.
+                                    ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                     ///   - status: The status.
                                     public init(
                                         duration: Swift.Int? = nil,
                                         name: Swift.String,
                                         repetition_number: Swift.Int,
+                                        source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                         status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                                     ) {
                                         self.duration = duration
                                         self.name = name
                                         self.repetition_number = repetition_number
+                                        self.source = source
                                         self.status = status
                                     }
                                     public enum CodingKeys: String, CodingKey {
                                         case duration
                                         case name
                                         case repetition_number
+                                        case source
                                         case status
                                     }
                                 }
@@ -20003,12 +20693,24 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                                 public var repetition_number: Swift.Int
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case run = "run"
+                                    case stress = "stress"
+                                }
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                 /// The status of this repetition attempt.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
                                 @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case success = "success"
                                     case failure = "failure"
+                                    case skipped = "skipped"
                                 }
                                 /// The status of this repetition attempt.
                                 ///
@@ -20020,22 +20722,26 @@ public enum Operations {
                                 ///   - duration: The duration of this repetition in milliseconds.
                                 ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                                 ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                 ///   - status: The status of this repetition attempt.
                                 public init(
                                     duration: Swift.Int? = nil,
                                     name: Swift.String,
                                     repetition_number: Swift.Int,
+                                    source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                     status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                                 ) {
                                     self.duration = duration
                                     self.name = name
                                     self.repetition_number = repetition_number
+                                    self.source = source
                                     self.status = status
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case duration
                                     case name
                                     case repetition_number
+                                    case source
                                     case status
                                 }
                             }
@@ -20233,6 +20939,7 @@ public enum Operations {
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
+                    ///   - stress_new_tests:
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
@@ -20258,6 +20965,7 @@ public enum Operations {
                         shard_plan_id: Swift.String? = nil,
                         skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
+                        stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
                     ) {
@@ -20283,6 +20991,7 @@ public enum Operations {
                         self.shard_plan_id = shard_plan_id
                         self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
+                        self.stress_new_tests = stress_new_tests
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
                     }
@@ -20309,6 +21018,7 @@ public enum Operations {
                         case shard_plan_id
                         case skip_test_identifiers
                         case status
+                        case stress_new_tests
                         case test_modules
                         case xcode_version
                     }
@@ -20716,6 +21426,505 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    public enum createStressPlan {
+        public static let id: Swift.String = "createStressPlan"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createStressPlan.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStressPlan.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStressPlan.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createStressPlan.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload`.
+                    public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                        /// Duration of the test case in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/duration`.
+                        public var duration: Swift.Int?
+                        /// The module (target or Gradle project) of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/module_name`.
+                        public var module_name: Swift.String
+                        /// The name of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/name`.
+                        public var name: Swift.String
+                        /// The suite (class) of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/suite_name`.
+                        public var suite_name: Swift.String?
+                        /// Creates a new `test_casesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: Duration of the test case in milliseconds.
+                        ///   - module_name: The module (target or Gradle project) of the test case.
+                        ///   - name: The name of the test case.
+                        ///   - suite_name: The suite (class) of the test case.
+                        public init(
+                            duration: Swift.Int? = nil,
+                            module_name: Swift.String,
+                            name: Swift.String,
+                            suite_name: Swift.String? = nil
+                        ) {
+                            self.duration = duration
+                            self.module_name = module_name
+                            self.name = name
+                            self.suite_name = suite_name
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case module_name
+                            case name
+                            case suite_name
+                        }
+                    }
+                    /// The test cases that executed and were not skipped, with the duration the run measured for each.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_cases`.
+                    public typealias test_casesPayload = [Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayloadPayload]
+                    /// The test cases that executed and were not skipped, with the duration the run measured for each.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_cases`.
+                    public var test_cases: Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - test_cases: The test cases that executed and were not skipped, with the duration the run measured for each.
+                    public init(test_cases: Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayload) {
+                        self.test_cases = test_cases
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case test_cases
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/content/application\/json`.
+                case json(Operations.createStressPlan.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createStressPlan.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createStressPlan.Input.Path,
+                headers: Operations.createStressPlan.Input.Headers = .init(),
+                body: Operations.createStressPlan.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.StressPlan)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.StressPlan {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createStressPlan.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createStressPlan.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createStressPlan.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createStressPlan.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to request a plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createStressPlan.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createStressPlan.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createStressPlan.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createStressPlan.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createStressPlan.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createStressPlan.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createStressPlan.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createStressPlan.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createStressPlan.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createStressPlan.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createStressPlan.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
                             response: self
                         )
                     }
@@ -21404,6 +22613,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -21531,6 +22756,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -21551,6 +22780,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -21571,6 +22804,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -21592,6 +22829,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -35761,6 +37002,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -35888,6 +37145,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -35908,6 +37169,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -35928,6 +37193,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -35949,6 +37218,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -67623,8 +68896,16 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// Bytes of task outputs downloaded from the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
+                        public var cache_download_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
+                        /// Bytes of task outputs uploaded to the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_upload_bytes`.
+                        public var cache_upload_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
@@ -67878,7 +69159,9 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - artifact_transforms:
+                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - cache_hit_rate:
+                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
                         ///   - cacheable_tasks_count:
                         ///   - configuration_cache_entry_size:
                         ///   - configuration_cache_invalidation_reasons:
@@ -67909,7 +69192,9 @@ public enum Operations {
                         ///   - tasks_up_to_date_count:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            cache_download_bytes: Swift.Int? = nil,
                             cache_hit_rate: Swift.Double? = nil,
+                            cache_upload_bytes: Swift.Int? = nil,
                             cacheable_tasks_count: Swift.Int? = nil,
                             configuration_cache_entry_size: Swift.Int? = nil,
                             configuration_cache_invalidation_reasons: [Swift.String]? = nil,
@@ -67940,7 +69225,9 @@ public enum Operations {
                             tasks_up_to_date_count: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
+                            self.cache_download_bytes = cache_download_bytes
                             self.cache_hit_rate = cache_hit_rate
+                            self.cache_upload_bytes = cache_upload_bytes
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.configuration_cache_entry_size = configuration_cache_entry_size
                             self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
@@ -67972,7 +69259,9 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
+                            case cache_download_bytes
                             case cache_hit_rate
+                            case cache_upload_bytes
                             case cacheable_tasks_count
                             case configuration_cache_entry_size
                             case configuration_cache_invalidation_reasons

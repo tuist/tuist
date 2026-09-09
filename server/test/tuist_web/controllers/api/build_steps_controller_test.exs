@@ -1,13 +1,20 @@
 defmodule TuistWeb.API.BuildStepsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
 
   import OpenApiSpex.TestAssertions, only: [assert_schema: 3]
 
+  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.API.Spec
   alias TuistWeb.Authentication
+
+  setup do
+    stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
+    :ok
+  end
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])

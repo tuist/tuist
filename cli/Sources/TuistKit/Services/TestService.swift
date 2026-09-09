@@ -132,6 +132,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let shardService: ShardServicing
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadBuildRunService: UploadBuildRunServicing?
+    private let stressNewTestsService: StressNewTestsServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -173,7 +174,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
         shardService: ShardServicing = ShardService(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
-        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService()
+        uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
+        stressNewTestsService: StressNewTestsServicing = StressNewTestsService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -202,6 +204,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.shardService = shardService
         self.xcActivityLogController = xcActivityLogController
         self.uploadBuildRunService = uploadBuildRunService
+        self.stressNewTestsService = stressNewTestsService
     }
 
     public static func validateParameters(
@@ -252,7 +255,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = nil
+        mode: TestProcessingMode? = nil,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -307,7 +311,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 shardPlanId: shardPlanId,
                 shardArchivePath: shardArchivePath,
                 quarantinedTests: mutedQuarantinedTests,
-                mode: mode
+                mode: mode,
+                stressNewTests: stressNewTests
             )
             return
         }
@@ -333,7 +338,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
                 quarantinedTests: mutedQuarantinedTests,
-                mode: mode
+                mode: mode,
+                stressNewTests: stressNewTests
             )
             return
         }
@@ -544,7 +550,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
                 quarantinedTests: mutedQuarantinedTests,
-                mode: mode
+                mode: mode,
+                stressNewTests: stressNewTests
             )
             if !didRunTests {
                 try await finishSkippedTests(
@@ -673,7 +680,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardPlanId: String?,
         shardArchivePath: AbsolutePath?,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode
+        mode: TestProcessingMode,
+        stressNewTests: StressNewTestsMode?
     ) async throws {
         guard let fullHandle = config.fullHandle else {
             throw TestServiceError.shardingRequiresFullHandle
@@ -738,11 +746,31 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = mode == .local
+        let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
+        // A shard partitions the suite, so a new test is stressed by whichever shard ran it and
+        // the union across shards is exactly the set of new tests this run added.
+        let stressResult = await stressNewTestsIfNeeded(
+            mode: stressNewTests,
+            action: .testWithoutBuilding,
+            summary: summary,
+            firstPassFailed: summary?.status != .passed,
+            config: config,
+            mutedTests: quarantinedTests,
+            stressPass: stressPassWithoutBuilding(
+                testProductsPath: shard.testProductsPath,
+                testPlanConfiguration: testPlanConfiguration,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                derivedDataPath: derivedDataPath,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        )
         await uploadResultBundleIfNeeded(
-            testSummary: summary,
+            testSummary: mode == .local ? summary : nil,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
@@ -752,13 +780,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardIndex: shardIndex,
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
-            skipTestIdentifiers: skipTestTargets.map(\.description)
+            skipTestIdentifiers: skipTestTargets.map(\.description),
+            stressNewTests: stressResult
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+                passingTargetNames: await passingTargetNames(
+                    resultBundlePath: resultBundlePath,
+                    blockedBy: stressResult
+                ),
                 cacheStorage: hashUploadStorage
             )
         }
@@ -775,6 +807,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         if let testError {
             throw testError
+        }
+
+        if let stressResult, stressResult.blocks {
+            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }
 
         AlertController.current.success(.alert("The project tests ran successfully"))
@@ -800,7 +836,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         runId: String,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode
+        mode: TestProcessingMode,
+        stressNewTests: StressNewTestsMode?
     ) async throws {
         Logger.current.notice(
             "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
@@ -879,11 +916,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testError = error
         }
 
-        let summary = mode == .local
+        let summary = mode == .local || stressNewTests != nil
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
+        let stressResult = await stressNewTestsIfNeeded(
+            mode: stressNewTests,
+            action: .testWithoutBuilding,
+            summary: summary,
+            firstPassFailed: summary?.status != .passed,
+            config: config,
+            mutedTests: quarantinedTests,
+            stressPass: stressPassWithoutBuilding(
+                testProductsPath: testProductsPath,
+                testPlanConfiguration: testPlanConfiguration,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                derivedDataPath: derivedDataPath,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+        )
         await uploadResultBundleIfNeeded(
-            testSummary: summary,
+            testSummary: mode == .local ? summary : nil,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
@@ -891,12 +946,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: schemeName,
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
-            skipTestIdentifiers: skipTestTargets.map(\.description)
+            skipTestIdentifiers: skipTestTargets.map(\.description),
+            stressNewTests: stressResult
         )
 
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
-            passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+            passingTargetNames: await passingTargetNames(
+                resultBundlePath: resultBundlePath,
+                blockedBy: stressResult
+            ),
             cacheStorage: hashUploadStorage
         )
 
@@ -909,7 +968,42 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw testError
         }
 
+        if let stressResult, stressResult.blocks {
+            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
+        }
+
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    /// The stress pass for the paths that execute prebuilt products: the same
+    /// `test-without-building` invocation the first pass used, narrowed to the candidates
+    /// and repeated, with the caller's own selection and repetition options dropped.
+    private func stressPassWithoutBuilding(
+        testProductsPath: AbsolutePath,
+        testPlanConfiguration: TestPlanConfiguration?,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        derivedDataPath: AbsolutePath?,
+        passthroughXcodeBuildArguments: [String]
+    ) -> StressNewTestsPass {
+        { [self] identifiers, repetitions, stressResultBundlePath in
+            let arguments = try await buildTestWithoutBuildingArguments(
+                testProductsPath: testProductsPath,
+                testTargets: identifiers,
+                skipTestTargets: [],
+                testPlanConfiguration: testPlanConfiguration,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                resultBundlePath: stressResultBundlePath,
+                derivedDataPath: derivedDataPath,
+                passthroughXcodeBuildArguments: Self.stressPassthroughArguments(passthroughXcodeBuildArguments)
+            ) + ["-test-iterations", "\(repetitions)", "-test-repetition-relaunch-enabled", "YES"]
+            try await xcodebuildController.run(arguments: arguments)
+        }
     }
 
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
@@ -1143,6 +1237,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
     }
 
+    /// The modules that passed, minus any the gate is failing the run over.
+    ///
+    /// A candidate passed the first pass by construction, so its module is in the passing set
+    /// however the reruns went. Banking its hash would let a re-run of the blocked job skip the
+    /// module, report no test cases for it, and exit green with no change to the branch.
+    private func passingTargetNames(
+        resultBundlePath: AbsolutePath?,
+        blockedBy stressResult: StressNewTestsResult?
+    ) async -> Set<String> {
+        let passing = await passingTargetNames(resultBundlePath: resultBundlePath)
+        guard let stressResult, stressResult.blocks else { return passing }
+        return passing.subtracting(stressResult.blockingCandidates.map(\.identifier.target))
+    }
+
     private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
         guard let resultBundlePath else { return [] }
         let rootDirectory = try? await rootDirectory()
@@ -1185,7 +1293,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws -> Bool {
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1279,9 +1388,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                         config: config,
                         quarantinedTests: quarantinedTests,
-                        mode: mode
+                        mode: mode,
+                        stressNewTests: stressNewTests
                     )
                 } catch {
+                    if error is StressNewTestsError {
+                        throw error
+                    }
                     if try await handleTestSchemeFailure(
                         error,
                         scheme: testScheme,
@@ -1796,7 +1909,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
         quarantinedTests: [TestIdentifier],
-        mode: TestProcessingMode = .local
+        mode: TestProcessingMode = .local,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -1886,6 +2000,37 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let buildArguments = buildGraphInspector.buildArguments(
+            project: buildableTarget.project,
+            target: buildableTarget.target,
+            configuration: configuration,
+            skipSigning: false
+        )
+        let parseSummary = mode == .local || stressNewTests != nil
+
+        // The stress pass reruns only the candidates, in a fresh process per repetition, against the
+        // products the first pass built. The caller's own repetition options are dropped so the
+        // curve's count is the one xcodebuild sees.
+        let stressPass: StressNewTestsPass = { identifiers, repetitions, stressResultBundlePath in
+            try await xcodebuildController.test(
+                .workspace(graphTraverser.workspace.xcWorkspacePath),
+                scheme: scheme.name,
+                clean: false,
+                destination: destination,
+                action: .testWithoutBuilding,
+                rosetta: rosetta,
+                derivedDataPath: derivedDataPath,
+                resultBundlePath: stressResultBundlePath,
+                arguments: buildArguments,
+                retryCount: 0,
+                testTargets: identifiers,
+                skipTestTargets: [],
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: Self.stressPassthroughArguments(passthroughXcodeBuildArguments)
+                    + ["-test-iterations", "\(repetitions)", "-test-repetition-relaunch-enabled", "YES"]
+            )
+        }
+
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -1896,12 +2041,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 rosetta: rosetta,
                 derivedDataPath: derivedDataPath,
                 resultBundlePath: resultBundlePath,
-                arguments: buildGraphInspector.buildArguments(
-                    project: buildableTarget.project,
-                    target: buildableTarget.target,
-                    configuration: configuration,
-                    skipSigning: false
-                ),
+                arguments: buildArguments,
                 retryCount: retryCount,
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
@@ -1916,11 +2056,22 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 scheme: scheme.name,
                 configuration: configuration ?? scheme.testAction?.configurationName
             )
-            let summary = mode == .local
+            let summary = parseSummary
                 ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
                 : nil
+            // Only muted failures leave the masked summary green; the gate then runs as it would on a
+            // passing first pass. Anything else is a failed first pass and the gate reports it skipped.
+            let stressResult = await stressNewTestsIfNeeded(
+                mode: stressNewTests,
+                action: action,
+                summary: summary,
+                firstPassFailed: summary?.status != .passed,
+                config: config,
+                mutedTests: quarantinedTests,
+                stressPass: stressPass
+            )
             await uploadResultBundleIfNeeded(
-                testSummary: summary,
+                testSummary: mode == .local ? summary : nil,
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
@@ -1929,8 +2080,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 quarantinedTests: quarantinedTests,
                 mode: mode,
                 onlyTestIdentifiers: testTargets.map(\.description),
-                skipTestIdentifiers: skipTestTargets.map(\.description)
+                skipTestIdentifiers: skipTestTargets.map(\.description),
+                stressNewTests: stressResult
             )
+            if let stressResult, stressResult.blocks {
+                throw StressNewTestsError.blocked(stressResult.blockingCandidates)
+            }
             throw error
         }
 
@@ -1941,11 +2096,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             scheme: scheme.name,
             configuration: configuration ?? scheme.testAction?.configurationName
         )
-        let summary = mode == .local
+        let summary = parseSummary
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
+        let stressResult = await stressNewTestsIfNeeded(
+            mode: stressNewTests,
+            action: action,
+            summary: summary,
+            firstPassFailed: summary == nil,
+            config: config,
+            mutedTests: quarantinedTests,
+            stressPass: stressPass
+        )
         await uploadResultBundleIfNeeded(
-            testSummary: summary,
+            testSummary: mode == .local ? summary : nil,
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
@@ -1954,8 +2118,67 @@ public struct TestService { // swiftlint:disable:this type_body_length
             quarantinedTests: quarantinedTests,
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
-            skipTestIdentifiers: skipTestTargets.map(\.description)
+            skipTestIdentifiers: skipTestTargets.map(\.description),
+            stressNewTests: stressResult
         )
+        if let stressResult, stressResult.blocks {
+            throw StressNewTestsError.blocked(stressResult.blockingCandidates)
+        }
+    }
+
+    // MARK: - Stress-testing new tests
+
+    private func stressNewTestsIfNeeded(
+        mode: StressNewTestsMode?,
+        action: XcodeBuildTestAction,
+        summary: TestSummary?,
+        firstPassFailed: Bool,
+        config: Tuist,
+        mutedTests: [TestIdentifier],
+        stressPass: @escaping StressNewTestsPass
+    ) async -> StressNewTestsResult? {
+        guard let mode, action != .build, let fullHandle = config.fullHandle,
+              let serverURL = try? serverEnvironmentService.url(configServerURL: config.url)
+        else { return nil }
+        return await stressNewTestsService.run(
+            mode: mode,
+            testSummary: summary,
+            firstPassFailed: firstPassFailed,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            mutedTests: mutedTests,
+            resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
+            stressPass: stressPass
+        )
+    }
+
+    private static let stressIncompatibleOptions: Set<String> = [
+        "-resultBundlePath",
+        "-test-iterations",
+        "-retry-tests-on-failure",
+        "-run-tests-until-failure",
+        "-test-repetition-relaunch-enabled",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
+    /// The caller's passthrough arguments minus the ones the stress pass sets itself.
+    static func stressPassthroughArguments(_ arguments: [String]) -> [String] {
+        var result: [String] = []
+        var iterator = arguments.makeIterator()
+        while let argument = iterator.next() {
+            if stressIncompatibleOptions.contains(argument) {
+                if argument != "-retry-tests-on-failure", argument != "-run-tests-until-failure" {
+                    _ = iterator.next()
+                }
+                continue
+            }
+            if stressIncompatibleOptions.contains(where: { argument.hasPrefix("\($0):") }) {
+                continue
+            }
+            result.append(argument)
+        }
+        return result
     }
 
     private func testSummary(
@@ -2012,6 +2235,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    /// The gate writes its bundles into a directory of its own. Nothing reads them once the run
+    /// has been reported, in either processing mode.
+    private func removeStressResultBundles(_ stressNewTests: StressNewTestsResult?) async {
+        guard let directory = stressNewTests?.resultBundlePaths.first?.parentDirectory else { return }
+        try? await fileSystem.remove(directory)
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -2024,7 +2254,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardIndex: Int? = nil,
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
-        skipTestIdentifiers: [String] = []
+        skipTestIdentifiers: [String] = [],
+        stressNewTests: StressNewTestsResult? = nil
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
@@ -2034,7 +2265,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             switch mode {
             case .local:
-                guard let testSummary else { return }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
@@ -2042,10 +2273,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
                     onlyTestIdentifiers: onlyTestIdentifiers,
-                    skipTestIdentifiers: skipTestIdentifiers
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload
                 )
             case .remote:
-                guard let resultBundlePath else { return }
+                guard let resultBundlePath else { break }
                 let buildRunId = await RunMetadataStorage.current.buildRunId
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
@@ -2055,18 +2287,22 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex,
                     onlyTestIdentifiers: onlyTestIdentifiers,
-                    skipTestIdentifiers: skipTestIdentifiers
+                    skipTestIdentifiers: skipTestIdentifiers,
+                    stressNewTests: stressNewTests?.serverPayload,
+                    stressResultBundlePaths: stressNewTests?.resultBundlePaths ?? []
                 )
                 await RunMetadataStorage.current.update(testRunId: test.id)
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
             case .off:
-                return
+                break
             }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+
+        await removeStressResultBundles(stressNewTests)
     }
 
     private func destination(
@@ -2161,7 +2397,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             // Everything selective testing skipped. The run carries no modules, so it never reaches
             // the suite inventory either way.
             onlyTestIdentifiers: [],
-            skipTestIdentifiers: []
+            skipTestIdentifiers: [],
+            stressNewTests: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

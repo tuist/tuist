@@ -381,7 +381,8 @@
   }
 
   & [data-part="notice"],
-  & [data-part="no-matches"] {
+  & [data-part="no-matches"],
+  & [data-part="no-recorded-steps"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }

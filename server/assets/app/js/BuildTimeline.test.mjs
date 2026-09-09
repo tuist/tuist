@@ -1,8 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { TimelinePrefetch } from "./BuildTimelinePrefetch.mjs";
-import { TimelineCache } from "./BuildTimelineCache.mjs";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
 // scheduling and transport without mounting Noora's DOM controls.
@@ -22,17 +20,14 @@ loader.deregister();
 function fixture() {
   const parts = new Map();
   const attributes = new Map();
-  const cache = new TimelineCache();
-  cache.add({ start: 0, span: 300_000 }, []);
   return {
     ...hook,
     range: { start: 100_000, span: 10_000 },
-    cache,
-    prefetch: new TimelinePrefetch(),
     abort: new AbortController(),
     maxSpan: 900_000,
     duration: 900_000,
     filtered: [],
+    search: "",
     allEvents: [],
     cancelFocus() {},
     hideTooltip() {},
@@ -114,7 +109,7 @@ test("a burst of cached zoom events performs one layout and paint, with no range
     queries = 0;
   view.draw = () => paints++;
   view.syncScroll = () => scrollUpdates++;
-  view.requestRange = () => queries++;
+  view.pushEvent = () => queries++;
   for (let i = 0; i < 100; i++) view.zoom(i % 2 ? 1.01 : 1 / 1.01);
   assert.equal(frames.length, 1);
   assert.equal(queries, 0);
@@ -124,18 +119,17 @@ test("a burst of cached zoom events performs one layout and paint, with no range
   assert.equal(scrollUpdates, 1);
 });
 
-test("zoom out clamps around its anchor and requests missing neighboring data", () => {
+test("zoom out clamps around its anchor without requesting data", () => {
   const view = fixture();
   view.scheduleDraw = () => {};
   let queries = 0;
-  view.requestRange = () => queries++;
+  view.pushEvent = () => queries++;
   view.zoom(100);
   assert.equal(view.range.span, 900_000);
   assert.equal(view.range.start, 0);
-  assert.equal(queries, 1);
+  assert.equal(queries, 0);
   view.setRange(850_000, 30_000);
-  assert.equal(queries, 2);
-  assert.equal(view.chart.getAttribute("aria-busy"), "true");
+  assert.equal(queries, 0);
 });
 
 test("redrawing at unchanged dimensions reuses canvas storage and resets its transform", (t) => {
@@ -171,108 +165,11 @@ test("redrawing at unchanged dimensions reuses canvas storage and resets its tra
   ]);
 });
 
-test("scrolling prefetches before reaching uncached time without marking loaded work busy", () => {
-  const view = fixture();
-  view.scheduleDraw = () => {};
-  let queries = 0;
-  view.requestRange = () => queries++;
-  view.setRange(275_000, 10_000);
-  assert.equal(queries, 0);
-  view.setRange(280_000, 10_000);
-  assert.equal(queries, 1);
-  assert.equal(view.chart.getAttribute("aria-busy"), "false");
-});
-
-test("continuous scrolling accepts in-flight responses and then fetches the current viewport", () => {
-  const view = fixture();
-  view.scheduleDraw = () => {};
-  const requests = [];
-  view.pushEvent = (_name, request) => {
-    requests.push(request);
-    return Promise.resolve({});
-  };
-  view.requestRange = () => view.loadRange();
-  view.setRange(290_000, 10_000);
-  const first = requests[0].request_id;
-  for (let start = 310_000; start < 450_000; start += 1000) view.setRange(start, 10_000);
-  assert.equal(requests.length, 1);
-  assert.equal(view.rangeRequest, first);
-  view.receiveRange({
-    request_id: first,
-    timeline: {
-      events: [],
-      range: { start: 290_000, span: 10_000 },
-      loaded_range: { start: 230_000, span: 130_000 },
-    },
-  });
-  assert.equal(requests.length, 2);
-  assert.equal(requests[1].start, 449_000);
-  assert.ok(view.cache.contains({ start: 250_000, span: 100_000 }));
-  view.receiveRange({
-    request_id: requests[1].request_id,
-    timeline: {
-      events: [],
-      range: { start: 449_000, span: 10_000 },
-      loaded_range: { start: 389_000, span: 130_000 },
-    },
-  });
-  assert.equal(view.chart.getAttribute("aria-busy"), "false");
-  assert.equal(requests.length, 2);
-});
-
-test("filter changes reject old in-flight data", () => {
-  const view = fixture();
-  view.scheduleDraw = () => {};
-  view.requestRange = () => {};
-  view.select = () => {};
-  view.control = () => ({ value: "new target" });
-  view.initialRange = { ...view.range };
-  const stale = view.rangeRequest;
-  view.filter();
-  view.receiveRange({
-    request_id: stale,
-    timeline: { events: [{ event_id: 99 }], loaded_range: { start: 0, span: 900_000 } },
-  });
-  assert.equal(view.cache.events.length, 0);
-  assert.ok(view.cache.contains({ start: 0, span: view.duration }));
-});
-
-test("wide zoom retains headroom after prefetch rather than reloading on every small scroll", () => {
-  const view = fixture();
-  view.cache = new TimelineCache();
-  view.cache.add({ start: 100_000, span: 240_000 }, []);
-  view.scheduleDraw = () => {};
-  let queries = 0;
-  view.requestRange = () => queries++;
-  for (let start = 160_000; start < 190_000; start += 1000) view.setRange(start, 120_000);
-  assert.equal(queries, 0);
-  view.setRange(191_000, 120_000);
-  assert.equal(queries, 1);
-});
-
-test("fast scrolling shifts the actual preload request ahead before visible data runs out", () => {
-  const view = fixture();
-  view.scheduleDraw = () => {};
-  const requests = [];
-  view.pushEvent = (_name, request) => {
-    requests.push(request);
-    return Promise.resolve({});
-  };
-  view.requestRange = () => view.loadRange();
-  view.prefetch.pan(265_000, 285_000);
-  view.setRange(285_000, 10_000);
-  assert.equal(view.chart.getAttribute("aria-busy"), "false");
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].start, 345_000);
-  assert.equal(requests[0].start - 60_000, view.range.start);
-});
-
 test("full-build metadata remains cached when zooming in and returning to maximum zoom or Home", () => {
   const view = fixture();
   view.range = view.initialRange = { start: 0, span: view.duration };
-  view.cache.add(view.range, []);
   view.scheduleDraw = () => {};
-  view.requestRange = () => assert.fail("full-build metadata is already cached");
+  view.pushEvent = () => assert.fail("full-build metadata is already cached");
   view.zoom(0.01);
   assert.equal(view.range.span, 9000);
   view.zoom(1000);
@@ -280,7 +177,6 @@ test("full-build metadata remains cached when zooming in and returning to maximu
   view.setRange(800_000, 5000);
   view.keydown({ key: "Home", preventDefault() {} });
   assert.deepEqual(view.range, { start: 0, span: 900_000 });
-  assert.equal(view.chart.getAttribute("aria-busy"), "false");
 });
 
 test("search reuses initial metadata without network requests and preserves the visible range", () => {
@@ -291,7 +187,7 @@ test("search reuses initial metadata without network requests and preserves the 
   ];
   view.select = () => {};
   view.scheduleDraw = () => {};
-  view.requestRange = () => assert.fail("search must not download metadata again");
+  view.pushEvent = () => assert.fail("search must not download metadata again");
   const range = { ...view.range };
   for (const [query, ids] of [
     ["A", [1, 2]],
@@ -334,4 +230,39 @@ test("initialization failure cleans up and hides partially mounted content", asy
   assert.equal(parts.get("timeline-content").hidden, true);
   assert.equal(parts.get("summary").hidden, true);
   assert.equal(parts.get("payload-error").hidden, false);
+});
+
+test("empty messages distinguish absent records, searches and unfiltered gaps", (t) => {
+  const frames = [];
+  globalThis.requestAnimationFrame = (callback) => {
+    frames.push(callback);
+    return frames.length;
+  };
+  t.after(() => delete globalThis.requestAnimationFrame);
+  const event = {
+    event_id: 1,
+    start_ms: 0,
+    duration_ms: 1,
+    end: 1,
+    title: "Compile",
+    target: "App",
+    project: "Workspace",
+  };
+  for (const [events, search, noRecords, noMatches] of [
+    [[], "", true, false],
+    [[], "Compile", true, false],
+    [[event], "", false, false],
+    [[event], "missing", false, true],
+  ]) {
+    const view = fixture();
+    view.allEvents = events;
+    view.filtered = search ? [] : events;
+    view.search = search;
+    view.syncScroll = () => {};
+    view.draw = () => {};
+    view.relayout();
+    frames.shift()();
+    assert.equal(!view.part("no-recorded-steps").hidden, noRecords);
+    assert.equal(!view.part("no-matches").hidden, noMatches);
+  }
 });

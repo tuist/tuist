@@ -1424,6 +1424,17 @@ impl ActionCache for ReapiService {
                 .inline_output_files
                 .iter()
                 .any(|path| path == "*");
+            let inline_limit = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .filter_map(|hint| {
+                    hint.strip_prefix("tuist-inline-max-bytes:")?
+                        .parse::<i64>()
+                        .ok()
+                })
+                .filter(|limit| *limit >= 0)
+                .min();
             // Collect the targets first, then read them concurrently: a
             // sequential await per file caps wildcard inlining at per-read
             // latency times manifest size, the same serialization
@@ -1444,6 +1455,16 @@ impl ActionCache for ReapiService {
                         .iter()
                         .any(|path| path == &output_file.path);
                     if (!inline_all && !explicit) || !output_file.contents.is_empty() {
+                        return None;
+                    }
+                    if !explicit
+                        && inline_limit.is_some_and(|limit| {
+                            output_file
+                                .digest
+                                .as_ref()
+                                .is_some_and(|digest| digest.size_bytes > limit)
+                        })
+                    {
                         return None;
                     }
                     output_file
@@ -8791,6 +8812,56 @@ mod tests {
         let output_files = &response.get_ref().output_files;
         assert_eq!(output_files[0].contents, first_bytes);
         assert_eq!(output_files[1].contents, second_bytes);
+    }
+
+    #[tokio::test]
+    async fn wildcard_inline_limit_preserves_small_and_explicit_outputs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let small = b"small".to_vec();
+        let large = vec![b'x'; 4096];
+        let small_digest = persist_output_file_blob(&context, &small).await;
+        let large_digest = persist_output_file_blob(&context, &large).await;
+        let action = persist_action_result_with_outputs(
+            &context,
+            vec![
+                reapi::OutputFile {
+                    path: "small".into(),
+                    digest: Some(small_digest),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "large".into(),
+                    digest: Some(large_digest),
+                    ..Default::default()
+                },
+            ],
+        )
+        .await;
+        for explicit in [false, true] {
+            let mut hints = vec!["*".into(), "tuist-inline-max-bytes:1024".into()];
+            if explicit {
+                hints.push("large".into());
+            }
+            let response = service
+                .get_action_result(Request::new(reapi::GetActionResultRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    action_digest: Some(action.clone()),
+                    inline_output_files: hints,
+                    ..Default::default()
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            assert_eq!(response.output_files[0].contents, small);
+            assert_eq!(
+                response.output_files[1].contents,
+                if explicit { large.clone() } else { Vec::new() }
+            );
+        }
     }
 
     #[tokio::test]

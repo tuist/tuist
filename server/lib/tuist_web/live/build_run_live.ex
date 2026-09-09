@@ -352,15 +352,6 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, error: true})}
   end
 
-  def handle_async(:timeline_range, {:ok, timeline}, socket) do
-    {:noreply,
-     push_event(socket, "timeline-range", %{request_id: socket.assigns.timeline_range_request, timeline: timeline})}
-  end
-
-  def handle_async(:timeline_range, {:exit, _reason}, socket) do
-    {:noreply, push_event(socket, "timeline-range", %{request_id: socket.assigns.timeline_range_request, error: true})}
-  end
-
   def handle_async(:timeline_step, {:ok, step}, socket) do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, step: step})}
   end
@@ -368,9 +359,6 @@ defmodule TuistWeb.BuildRunLive do
   def handle_async(:timeline_step, {:exit, _reason}, socket) do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
   end
-
-  defp timeline_summary(%{ok?: true, result: timeline}), do: Map.take(timeline, [:total_count, :duration])
-  defp timeline_summary(_timeline), do: nil
 
   defp assign_timeline(socket, tab, force \\ false)
 
@@ -451,30 +439,6 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event("load-timeline-step", _params, socket), do: {:reply, %{error: true}, socket}
-
-  def handle_event(
-        "load-timeline-range",
-        %{"version" => version, "request_id" => request_id, "start" => start, "span" => span, "search" => search},
-        %{assigns: %{timeline_version: version}} = socket
-      )
-      when is_integer(request_id) and is_number(start) and start >= 0 and start <= 9_007_199_254_740_991 and
-             is_number(span) and span > 0 and span <= 9_007_199_254_740_991 and is_binary(search) do
-    run_id = socket.assigns.run.id
-
-    summary = timeline_summary(socket.assigns.timeline)
-
-    opts = [search: search, summary: summary, start: start, span: span]
-
-    {:noreply,
-     socket
-     |> cancel_async(:timeline_range)
-     |> assign(:timeline_range_request, request_id)
-     |> start_async(:timeline_range, fn ->
-       Builds.build_timeline(run_id, opts)
-     end)}
-  end
-
-  def handle_event("load-timeline-range", _params, socket), do: {:reply, %{error: true}, socket}
 
   def handle_event("load-timeline-log", %{"event_id" => event_id, "request_id" => request_id}, socket)
       when is_integer(event_id) and event_id >= 0 and event_id <= 9_007_199_254_740_991 and is_integer(request_id) and

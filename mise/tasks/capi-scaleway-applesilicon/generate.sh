@@ -6,11 +6,14 @@
 # infra/cluster-api-provider-tuist/api/v1alpha1/.
 # This task runs controller-gen to regenerate
 #   - api/v1alpha1/zz_generated.deepcopy.go
-#   - infra/helm/tuist/crds/scalewayapplesilicon*.yaml
-# from those types' `+kubebuilder:` markers.
+#   - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+# from those types' `+kubebuilder:` markers. Every kind in that API
+# group is generated, not a subset.
 #
 # Run it whenever you touch a *_types.go file. Generated artefacts
-# are committed; CI re-runs the same task to detect drift.
+# are committed; the `generated` job in
+# .github/workflows/capi-provider-scaleway-applesilicon-image.yml
+# re-runs this task and fails on a diff.
 #
 # controller-gen is invoked via `go run @<version>`: no install
 # step, version pinned by string. Go's module cache makes the

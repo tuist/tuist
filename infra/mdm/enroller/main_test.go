@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -173,12 +175,18 @@ func TestWebhookEnrollSequence(t *testing.T) {
 	cfg.nanomdmURL = nano.URL
 	profile, _ := enrollProfile(cfg)
 	usb, _ := usbProfile(cfg)
+	// The package is read from disk per use, so the sequence needs one
+	// present to exercise InstallEnterpriseApplication.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bootstrap.pkg"), []byte("pkg"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.assetsDir = dir
 	s := &server{
 		cfg:           cfg,
 		nano:          &nanomdmClient{baseURL: nano.URL, apiKey: cfg.nanomdmAPIKey, client: nano.Client()},
 		enrollProfile: profile,
 		usbProfile:    usb,
-		bootstrapPkg:  []byte("pkg"),
 	}
 
 	body, _ := json.Marshal(map[string]any{

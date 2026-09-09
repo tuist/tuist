@@ -32,7 +32,12 @@ defmodule Tuist.Processor.BuildProcessor do
   end
 
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled, consume) do
-    {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
+    with {:ok, _} <- :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+      process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume)
+    end
+  end
+
+  defp process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume) do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
