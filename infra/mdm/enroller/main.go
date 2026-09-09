@@ -36,6 +36,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -517,6 +518,13 @@ func (s *server) handlePkg(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// One binary, two modes: the long-running enroller, and a one-shot
+	// credential expiry check run from a CronJob. Sharing the image keeps
+	// the check on the same build and deploy path as the thing it guards.
+	if len(os.Args) > 1 && os.Args[1] == "check-expiry" {
+		os.Exit(runExpiryCheck(expiryConfigFromEnv(), time.Now(), &http.Client{Timeout: 30 * time.Second}))
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -587,5 +595,26 @@ func main() {
 		log.Printf("in-flight enroll sequences finished")
 	case <-time.After(25 * time.Second):
 		log.Printf("WARNING: gave up waiting on in-flight enroll sequences; a device may be stranded at awaiting-configuration")
+	}
+}
+
+func expiryConfigFromEnv() expiryConfig {
+	atoi := func(key string, def int) int {
+		if v := os.Getenv(key); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				return n
+			}
+		}
+		return def
+	}
+	return expiryConfig{
+		certDir:      envOr("EXPIRY_CERT_DIR", "/certs"),
+		nanodepURL:   strings.TrimRight(envOr("EXPIRY_NANODEP_URL", "http://localhost:9001"), "/"),
+		nanodepKey:   os.Getenv("EXPIRY_NANODEP_API_KEY"),
+		depName:      envOr("EXPIRY_DEP_NAME", "tuist"),
+		warnDays:     atoi("EXPIRY_WARN_DAYS", 60),
+		critDays:     atoi("EXPIRY_CRIT_DAYS", 14),
+		slackToken:   os.Getenv("EXPIRY_SLACK_TOKEN"),
+		slackChannel: os.Getenv("EXPIRY_SLACK_CHANNEL"),
 	}
 }

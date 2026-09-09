@@ -223,6 +223,11 @@ async fn run_with_config(
     );
     let replication_target_cache =
         arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
+    let replication_pull = config.replication_pull;
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -249,8 +254,13 @@ async fn run_with_config(
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
-        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill_bodies_peer_slots,
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
+        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -472,6 +482,35 @@ async fn run_with_config(
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
     });
+    // The departing node waits to be pulled (design §3.5): the sibling's
+    // cursor reaching the head, bounded by what is left of the budget less
+    // a margin for the process exit. It runs BEFORE the internal listener is
+    // told to stop accepting, because the cursor arrives on the sibling's
+    // next forward request; and it is normally nothing, since the sibling
+    // long-polls continuously and draining wakes its poll at once.
+    // A feed can remain enabled on disk while a rolling pull-to-push rollback
+    // replaces this node. An older sibling may still be consuming it, so the
+    // feed itself, rather than this process's current mode, owns the drain.
+    if state.store.sync_feed().enabled() {
+        let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
+        let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
+        let deadline = Instant::now() + shutdown_budget.remaining().saturating_sub(margin);
+        let mut caught_up = state.store.sync_feed().consumers_caught_up(stale);
+        while !caught_up && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            caught_up = state.store.sync_feed().consumers_caught_up(stale);
+        }
+        if caught_up {
+            info!("sibling cursor reached the head before exit");
+        } else {
+            state.metrics.record_sync_forward_drain_timeout();
+            warn!(
+                head = state.store.sync_feed().head(),
+                "exiting before the sibling's cursor reached the head; recent writes lag for the restart"
+            );
+        }
+    }
+    state.sync.shutdown();
     let _ = shutdown_tx.send(Some(shutdown_budget));
     let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
     if !drained {
@@ -630,9 +669,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             .metrics
                             .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
-                        state
-                            .metrics
-                            .update_multipart_uploads(snapshot.multipart_uploads);
+                        state.metrics.update_multipart_uploads(
+                            snapshot.multipart_uploads,
+                            snapshot.multipart_upload_capacity,
+                        );
                         state
                             .metrics
                             .update_promotion_queue_depth(snapshot.promotion_queue_depth);

@@ -455,6 +455,59 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Free tier")} icon="reload">
+    <.card_section>
+      <p data-part="free-tier-description">
+        {dgettext(
+          "dashboard",
+          "An Air account can reach the cache for %{limit} runs a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary.",
+          limit: @free_tier_limit
+        )}
+      </p>
+      <dl data-part="free-tier-usage">
+        <div>
+          <dt>{dgettext("dashboard", "Runs this period")}</dt>
+          <dd data-part="free-tier-hits">
+            {dgettext("dashboard", "%{hits} of %{limit}",
+              hits: @free_tier_hits,
+              limit: @free_tier_limit
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard", "Last reset")}</dt>
+          <dd data-part="free-tier-reset-at">{free_tier_reset_label(@free_tier_reset_at)}</dd>
+        </div>
+      </dl>
+      <.alert
+        :if={@cache_access_blocked}
+        id="free-tier-blocked-alert"
+        size="large"
+        status="warning"
+        title={dgettext("dashboard", "Cache access blocked")}
+        description={
+          dgettext(
+            "dashboard",
+            "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
+          )
+        }
+      />
+      <div data-part="actions">
+        <.button
+          phx-click="reset_free_tier"
+          variant="primary"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
+            )
+          }
+          label={dgettext("dashboard", "Reset free tier")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Runner trial")} icon="hourglass">
     <.card_section>
       <p data-part="runner-trial-description">

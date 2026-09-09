@@ -954,36 +954,67 @@ sum by (pod, result) (rate(kura_artifact_reads_total_total{result=~"error"}[5m])
 - `kura_multipart_parts_total{result="capacity_exceeded"}` is decisive but covers
   `/api/cache/module/part` only. `/start` and `/complete` have no counter of
   their own.
-- **`kura_multipart_uploads` is not the reservation counter.** It is the count of
-  *persisted* multipart records (`Store::snapshot` ->
-  `count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)`), while admission guards a
-  separate atomic. It legitimately reads above the cap — 207 against a cap of
-  128 during the incident. Read it as shed pressure, not as the quantity being
-  compared to the limit.
+- **`kura_multipart_uploads` reports exact occupied slots** on versions exporting
+  `kura_multipart_upload_capacity`. Earlier versions use a RocksDB estimated key
+  count that can include overwritten or deleted entries until compaction; a
+  high reading alone does not prove an orphaned backlog.
 - `/api/cache/module/start` has a **second 503 that looks identical**:
   `artifact_exists` failing answers "Failed to inspect artifact". Nothing on the
   route separates the two. What argues for the shed is
   `kura_artifact_reads_total{result=~"error"}` staying empty while
   `/api/cache/module/{id}` keeps serving 200/404.
 
-**The multipart cap is always 128.** `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` is set
-nowhere in `kura/ops/` or `infra/kura-controller/`, so every managed instance
-runs `DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS` regardless of how large the instance
-is. A bigger node does not get a bigger upload budget.
+**The multipart cap scales with memory and pressure.** Unless
+`KURA_MULTIPART_MAX_ACTIVE_UPLOADS` pins a fixed override, the limit is one slot
+per MiB of transient headroom: normal pressure includes elastic capacity,
+constrained pressure uses the smaller of the base pool and half the full
+headroom, and critical pressure closes new session admission. Compare
+`kura_multipart_uploads` with `kura_multipart_upload_capacity`; occupancy may
+remain above a reduced cap while existing sessions finish. With default
+watermarks, a 4 GiB ceiling permits 1,024 sessions at normal pressure.
+Busy starts wait up to one second behind a FIFO admission turn; younger arrivals
+cannot bypass queued requests. Only the queue head listens for releases and
+pressure-tier changes. Critical pressure reports zero capacity even with a fixed
+override. The queue accepts at most the current session cap; overflow and deadline
+expiry still shed, with retry hints expanding as the queue fills.
+
+Compare `kura_multipart_upload_waiters` with the effective capacity to see queue
+saturation. `kura_multipart_upload_admissions_total_total{outcome="waited"}` counts
+successful admission after waiting; `timeout`, `queue_full`, and `critical` count
+rejected admission, while `cancelled` counts dropped waiting futures and
+`immediate` counts immediate admission. The admission-duration histogram shows
+the latency cost. These outcomes end when a slot is reserved, before the record
+write or payload transfer, so successful admission does not prove artifact
+completion. Requests rejected by the outer memory-pressure or outbox gate do
+not enter these admission counters; keep using the cache-write shedding panel
+for those. Older versions only expose the aggregate
+`kura_memory_actions_total_total{action="multipart_upload_admission_wait"}` entry
+counter; versions without the capacity gauge default to 128 sessions.
+
+Session slots do not reserve disk bytes: `/start` supplies no expected artifact
+size. `KURA_MULTIPART_MAX_STORED_BYTES` still defaults to the staging-directory
+byte cap (8 GiB unless configured otherwise). A larger session budget can expose
+`multipart_storage` sheds at `/part`; raising memory alone cannot solve disk
+saturation. Size the byte cap against available staging disk and inspect abandoned
+parts before increasing it. Async record creation retains its slot while a
+cancelled start's record is removed; cleanup failure keeps the record and slot
+for the janitor instead of allowing accounting to undercount.
 
 **An orphaned backlog can outlive the restart that caused it.** Startup seeds the
 admission atomic from persisted state, and when that lands over the limit it logs
 *"persisted multipart usage starts above its configured limits; rejecting growth
 until the janitor reclaims it"*. The janitor runs every 10 minutes, but
 `DEFAULT_MULTIPART_UPLOAD_TTL_MS` is **24 hours**, so a node that died mid-wave
-can come back already wedged and shed every new upload for up to a day. Grep the
+can come back already wedged and shed new uploads until expiry and the bounded
+sweep reclaim enough slots. Larger session budgets may require several scan
+batches after the 24-hour TTL. Grep the
 container's startup log for that line before assuming a fresh pod is clean. A
 restart cleared it on 2026-08-24, so the day-long wedge is a latent mode, not an
 observed one.
 
-Worth watching before it pages: a pod sitting at a non-zero resting
-`kura_multipart_uploads` while the rest of the fleet sits at 0 is leaking uploads
-toward the same cap.
+On versions with exact occupancy, a sustained non-zero resting
+`kura_multipart_uploads` warrants checking abandoned sessions. Confirm starts,
+completions, and janitor activity before concluding the pod is leaking uploads.
 
 
 ### Kura cache pod restart loop
@@ -1658,6 +1689,23 @@ drift loop keys on desired config, not live host state.
 the same job works. The `unless` yields one series per host that is scraping but
 has no VLAN, and nothing at all in the healthy case, which is why **No Data**
 must be **Normal** here.
+
+Rack-owned Macs have no Scaleway Private Network, so the instance exclusion
+must remain. Their cache path needs a separate check when it is introduced.
+
+Both sides of this query must survive metric filtering. On 2026-09-09 the
+non-production remote-write allow-list retained `node_load1` but dropped
+`node_network_transmit_bytes_total`, falsely firing for both canary Macs.
+The destination rules retain VLAN transmit series from
+`job="tuist-macos-node-exporter"` specifically to preserve this check without
+restoring every network interface's metrics.
+
+Before re-running bootstrap, compare Grafana's result with the host's raw
+`http://<Node InternalIP>:9100/metrics` over the tailnet. If it exports
+`node_network_transmit_bytes_total{device="vlan0"}` and
+`node_scrape_collector_success{collector="netdev"} 1` but Grafana has no VLAN
+series, investigate Alloy's scrape and remote-write filters. A missing series
+in Grafana alone does not prove the device is absent on the host.
 
 Residual gap, deliberately not covered: a VLAN that exists but has lost its DHCP
 address also has no PN route and is invisible to both rules. node_exporter runs
@@ -2801,8 +2849,11 @@ max by (cluster, region, pod, kind) (
   upload_memory, memory_pressure_write, reapi_write_decode,
   reapi_materialization: the transient memory budget derived from the pod's
   ceiling is exhausted, the lever is the account's memory profile.
-  tmp_staging, multipart_storage, multipart_uploads: staging disk or the fixed
-  128-upload cap; an orphaned backlog can survive a restart for up to a day.`
+  tmp_staging, multipart_storage, multipart_uploads: staging disk or the
+  multipart session cap (compare kura_multipart_uploads with
+  kura_multipart_upload_capacity on current versions; older versions default to
+  128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
+  sweep reclaim them.`
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -2890,13 +2941,12 @@ limit in the summary, which is what the on-call needs to pick the lever:
     where the budget is already the whole headroom.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
-  the fixed 128-upload cap every instance runs regardless of size. An orphaned
-  backlog can outlive the restart that caused it for up to a day, so a fresh
-  pod firing this is not clean (see **Kura cache read faults**). One
-  production pod carries a standing trickle of `multipart_uploads` sheds
-  today, so this kind fires on creation; a pod resting at non-zero
-  `kura_multipart_uploads` while the fleet sits at 0 is leaking uploads toward
-  the cap, and that is a finding, not noise.
+  memory-derived session cap (or an explicit fixed override). Compare occupied
+  slots with `kura_multipart_upload_capacity` and check pressure at the time of
+  the shed. Bursts can fill every slot and then drain normally; distinguish
+  these from durable orphaned uploads that survive restarts until expiry and
+  the janitor sweep. On older versions without the capacity gauge, the occupancy metric is
+  a RocksDB estimate and cannot establish that a backlog exists.
 
 #### Triage
 

@@ -98,6 +98,7 @@
   & [data-part="runner-trial-description"],
   & [data-part="prepaid-description"],
   & [data-part="prepaid-empty"],
+  & [data-part="free-tier-description"],
   & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
     color: var(--noora-surface-label-secondary);
@@ -137,7 +138,8 @@
     max-width: 480px;
   }
 
-  & [data-part="prepaid-quote"] {
+  & [data-part="prepaid-quote"],
+  & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);

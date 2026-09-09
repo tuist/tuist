@@ -237,6 +237,30 @@ type KuraInstanceRolloutHealth struct {
 	SampledAt                    *metav1.Time `json:"sampledAt,omitempty"`
 }
 
+// KuraInstancePeerRole is one pod's replication role as the controller
+// resolves it (kura/docs/replication-design.md §2.1). NodeURL is the pod's
+// KURA_NODE_URL — the identity the runtime registers with the server — so
+// the server can match roles to registered peers without translating names.
+type KuraInstancePeerRole struct {
+	NodeURL string `json:"nodeURL"`
+	Gateway bool   `json:"gateway"`
+	Primary bool   `json:"primary"`
+
+	// Node is the box the pod is scheduled on, empty when it is not
+	// scheduled or does not exist yet. On host-network regions the primary's
+	// box is the one the account's customer DNS record targets and the only
+	// one whose gateway serves it without a cross-box hop, so this is what
+	// makes "is the record pointing at a box that can serve" a single read.
+	//
+	// An account's replicas can report different boxes. The pod affinity only
+	// prefers co-location and the StatefulSet uses Parallel pod management, so
+	// a region with more than one box can place them apart, and a cache PV is
+	// a local-path directory with hard node affinity, so it then holds for the
+	// life of those volumes. That is not a fault and is deliberately not
+	// reconverged: see the placement note in AGENTS.md.
+	Node string `json:"node,omitempty"`
+}
+
 type KuraInstanceStatus struct {
 	Phase            string       `json:"phase,omitempty"`
 	PublicURL        string       `json:"publicURL,omitempty"`
@@ -250,6 +274,14 @@ type KuraInstanceStatus struct {
 	// reports, published for the control plane's health-gated progressive
 	// rollout. Absent until at least one reconcile has sampled the pods.
 	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
+
+	// PeerRoles lists every pod of the StatefulSet with the roles the
+	// controller resolved for it: Primary is the pod the public Services
+	// route to, Gateway the pod that carries the region's cross-region
+	// replication — the Ready, non-draining complement of the primary, or
+	// the primary itself when there is none. The server reads it to publish
+	// roles in the mesh peer list.
+	PeerRoles []KuraInstancePeerRole `json:"peerRoles,omitempty"`
 
 	// CPUAutosize carries the CPU observation behind requests.cpu. It is
 	// status because nothing outside the controller sets it, and it has to

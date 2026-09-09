@@ -146,7 +146,7 @@ defmodule Tuist.ReleaseTest do
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints TO "tuist_processor")
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags TO "tuist_processor")
              ]
     end
 
@@ -158,7 +158,7 @@ defmodule Tuist.ReleaseTest do
         |> File.read!()
 
       expected_read_grant =
-        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints TO tuist_processor;)
+        ~s(GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags TO tuist_processor;)
 
       assert occurrences(sql, expected_read_grant) == 1
 

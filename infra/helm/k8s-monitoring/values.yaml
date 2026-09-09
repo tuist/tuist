@@ -151,6 +151,57 @@ k8s-monitoring:
           regex = "tuist-(staging|canary|pentest);.+_bucket"
           action = "drop"
         }
+        // Non-production keeps only what validates a deploy. Everything below
+        // the `keep` list is dropped for staging, canary and pentest, which
+        // together were 39% of all billed series while nothing pages on them.
+        //
+        // The keep list is not a judgement call: it is every metric read by an
+        // alert rule that does NOT pin `cluster="tuist-production"`, so no
+        // alert changes scope silently. Recover it with
+        //   GET /api/v1/provisioning/alert-rules
+        //   jq '[.[] | {e: ([.data[]?|.model.expr? // empty]|join(" "))}
+        //        | select(.e|test("tuist-production")|not) | .e]'
+        // and re-derive this regex if the alert set changes. `up` and
+        // `scrape_*` are outside the dropped prefixes, so the
+        // "Kura - cache telemetry missing" alert keeps its staging and canary
+        // arms.
+        //
+        // Two alerts DO change scope, deliberately: the Phoenix route-latency
+        // pair carries no cluster matcher, so staging and canary traffic has
+        // been folding into what reads as a production SLO. They become
+        // production-only.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
+        // Keeping only its liveness anchor makes healthy non-production Macs
+        // appear to have no VLAN. Retain one series per VLAN, not every NIC.
+        write_relabel_config {
+          source_labels = ["job", "__name__", "device"]
+          separator = ";"
+          regex = "tuist-macos-node-exporter;node_network_transmit_bytes_total;vlan.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // `hubble_*` is in the dropped set because its `source` label is a bare
+        // remote address for external traffic, so its cardinality is unbounded.
+        // The mis-sourced-host runbook in alerts.md that justifies keeping it
+        // is production-only.
+        write_relabel_config {
+          source_labels = ["cluster", "__tmp_nonprod_keep", "__name__"]
+          separator = ";"
+          regex = "tuist-(staging|canary|pentest);;(kube_.*|kura_.*|tuist_.*|container_.*|node_.*|hubble_.*)"
+          action = "drop"
+        }
+        write_relabel_config {
+          regex = "__tmp_nonprod_keep"
+          action = "labeldrop"
+        }
         // Kura histograms whose buckets no dashboard or alert reads. Their
         // cardinality is pod count x `le`, so it grows with every account
         // admitted to a region. `_count` and `_sum` survive, and a pod's full
@@ -217,7 +268,7 @@ k8s-monitoring:
               threshold_ms: 2000
             - name: healthy-sample
               type: probabilistic
-              sampling_percentage: 25
+              sampling_percentage: 10
           collector:
             alloy:
               resources:
@@ -250,12 +301,12 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kube-state-metrics: 96 `kube_*` metrics ingested; none of the explicit
-  #     high-churn omissions (`kube_lease_*`, `kube_endpointslice_*`,
-  #     `kube_mutatingwebhookconfiguration_*`,
-  #     `kube_configmap_metadata_resource_version`,
-  #     `kube_secret_metadata_resource_version`) are referenced by any
-  #     dashboard, alert, or recording rule.
+  #   - kube-state-metrics: 96 `kube_*` metrics ingested. `kube_lease_*`,
+  #     `kube_endpointslice_*` and `kube_mutatingwebhookconfiguration_*` are
+  #     absent as expected, but the default allow list does keep both
+  #     `*_metadata_resource_version` gauges, so they are excluded explicitly
+  #     below. None of them are referenced by any dashboard, alert, or
+  #     recording rule.
   #
   # `includeMetrics` therefore stays empty for all three. If a future
   # dashboard needs a dropped metric, add it under
@@ -394,6 +445,12 @@ k8s-monitoring:
           - kube_replicaset_metadata_generation
           - kube_replicaset_status_observed_generation
           - kube_replicaset_status_fully_labeled_replicas
+          # resourceVersion is an opaque, monotonically increasing integer
+          # that carries no monitoring signal: there is nothing to chart and
+          # nothing to alert on. The pair costs 2,999 series, 2,740 of them
+          # Secrets, and 1,836 of those on canary alone.
+          - kube_secret_metadata_resource_version
+          - kube_configmap_metadata_resource_version
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").

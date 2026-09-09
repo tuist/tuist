@@ -278,6 +278,17 @@ kura-sa-west-ingress-nginx:
     metrics:
       enabled: true
 
+# Lets the regional Kura gateways above reach Kura pods on the other boxes of a
+# multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
+# host-network; see templates/kura-gateway-network-policy.yaml for why the
+# per-instance NetworkPolicy cannot express this on its own.
+kuraGatewayNetworkPolicy:
+  enabled: false
+  # Namespace kura-controller creates KuraInstance workloads in
+  # (`kuraController.namespace` in the tuist chart).
+  namespace: kura
+  port: 4000
+
 external-dns:
   enabled: true
   provider: cloudflare

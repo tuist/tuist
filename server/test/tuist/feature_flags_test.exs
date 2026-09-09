@@ -8,6 +8,19 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  test "build-step collection requires explicit opt-in in every environment" do
+    account = %Account{id: 42, name: "tuist"}
+    reject(Environment, :env, 0)
+    expect(FunWithFlags, :enabled?, fn :xcode_build_steps, [for: ^account] -> false end)
+    refute FeatureFlags.build_steps_enabled?(account)
+  end
+
+  test "build-step collection honors explicit opt-in" do
+    account = %Account{id: 42, name: "tuist"}
+    expect(FunWithFlags, :enabled?, fn :xcode_build_steps, [for: ^account] -> true end)
+    assert FeatureFlags.build_steps_enabled?(account)
+  end
+
   test "uses the runner feature flag in canary" do
     account = %Account{id: 42, name: "tuist"}
 
@@ -48,6 +61,18 @@ defmodule Tuist.FeatureFlagsTest do
     reject(FunWithFlags, :enabled?, 2)
 
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
+  end
+
+  describe "kura_replication_pull_enabled?/1" do
+    test "reads the per-account replication-pull flag" do
+      account = %Account{id: 42, name: "tuist"}
+      other = %Account{id: 43, name: "other"}
+
+      stub(FunWithFlags, :enabled?, fn :kura_replication_pull, [for: actor] -> actor == account end)
+
+      assert FeatureFlags.kura_replication_pull_enabled?(account)
+      refute FeatureFlags.kura_replication_pull_enabled?(other)
+    end
   end
 
   describe "turnstile_enabled?/0" do

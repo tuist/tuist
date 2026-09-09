@@ -4,6 +4,13 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
 
   @doc """
+  Opt-in collection of Xcode build steps and their recorded logs. Disabled
+  unless explicitly enabled for the owning account (or globally), in every
+  environment. Keep disabled until log redaction is ready for rollout.
+  """
+  def build_steps_enabled?(account), do: FunWithFlags.enabled?(:xcode_build_steps, for: account)
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and
@@ -52,6 +59,18 @@ defmodule Tuist.FeatureFlags do
   """
   def turnstile_enabled? do
     Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
+  end
+
+  @doc """
+  Whether the account's Kura nodes replicate by pulling from their peers
+  instead of pushing through the outbox (kura/docs/replication-design.md
+  §5.2). Per account so one mesh can be flipped and watched before the rest:
+  the provisioner renders it into every managed instance's spec and the mesh
+  view publishes it, so managed pods and enrolled self-hosted nodes flip
+  together. Off by default; enabled per actor via /ops/flags.
+  """
+  def kura_replication_pull_enabled?(account) do
+    FunWithFlags.enabled?(:kura_replication_pull, for: account)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

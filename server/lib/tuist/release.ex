@@ -21,7 +21,7 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.

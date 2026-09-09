@@ -232,6 +232,75 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "defers the job when GitHub returns a transient upstream error on a REST call" do
+    # Repeats the shape of the Hive report: attempt 1 saw HTTP 502 from GitHub's
+    # edge and Oban.PerformError re-raised the bare {:http_error, 502} tuple.
+    # The retry budget already covers this; deferring turns each blip into a
+    # snooze instead of a Sentry-reported failure.
+    for status <- [429, 502, 503, 504] do
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:error, {:http_error, status}}
+      end)
+
+      stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+      stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
+      stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+      assert {:snooze, 600} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
+  end
+
+  test "defers the job when a transient upstream error is wrapped in a manifest fetch failure" do
+    # A per-manifest `{:http_error, 503}` bubbles up as
+    # `{:manifest_fetch_failed, [%{path: ..., reason: {:http_error, 503}}]}`,
+    # so the deferral walk has to look inside the wrapping tuple/list/map.
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:error, {:http_error, 503}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    assert {:snooze, 600} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
   test "snoozes immediately without retrying when the skip-write lock is contended" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}

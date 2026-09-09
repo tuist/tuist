@@ -231,7 +231,7 @@ func TestInstancePublicPeerServiceUsesClusterIPOnHostNetwork(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcileInstancePublicPeerService(ctx, instance); err != nil {
+	if err := reconciler.reconcileInstancePublicPeerService(ctx, instance, instance.Name+"-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -348,7 +348,7 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: peerServiceName, Namespace: instance.Namespace},
 		Spec: corev1.ServiceSpec{
 			Type:     corev1.ServiceTypeClusterIP,
-			Selector: selectorLabels(instance),
+			Selector: gatewayServiceSelector(instance, instance.Name+"-0"),
 		},
 	}
 	ready := true

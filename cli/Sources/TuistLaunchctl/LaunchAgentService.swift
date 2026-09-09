@@ -76,6 +76,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
         environmentVariables: [String: String] = [:]
     ) async throws -> Int32? {
         let tuistBinaryPath = try await determineTuistBinaryPath()
+        let domain = try await launchctlController.preferredDomain()
 
         let launchAgentsDir = Environment.current.homeDirectory.appending(
             components: "Library", "LaunchAgents"
@@ -118,6 +119,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
             programPath: tuistBinaryPath.pathString,
             programArguments: fullArguments,
             label: label,
+            domain: domain,
             environmentVariables: environmentVariables,
             standardOutPath: stdoutLogPath.pathString,
             standardErrorPath: stderrLogPath.pathString
@@ -128,7 +130,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
         Logger.current.debug("Created LaunchAgent plist at: \(plistPath.pathString)")
 
         do {
-            try await launchctlController.bootstrap(plistPath: plistPath)
+            try await launchctlController.bootstrap(plistPath: plistPath, domain: domain)
             Logger.current.debug("Bootstrapped LaunchAgent")
         } catch let commandError as CommandError {
             // `5` is launchd's catch-all, covering both a label that is already
@@ -243,14 +245,12 @@ public struct LaunchAgentService: LaunchAgentServicing {
         programPath: String,
         programArguments: [String],
         label: String,
+        domain: LaunchAgentDomain,
         environmentVariables: [String: String] = [:],
         standardOutPath: String,
         standardErrorPath: String
     ) -> String {
-        let programArgumentsXML =
-            programArguments
-                .map { "<string>\($0)</string>" }
-                .joined(separator: "\n\t\t")
+        let programArgumentsXML = programArguments.map { "<string>\($0)</string>" }.joined(separator: "\n\t\t")
 
         let environmentVariablesXML: String
         if environmentVariables.isEmpty {
@@ -277,6 +277,8 @@ public struct LaunchAgentService: LaunchAgentServicing {
         <dict>
             <key>Label</key>
             <string>\(label)</string>
+            <key>LimitLoadToSessionType</key>
+            <string>\(domain.sessionType)</string>
             <key>Program</key>
             <string>\(programPath)</string>
             <key>ProgramArguments</key>

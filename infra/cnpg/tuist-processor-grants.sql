@@ -48,8 +48,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist
 GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
 
 -- Read-only lookups the workers perform. These rows are not written by the
--- processors, hence no INSERT/UPDATE.
-GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints TO tuist_processor;
+-- processors, hence no INSERT/UPDATE. Build ingestion reads feature_flags to
+-- decide whether to collect Xcode build steps, even when the flag is disabled.
+GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints, :"tuist_schema".feature_flags TO tuist_processor;
 
 COMMIT;
 

@@ -89,7 +89,6 @@ pub const OUTBOX_MAX_DEPTH_CEILING: usize = 1_000_000;
 pub const OUTBOX_MAX_INFLIGHT: usize = 32;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
-pub const DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS: usize = 128;
 // REAPI action-cache entries are append-only from the client's perspective
 // (every source change publishes new keys), so a recency sweep is what bounds
 // the namespace keyspace. An expired entry costs its next reader one
@@ -421,6 +420,57 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// on production namespaces and every snapshot fetch timed out against it.
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
+
+// ---- Pull-based replication (docs/replication-design.md) ----
+
+/// `KURA_SYNC_FEED_MAX_ROWS` default: rows the arrival feed retains before it
+/// drops its oldest (design §3.1, §10). At ~100 B a row this is ~100 MB
+/// logical; it must hold the writes that land during the longest backward
+/// pass a sibling can need, or recovery loops.
+pub const DEFAULT_SYNC_FEED_MAX_ROWS: u64 = 1_000_000;
+/// Feed rows below the lowest consumer cursor are trimmed once at least this
+/// many have accumulated; a range delete per request would be wasteful and a
+/// wall of point tombstones is what the explicit floor exists to avoid.
+pub const SYNC_FEED_TRIM_BATCH_ROWS: u64 = 1_024;
+/// `KURA_SYNC_LONG_POLL_SECS` default: how long a forward read blocks with
+/// nothing to return. Below the peer client's 30 s idle read timeout so an
+/// idle long-poll never races it (implementation decision D-8).
+pub const DEFAULT_SYNC_LONG_POLL_SECS: u64 = 25;
+/// Upper bound a requester may ask for.
+pub const SYNC_LONG_POLL_MAX_SECS: u64 = 60;
+/// `KURA_SYNC_PASS_START_BUFFER_MS` default: how far below the region
+/// watermark a backward pass starts (design §4.4).
+pub const DEFAULT_SYNC_PASS_START_BUFFER_MS: u64 = 10 * 60 * 1000;
+/// `KURA_SYNC_REGION_SETTLE_MS` default: the ascending region read lists no
+/// entry younger than this against the serving node's clock, so a commit
+/// that lands out of `version_ms` order inside the window is never skipped
+/// (implementation decision D-6).
+pub const DEFAULT_SYNC_REGION_SETTLE_MS: u64 = 2_000;
+/// `KURA_SYNC_FEED_STALE_PEER_SECS` default: a feed consumer unseen for this
+/// long no longer pins the trim floor, and a feed with no consumer for this
+/// long switches off. Matches the control plane's stale-peer window.
+pub const DEFAULT_SYNC_FEED_STALE_PEER_SECS: u64 = 30 * 60;
+/// `KURA_SYNC_DRAIN_MARGIN_MS` default: what the departing node keeps back
+/// from the drain timeout so the sibling wait never eats the process exit.
+pub const DEFAULT_SYNC_DRAIN_MARGIN_MS: u64 = 5_000;
+/// Re-check cadence of an idle long-poll, the bound on a missed wake.
+pub const SYNC_LONG_POLL_RECHECK_MS: u64 = 1_000;
+/// Ceiling of `kura_region_listing_bound_lag_seconds`. The serving bound is
+/// a wall-clock instant and is `0` while a replica link bounds the listing
+/// whole (design §4.1), so an unclamped `now − bound` would report the epoch;
+/// the gauge saturates here instead, and the value doubles as the "held
+/// whole" reading.
+pub const REGION_LISTING_BOUND_LAG_MAX_SECONDS: u64 = 24 * 60 * 60;
+/// `KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER` default: bodies requests one peer
+/// identity may hold in flight on this node's serving side (design §11.1).
+pub const DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER: u64 = 1;
+/// Floor of the derived peer-serving aggregate (design §11.1): the node
+/// serves at most `max(this, visible peers × slots per peer)` bodies requests
+/// in flight unless `KURA_SYNC_PEER_SERVING_MAX_INFLIGHT` pins it. Above the
+/// bound the node answers `503` rather than queueing, so a receiver backs off
+/// or skips. The floor absorbs requesters the membership view does not count
+/// yet: a peer a tick ahead of the view, or one that cannot be dialled back.
+pub const SYNC_PEER_SERVING_MIN_INFLIGHT: u64 = 8;
 
 #[cfg(test)]
 mod tests {

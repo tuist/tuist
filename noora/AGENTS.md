@@ -7,7 +7,7 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 ## Structure
 
 - `lib/` - Elixir component modules
-- `js/` - JavaScript hooks and behaviors
+- `js/` - JavaScript hooks and behaviors. `ScrollIndicator.js` provides shared thumb sizing and dragging for table and chart scrollbars, styled by `css/scroll_indicator.css`. Tables drive indicator updates explicitly so hidden overlays do not measure on scroll.
 - `js/web-components/` - Lit-based custom elements
 - `css/` - Component stylesheets
 - `components/` - Shared component contracts consumed by Elixir and JavaScript

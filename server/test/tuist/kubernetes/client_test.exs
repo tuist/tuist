@@ -249,6 +249,49 @@ defmodule Tuist.Kubernetes.ClientTest do
 
       assert :ok = Client.delete(path, opts)
     end
+
+    @tag :tmp_dir
+    test "get bounds the read when the caller passes a timeout", %{tmp_dir: tmp_dir} do
+      token_path = Path.join(tmp_dir, "token")
+      ca_path = Path.join(tmp_dir, "ca.crt")
+      File.write!(token_path, "test-token\n")
+      File.write!(ca_path, "test-ca")
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:receive_timeout] == 3_000
+        assert request_opts[:retry] == false
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      assert {:ok, %{}} =
+               Client.get("/apis/example.test/v1/namespaces/kura/widgets/one",
+                 env: Env,
+                 token_path: token_path,
+                 ca_path: ca_path,
+                 timeout: 3_000
+               )
+    end
+
+    @tag :tmp_dir
+    test "get leaves Req's defaults alone when no timeout is given", %{tmp_dir: tmp_dir} do
+      token_path = Path.join(tmp_dir, "token")
+      ca_path = Path.join(tmp_dir, "ca.crt")
+      File.write!(token_path, "test-token\n")
+      File.write!(ca_path, "test-ca")
+
+      expect(Req, :request, fn request_opts ->
+        refute Keyword.has_key?(request_opts, :receive_timeout)
+        refute Keyword.has_key?(request_opts, :retry)
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      assert {:ok, %{}} =
+               Client.get("/apis/example.test/v1/namespaces/kura/widgets/one",
+                 env: Env,
+                 token_path: token_path,
+                 ca_path: ca_path
+               )
+    end
   end
 
   describe "delete_runner/3" do
