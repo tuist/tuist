@@ -19,6 +19,7 @@
       "vue-demi"
     ],
     "overrides": {
+      "@ai-sdk/provider-utils@^4.0.0": "4.0.33",
       "axios": "1.18.0",
       "mdast-util-to-hast": "13.2.1",
       "ajv": "8.18.0",
