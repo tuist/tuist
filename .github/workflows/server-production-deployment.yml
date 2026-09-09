@@ -2172,36 +2172,16 @@ jobs:
           mise run build
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
+      # TuistCascadeAcceptanceTests is the cascade's own plan (see Project.swift):
+      # the EE caching and generation suite this job has always run, plus
+      # TuistServerAcceptanceTests, which exercises the freshly deployed canary
+      # end to end. Until the latter existed this job asserted nothing about the
+      # server, which is how a change that killed 100% of build ingestion
+      # promoted to production green on 2026-09-09.
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
-      # TuistCacheEEAcceptanceTests covers caching and generation, so a server
-      # change that kills build ingestion promotes to production green - that is
-      # how the 2026-09-09 outage shipped. This test uploads a build to canary
-      # and waits for canary to report it ingested, which is the one assertion
-      # the upload path cannot satisfy on its own. It also runs in the CLI
-      # workflow, but that one is path-filtered to cli/**, so server changes
-      # never reach it.
-      #
-      # xcodebuild exits 0 when -only-testing matches nothing, which would turn
-      # a renamed test into a permanently green promotion gate, so the run is
-      # rejected unless a test actually executed.
-      - name: Test build ingestion
-        env:
-          TUIST_EE: 1
-        run: |
-          result_bundle="$RUNNER_TEMP/build-ingestion.xcresult"
-          tuist test TuistKitAcceptanceTests --no-selective-testing \
-            --result-bundle-path "$result_bundle" -- \
-            "-only-testing:TuistKitAcceptanceTests/InspectAcceptanceTests/build()" \
-            -retry-tests-on-failure -test-iterations 2
-          executed=$(xcrun xcresulttool get test-results summary --path "$result_bundle" --format json \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["totalTestCount"])')
-          if [ "$executed" -eq 0 ]; then
-            echo "No test ran: -only-testing no longer matches the build-ingestion test." >&2
-            exit 1
-          fi
+        run: tuist test TuistCascadeAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Backward-compatibility acceptance - runs an OLD CLI against the freshly-

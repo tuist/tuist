@@ -93,8 +93,33 @@ public enum Module: String, CaseIterable {
     public static func allTargets() -> [Target] {
         var targets = Module.allCases.flatMap(\.targets)
         targets.append(contentsOf: cacheEETargets())
+        targets.append(contentsOf: serverAcceptanceTargets())
         targets.append(contentsOf: xcResultParserTargets())
         return targets
+    }
+
+    public static let serverAcceptanceTestsTargetName = "TuistServerAcceptanceTests"
+
+    /// Acceptance tests that exercise a running Tuist server end to end, rather than the
+    /// command-line tool on its own.
+    ///
+    /// They live in their own target because the deploy cascade runs them against the freshly
+    /// deployed canary before promoting to production, and a promotion gate has to be a suite
+    /// somebody chose, not a filter over a larger one.
+    public static func serverAcceptanceTargets() -> [Target] {
+        [
+            .target(
+                name: serverAcceptanceTestsTargetName,
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistServerAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistServerAcceptanceTests"],
+                dependencies: Module.kit.acceptanceTestDependencies,
+                metadata: .metadata(tags: ["domain:server", "layer:testing"])
+            ),
+        ]
     }
 
     public static func xcResultParserTargets() -> [Target] {

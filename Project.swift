@@ -100,7 +100,8 @@ func schemes() -> [Scheme] {
             name: "TuistAcceptanceTests",
             buildAction: .buildAction(
                 targets: Module.allCases.flatMap(\.acceptanceTestTargets).map(\.name).sorted()
-                    .map { .target($0) } + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
+                    .map { .target($0) } + [.target(Module.serverAcceptanceTestsTargetName)]
+                    + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
                 postActions: [
                     inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
@@ -109,7 +110,8 @@ func schemes() -> [Scheme] {
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name), parallelization: .enabled)
-                } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
+                } + [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
+                    + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)] : []),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
                 ]
@@ -162,6 +164,43 @@ func schemes() -> [Scheme] {
             runAction: nil
         ),
     ]
+
+    // What the server deploy cascade runs against the freshly deployed canary before promoting to
+    // production. Deliberately a chosen set rather than the whole acceptance suite: it has to stay
+    // short enough to sit on the promotion path, and broad enough that a change which breaks a
+    // headline feature cannot promote green. Add a target here when a feature is important enough
+    // that shipping it broken is worse than a slower cascade.
+    schemes.append(.scheme(
+        name: "TuistCascadeAcceptanceTests",
+        buildAction: .buildAction(
+            targets: [.target(Module.serverAcceptanceTestsTargetName)]
+                + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),
+            postActions: [
+                inspectBuildPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
+            ],
+            runPostActionsOnFailure: true
+        ),
+        testAction: .targets(
+            [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
+                + (
+                    Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)]
+                        : []
+                ),
+            postActions: [
+                inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
+            ],
+            options: .options(
+                language: "en"
+            )
+        ),
+        runAction: .runAction(
+            arguments: .arguments(
+                environmentVariables: acceptanceTestsEnvironmentVariables()
+            )
+        )
+    ))
+
     if Module.includeEE() {
         schemes.append(.scheme(
             name: "TuistCacheEEAcceptanceTests",
