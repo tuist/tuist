@@ -12,6 +12,8 @@ defmodule Tuist.Processor.BuildProcessor do
   same BEAM as the rest of the server.
   """
 
+  require Logger
+
   @apple_reference_date_offset 978_307_200
 
   def process_build(build_zip_path, xcode_cache_upload_enabled) do
@@ -28,8 +30,23 @@ defmodule Tuist.Processor.BuildProcessor do
     end
   end
 
+  # `:zip.unzip/2` fails with `:bad_eocd`, `:data_error`, or similar when the
+  # uploaded archive is truncated or corrupt. Retrying does not fix the bytes
+  # on disk, so we surface a discrete `:bad_zip` tag and let the worker skip
+  # straight to the `failed_processing` marker instead of raising a MatchError
+  # that reruns four more times before Oban gives up.
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled) do
-    {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
+    case :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+      {:ok, _} ->
+        parse_unzipped(temp_dir, xcode_cache_upload_enabled)
+
+      {:error, reason} ->
+        Logger.warning("Rejecting build archive: :zip.unzip returned #{inspect(reason)}")
+        {:error, :bad_zip}
+    end
+  end
+
+  defp parse_unzipped(temp_dir, xcode_cache_upload_enabled) do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")

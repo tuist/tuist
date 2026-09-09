@@ -72,6 +72,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         Logger.warning("Build processing skipped: project #{project_id} not found for build #{build_id}")
         {:discard, :project_not_found}
 
+      {:error, :bad_zip} ->
+        Logger.warning("Build archive for build #{build_id} is not a valid zip; marking as failed_processing")
+        mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
+        {:discard, :bad_zip}
+
       {:error, :object_not_found} when attempt <= @not_visible_snoozes ->
         {:snooze, @not_visible_snooze_seconds}
 

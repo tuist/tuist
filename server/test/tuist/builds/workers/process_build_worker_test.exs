@@ -230,6 +230,24 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert {:discard, :project_not_found} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999")))
     end
+
+    test "discards the job and marks the build as failed when the archive is not a valid zip", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _path, _ -> {:error, :bad_zip} end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.id == build.id
+        assert attrs.status == "failed_processing"
+        {:ok, %{id: build.id}}
+      end)
+
+      assert {:discard, :bad_zip} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
+    end
   end
 
   describe "perform/1 VCS comment" do
