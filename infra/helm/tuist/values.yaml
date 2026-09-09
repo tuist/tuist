@@ -195,6 +195,15 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  # One Certificate in the controller namespace, issued by tlsClusterIssuer,
+  # that every public Ingress terminates on. An instance keeps its own
+  # certificate until this Secret holds a leaf covering its host, and an ACME
+  # wildcard covers exactly one label below the name it is issued for.
+  publicWildcardCertificate:
+    enabled: false
+    secretName: kura-public-wildcard-tls
+    dnsNames:
+      - "*.kura.tuist.dev"
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override

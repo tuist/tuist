@@ -24,6 +24,10 @@
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
+{{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
+{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
+{{- end }}
 {{- if not $imageTag }}
 {{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
 {{- end }}
@@ -293,6 +297,32 @@ subjects:
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
+{{- if $publicWildcard.enabled }}
+---
+# Every KuraInstance Ingress in this namespace terminates on this Secret, so an
+# account's endpoint serves the moment its Ingress exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $publicWildcard.secretName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  secretName: {{ $publicWildcard.secretName }}
+  dnsNames:
+    {{- range $publicWildcard.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  issuerRef:
+    name: {{ $tlsClusterIssuer }}
+    kind: ClusterIssuer
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -337,6 +367,9 @@ spec:
             - --watch-namespace={{ $namespace }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
+            {{- end }}
+            {{- if $publicWildcard.enabled }}
+            - --public-tls-secret-name={{ $publicWildcard.secretName }}
             {{- end }}
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
