@@ -117,6 +117,7 @@ pub struct MetricsInner {
     outbox_lane_messages: Family<OutboxLaneLabels, Gauge>,
     outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     multipart_uploads: Gauge,
+    multipart_upload_capacity: Gauge,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
     backfill_horizon_age_ms: Gauge,
@@ -676,6 +677,7 @@ impl Metrics {
         let outbox_target_messages = Family::<OutboxTargetLabels, Gauge>::default();
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
+        let multipart_upload_capacity = Gauge::default();
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
         let backfill_horizon_age_ms = Gauge::default();
@@ -1231,8 +1233,13 @@ impl Metrics {
         );
         registry.register(
             "kura_multipart_uploads",
-            "Multipart uploads currently tracked in RocksDB",
+            "Multipart upload slots currently occupied",
             multipart_uploads.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_capacity",
+            "Current multipart upload admission limit",
+            multipart_upload_capacity.clone(),
         );
         registry.register(
             "kura_tmp_dir_bytes",
@@ -1822,6 +1829,7 @@ impl Metrics {
                 outbox_lane_messages,
                 outbox_target_messages,
                 multipart_uploads,
+                multipart_upload_capacity,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
                 backfill_horizon_age_ms,
@@ -2569,8 +2577,9 @@ impl Metrics {
         }
     }
 
-    pub fn update_multipart_uploads(&self, count: usize) {
+    pub fn update_multipart_uploads(&self, count: usize, capacity: usize) {
         self.multipart_uploads.set(count as i64);
+        self.multipart_upload_capacity.set(capacity as i64);
     }
 
     pub fn update_tmp_dir_bytes(&self, bytes: u64) {
@@ -4292,7 +4301,7 @@ mod tests {
         metrics.record_manifest_cache_evictions("capacity", 1);
         metrics.record_manifest_index_rebuild("ok", Duration::from_millis(3));
         metrics.update_outbox_messages(4, 3);
-        metrics.update_multipart_uploads(2);
+        metrics.update_multipart_uploads(2, 256);
         metrics.update_discovered_peer_nodes(3);
         metrics.update_analytics_queue(1000, 2);
         metrics.record_analytics_event("xcode", "sent", 2);
@@ -4428,6 +4437,7 @@ mod tests {
         assert!(rendered.contains("kura_outbox_target_messages{target=\"http://a\"} 0"));
         assert!(rendered.contains("kura_outbox_target_messages{target=\"http://b\"} 2"));
         assert!(rendered.contains("kura_multipart_uploads"));
+        assert!(rendered.contains("kura_multipart_upload_capacity 256"));
         assert!(rendered.contains("kura_tmp_dir_bytes"));
         assert!(rendered.contains("kura_discovered_peer_nodes"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));

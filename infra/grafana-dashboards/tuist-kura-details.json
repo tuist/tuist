@@ -12379,12 +12379,33 @@
                       "spec": {
                         "expr": "max by (pod) (kura_multipart_uploads{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
                         "instant": false,
-                        "legendFormat": "{{pod}}",
+                        "legendFormat": "{{pod}} occupied",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_multipart_upload_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} limit",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
                   }
                 }
               ],
@@ -12392,7 +12413,7 @@
               "transformations": []
             }
           },
-          "description": "Multipart uploads currently tracked in RocksDB\n\nPrometheus name: `kura_multipart_uploads`",
+          "description": "Occupied multipart session slots and the effective admission limit. Automatic sizing uses one slot per MiB of transient memory headroom; normal pressure includes elastic capacity, constrained pressure uses at most the base budget and half the full headroom, and critical pressure admits no new sessions. KURA_MULTIPART_MAX_ACTIVE_UPLOADS overrides automatic sizing. Existing sessions can remain above a reduced limit while they complete or expire. Older versions report a RocksDB estimate for occupied slots, which can substantially overcount completed uploads; compare only versions exporting the capacity gauge.\n\nPrometheus names: `kura_multipart_uploads`, `kura_multipart_upload_capacity`",
           "id": 33,
           "links": [],
           "title": "multipart_uploads",

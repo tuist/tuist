@@ -209,6 +209,8 @@ config:
 # `geo.region.iso_code` and never derives them at runtime, so leaving them unset
 # just leaves the attributes off, except that a region name beginning with a
 # country code (`fr-par`) still answers for the country.
+# Multipart session capacity automatically follows memory headroom and pressure.
+# Set KURA_MULTIPART_MAX_ACTIVE_UPLOADS through extraEnv only for a fixed override.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

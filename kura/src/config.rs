@@ -5,12 +5,12 @@ use tokio::fs;
 use crate::{
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
-        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER,
-        DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-        DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
-        DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
-        MAX_INLINE_REPLICATION_BODY_BYTES, default_backfill_ready_ring_percent,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
+        DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER, DEFAULT_REPLICATION_UPLOAD_STALL_MS,
+        DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+        DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
+        default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -218,7 +218,8 @@ pub struct Config {
     pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
-    pub multipart_max_active_uploads: usize,
+    /// Fixed override; otherwise the memory controller sizes admission at runtime.
+    pub multipart_max_active_uploads: Option<usize>,
     pub multipart_max_stored_bytes: u64,
     /// Share of the age-ordered segment ring (counted from the newest) whose
     /// boundary segment's seal-time stat becomes the backfill horizon; the
@@ -1275,9 +1276,8 @@ impl Config {
                     format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
                 })
             },
-        )
-        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
-        if multipart_max_active_uploads == 0 {
+        );
+        if multipart_max_active_uploads == Some(0) {
             invalid.push(format!(
                 "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
             ));
@@ -2693,10 +2693,7 @@ mod tests {
             512 * BYTES_PER_MIB
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
-        assert_eq!(
-            config.multipart_max_active_uploads,
-            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
-        );
+        assert_eq!(config.multipart_max_active_uploads, None);
         assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(
@@ -2942,7 +2939,7 @@ mod tests {
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.replication_upload_stall_ms, 90_000);
-        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_active_uploads, Some(64));
         assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
@@ -2955,6 +2952,15 @@ mod tests {
         assert_eq!(config.request_log_sample_rate, 0.25);
         assert_eq!(config.slow_request_threshold_ms, 15_000);
         assert_eq!(config.warning_log_interval_ms, 30_000);
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_multipart_capacity_overrides() {
+        for value in ["0", "-1", "not-a-number"] {
+            let error = config_from(&[(KURA_MULTIPART_MAX_ACTIVE_UPLOADS, value)])
+                .expect_err("invalid fixed session capacity should fail configuration");
+            assert!(error.contains(KURA_MULTIPART_MAX_ACTIVE_UPLOADS));
+        }
     }
 
     #[test]

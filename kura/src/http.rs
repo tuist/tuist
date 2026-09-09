@@ -7646,8 +7646,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn multipart_http_admission_scales_with_memory_and_recovers_from_pressure() {
+        let context = test_context(|config| {
+            config.memory_hard_limit_bytes = config.memory_soft_limit_bytes + 256 * 1024 * 1024;
+        })
+        .await;
+        let app = router(context.state.clone());
+        let start = |index: usize| {
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=burst-{index}&name=Module&cache_category=builds"
+                ))
+                .body(Body::empty())
+                .expect("start request should build")
+        };
+        for index in 0..129 {
+            let response = app
+                .clone()
+                .oneshot(start(index))
+                .await
+                .expect("request should complete");
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        context
+            .state
+            .memory
+            .observe(context.state.config.memory_soft_limit_bytes + 1);
+        let shed = app
+            .clone()
+            .oneshot(start(129))
+            .await
+            .expect("request should complete");
+        assert_eq!(shed.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&shed, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+        context.state.memory.observe(0);
+        let recovered = app
+            .oneshot(start(129))
+            .await
+            .expect("request should complete");
+        assert_eq!(recovered.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn the_multipart_upload_cap_sheds_with_backpressure_not_a_server_error() {
-        let context = test_context(|config| config.multipart_max_active_uploads = 1).await;
+        let context = test_context(|config| config.multipart_max_active_uploads = Some(1)).await;
         let app = router(context.state.clone());
 
         let start = |hash: &str| {

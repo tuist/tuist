@@ -197,7 +197,7 @@ pub struct Store {
     outbox_max_depth_per_peer: usize,
     multipart_uploads: AtomicUsize,
     multipart_stored_bytes: AtomicU64,
-    multipart_max_active_uploads: usize,
+    multipart_max_active_uploads: Option<usize>,
     multipart_max_stored_bytes: u64,
     // Positioned small writes hold the read side while writing disjoint ranges.
     // Rotation, serial streaming appends, and durability barriers take the
@@ -418,6 +418,7 @@ pub struct StoreSnapshot {
     /// enforced against these.
     pub outbox_target_messages: Vec<(String, usize)>,
     pub multipart_uploads: usize,
+    pub multipart_upload_capacity: usize,
     pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
     pub segment_fsync_count: u64,
@@ -1306,13 +1307,13 @@ impl Store {
         store
             .multipart_stored_bytes
             .store(multipart_stored_bytes, Ordering::Release);
-        if multipart_uploads > store.multipart_max_active_uploads
+        if multipart_uploads > store.multipart_upload_capacity()
             || multipart_stored_bytes > store.multipart_max_stored_bytes
         {
             tracing::warn!(
                 multipart_uploads,
                 multipart_stored_bytes,
-                max_active_uploads = store.multipart_max_active_uploads,
+                max_active_uploads = store.multipart_upload_capacity(),
                 max_stored_bytes = store.multipart_max_stored_bytes,
                 "persisted multipart usage starts above its configured limits; rejecting growth until the janitor reclaims it"
             );
@@ -1531,14 +1532,19 @@ impl Store {
         release_atomic_slots(&self.outbox_depth, 1);
     }
 
+    pub fn multipart_upload_capacity(&self) -> usize {
+        self.multipart_max_active_uploads
+            .unwrap_or_else(|| self.memory.multipart_upload_capacity())
+    }
+
     fn reserve_multipart_upload(&self) -> Result<MultipartUploadReservation<'_>, String> {
         let mut current = self.multipart_uploads.load(Ordering::Acquire);
         loop {
+            let capacity = self.multipart_upload_capacity();
             let requested = current.saturating_add(1);
-            if requested > self.multipart_max_active_uploads {
+            if requested > capacity {
                 return Err(format!(
-                    "{MULTIPART_CAPACITY_ERROR}: {current} active uploads, {} allowed",
-                    self.multipart_max_active_uploads
+                    "{MULTIPART_CAPACITY_ERROR}: {current} active uploads, {capacity} allowed"
                 ));
             }
             match self.multipart_uploads.compare_exchange_weak(
@@ -6109,7 +6115,7 @@ impl Store {
         let outbox_messages = self.outbox_message_count()?;
         let outbox_bulk_messages = self.outbox_bulk_depth();
         let outbox_target_messages = self.outbox_target_depths();
-        let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
+        let multipart_uploads = self.multipart_uploads.load(Ordering::Acquire);
         let promotion_queue_depth = self
             .promotion_queue
             .lock()
@@ -6126,6 +6132,7 @@ impl Store {
             outbox_bulk_messages,
             outbox_target_messages,
             multipart_uploads,
+            multipart_upload_capacity: self.multipart_upload_capacity(),
             promotion_queue_depth,
             segment_counts,
             segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
@@ -10384,7 +10391,7 @@ mod tests {
             replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
-            multipart_max_active_uploads: 128,
+            multipart_max_active_uploads: None,
             multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
             backfill_margin_percent: 40,
             backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
@@ -17665,7 +17672,7 @@ mod tests {
     #[tokio::test]
     async fn multipart_quotas_survive_restart_and_release_on_abort() {
         let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.multipart_max_active_uploads = 1;
+            config.multipart_max_active_uploads = Some(1);
             config.multipart_max_stored_bytes = 20;
         });
         let upload_id = store
@@ -17809,61 +17816,183 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn multipart_startup_preserves_records_above_the_active_limit() {
-        let (_temp_dir, mut config, store) = temp_store_with(|config| {
-            config.multipart_max_active_uploads = 3;
+    async fn multipart_pressure_reduces_new_admission_without_discarding_uploads() {
+        const MIB: u64 = 1024 * 1024;
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.memory_soft_limit_bytes = 64 * MIB;
+            config.memory_hard_limit_bytes = 80 * MIB;
         });
-        let mut upload_ids = Vec::new();
-        for index in 0..3 {
-            upload_ids.push(
+        assert_eq!(store.multipart_upload_capacity(), 16);
+        let uploads = (0..9)
+            .map(|index| {
                 store
-                    .start_multipart_upload(
-                        "acme",
-                        "ios",
-                        "builds",
-                        &format!("hash-{index}"),
-                        &format!("Module-{index}.framework"),
-                    )
-                    .expect("upload should start"),
-            );
-        }
-        drop(store);
+                    .start_multipart_upload("acme", "ios", "builds", &index.to_string(), "Module")
+                    .expect("normal pressure should admit the burst")
+            })
+            .collect::<Vec<_>>();
+        let part = config.tmp_dir.join("part");
+        std::fs::write(&part, b"part").expect("part should be written");
+        store
+            .add_multipart_part(&uploads[0], 1, &part, 4)
+            .await
+            .expect("part should upload");
+        assert_eq!(store.snapshot().unwrap().multipart_uploads, 9);
 
-        config.multipart_max_active_uploads = 1;
-        let io = IoController::new(
-            Metrics::new(config.region.clone(), config.tenant_id.clone()),
-            config.file_descriptor_pool_size,
-            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-            vec![config.tmp_dir.clone(), config.data_dir.clone()],
-        )
-        .expect("reopened io controller should build");
-        let memory = MemoryController::new(
-            io.metrics().clone(),
-            config.memory_soft_limit_bytes,
-            config.memory_hard_limit_bytes,
+        store.memory.observe(65 * MIB);
+        assert_eq!(store.multipart_upload_capacity(), 8);
+        assert_eq!(store.snapshot().unwrap().multipart_upload_capacity, 8);
+        assert!(
+            store
+                .start_multipart_upload("acme", "ios", "builds", "new", "Module")
+                .is_err()
         );
-        let reopened = Store::open(&config, io, memory).expect("store should reopen");
-        assert_eq!(reopened.multipart_usage(), (3, 0));
-        assert_eq!(
+        store
+            .complete_multipart_upload_and_enqueue(&uploads[0], &[1], &[])
+            .await
+            .expect("a session above the reduced cap should still complete");
+        assert_eq!(store.snapshot().unwrap().multipart_uploads, 8);
+        assert!(
+            store
+                .start_multipart_upload("acme", "ios", "builds", "new", "Module")
+                .is_err()
+        );
+        store
+            .abort_multipart_upload(&uploads[1])
+            .await
+            .expect("session should abort");
+        store
+            .start_multipart_upload("acme", "ios", "builds", "new", "Module")
+            .expect("releasing a slot should admit another session");
+
+        store.memory.observe(81 * MIB);
+        assert_eq!(store.multipart_upload_capacity(), 0);
+        assert!(
+            store
+                .start_multipart_upload("acme", "ios", "builds", "critical", "Module")
+                .is_err()
+        );
+        store.memory.observe(0);
+        assert_eq!(store.multipart_upload_capacity(), 16);
+        store
+            .start_multipart_upload("acme", "ios", "builds", "recovered", "Module")
+            .expect("recovered headroom should admit another session");
+    }
+
+    #[test]
+    fn multipart_fixed_override_preserves_configured_admission() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.multipart_max_active_uploads = Some(1);
+        });
+        store.memory.observe(config.memory_soft_limit_bytes + 1);
+        assert_eq!(store.multipart_upload_capacity(), 1);
+        store
+            .start_multipart_upload("acme", "ios", "builds", "first", "Module")
+            .expect("explicit cap should admit its configured number of sessions");
+        store.memory.observe(0);
+        assert_eq!(store.multipart_upload_capacity(), 1);
+        assert!(
+            store
+                .start_multipart_upload("acme", "ios", "builds", "second", "Module")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn multipart_concurrent_starts_respect_the_derived_limit() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 72 * 1024 * 1024;
+        });
+        let barrier = std::sync::Barrier::new(32);
+        let admitted = std::thread::scope(|scope| {
+            let tasks = (0..32)
+                .map(|index| {
+                    let store = &store;
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        store
+                            .start_multipart_upload(
+                                "acme",
+                                "ios",
+                                "builds",
+                                &index.to_string(),
+                                "Module",
+                            )
+                            .is_ok()
+                    })
+                })
+                .collect::<Vec<_>>();
+            tasks
+                .into_iter()
+                .map(|task| usize::from(task.join().expect("start should not panic")))
+                .sum::<usize>()
+        });
+        assert_eq!(admitted, 8);
+        assert_eq!(store.multipart_usage().0, 8);
+        assert_eq!(store.snapshot().unwrap().multipart_uploads, 8);
+    }
+
+    #[tokio::test]
+    async fn multipart_startup_preserves_records_above_the_active_limit() {
+        for fixed_override in [false, true] {
+            let (_temp_dir, mut config, store) = temp_store_with(|config| {
+                config.multipart_max_active_uploads = fixed_override.then_some(3);
+                config.memory_hard_limit_bytes = config.memory_soft_limit_bytes + 3 * 1024 * 1024;
+            });
+            let mut upload_ids = Vec::new();
+            for index in 0..3 {
+                upload_ids.push(
+                    store
+                        .start_multipart_upload(
+                            "acme",
+                            "ios",
+                            "builds",
+                            &format!("hash-{index}"),
+                            &format!("Module-{index}.framework"),
+                        )
+                        .expect("upload should start"),
+                );
+            }
+            drop(store);
+
+            config.multipart_max_active_uploads = fixed_override.then_some(1);
+            config.memory_hard_limit_bytes = config.memory_soft_limit_bytes + 1024 * 1024;
+            let io = IoController::new(
+                Metrics::new(config.region.clone(), config.tenant_id.clone()),
+                config.file_descriptor_pool_size,
+                std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+                vec![config.tmp_dir.clone(), config.data_dir.clone()],
+            )
+            .expect("reopened io controller should build");
+            let memory = MemoryController::new(
+                io.metrics().clone(),
+                config.memory_soft_limit_bytes,
+                config.memory_hard_limit_bytes,
+            );
+            let reopened = Store::open(&config, io, memory).expect("store should reopen");
+            assert_eq!(reopened.multipart_usage(), (3, 0));
+            assert_eq!(
+                reopened
+                    .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
+                    .expect("multipart records should count"),
+                3
+            );
+            assert!(is_multipart_capacity_error(
+                &reopened
+                    .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
+                    .expect_err("persisted overage should reject growth")
+            ));
+            for upload_id in upload_ids {
+                reopened
+                    .abort_multipart_upload(&upload_id)
+                    .await
+                    .expect("preserved upload should remain abortable");
+            }
             reopened
-                .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
-                .expect("multipart records should count"),
-            3
-        );
-        assert!(is_multipart_capacity_error(
-            &reopened
                 .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
-                .expect_err("persisted overage should reject growth")
-        ));
-        for upload_id in upload_ids {
-            reopened
-                .abort_multipart_upload(&upload_id)
-                .await
-                .expect("preserved upload should remain abortable");
+                .expect("a new upload should start after the overage is reclaimed");
         }
-        reopened
-            .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
-            .expect("a new upload should start after the overage is reclaimed");
     }
 
     #[test]

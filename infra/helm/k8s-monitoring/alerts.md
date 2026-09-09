@@ -954,36 +954,41 @@ sum by (pod, result) (rate(kura_artifact_reads_total_total{result=~"error"}[5m])
 - `kura_multipart_parts_total{result="capacity_exceeded"}` is decisive but covers
   `/api/cache/module/part` only. `/start` and `/complete` have no counter of
   their own.
-- **`kura_multipart_uploads` is not the reservation counter.** It is the count of
-  *persisted* multipart records (`Store::snapshot` ->
-  `count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)`), while admission guards a
-  separate atomic. It legitimately reads above the cap — 207 against a cap of
-  128 during the incident. Read it as shed pressure, not as the quantity being
-  compared to the limit.
+- **`kura_multipart_uploads` reports exact occupied slots** on versions exporting
+  `kura_multipart_upload_capacity`. Earlier versions use a RocksDB estimated key
+  count that can include overwritten or deleted entries until compaction; a
+  high reading alone does not prove an orphaned backlog.
 - `/api/cache/module/start` has a **second 503 that looks identical**:
   `artifact_exists` failing answers "Failed to inspect artifact". Nothing on the
   route separates the two. What argues for the shed is
   `kura_artifact_reads_total{result=~"error"}` staying empty while
   `/api/cache/module/{id}` keeps serving 200/404.
 
-**The multipart cap is always 128.** `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` is set
-nowhere in `kura/ops/` or `infra/kura-controller/`, so every managed instance
-runs `DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS` regardless of how large the instance
-is. A bigger node does not get a bigger upload budget.
+**The multipart cap scales with memory and pressure.** Unless
+`KURA_MULTIPART_MAX_ACTIVE_UPLOADS` pins a fixed override, the limit is one slot
+per MiB of transient headroom: normal pressure includes elastic capacity,
+constrained pressure uses the smaller of the base pool and half the full
+headroom, and critical pressure closes new session admission. Compare
+`kura_multipart_uploads` with `kura_multipart_upload_capacity`; occupancy may
+remain above a reduced cap while existing sessions finish. With default
+watermarks, a 4 GiB ceiling permits 1,024 sessions at normal pressure.
+Older versions without the capacity metric default to 128 regardless of size.
 
 **An orphaned backlog can outlive the restart that caused it.** Startup seeds the
 admission atomic from persisted state, and when that lands over the limit it logs
 *"persisted multipart usage starts above its configured limits; rejecting growth
 until the janitor reclaims it"*. The janitor runs every 10 minutes, but
 `DEFAULT_MULTIPART_UPLOAD_TTL_MS` is **24 hours**, so a node that died mid-wave
-can come back already wedged and shed every new upload for up to a day. Grep the
+can come back already wedged and shed new uploads until expiry and the bounded
+sweep reclaim enough slots. Larger session budgets may require several scan
+batches after the 24-hour TTL. Grep the
 container's startup log for that line before assuming a fresh pod is clean. A
 restart cleared it on 2026-08-24, so the day-long wedge is a latent mode, not an
 observed one.
 
-Worth watching before it pages: a pod sitting at a non-zero resting
-`kura_multipart_uploads` while the rest of the fleet sits at 0 is leaking uploads
-toward the same cap.
+On versions with exact occupancy, a sustained non-zero resting
+`kura_multipart_uploads` warrants checking abandoned sessions. Confirm starts,
+completions, and janitor activity before concluding the pod is leaking uploads.
 
 
 ### Kura cache pod restart loop
@@ -2787,8 +2792,11 @@ max by (cluster, region, pod, kind) (
   upload_memory, memory_pressure_write, reapi_write_decode,
   reapi_materialization: the transient memory budget derived from the pod's
   ceiling is exhausted, the lever is the account's memory profile.
-  tmp_staging, multipart_storage, multipart_uploads: staging disk or the fixed
-  128-upload cap; an orphaned backlog can survive a restart for up to a day.`
+  tmp_staging, multipart_storage, multipart_uploads: staging disk or the
+  multipart session cap (compare kura_multipart_uploads with
+  kura_multipart_upload_capacity on current versions; older versions default to
+  128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
+  sweep reclaim them.`
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -2876,13 +2884,12 @@ limit in the summary, which is what the on-call needs to pick the lever:
     where the budget is already the whole headroom.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
-  the fixed 128-upload cap every instance runs regardless of size. An orphaned
-  backlog can outlive the restart that caused it for up to a day, so a fresh
-  pod firing this is not clean (see **Kura cache read faults**). One
-  production pod carries a standing trickle of `multipart_uploads` sheds
-  today, so this kind fires on creation; a pod resting at non-zero
-  `kura_multipart_uploads` while the fleet sits at 0 is leaking uploads toward
-  the cap, and that is a finding, not noise.
+  memory-derived session cap (or an explicit fixed override). Compare occupied
+  slots with `kura_multipart_upload_capacity` and check pressure at the time of
+  the shed. Bursts can fill every slot and then drain normally; distinguish
+  these from durable orphaned uploads that survive restarts until expiry and
+  the janitor sweep. On older versions without the capacity gauge, the occupancy metric is
+  a RocksDB estimate and cannot establish that a backlog exists.
 
 #### Triage
 
