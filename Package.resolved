@@ -695,7 +695,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.55.0"
+        "version" : "0.57.1"
       }
     },
     {
@@ -712,7 +712,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.7.97"
+        "version" : "0.7.98"
       }
     },
     {
