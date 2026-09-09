@@ -75,10 +75,6 @@ disabled by default for self-hosted installs. Those installs can supply both
 runtime variables through `kuraController.sharedSecrets.data` or an externally
 managed shared Secret, using the same signing key as their server.
 
-Validate the environment isolation, signing-key source, and configuration
-requirements with `bash .github/scripts/test-kura-analytics.sh` from the
-repository root (requires Helm and yq).
-
 ## Local validation
 
 Render manifests:
