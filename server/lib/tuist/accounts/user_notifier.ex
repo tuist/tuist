@@ -268,33 +268,34 @@ defmodule Tuist.Accounts.UserNotifier do
   @doc """
   Builds an Air usage email for delivery or local preview.
   """
-  def air_usage_email(user, account, %{threshold: threshold, usage: usage, limit: limit, period_start: period_start}) do
-    {title, description} =
-      if threshold == 100 do
-        {
-          dgettext("dashboard_account", "You've reached your Air limit"),
-          dgettext(
-            "dashboard_account",
-            "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
-          )
-        }
-      else
-        {
-          dgettext("dashboard_account", "You're approaching your Air limit"),
-          dgettext(
-            "dashboard_account",
-            "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
-          )
-        }
-      end
+  def air_usage_email(
+        user,
+        account,
+        %{threshold: threshold, usage: usage, limit: limit, period_start: period_start} = notification
+      ) do
+    runner? = Map.get(notification, :metric) == :runner_minutes
+    {title, description} = air_usage_copy(runner?, threshold)
 
     subject =
-      dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air limit",
-        account_name: account.name,
-        threshold: threshold
-      )
+      if runner? do
+        dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air runner limit",
+          account_name: account.name,
+          threshold: threshold
+        )
+      else
+        dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air limit",
+          account_name: account.name,
+          threshold: threshold
+        )
+      end
 
-    usage_label = dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
+    usage_label =
+      if runner? do
+        dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+      else
+        dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
+      end
+
     reset_date = period_start |> Timex.shift(months: 1) |> Timex.beginning_of_month() |> Calendar.strftime("%B %-d, %Y")
     reset_label = dgettext("dashboard_account", "Your free allowance resets on %{date} (UTC).", date: reset_date)
     billing_url = Environment.app_url(path: "/#{URI.encode_www_form(account.name)}/billing")
@@ -342,6 +343,46 @@ defmodule Tuist.Accounts.UserNotifier do
     #{dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")}
     #{dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")}
     """)
+  end
+
+  defp air_usage_copy(true, 100) do
+    {
+      dgettext("dashboard_account", "You've reached your Air runner limit"),
+      dgettext(
+        "dashboard_account",
+        "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
+      )
+    }
+  end
+
+  defp air_usage_copy(true, _threshold) do
+    {
+      dgettext("dashboard_account", "You're nearing your Air runner limit"),
+      dgettext(
+        "dashboard_account",
+        "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
+      )
+    }
+  end
+
+  defp air_usage_copy(false, 100) do
+    {
+      dgettext("dashboard_account", "You've reached your Air limit"),
+      dgettext(
+        "dashboard_account",
+        "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
+      )
+    }
+  end
+
+  defp air_usage_copy(false, _threshold) do
+    {
+      dgettext("dashboard_account", "You're approaching your Air limit"),
+      dgettext(
+        "dashboard_account",
+        "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
+      )
+    }
   end
 
   @doc """

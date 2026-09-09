@@ -41,12 +41,16 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorker do
 
   defp relevant?(notification) do
     account = notification.account
-    limit = Billing.get_payment_thresholds().remote_cache_hits
-    period_start = AirUsageNotifications.period_start(account, DateTime.utc_now())
+    period_start = AirUsageNotifications.period_start(account, DateTime.utc_now(), notification.metric)
 
     Billing.effective_plan(account) == :air &&
       Accounts.owns_account_or_is_admin_to_account_organization?(notification.user, account) &&
       DateTime.compare(notification.period_start, period_start) == :eq &&
-      AirUsageNotifications.threshold(account.current_month_remote_cache_hits_count, limit) == notification.threshold
+      AirUsageNotifications.eligible?(account, notification.metric) && reached_threshold?(notification)
+  end
+
+  defp reached_threshold?(notification) do
+    {usage, limit} = AirUsageNotifications.usage(notification.account, notification.metric)
+    AirUsageNotifications.threshold(usage, limit) == notification.threshold
   end
 end

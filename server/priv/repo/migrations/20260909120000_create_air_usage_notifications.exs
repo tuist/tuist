@@ -5,6 +5,7 @@ defmodule Tuist.Repo.Migrations.CreateAirUsageNotifications do
     create table(:air_usage_notifications) do
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
       add :user_id, references(:users, on_delete: :delete_all), null: false
+      add :metric, :string, null: false, default: "remote_cache_hits"
       add :period_start, :timestamptz, null: false
       add :threshold, :integer, null: false
       add :usage, :integer, null: false
@@ -17,7 +18,7 @@ defmodule Tuist.Repo.Migrations.CreateAirUsageNotifications do
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(
              :air_usage_notifications,
-             [:account_id, :user_id, :period_start, :threshold],
+             [:account_id, :user_id, :metric, :period_start, :threshold],
              name: :air_usage_notifications_recipient_threshold_index
            )
 

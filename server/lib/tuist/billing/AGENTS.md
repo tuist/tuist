@@ -8,7 +8,7 @@ This context owns billing, plan management, and Stripe integration.
 - Record usage-based metering events (e.g., remote cache hits).
 - Create and read Stripe billing credit grants (`Tuist.Billing.CreditGrants`), the money-denominated balance behind prepaid runner access. The runner-specific policy on top of it lives in `Tuist.Runners.Prepaid`.
 
-- Air usage notifications run after the daily account usage refresh, at 80% and 100% of the remote-cache allowance. Queue the highest reached threshold for all organization admins (or the personal account owner). A durable row per recipient, threshold, and counting-period start prevents duplicates after job pruning; a mid-month free-tier reset starts a new period. Delivery workers recheck plan, role, period, and usage to suppress obsolete emails.
+- Air usage notifications run after the daily account usage refresh, at 80% and 100% of the independent remote-cache and runner-minute allowances. Runner usage reads `Tuist.Runners.Billing.compute_milliseconds/3` directly and truncates to baseline minutes, matching dispatch without its cached read. The configured limit comes from `Tuist.Runners.Allowance`, and active runner trials are excluded. Queue the highest reached threshold for all organization admins (or the personal account owner). A durable row per recipient, metric, threshold, and counting-period start prevents duplicates after job pruning; a mid-month free-tier reset starts a new period only for cache usage. Runner notifications always reset on the UTC calendar month. Delivery workers recheck plan, role, period, and usage to suppress obsolete emails.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
