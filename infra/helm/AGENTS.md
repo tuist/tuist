@@ -19,6 +19,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+- When filtering metrics, preserve every side of absence-based alerts. The
+  macOS PN VLAN check needs both `node_load1` and VLAN transmit series in
+  non-production; keeping only liveness falsely reports a missing interface.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
