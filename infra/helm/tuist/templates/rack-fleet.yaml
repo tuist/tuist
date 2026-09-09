@@ -179,4 +179,64 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: RackAppleSiliconMachineTemplate
         name: {{ $templateName }}
+---
+{{- /*
+Remediation for a host that dies AFTER it has joined.
+
+The reconciler's own failure handling is bootstrap-only: it power-cycles, then
+quarantines, on a host that never reaches Ready. Once a host is serving, nothing
+in this provider watches it, so a wedged tart-kubelet on a box that is otherwise
+up leaves a NotReady Node and a Running Machine indefinitely. That gap is what
+this closes, and it is the same one the comment on the Dedibox fleet's check
+describes.
+
+The timeouts deliberately diverge from the provider-backed fleets, which
+remediate after 600s. A rack mini is not rented capacity that gets reinstalled:
+it restarts itself on power restore (`pmset autorestart 1`) and rejoins in about
+20 seconds, measured on the prototype during a real power cut. Remediating at
+ten minutes would convert that free recovery into a full re-bootstrap, because
+deleting the Machine revokes the host's kubelet identity and drops its Node, and
+the replacement then has to push the whole config back over SSH. So the check
+waits 30m, which is the same window a quarantined host waits before returning to
+the pool: one timescale for "this host has had long enough to sort itself out"
+rather than two.
+
+`nodeStartupTimeout` stays at the siblings' 90m for a sharper reason here. It has
+to sit past a full bootstrap cycle (attempts, then a power cycle, then a 30m
+quarantine, then expiry and retry), because a shorter one would delete Machines
+the reconciler is still working through and leave two remediation loops fighting
+over the same failure.
+
+`unhealthyRange` keeps the siblings' `[0-1]` and matters more on a rack: these
+hosts share a PDU and a switch, so several going NotReady at once is
+infrastructure rather than hardware, and re-bootstrapping the whole rack is the
+worst available response to it.
+
+Deleting a Machine never dials the host, so remediation cannot wedge on an
+unreachable box: every stage of the delete path is an apiserver operation.
+*/ -}}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  clusterName: {{ $clusterName }}
+  nodeStartupTimeout: 90m
+  unhealthyRange: "[0-1]"
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  unhealthyConditions:
+    - type: Ready
+      status: Unknown
+      timeout: 1800s
+    - type: Ready
+      status: "False"
+      timeout: 1800s
 {{- end }}
