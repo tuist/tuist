@@ -100,6 +100,10 @@ url = "https://nodejs.org/dist/v25.9.0/node-v25.9.0-win-x64.zip"
 version = "1.94.1"
 backend = "core:rust"
 
+[tools.rust.options]
+components = "clippy,rustfmt"
+profile = "default"
+
 [[tools.shellspec]]
 version = "0.28.1"
 backend = "aqua:shellspec/shellspec"
