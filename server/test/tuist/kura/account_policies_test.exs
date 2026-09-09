@@ -16,6 +16,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup :set_mimic_from_context
 
@@ -765,7 +766,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       serving(["us-east", "us-west", "eu-central"])
       seed_origin(account, "US-VA")
       room(%{"us-east" => false, "us-west" => true})
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-west"}}
 
@@ -804,7 +805,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       serving(["us-east", "us-west", "eu-central"])
       seed_origin(account, "US-VA")
       room(%{"us-east" => false, "us-west" => false, "eu-central" => true})
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
 
@@ -834,7 +835,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       serving(["us-east", "us-west", "eu-central"])
       room(%{"us-east" => false, "us-west" => true, "eu-central" => true})
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
 
@@ -856,7 +857,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
       serving(["us-east", "us-west", "eu-central"])
       seed_origin(account, "US-VA")
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       # The other node records eu-central while this one is still reading room.
       room(%{"us-east" => false, "us-west" => true, "eu-central" => true},
@@ -883,7 +884,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       serving(["us-east", "us-west", "eu-central"])
       seed_origin(account, "US-VA")
       room(%{"us-east" => false, "us-west" => true})
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :pro, service_region: "us-west"}}
 
@@ -918,7 +919,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       serving(["us-east", "us-west"])
       seed_origin(account, "US-VA")
       unreadable_cluster()
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
 
@@ -943,7 +944,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       live_instance(account, "us-east")
       seed_origin(account, "US-VA")
       room(%{"us-east" => false, "us-west" => true})
-      event_ref = :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_placement_capacity_spill()])
+      event_ref = TelemetryCapture.attach_event_handlers([Telemetry.event_name_placement_capacity_spill()])
 
       assert AccountPolicies.resolve(account) == {:ok, %{plan: :enterprise, service_region: "us-east"}}
 
@@ -1039,7 +1040,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
 
       event_ref =
-        :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_resolution_refused()])
+        TelemetryCapture.attach_event_handlers([Telemetry.event_name_resolution_refused()])
 
       assert AccountPolicies.resolve(account) == {:error, :plan_not_supported}
 
@@ -1053,7 +1054,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       deploy_regions(["us-east"])
 
       event_ref =
-        :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_resolution_refused()])
+        TelemetryCapture.attach_event_handlers([Telemetry.event_name_resolution_refused()])
 
       assert AccountPolicies.resolve(account) == {:error, :service_region_unavailable}
 
@@ -1071,7 +1072,7 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       accounts = Enum.map([first, second], &Repo.preload(&1, :subscriptions))
 
       event_ref =
-        :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_resolution_refused()])
+        TelemetryCapture.attach_event_handlers([Telemetry.event_name_resolution_refused()])
 
       AccountPolicies.resolve_all(accounts)
 
@@ -1085,14 +1086,13 @@ defmodule Tuist.Kura.AccountPoliciesTest do
       account = organization_account()
 
       event_ref =
-        :telemetry_test.attach_event_handlers(self(), [Telemetry.event_name_resolution_refused()])
+        TelemetryCapture.attach_event_handlers([Telemetry.event_name_resolution_refused()])
 
       assert {:ok, %{plan: :air}} = AccountPolicies.resolve(account)
 
-      # `refute_received` rather than `refute_receive`: the handler is global,
-      # so its 100ms wait is a window for any async test file that refuses a
-      # resolution to deliver into this mailbox. `resolve/1` emits
-      # synchronously, so an event from this call is already here.
+      # `refute_received` rather than `refute_receive`: `resolve/1` emits
+      # synchronously, so an event from this call is already in the mailbox
+      # and the 100ms wait would buy nothing.
       refute_received {_event_name, ^event_ref, _measurements, _metadata}
     end
   end
