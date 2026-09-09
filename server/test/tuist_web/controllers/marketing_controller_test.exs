@@ -3,7 +3,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use Mimic
 
   alias Tuist.Atlas.Email
-  alias Tuist.Loops
   alias Tuist.Marketing.Blog
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
