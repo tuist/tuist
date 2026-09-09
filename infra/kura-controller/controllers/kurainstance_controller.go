@@ -487,7 +487,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -703,7 +703,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	// IP. On bare-metal regions the node InternalIP is the box's public IP.
 	target := instance.Spec.MeshPeerFailoverIP
 	if target == "" {
-		ip, err := r.instanceNodeIP(ctx, instance)
+		ip, err := r.instanceNodeIP(ctx, instance, "")
 		if err != nil {
 			return err
 		}
@@ -1397,15 +1397,17 @@ func legacyAccountPublicPeerServiceName(instance *kurav1alpha1.KuraInstance) str
 
 // reconcilePublicDNSEndpoint publishes the account's customer host on
 // host-network (bare-metal) regions, where the gateway is a DaemonSet across
-// every box: a per-account DNSEndpoint pointing PublicHost at the box the
-// account's pods run on, so each account resolves to its own box and the gateway
-// there routes locally (no cross-box hop). It is the authoritative source once
+// every box: a per-account DNSEndpoint pointing PublicHost at the box running
+// the primary, so each account resolves to the box whose gateway serves it
+// locally (no cross-box hop). It follows the primary rather than the account,
+// because an account's replicas are only preferentially co-located: when they
+// straddle two boxes, the box holding the primary is the one that can serve. It is the authoritative source once
 // the gateway stops feeding external-dns the ambiguous all-nodes address; on a
 // single box the target equals that address, so the two coexist harmlessly until
 // then. LB regions publish DNS off the gateway Service/Ingress and never touch
 // this. The short TTL keeps client re-resolution quick when the account moves
 // boxes (the warm-handoff cutover flips this record's target).
-func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
 	// Only host-network regions get a per-account public DNSEndpoint. Never
 	// touching the DNSEndpoint API elsewhere keeps the common reconcile path
 	// (LB regions, Private instances) free of it.
@@ -1418,10 +1420,10 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 	endpoint.SetNamespace(instance.Namespace)
 	endpoint.SetName(instance.Name + "-public-dns")
 
-	// The box the account's pods run on. The account is pinned to one box per
-	// region (co-location), so the box IP is the per-account customer target. On
+	// The box the primary runs on. The public Service pins that pod, so this is
+	// the only box whose gateway serves the account without a cross-box hop. On
 	// bare-metal regions the node InternalIP is the box's public IP.
-	target, err := r.instanceNodeIP(ctx, instance)
+	target, err := r.instanceNodeIP(ctx, instance, primaryPod)
 	if err != nil {
 		return err
 	}
@@ -1459,24 +1461,37 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 }
 
 // instanceNodeIP returns the InternalIP of a node running one of the instance's
-// pods (the account's co-located box), or "" when none is scheduled yet. On
-// bare-metal regions the node InternalIP is the box's public IP, which is what
-// both the peer host (self-hosted dial-in) and the customer host (per-account
-// public DNSEndpoint) must resolve to.
-func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// pods, or "" when none is scheduled yet. On bare-metal regions the node
+// InternalIP is the box's public IP, which is what both the peer host
+// (self-hosted dial-in) and the customer host (per-account public DNSEndpoint)
+// must resolve to.
+//
+// preferredPod wins when it is named and scheduled. Callers publishing a record
+// for a Service that pins one pod pass that pod, so the record names the box
+// actually serving the account. The replicas are usually on one box, since the
+// pod affinity prefers co-location, and then every pod resolves to the same
+// address; but that is a preference, not a guarantee, and for a split account
+// the two answers are different boxes.
+//
+// The remaining order is by pod name rather than List order so the answer is
+// stable across reconciles. Returning whichever pod came back first let a split
+// account's record flip between boxes every reconcile.
+func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance, preferredPod string) (string, error) {
 	var pods corev1.PodList
 	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	for i := range pods.Items {
-		nodeName := pods.Items[i].Spec.NodeName
-		if nodeName == "" {
-			continue
+	items := pods.Items
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+
+	nodeIP := func(pod *corev1.Pod) (string, error) {
+		if pod.Spec.NodeName == "" {
+			return "", nil
 		}
 		var node corev1.Node
-		if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, &node); err != nil {
 			if apierrors.IsNotFound(err) {
-				continue
+				return "", nil
 			}
 			return "", err
 		}
@@ -1484,6 +1499,32 @@ func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *k
 			if addr.Type == corev1.NodeInternalIP && addr.Address != "" {
 				return addr.Address, nil
 			}
+		}
+		return "", nil
+	}
+
+	if preferredPod != "" {
+		for i := range items {
+			if items[i].Name != preferredPod {
+				continue
+			}
+			ip, err := nodeIP(&items[i])
+			if err != nil {
+				return "", err
+			}
+			if ip != "" {
+				return ip, nil
+			}
+			break
+		}
+	}
+	for i := range items {
+		ip, err := nodeIP(&items[i])
+		if err != nil {
+			return "", err
+		}
+		if ip != "" {
+			return ip, nil
 		}
 	}
 	return "", nil
