@@ -169,12 +169,8 @@ kura-ap-southeast-ingress-nginx:
 # South America West (Santiago, Vultr). Same host-network shape as the other
 # bare-metal regions: the region's gateway binds the box's public IP, and Vultr
 # has no cloud LoadBalancer to put in front of it.
-#
-# Disabled until the region is served. It flips to true alongside
-# vultrFleets.sa-west and the TUIST_KURA_AVAILABLE_REGIONS entry; until the pool
-# has a node this would schedule nothing anyway.
 kura-sa-west-ingress-nginx:
-  enabled: false
+  enabled: true
   controller:
     kind: DaemonSet
     hostNetwork: true

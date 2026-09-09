@@ -192,7 +192,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
+      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -839,10 +839,8 @@ vultrFleets:
   #
   # Running a box here is not the same as serving the region: that is decided by
   # sa-west's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
-  # controller in the platform chart, and both are worth leaving closed until
-  # kura_volume_quota_enforced reads 1 on the node. It is 0 on a box whose /data
-  # cannot bound anything, which is otherwise invisible right up to the point one
-  # account fills the box and kubelet evicts every tenant on it.
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
   sa-west:
     enabled: true
     replicas: 1
