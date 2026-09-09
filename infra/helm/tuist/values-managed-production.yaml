@@ -213,15 +213,24 @@ server:
     # the time this was set over several days rather than in one pass, so the
     # first unattended moves are watched rather than found afterwards.
     #
-    # `retire` is deliberately absent, which leaves it at zero. Its floors span
-    # 90 days while origin attribution only starts on 2026-08-31, so every one
-    # of them currently reads a fraction of its window and any region can look
-    # quiet against it. What keeps that theoretical is that no account has held
-    # a region for the full window yet, and that stops being true as instances
-    # age past 90 days, well before the history fills on 2026-11-29. Raise it
-    # once the window is real, not before.
+    # `retire` is the slowest lane because it is the only one whose cost lands
+    # before anyone can object: the instance stops serving within a minute, and
+    # an hour later the volume is deleted with no path back. Reopening the
+    # region needs `expand` to fire again, which is a fortnight of evidence
+    # away, so a wrong one costs that geography two weeks and a cold refill.
+    #
+    # It is on rather than held back because the rung no longer judges a window
+    # it has no history for (`Placement.history_covers_window?/2`). Without
+    # that it was the one kind partial history made *more* likely to fire, and
+    # the fleet would have retired real second regions on a floor reading a
+    # tenth of its window. With it, retirement stays quiet on its own until
+    # attribution is 90 days deep and turns itself on with no deploy.
+    #
+    # Leaving it at zero was the alternative, and it is worse: `expand` would
+    # be a one-way ratchet, regions would only ever accumulate, and reclaiming
+    # them would be a standing manual chore nobody scheduled.
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
-      value: expand=2,correct=2,relocate=1
+      value: expand=2,correct=2,relocate=1,retire=1
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to

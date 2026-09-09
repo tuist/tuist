@@ -242,7 +242,7 @@ server:
     # move it on. It exercises the parse, the per-kind budget and the sweep
     # under a non-empty value, not a real transition.
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
-      value: expand=2,correct=2,relocate=1
+      value: expand=2,correct=2,relocate=1,retire=1
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
