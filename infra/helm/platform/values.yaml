@@ -111,11 +111,16 @@ kura-eu-west-ingress-nginx:
     ingressClass: kura-eu-west
     ingressClassResource:
       name: kura-eu-west
-      controllerValue: k8s.io/kura-eu-west-ingress-nginx
-      # The region was renamed from eu-central. Until the server has
-      # re-rendered every KuraInstance in it, its Ingresses still name the old
-      # class, and this keeps them claimed by the renamed controller. Remove
-      # once no Ingress in the region carries kura-eu-central.
+      # The region was renamed from eu-central. This value is the controller's
+      # identity on an IngressClass, and Kubernetes makes that field immutable,
+      # so it keeps the string the kura-eu-central class was created with:
+      # changing it would make the upgrade patch an existing class and fail.
+      # It is an opaque identifier that nothing displays.
+      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+      # Until the server has re-rendered every KuraInstance in the region, its
+      # Ingresses still name the old class, and this keeps them claimed by the
+      # renamed controller. Remove once no Ingress in the region carries
+      # kura-eu-central.
       aliases:
         - kura-eu-central
     publishService:
