@@ -20,6 +20,8 @@ This directory contains the core business logic and domain modules for the serve
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
+- `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
+  so Oban retries them and the final attempt marks the build as `failed_processing`.
 
 ## Related Context (Downlinks)
 
