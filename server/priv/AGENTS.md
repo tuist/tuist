@@ -20,6 +20,7 @@ This directory contains database migrations and other private assets.
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
 
 ## Guardrails
+- Migration versions must be unique within each repository, including migrations already on `main`. Resolve collisions by renaming the new, unapplied migration; preserve versions that may already have been applied.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
