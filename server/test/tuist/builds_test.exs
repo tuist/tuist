@@ -79,7 +79,7 @@ defmodule Tuist.BuildsTest do
       assert length(events) == 1600
       assert Enum.any?(events, &(&1.start_ms > 15_000))
 
-      assert 1 == Builds.build_timeline_target_count(build.id)
+      assert %{target_count: 1} = Builds.build_timeline(build.id)
       assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
       assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
       assert nil == Timeline.neighbor(build.id, 1600, "next", [])

@@ -19,8 +19,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -214,6 +216,208 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 	}
 	if err := client.Get(ctx, types.NamespacedName{Name: name, Namespace: "kura"}, &appsv1.DaemonSet{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected demux DaemonSet to be deleted, got %v", err)
+	}
+}
+
+func drainPeerDemuxRequests(queue workqueue.TypedRateLimitingInterface[ctrl.Request]) map[ctrl.Request]bool {
+	requests := map[ctrl.Request]bool{}
+	for queue.Len() > 0 {
+		request, _ := queue.Get()
+		queue.Done(request)
+		requests[request] = true
+	}
+	return requests
+}
+
+func TestPeerDemuxInstanceEventHandlerEnqueuesBothRegionsOnRegionChange(t *testing.T) {
+	ctx := context.Background()
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[ctrl.Request]())
+	defer queue.ShutDown()
+
+	before := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	after := before.DeepCopy()
+	after.Spec.Region = "eu-west"
+	after.Spec.MeshPublicPeerHost = "peer.acme-eu-west.kura.tuist.dev"
+
+	peerDemuxInstanceEventHandler().Update(ctx, event.UpdateEvent{ObjectOld: before, ObjectNew: after}, queue)
+
+	got := drainPeerDemuxRequests(queue)
+	want := map[ctrl.Request]bool{
+		{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}: true,
+		{NamespacedName: types.NamespacedName{Name: "eu-west", Namespace: "kura"}}:    true,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected the old and the new region to be enqueued, got %v", got)
+	}
+	for request := range want {
+		if !got[request] {
+			t.Fatalf("expected %s to be enqueued, got %v", request.Name, got)
+		}
+	}
+}
+
+func TestPeerDemuxReconcileFollowsRegionChange(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	dns := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-dns", Namespace: "kube-system"},
+		Spec:       corev1.ServiceSpec{ClusterIP: "10.96.0.10"},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, dns).Build()
+	reconciler := &PeerDemuxReconciler{Client: client, APIReader: client, Scheme: scheme}
+
+	oldRegion := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}
+	if _, err := reconciler.Reconcile(ctx, oldRegion); err != nil {
+		t.Fatal(err)
+	}
+	oldName := peerDemuxName("eu-central")
+	if err := client.Get(ctx, types.NamespacedName{Name: oldName, Namespace: "kura"}, &appsv1.DaemonSet{}); err != nil {
+		t.Fatalf("expected the eu-central demux DaemonSet before the region change: %v", err)
+	}
+
+	before := &kurav1alpha1.KuraInstance{}
+	if err := client.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: "kura"}, before); err != nil {
+		t.Fatal(err)
+	}
+	after := before.DeepCopy()
+	after.Spec.Region = "eu-west"
+	after.Spec.MeshPublicPeerHost = "peer.acme-eu-west.kura.tuist.dev"
+	if err := client.Update(ctx, after); err != nil {
+		t.Fatal(err)
+	}
+
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[ctrl.Request]())
+	defer queue.ShutDown()
+	peerDemuxInstanceEventHandler().Update(ctx, event.UpdateEvent{ObjectOld: before, ObjectNew: after}, queue)
+	requests := drainPeerDemuxRequests(queue)
+	if len(requests) != 2 {
+		t.Fatalf("expected the region change to enqueue both regions, got %v", requests)
+	}
+	for request := range requests {
+		if _, err := reconciler.Reconcile(ctx, request); err != nil {
+			t.Fatalf("reconciling %s: %v", request.Name, err)
+		}
+	}
+
+	if err := client.Get(ctx, types.NamespacedName{Name: oldName, Namespace: "kura"}, &appsv1.DaemonSet{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the eu-central demux DaemonSet to be deleted after the region change, got %v", err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: oldName, Namespace: "kura"}, &corev1.ConfigMap{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the eu-central demux ConfigMap to be deleted after the region change, got %v", err)
+	}
+
+	newName := peerDemuxName("eu-west")
+	configMap := &corev1.ConfigMap{}
+	if err := client.Get(ctx, types.NamespacedName{Name: newName, Namespace: "kura"}, configMap); err != nil {
+		t.Fatalf("expected the eu-west demux ConfigMap: %v", err)
+	}
+	if !strings.Contains(configMap.Data["nginx.conf"], "peer.acme-eu-west.kura.tuist.dev") {
+		t.Fatalf("eu-west demux config missing the account route:\n%s", configMap.Data["nginx.conf"])
+	}
+	daemonSet := &appsv1.DaemonSet{}
+	if err := client.Get(ctx, types.NamespacedName{Name: newName, Namespace: "kura"}, daemonSet); err != nil {
+		t.Fatalf("expected the eu-west demux DaemonSet: %v", err)
+	}
+	if daemonSet.Labels["tuist.dev/region"] != "eu-west" {
+		t.Fatalf("expected the eu-west demux DaemonSet to carry its region label, got %+v", daemonSet.Labels)
+	}
+}
+
+func TestPeerDemuxDaemonSetEventHandlerEnqueuesItsRegion(t *testing.T) {
+	ctx := context.Background()
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[ctrl.Request]())
+	defer queue.ShutDown()
+
+	demux := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{
+		Name: peerDemuxName("eu-central"), Namespace: "kura", Labels: peerDemuxLabels("eu-central"),
+	}}
+	peerDemuxDaemonSetEventHandler().Create(ctx, event.CreateEvent{Object: demux}, queue)
+	got := drainPeerDemuxRequests(queue)
+	want := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}
+	if len(got) != 1 || !got[want] {
+		t.Fatalf("expected the demux DaemonSet to enqueue its region, got %v", got)
+	}
+
+	unrelated := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{
+		Name: "node-exporter", Namespace: "kura", Labels: map[string]string{"tuist.dev/region": "eu-central"},
+	}}
+	peerDemuxDaemonSetEventHandler().Create(ctx, event.CreateEvent{Object: unrelated}, queue)
+	if got := drainPeerDemuxRequests(queue); len(got) != 0 {
+		t.Fatalf("expected a DaemonSet that is not a demux to enqueue nothing, got %v", got)
+	}
+}
+
+func TestPeerDemuxReconcileTearsDownDemuxOrphanedWhileControllerWasDown(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	dns := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-dns", Namespace: "kube-system"},
+		Spec:       corev1.ServiceSpec{ClusterIP: "10.96.0.10"},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, dns).Build()
+	reconciler := &PeerDemuxReconciler{Client: client, APIReader: client, Scheme: scheme}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The instance moves region while no controller is running, so no update
+	// event is ever observed for it.
+	moved := &kurav1alpha1.KuraInstance{}
+	if err := client.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: "kura"}, moved); err != nil {
+		t.Fatal(err)
+	}
+	moved.Spec.Region = "eu-west"
+	moved.Spec.MeshPublicPeerHost = "peer.acme-eu-west.kura.tuist.dev"
+	if err := client.Update(ctx, moved); err != nil {
+		t.Fatal(err)
+	}
+
+	// On restart the informers' initial lists emit a Create for every
+	// existing instance and demux DaemonSet.
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[ctrl.Request]())
+	defer queue.ShutDown()
+	peerDemuxInstanceEventHandler().Create(ctx, event.CreateEvent{Object: moved}, queue)
+	orphan := &appsv1.DaemonSet{}
+	if err := client.Get(ctx, types.NamespacedName{Name: peerDemuxName("eu-central"), Namespace: "kura"}, orphan); err != nil {
+		t.Fatal(err)
+	}
+	peerDemuxDaemonSetEventHandler().Create(ctx, event.CreateEvent{Object: orphan}, queue)
+	requests := drainPeerDemuxRequests(queue)
+	if !requests[ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}] {
+		t.Fatalf("expected the orphaned demux to enqueue eu-central at startup, got %v", requests)
+	}
+	for request := range requests {
+		if _, err := reconciler.Reconcile(ctx, request); err != nil {
+			t.Fatalf("reconciling %s: %v", request.Name, err)
+		}
+	}
+
+	oldName := peerDemuxName("eu-central")
+	if err := client.Get(ctx, types.NamespacedName{Name: oldName, Namespace: "kura"}, &appsv1.DaemonSet{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the orphaned eu-central demux DaemonSet to be deleted, got %v", err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: oldName, Namespace: "kura"}, &corev1.ConfigMap{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the orphaned eu-central demux ConfigMap to be deleted, got %v", err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: peerDemuxName("eu-west"), Namespace: "kura"}, &appsv1.DaemonSet{}); err != nil {
+		t.Fatalf("expected the eu-west demux DaemonSet: %v", err)
 	}
 }
 

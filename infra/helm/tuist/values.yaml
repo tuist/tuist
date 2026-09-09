@@ -215,6 +215,12 @@ kuraController:
     # Environment label injected into controller-managed Kura pods. Kura
     # uses this for both OpenTelemetry and Sentry.
     deploymentEnvironment: production
+  analytics:
+    # Sync the server's webhook signing key and internal address into Kura.
+    # Requires server.config.managedSecrets and sharedSecrets.enabled.
+    # Self-hosted installs can instead supply KURA_ANALYTICS_SERVER_URL and
+    # KURA_ANALYTICS_SIGNING_KEY through sharedSecrets.data.
+    enabled: false
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
