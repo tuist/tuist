@@ -395,10 +395,20 @@ see the quantity in question:
 
 - `tuist.dev/egress-mbps` — the box's public egress budget, which Kubernetes has
   no concept of. On OVH it is derived from what the box reports, seeded by the
-  machine's `EgressBudgetMbps` (see below); Dedibox takes the spec value
-  directly and leaves the node alone when it is zero; Elastic Metal has no egress
-  budget and is outside the extended-resource path. The helper itself treats a
-  zero as "withdraw the capacity" — only the OVH kind passes one through.
+  machine's `EgressBudgetMbps` (see below); Vultr takes the spec value directly;
+  Dedibox does too but leaves the node alone when it is zero. The helper itself
+  treats a zero as "withdraw the capacity", so the OVH and Vultr kinds can retire
+  a budget and Dedibox cannot.
+
+  Elastic Metal has no `EgressBudgetMbps` and is deliberately outside this path.
+  It backs only the private runner-cache pool, whose tenants reach it over the
+  Scaleway Private Network (10 Gbit/s on the B-series, 25 Gbit/s on the I-series)
+  rather than over the 1 Gbit/s public bandwidth every offer includes. That
+  public figure is the one the other kinds advertise, and on this pool it
+  describes no path in use: it is the mirror of the vRack over-commit the OVH
+  fleet values warn about. Arbitration on the private path is the per-tenant
+  Cilium ceiling instead, so the pool also stays out of
+  `egressTreeAgent.nodePools`.
 - `tuist.dev/memory-ceiling-mib` — a bounded multiple
   (`MemoryCeilingOversubscription`) of the node's own allocatable memory.
   Kura cache pods run a memory *ceiling* above their *floor*, so their ceilings

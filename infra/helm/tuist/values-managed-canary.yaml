@@ -436,8 +436,11 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-ca-east]
