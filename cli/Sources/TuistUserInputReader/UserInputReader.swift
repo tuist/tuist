@@ -67,22 +67,22 @@ public struct UserInputReader: UserInputReading {
 
     public func readInt(asking prompt: String, maxValueAllowed: Int) -> Int {
         while true {
-            Logger.current.notice("\(prompt)")
+            Logger.current.log(level: .notice, "\(prompt)")
             if let input = reader(true), !input.isEmpty, let intValue = Int(input), intValue < maxValueAllowed {
                 return intValue
             } else {
-                Logger.current.notice("Invalid input. Please enter a valid integer.")
+                Logger.current.log(level: .notice, "Invalid input. Please enter a valid integer.")
             }
         }
     }
 
     public func readString(asking prompt: String) -> String {
         while true {
-            Logger.current.notice("\(prompt)")
+            Logger.current.log(level: .notice, "\(prompt)")
             if let input = reader(true), !input.isEmpty {
                 return input
             } else {
-                Logger.current.notice("The value is empty. Please, enter a non-empty value.")
+                Logger.current.log(level: .notice, "The value is empty. Please, enter a non-empty value.")
             }
         }
     }
