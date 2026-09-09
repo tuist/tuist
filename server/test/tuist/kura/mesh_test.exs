@@ -313,70 +313,67 @@ defmodule Tuist.Kura.MeshTest do
   end
 
   describe "peer_roles/1" do
-    test "publishes one role per pod of every managed mesh region, read off the KuraInstance status" do
+    test "publishes one role per pod of every managed mesh region, off the reconciled kura_servers rows" do
       account = AccountsFixtures.organization_fixture().account
-      eu = KuraFixtures.active_server_fixture(account, region: "eu-central")
-      us = KuraFixtures.active_server_fixture(account, region: "us-east")
 
-      statuses = %{
-        eu.provisioner_node_ref => [
-          %{"nodeURL" => "https://#{eu.provisioner_node_ref}-0.peer:7443", "gateway" => false, "primary" => true},
-          %{"nodeURL" => "https://#{eu.provisioner_node_ref}-1.peer:7443", "gateway" => true, "primary" => false}
-        ],
-        us.provisioner_node_ref => [
-          %{"nodeURL" => "https://#{us.provisioner_node_ref}-0.peer:7443", "gateway" => true, "primary" => true}
-        ]
-      }
+      eu =
+        KuraFixtures.active_server_fixture(account,
+          region: "eu-central",
+          peer_roles: [
+            %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+            %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+          ]
+        )
 
-      stub(Client, :get_kura_instance, fn "kura", name, _opts ->
-        {:ok, %{"status" => %{"peerRoles" => Map.fetch!(statuses, name)}}}
-      end)
+      KuraFixtures.active_server_fixture(account,
+        region: "us-east",
+        peer_roles: [%{"url" => "https://kura-us-0.peer:7443", "gateway" => true}]
+      )
+
+      reject(&Client.get_kura_instance/3)
 
       assert Mesh.peer_roles(account) == [
-               %{url: "https://#{eu.provisioner_node_ref}-0.peer:7443", region: "eu-central", gateway: false},
-               %{url: "https://#{eu.provisioner_node_ref}-1.peer:7443", region: "eu-central", gateway: true},
-               %{url: "https://#{us.provisioner_node_ref}-0.peer:7443", region: "us-east", gateway: true}
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-central", gateway: false},
+               %{url: "https://kura-eu-1.peer:7443", region: "eu-central", gateway: true},
+               %{url: "https://kura-us-0.peer:7443", region: "us-east", gateway: true}
              ]
+
+      assert eu.region == "eu-central"
     end
 
     test "publishes nothing for an instance whose controller has not published roles yet" do
       account = AccountsFixtures.organization_fixture().account
       KuraFixtures.active_server_fixture(account, region: "eu-central")
 
-      stub(Client, :get_kura_instance, fn "kura", _name, _opts -> {:ok, %{"status" => %{"phase" => "Ready"}}} end)
-
       assert Mesh.peer_roles(account) == []
     end
 
-    test "degrades to no roles for a region whose status cannot be read, keeping the others" do
+    test "drops a stored entry that names no URL" do
       account = AccountsFixtures.organization_fixture().account
-      eu = KuraFixtures.active_server_fixture(account, region: "eu-central")
-      KuraFixtures.active_server_fixture(account, region: "us-east")
-      eu_ref = eu.provisioner_node_ref
 
-      stub(Client, :get_kura_instance, fn
-        "kura", ^eu_ref, _opts ->
-          {:error, :timeout}
+      KuraFixtures.active_server_fixture(account,
+        region: "eu-central",
+        peer_roles: [%{"gateway" => true}, %{"url" => "", "gateway" => true}, %{"url" => "https://kura-eu-0.peer:7443"}]
+      )
 
-        "kura", _name, _opts ->
-          {:ok, %{"status" => %{"peerRoles" => [%{"nodeURL" => "https://us-0.peer:7443", "gateway" => true}]}}}
-      end)
-
-      assert Mesh.peer_roles(account) == [%{url: "https://us-0.peer:7443", region: "us-east", gateway: true}]
+      assert Mesh.peer_roles(account) == [
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-central", gateway: false}
+             ]
     end
 
-    test "skips servers in a retired region without reading the cluster" do
+    test "skips servers in a retired region even when the row still carries roles" do
       account = AccountsFixtures.organization_fixture().account
-      KuraFixtures.active_server_fixture(account, region: "hetzner-staging-runners")
 
-      reject(&Client.get_kura_instance/3)
+      KuraFixtures.active_server_fixture(account,
+        region: "hetzner-staging-runners",
+        peer_roles: [%{"url" => "https://kura-retired-0.peer:7443", "gateway" => true}]
+      )
 
       assert Mesh.peer_roles(account) == []
     end
 
     test "is empty for an account with no managed server" do
       account = AccountsFixtures.organization_fixture().account
-      reject(&Client.get_kura_instance/3)
 
       assert Mesh.peer_roles(account) == []
     end

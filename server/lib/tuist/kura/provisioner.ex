@@ -139,8 +139,10 @@ defmodule Tuist.Kura.Provisioner do
   The replication roles the backing platform publishes for the server's
   pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
   URL — or `{:ok, []}` when the resource exists but has not published any
-  yet. Published to the account's mesh through `Tuist.Kura.Mesh.peer_roles/1`
-  on every mesh heartbeat, so implementations must keep it to one cheap read.
+  yet. Read by `Tuist.Kura.Reconciler` on the loop that already observes the
+  instance and persisted on `kura_servers.peer_roles`, which is what the mesh
+  view publishes; never called from a request. Implementations must still
+  bound it — one tick observes every mesh server in turn.
   """
   @callback peer_roles(ref :: String.t(), Regions.t()) ::
               {:ok, [map()]} | {:error, term()}

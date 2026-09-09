@@ -1544,6 +1544,25 @@ defmodule Tuist.Kura do
   end
 
   @doc """
+  Records the replication roles the reconciler read off a server's backing
+  `KuraInstance` (`status.peerRoles`). The mesh view publishes roles from
+  this column rather than reading each region's apiserver on the request
+  path, so `/peers` is a Postgres read again and one slow regional cluster
+  can no longer push a node's peer-view fetch past its own request deadline.
+
+  An empty list is a value, not a no-op: it is how a controller that has
+  published no roles yet (or an instance whose pods went away) clears the
+  ones a previous tick stored. No lock and no broadcast — the reconciler is
+  the only writer and no view renders the column — and an unchanged list
+  writes nothing, so a steady-state fleet costs one read per tick.
+  """
+  def record_peer_roles(%Server{} = server, roles) when is_list(roles) do
+    server
+    |> Server.peer_roles_changeset(%{peer_roles: roles})
+    |> Repo.update()
+  end
+
+  @doc """
   Records the reconciler's observation of a server into Postgres: the
   derived `status` plus the observed-state columns. This is the only
   writer of the projection besides `activate_server/2` (which records

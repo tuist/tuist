@@ -1998,7 +1998,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "peer_roles/2" do
     test "reads the controller-published roles off the instance status" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
         {:ok,
          %{
            "status" => %{
@@ -2035,7 +2037,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "drops an entry without a node URL and reads a missing flag as false" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
         {:ok, %{"status" => %{"peerRoles" => [%{"gateway" => true}, %{"nodeURL" => "https://kura-0.peer:7443"}]}}}
       end)
 
@@ -2044,15 +2048,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "is empty until the controller has published roles" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
         {:ok, %{"status" => %{"phase" => "Ready"}}}
       end)
 
       assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, []}
     end
 
+    test "bounds the read so one unreachable regional apiserver cannot hold the reconciler tick" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert Keyword.fetch!(opts, :timeout) == 3_000
+        {:ok, %{"status" => %{"peerRoles" => []}}}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, []}
+    end
+
     test "propagates client errors" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
         {:error, :timeout}
       end)
 

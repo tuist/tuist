@@ -28,8 +28,15 @@ defmodule Tuist.Kubernetes.Client do
 
   # ----- Generic verbs (used by Kura) -----
 
+  @doc """
+  GETs `path`. `opts` are the client-config options (`:mode`, `:kubeconfig`,
+  …) and may carry `:timeout`, which bounds the read the way every other
+  read here is bounded — Req's defaults (15 s receive timeout, transient-GET
+  retries) otherwise let one hung apiserver hold the caller for the better
+  part of a minute, which is longer than some callers' own deadlines.
+  """
   def get(path, opts \\ []) when is_binary(path) do
-    request(:get, path, opts: opts)
+    request(:get, path, opts: opts, timeout: opts[:timeout])
   end
 
   def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do

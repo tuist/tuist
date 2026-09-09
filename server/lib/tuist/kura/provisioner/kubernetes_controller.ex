@@ -22,6 +22,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
+  # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
+  @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
   @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
@@ -262,10 +264,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   pod's internal peer URL exactly as the controller renders its
   `KURA_NODE_URL`. `{:ok, []}` until the controller has published any (an
   older controller, or no pod placed yet).
+
+  Bounded explicitly: this is a cross-cluster read the reconciler makes for
+  every mesh server in a tick, and Req's defaults (15 s receive timeout plus
+  transient-GET retries) would let one unreachable regional apiserver hold
+  the whole batch. Roles that arrive a tick late cost nothing — the nodes
+  fall back to their local rule — so failing fast and retrying next tick is
+  strictly better than waiting.
   """
   @impl true
   def peer_roles(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
+    case client_get_kura_instance(@namespace, name, region, timeout: @peer_roles_timeout_ms) do
       {:ok, %{"status" => %{"peerRoles" => roles}}} when is_list(roles) ->
         {:ok, Enum.flat_map(roles, &parse_peer_role/1)}
 
@@ -1079,8 +1088,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 
-  defp client_get_kura_instance(namespace, name, region) do
-    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
+  defp client_get_kura_instance(namespace, name, region, opts \\ []) do
+    Client.get_kura_instance(namespace, name, Keyword.merge(kubernetes_client_opts(region), opts))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do

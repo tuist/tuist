@@ -60,8 +60,17 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # membership from being swept as stale and returns the current peer list, so
   # peers refresh at heartbeat cadence rather than at certificate renewal. A
   # withheld node is answered `mesh_member: false` and recovers by
-  # re-enrolling. The replication roles and the account's pull flag ride
-  # beside the peer list as additive fields an older node ignores.
+  # re-enrolling. The account's pull flag rides beside the peer list as an
+  # additive field an older node ignores.
+  #
+  # Deliberately without `peer_roles`. The published roles key each managed pod
+  # by its internal `KURA_NODE_URL`, while a self-hosted node's peer list names
+  # a managed region by its single public peer URL — and `region_gateways`
+  # (kura/src/sync/roles.rs) only honours a published role whose URL is present
+  # among the peers it can see. So a role published here could never match, the
+  # node's local lowest-URL rule would decide anyway, and all the field actually
+  # did was ship internal cluster DNS names to customer infrastructure. Roles
+  # stay on `/peers`, which the managed pods read and where the URLs do match.
   def heartbeat(conn, %{"node_url" => node_url}) when is_binary(node_url) do
     case authorize(conn) do
       {:ok, account} ->
@@ -70,7 +79,6 @@ defmodule TuistWeb.Internal.KuraMeshController do
         json(conn, %{
           mesh_member: view.mesh_member,
           peers: view.peers,
-          peer_roles: Mesh.peer_roles(account),
           replication_pull: Mesh.replication_pull?(account),
           heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
         })
@@ -96,6 +104,12 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # replication role and the account's pull flag from it. Accepts the
   # deployment-level control-plane credential (with a tenant) or a self-hosted
   # client credential, like registration.
+  #
+  # This is the only endpoint that publishes `peer_roles`: its readers are the
+  # managed pods, whose own `KURA_NODE_URL`s are what the roles are keyed by.
+  # Every field here is a Postgres read — the roles come off `kura_servers`,
+  # refreshed by the reconciler — so a slow regional apiserver cannot push the
+  # response past the 5 s deadline the polling node gives it.
   def peers(conn, params) do
     case authorize_registration(conn, params) do
       {:ok, account} ->

@@ -527,6 +527,8 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
+    observe_peer_roles(server)
+
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
         reconcile_manifest_revision(server, desired)
@@ -550,6 +552,63 @@ defmodule Tuist.Kura.Reconciler do
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  # Refreshes `kura_servers.peer_roles` from the backing KuraInstance's
+  # `status.peerRoles`. The mesh view (`Tuist.Kura.Mesh.peer_roles/1`) used to
+  # read the apiserver itself, on the request path of `/_internal/kura/mesh/peers`
+  # — an unbounded, un-rate-limited endpoint every managed pod polls at heartbeat
+  # cadence, whose slowest region decided whether a node made its own 5 s deadline.
+  # The roles change only when the controller moves one, so observing them on the
+  # loop that already observes the instance costs a tick of staleness and takes a
+  # cross-cluster read off every request. Roles are an optimisation over the local
+  # lowest-URL rule (kura/docs/replication-design.md §2.2), so a tick of lag is
+  # only a late role move, never a stalled region.
+  #
+  # Only mesh regions have peers to have roles, and a read that fails leaves the
+  # last known roles in place rather than blanking a live topology on one
+  # unreachable apiserver.
+  #
+  # This runs on the observation pass only, so a server with an open deployment
+  # keeps the roles of its last observation until the rollout closes. That is
+  # the window in which the controller moves a role most, and the one the
+  # published roles are least able to help in: a role naming a pod that is
+  # restarting names a peer no node can see, and an unmatched role is ignored
+  # in favour of the local rule by design. So the rollout window runs on the
+  # local rule either way, and the tick after the deployment closes republishes.
+  defp observe_peer_roles(%Server{} = server) do
+    if mesh_region?(server) do
+      case Provisioner.peer_roles(server) do
+        {:ok, roles} ->
+          persist_peer_roles(server, roles)
+
+        {:error, reason} ->
+          Logger.warning("[Kura.Reconciler] could not observe peer roles for server #{server.id}: #{inspect(reason)}")
+
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp persist_peer_roles(%Server{} = server, roles) do
+    case Kura.record_peer_roles(server, roles) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record peer roles for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp mesh_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.mesh?(region) and not Regions.retired?(region)
+      _ -> false
     end
   end
 

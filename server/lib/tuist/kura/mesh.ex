@@ -22,13 +22,10 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
-  alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias X509.Certificate.Extension
-
-  require Logger
 
   @kura_namespace "kura"
   # Mesh heartbeat cadence the control plane advertises back to enrolled
@@ -206,37 +203,49 @@ defmodule Tuist.Kura.Mesh do
   the pod's internal peer URL exactly as the kura-controller renders its
   `KURA_NODE_URL`, `region` the region the instance runs in.
 
+  Read entirely from `kura_servers.peer_roles`, which `Tuist.Kura.Reconciler`
+  refreshes from each `KuraInstance` on the loop that already observes it.
+  This is deliberately not a live cluster read: `/_internal/kura/mesh/peers`
+  is polled by every managed pod at heartbeat cadence, and reading each
+  region's apiserver from it made one slow regional cluster able to push the
+  response past a node's own request deadline — in every account with a
+  server in that region. The roles only move when the controller moves one,
+  so a tick of staleness buys a Postgres-only request path. They are also an
+  optimisation over the local lowest-URL rule a node applies when no role
+  names a peer it can see, so lag costs a late role move and never a stalled
+  region.
+
   Managed regions only: they are where the server knows something the nodes
   do not (which pod is the primary, from the `KuraInstance` status the
   controller publishes). An enrolled self-hosted node derives its own role
   from the same lowest-URL rule it would be published, so publishing it adds
-  nothing. Roles are an optimisation over that local rule, so a region whose
-  status cannot be read contributes nothing rather than failing the
-  heartbeat that carries the peer list.
+  nothing.
   """
   def peer_roles(%Account{} = account) do
     account.id
     |> Kura.mesh_servers_for_account()
-    |> Enum.flat_map(&server_peer_roles(&1, account))
+    |> Enum.flat_map(&server_peer_roles/1)
   end
 
-  defp server_peer_roles(%Server{region: region_id} = server, %Account{name: handle}) do
+  # The mesh/retired filter is applied on read as well as on write: a region
+  # that leaves the mesh, or is retired, must stop being published without
+  # waiting for a reconciler tick to blank the rows it left behind.
+  defp server_peer_roles(%Server{region: region_id, peer_roles: roles}) when is_list(roles) do
     with %Regions{} = region <- Regions.get(region_id),
-         true <- Regions.mesh?(region) and not Regions.retired?(region),
-         {:ok, roles} <- Provisioner.peer_roles(server) do
-      Enum.map(roles, &%{url: &1.url, region: region.id, gateway: &1.gateway})
+         true <- Regions.mesh?(region) and not Regions.retired?(region) do
+      Enum.flat_map(roles, &published_role(&1, region.id))
     else
-      {:error, reason} ->
-        Logger.warning(
-          "Kura mesh: peer roles of #{server.provisioner_node_ref} (#{handle}, #{region_id}) unavailable: #{inspect(reason)}"
-        )
-
-        []
-
-      _ ->
-        []
+      _ -> []
     end
   end
+
+  defp server_peer_roles(%Server{}), do: []
+
+  defp published_role(%{"url" => url} = role, region_id) when is_binary(url) and url != "" do
+    [%{url: url, region: region_id, gateway: role["gateway"] == true}]
+  end
+
+  defp published_role(_role, _region_id), do: []
 
   @doc """
   Whether the account's nodes replicate by pulling (design §5.2). Published in
