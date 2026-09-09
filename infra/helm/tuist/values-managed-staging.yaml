@@ -728,13 +728,20 @@ ovhFleets:
 # BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
 # cluster. Staging only; the rack itself does not exist yet.
 #
-# Kept at replicas 0 until the box is actually reachable from this cluster. A
-# Machine with nowhere to land sits on NoAvailableHost forever, which leaves the
-# MachineDeployment permanently below spec, and a `helm upgrade --wait` gated on
-# that count runs out its step ceiling. Declaring the inventory at 0 lets the
-# RackHost land, be power-polled, and show up in `kubectl get rh`: everything
-# except the claim, so the plumbing is verifiable before a Machine depends on
-# it. Scale to 1 once the first dial works.
+# At 1 since 2026-09-09, when the box first joined as a Node.
+#
+# The count is load-bearing beyond capacity. A Machine with nowhere to land sits
+# on NoAvailableHost forever, leaving the MachineDeployment below spec, and a
+# `helm upgrade --wait` gated on that count runs out its step ceiling. That is
+# not hypothetical: it wedged a staging deploy for half an hour during bring-up.
+# So raise this only to a number of hosts that can actually be claimed AND
+# bootstrapped.
+#
+# The prototype's reachability currently depends on a subnet router on a home
+# network. An already-Ready Machine is unaffected if that goes away, but a
+# re-bootstrap while it is gone would block staging deploys, so drop this to 0
+# if the box is going offline for a while. The dependency disappears once the
+# rack has its own service node.
 #
 # The address is a home-LAN address, not a public one, and reaching it needs a
 # tailnet subnet router advertising 192.168.0.41/32 plus the matching grant in
@@ -747,7 +754,7 @@ rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
-  replicas: 0
+  replicas: 1
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
