@@ -55,6 +55,10 @@ jobs:
           bash -n infra/linux-runner-image/run-job.sh
           bash -n infra/linux-runner-image/vitals.sh
           bash -n infra/linux-runner-image/metrics-sampler.sh
+          bash -n infra/linux-runner-image/gradle-cache-smoke.sh
+
+      - name: Test job-start hook
+        run: bash infra/linux-runner-image/run-job_test.sh
 
       # Runs on the image's own base rather than the CI runner, because
       # the assertions are about how Ubuntu's awk (mawk) formats byte

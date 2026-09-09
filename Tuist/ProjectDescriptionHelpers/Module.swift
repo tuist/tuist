@@ -363,7 +363,7 @@ public enum Module: String, CaseIterable {
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand,
+             .registryCommand, .generateCommand,
              .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
@@ -1595,7 +1595,7 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-                 .registryCommand, .buildCommand, .generateCommand,
+                 .registryCommand, .generateCommand,
                  .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
@@ -1630,6 +1630,15 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .buildCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
                 ]
             case .testCommand:
                 [

@@ -93,7 +93,7 @@ where
         replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
-        multipart_max_active_uploads: 128,
+        multipart_max_active_uploads: None,
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         backfill_margin_percent: 40,
         backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),

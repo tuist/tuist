@@ -4,6 +4,13 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
 
   @doc """
+  Opt-in collection of Xcode build steps and their recorded logs. Disabled
+  unless explicitly enabled for the owning account (or globally), in every
+  environment. Keep disabled until log redaction is ready for rollout.
+  """
+  def build_steps_enabled?(account), do: FunWithFlags.enabled?(:xcode_build_steps, for: account)
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and

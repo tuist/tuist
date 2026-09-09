@@ -37,6 +37,8 @@ Actively supported:
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
 - `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
 
+The Xcode compilation-cache plugin negotiates the existing split/splice methods to upload missing chunks and reuse verified local chunks during downloads. Existing clients retain ordinary blob reads. See [Xcode client chunking](docs/client-chunking.md) for compression boundaries, compatibility, output-by-output investigation, and reproducible benchmarks. Gradle and binary/module-artifact transfers are unchanged.
+
 Compatibility surfaces:
 
 - `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
@@ -279,7 +281,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
-| `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Process-wide cap on active multipart uploads. The count is rebuilt from durable upload records after a restart. | Yes | `128` |
+| `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Optional fixed cap on active multipart sessions, overriding memory-based sizing. Durable sessions survive restarts and reductions in the automatic limit. | Yes | auto |
 | `KURA_MULTIPART_MAX_STORED_BYTES` | Process-wide byte cap for durable, incomplete multipart parts. Defaults to the temporary-directory byte budget when unset. | Yes | `KURA_TMP_DIR_MAX_BYTES` |
 | `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring (counted from the newest) whose boundary segment's seal-time stat becomes the backfill horizon; the margin's share of the ring's time span is the window's structural slack. | Yes | `40` |
 | `KURA_BACKFILL_READY_RING_PERCENT` | Segment-ring fullness percent at which a node still running its initial backfill cycle marks itself ready; readiness then latches for the process lifetime. | Yes | half of `KURA_BACKFILL_MARGIN_PERCENT` |
@@ -332,6 +334,8 @@ Kura also enforces a few hard-coded budgets that are not configurable:
 - On startup, the soft `RLIMIT_NOFILE` is raised to the hard limit so the FD pool, RocksDB file descriptors, and socket budget all share the maximum the container runtime allows.
 
 Auto-derived defaults currently follow these rules:
+
+- Multipart session admission allows one slot per MiB of transient memory capacity (minimum one outside critical pressure). Normal pressure includes the elastic pool up to the ceiling-derived headroom; constrained pressure uses the smaller of the base pool and half that headroom; critical pressure admits no new sessions. With the default watermarks and normal pressure, 512 MiB, 1 GiB, and 4 GiB ceilings allow 128, 256, and 1,024 sessions respectively. This ratio sizes concurrency, not a per-session memory reservation: part storage and assembly remain independently byte-bounded. The limit uses the existing hysteretic pressure state, never raw free memory or clean page-cache occupancy. Lowering it preserves existing sessions; new starts wait up to one second for room before receiving 429. The waiting queue admits at most the current slot capacity, rejects overflow immediately, and holds no upload records or payload reservations. A FIFO admission turn prevents younger starts from overtaking queued starts; only the queue head listens for completion, abort, and pressure transitions. Cancellation releases the queue position. Record writes run off-runtime, and unclaimed results retain their slot until their record is cleaned up. Fixed overrides also report zero capacity at critical pressure. `kura_multipart_uploads` reports exact occupied slots and `kura_multipart_upload_capacity` reports the effective limit. `kura_multipart_upload_waiters` reports queue depth; `kura_multipart_upload_admissions_total{outcome}` separates immediate, waited, timeout, queue_full, critical, and cancelled admission; `kura_multipart_upload_admission_duration_seconds` tracks admission latency. Retry hints expand with queue occupancy. The staging-byte cap is independent of memory and unchanged: `/start` carries no expected size, so admission does not guarantee that subsequent parts fit the disk budget.
 
 - `file_descriptor_limit` comes from `RLIMIT_NOFILE` when available, otherwise Kura falls back to a conservative host default.
 - `memory_limit_bytes` comes from the exact cgroup memory limit when available, otherwise Kura falls back to physical host memory.

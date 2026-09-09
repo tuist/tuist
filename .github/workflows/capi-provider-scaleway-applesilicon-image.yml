@@ -8,6 +8,8 @@ on:
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
     paths:
@@ -15,6 +17,8 @@ on:
       - infra/macos-host-bootstrap/**
       - infra/macos-log-shipper/**
       - infra/tart-kubelet/**
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - mise/tasks/capi-scaleway-applesilicon/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   workflow_dispatch: {}
 
@@ -135,8 +139,42 @@ jobs:
         working-directory: infra/macos-log-shipper
         run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-log-shipper
 
+  generated:
+    # The CRDs the apiserver enforces in every environment are generated from
+    # the annotated Go types, but they land in the Helm chart's `crds/`
+    # directory rather than beside the types. Nothing else ties a `*_types.go`
+    # edit to its regenerated manifest, and nothing else catches a manifest
+    # edited by hand.
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
+      - uses: ./.github/actions/mise
+        with:
+          # The task stamps the CAPI contract label onto each generated CRD
+          # with yq. controller-gen comes in through `go run`.
+          install_args: "--locked yq"
+          cache: "false"
+      - name: Regenerate DeepCopy + CRDs
+        run: mise run --skip-tools capi-scaleway-applesilicon:generate
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=Generated CAPI artefacts out of sync::The committed CRDs and DeepCopy methods do not match the API types. Run 'mise run capi-scaleway-applesilicon:generate' and commit the result."
+            echo "Changed files:"
+            git status --porcelain
+            echo "Diff:"
+            git diff
+            exit 1
+          fi
+          echo "Generated CAPI artefacts are up to date"
+
   build:
-    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-tart-kubelet]
+    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-tart-kubelet, generated]
     if: github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
