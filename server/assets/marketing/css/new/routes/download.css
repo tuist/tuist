@@ -136,8 +136,8 @@
       font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
 
       & > [data-part="line"] {
-        color: var(--noora-surface-label-tertiary);
         transition: color 320ms ease;
+        color: var(--noora-surface-label-tertiary);
 
         &[data-active] {
           color: var(--noora-surface-label-primary);
@@ -169,9 +169,9 @@
        the detail page, which DownloadIosDemo pushes in from the right. */
     &[data-section="ios"] > [data-part="illustration"] {
       position: relative;
+      background-image: url("/marketing/images/download/ios-wallpaper.webp");
       height: 500px;
       overflow: hidden;
-      background-image: url("/marketing/images/download/ios-wallpaper.webp");
 
       & img {
         -webkit-user-drag: none;
@@ -181,10 +181,10 @@
         position: absolute;
         top: 34px;
         left: 50%;
-        width: 298.97px;
-        height: 650px;
         transform: translateX(-50%);
         filter: drop-shadow(0 5px 20px rgba(0, 0, 0, 0.3));
+        width: 298.97px;
+        height: 650px;
 
         & > [data-part="bezel"] {
           position: absolute;
@@ -198,10 +198,10 @@
         /* Runs 1px under the bezel on every side so the wallpaper can't
            show through the seam between them. */
         & > [data-part="screen"] {
+          display: flex;
           position: absolute;
           top: -1px;
           left: -0.37px;
-          display: flex;
           flex-direction: column;
           align-items: flex-start;
           box-sizing: border-box;
@@ -225,17 +225,17 @@
             position: absolute;
             top: 25.98px;
             left: 12.49px;
-            box-sizing: border-box;
-            border-radius: 21.95px;
-            width: 275.752px;
-            height: 599.52px;
-            overflow: hidden;
             transform: scale(1.14833);
             transform-origin: 50% 50%;
             filter: blur(8px);
             transition:
               transform 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
               filter 560ms cubic-bezier(0.4, 0.05, 0.1, 1);
+            box-sizing: border-box;
+            border-radius: 21.95px;
+            width: 275.752px;
+            height: 599.52px;
+            overflow: hidden;
           }
 
           &[data-app="closed"] > [data-part="home-screen"] {
@@ -257,21 +257,21 @@
              1px bleed ring too, so the zoomed home screen can't peek out
              at the edges. */
           & > [data-part="app-shell"] {
-            position: absolute;
-            inset: 0;
             display: flex;
+            position: absolute;
             flex-direction: column;
             align-items: flex-start;
-            box-sizing: border-box;
-            background: var(--noora-surface-background-primary);
-            padding: 1px;
-            overflow: hidden;
             transform-origin: 0 0;
             clip-path: inset(0 0 0 0 round 24.78px);
             transition:
               transform 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
               clip-path 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
               opacity 0s linear;
+            box-sizing: border-box;
+            inset: 0;
+            background: var(--noora-surface-background-primary);
+            padding: 1px;
+            overflow: hidden;
           }
 
           /* The icon layer: covers whatever the clip shows, stretched.
@@ -282,32 +282,32 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: fill;
             opacity: 0;
-            pointer-events: none;
             z-index: 1;
             transition:
               height 560ms cubic-bezier(0.4, 0.05, 0.1, 1),
               opacity 220ms ease 60ms;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            pointer-events: none;
           }
 
           /* Its height tracks the clip on the same curve, so the icon is
              stretched over exactly the window that shows — elongated
              mid-way, a true square on the tile — never a half icon. */
           &[data-app="closed"] > [data-part="app-shell"] > [data-part="shell-icon"] {
-            height: 300.73px;
             opacity: 1;
             transition:
               height 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
               opacity 220ms ease 240ms;
+            height: 300.73px;
           }
 
           &[data-app="closed"] > [data-part="app-shell"] {
             transform: translate(var(--open-x, 50%), var(--open-y, 40%)) scale(var(--open-scale, 0.16));
-            clip-path: inset(0 0 350.75px 0 round 67px);
             opacity: 0;
+            clip-path: inset(0 0 350.75px 0 round 67px);
             transition:
               transform 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
               clip-path 520ms cubic-bezier(0.4, 0.05, 0.1, 1),
@@ -326,8 +326,8 @@
             & > [data-part="status-time"] {
               display: flex;
               flex: 1 0 0;
-              align-items: center;
               justify-content: center;
+              align-items: center;
               box-sizing: border-box;
               padding-top: 1.486px;
               height: 16.349px;
@@ -337,8 +337,8 @@
             & > [data-part="status-levels"] {
               display: flex;
               flex: 1 0 0;
-              align-items: center;
               justify-content: center;
+              align-items: center;
               gap: 5.202px;
               box-sizing: border-box;
               padding-top: 0.743px;
@@ -346,9 +346,9 @@
 
               & > [data-part="status-icon"] {
                 display: block;
-                background: currentColor;
                 mask: var(--status-icon) center / contain no-repeat;
                 -webkit-mask: var(--status-icon) center / contain no-repeat;
+                background: currentColor;
 
                 &[data-icon="cellular"] {
                   --status-icon: url("/marketing/images/download/iphone/cellular.svg");
@@ -390,23 +390,23 @@
             }
 
             & > [data-part="page"] {
-              position: absolute;
-              inset: 0;
               display: flex;
+              position: absolute;
               flex-direction: column;
               align-items: flex-start;
+              transition: transform 520ms cubic-bezier(0.32, 0.72, 0, 1);
+              inset: 0;
               background: var(--noora-surface-background-primary);
               overflow: hidden;
-              transition: transform 520ms cubic-bezier(0.32, 0.72, 0, 1);
 
               &[data-page="list"]::after {
-                content: "";
                 position: absolute;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.08);
                 opacity: 0;
                 transition: opacity 520ms cubic-bezier(0.32, 0.72, 0, 1);
+                inset: 0;
+                background: rgba(0, 0, 0, 0.08);
                 pointer-events: none;
+                content: "";
               }
 
               /* Parked a shadow's width beyond the edge so its blur can't
@@ -439,9 +439,9 @@
          accents. */
       & [data-part="preview-run"] {
         flex: none;
+        transition: filter 140ms ease;
         box-sizing: border-box;
         border-radius: 40px;
-        transition: filter 140ms ease;
 
         &[data-pressed] {
           filter: brightness(0.9);
@@ -494,8 +494,8 @@
         & > svg {
           display: block;
           flex: none;
-          height: 13px;
           width: auto;
+          height: 13px;
         }
       }
 
@@ -516,11 +516,11 @@
           align-items: center;
           gap: 3px;
           box-sizing: border-box;
+          box-shadow: var(--noora-border-light-default);
           border-radius: 12px;
           background: var(--noora-surface-background-tertiary);
           padding: 0 6px;
           height: 24px;
-          box-shadow: var(--noora-border-light-default);
 
           & > svg {
             display: block;
@@ -549,10 +549,10 @@
           display: flex;
           align-items: center;
           gap: 12px;
+          transition: background-color 140ms ease;
           box-sizing: border-box;
           padding: 9px;
           height: 57px;
-          transition: background-color 140ms ease;
 
           & + [data-part="preview"] {
             border-top: 0.5px solid var(--marketing-stroke-default);
@@ -621,16 +621,16 @@
 
         & > [data-part="nav-button"] {
           display: flex;
-          align-items: center;
           justify-content: center;
+          align-items: center;
+          transition: filter 140ms ease;
+          box-shadow:
+            0 2px 10px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.4)),
+            var(--noora-border-light-default);
           border-radius: 50%;
           background: var(--noora-surface-background-tertiary);
           width: 30px;
           height: 30px;
-          box-shadow:
-            0 2px 10px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.4)),
-            var(--noora-border-light-default);
-          transition: filter 140ms ease;
 
           &[data-pressed] {
             filter: brightness(0.92);
@@ -727,8 +727,8 @@
 
         & > div {
           display: flex;
-          align-items: center;
           justify-content: space-between;
+          align-items: center;
           gap: 12px;
           border-bottom: 0.5px solid var(--marketing-stroke-default);
           height: 38px;
@@ -779,8 +779,8 @@
       /* Destructive action: full-width 31px capsule, red label and bin. */
       & [data-part="delete"] {
         display: flex;
-        align-items: center;
         justify-content: center;
+        align-items: center;
         gap: 5px;
         box-sizing: border-box;
         margin: 15px 0 0 12px;
@@ -798,7 +798,6 @@
           height: 12px;
         }
       }
-
     }
 
     /* ---- iOS home screen, shared by the macOS demo's phone and the iOS
@@ -828,8 +827,8 @@
         & > [data-part="status-time"] {
           display: flex;
           flex: 1 0 0;
-          align-items: center;
           justify-content: center;
+          align-items: center;
           box-sizing: border-box;
           padding-top: 1.372px;
           height: 15.091px;
@@ -839,8 +838,8 @@
         & > [data-part="status-levels"] {
           display: flex;
           flex: 1 0 0;
-          align-items: center;
           justify-content: center;
+          align-items: center;
           gap: 4.802px;
           box-sizing: border-box;
           padding-top: 0.686px;
@@ -869,11 +868,11 @@
          17.333px between rows; a 43.901px icon over an 8.23px label. */
       & > [data-part="apps"] {
         display: grid;
-        flex: 1 0 0;
         grid-template-columns: repeat(4, 49.388px);
-        justify-content: space-between;
-        align-content: start;
         row-gap: 17.333px;
+        flex: 1 0 0;
+        align-content: start;
+        justify-content: space-between;
         box-sizing: border-box;
         margin: 0;
         padding: 19.663px 17.835px 0;
@@ -894,7 +893,7 @@
           }
 
           & > [data-part="app-label"] {
-            font: var(--noora-font-weight-medium) 8.23px/normal var(--noora-font-body);
+            font: var(--noora-font-weight-medium) 8.23px / normal var(--noora-font-body);
             text-shadow: 0 1.372px 17.149px #000;
             white-space: nowrap;
           }
@@ -910,20 +909,20 @@
         flex: none;
         align-items: center;
         gap: 1.372px;
+        backdrop-filter: blur(20.578px);
+        -webkit-backdrop-filter: blur(20.578px);
         box-sizing: border-box;
-        border-radius: 68.595px;
-        background: rgba(255, 255, 255, 0.06);
         box-shadow:
           inset 0 0.686px 0 rgba(255, 255, 255, 0.4),
           inset 0 0 0 0.686px rgba(255, 255, 255, 0.22),
           inset 0 -1.372px 0 rgba(0, 0, 0, 0.18),
           0 1.372px 4.116px rgba(0, 0, 0, 0.12);
+        border-radius: 68.595px;
+        background: rgba(255, 255, 255, 0.06);
         padding: 4.802px 8.231px;
         height: 20.578px;
         font: var(--noora-font-weight-semibold) 7.888px/10.975px var(--noora-font-body);
         white-space: nowrap;
-        backdrop-filter: blur(20.578px);
-        -webkit-backdrop-filter: blur(20.578px);
 
         & > svg {
           display: block;
@@ -940,30 +939,30 @@
 
         & > [data-part="dock-tray"] {
           display: flex;
-          align-items: center;
           justify-content: space-between;
+          align-items: center;
+          backdrop-filter: blur(20.578px);
+          -webkit-backdrop-filter: blur(20.578px);
           box-sizing: border-box;
-          border-radius: 28.812px;
-          background: rgba(255, 255, 255, 0.06);
-          padding: 13.033px 11.661px 11.661px;
-          height: 69.967px;
           box-shadow:
             inset 0 0.686px 0 rgba(255, 255, 255, 0.4),
             inset 0 0 0 0.686px rgba(255, 255, 255, 0.22),
             inset 0 -1.372px 0 rgba(0, 0, 0, 0.18),
             0 1.372px 4.116px rgba(0, 0, 0, 0.12);
-          backdrop-filter: blur(20.578px);
-          -webkit-backdrop-filter: blur(20.578px);
+          border-radius: 28.812px;
+          background: rgba(255, 255, 255, 0.06);
+          padding: 13.033px 11.661px 11.661px;
+          height: 69.967px;
 
           & > img {
             display: block;
+            filter: drop-shadow(0 1.372px 2.744px rgba(0, 0, 0, 0.25));
             width: 45.273px;
             height: 45.273px;
-            filter: drop-shadow(0 1.372px 2.744px rgba(0, 0, 0, 0.25));
           }
         }
       }
-            }
+    }
 
     /* Install tile choreography (both demos): the tile pops onto the home
        screen and installs behind iOS's progress pie. */
@@ -977,11 +976,11 @@
           position: absolute;
           top: 0;
           left: 50%;
-          width: 43.901px;
-          height: 43.901px;
           translate: -50% 0;
           opacity: 0;
           transition: opacity 220ms ease;
+          width: 43.901px;
+          height: 43.901px;
           pointer-events: none;
 
           & > svg {
@@ -1028,15 +1027,15 @@
       }
 
       &[data-animated] [data-part="app"][data-installable] {
-        opacity: 0;
         scale: 0.6;
+        opacity: 0;
         transition:
           opacity 280ms cubic-bezier(0.32, 0.72, 0, 1),
           scale 420ms cubic-bezier(0.32, 0.72, 0, 1);
 
         &[data-install] {
-          opacity: 1;
           scale: 1;
+          opacity: 1;
         }
       }
     }
@@ -1045,8 +1044,8 @@
        and the app chrome layers on top of it. */
     &[data-section="macos"] > [data-part="illustration"] {
       position: relative;
-      overflow: hidden;
       background-image: url("/marketing/images/download/macos-wallpaper.webp");
+      overflow: hidden;
 
       /* Simulator window title bar (Figma "Utility Panel": 364×51 at 418/45,
          13px corners, 1px #B6B6B6 stroke, 8px/12px padding). Window
@@ -1054,20 +1053,20 @@
          12px after it; the three 44×29 tool slots butt together on the
          right. */
       & > [data-part="simulator-bar"] {
+        display: flex;
         position: absolute;
         top: 45px;
         left: 50%;
-        display: flex;
         align-items: center;
+        transform: translateX(-50%);
         box-sizing: border-box;
+        box-shadow: 0 5px 20px light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
         border: 1px solid light-dark(#b6b6b6, var(--noora-neutral-dark-700));
         border-radius: 13px;
         background: var(--noora-surface-background-primary);
         padding: 8px 12px 11px;
         width: 364px;
         height: 51px;
-        transform: translateX(-50%);
-        box-shadow: 0 5px 20px light-dark(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
 
         & > [data-part="simulator-lights"] {
           display: flex;
@@ -1119,11 +1118,11 @@
           display: flex;
 
           & > [data-part="simulator-tool"] {
-            width: 44px;
-            height: 29px;
-            background-color: light-dark(#4d4d4d, var(--noora-neutral-dark-200));
             mask: var(--simulator-tool-icon) center / contain no-repeat;
             -webkit-mask: var(--simulator-tool-icon) center / contain no-repeat;
+            background-color: light-dark(#4d4d4d, var(--noora-neutral-dark-200));
+            width: 44px;
+            height: 29px;
 
             &[data-tool="home"] {
               --simulator-tool-icon: url("/marketing/images/download/simulator/home.svg");
@@ -1149,10 +1148,10 @@
         position: absolute;
         top: 116px;
         left: 50%;
-        width: 275.973px;
-        height: 600px;
         transform: translateX(-50%);
         filter: drop-shadow(0 5px 20px rgba(0, 0, 0, 0.3));
+        width: 275.973px;
+        height: 600px;
 
         & > [data-part="bezel"] {
           position: absolute;
@@ -1188,8 +1187,8 @@
          screen further up. */
       &[data-animated] > [data-part="simulator-bar"],
       &[data-animated] > [data-part="phone"] {
-        opacity: 0;
         translate: 0 12px;
+        opacity: 0;
         transition:
           opacity 640ms cubic-bezier(0.32, 0.72, 0, 1),
           translate 640ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -1197,8 +1196,8 @@
 
       &[data-animated][data-device] > [data-part="simulator-bar"],
       &[data-animated][data-device] > [data-part="phone"] {
-        opacity: 1;
         translate: 0 0;
+        opacity: 1;
       }
 
       /* Demo cursor: 14×20 arrow, tip at its origin, driven by transform
@@ -1207,11 +1206,11 @@
         position: absolute;
         top: 0;
         left: 0;
+        opacity: 0;
+        z-index: 1;
         width: 14px;
         height: 20px;
-        opacity: 0;
         pointer-events: none;
-        z-index: 1;
       }
 
       &[data-animated] > [data-part="cursor"] {
@@ -1233,14 +1232,14 @@
       }
 
       & > [data-part="menubar"] {
-        position: absolute;
-        inset: 0 0 auto 0;
         display: flex;
-        align-items: center;
+        position: absolute;
         justify-content: space-between;
-        height: 34px;
-        padding: 0 var(--noora-spacing-4);
+        align-items: center;
+        inset: 0 0 auto 0;
         background: rgba(0, 0, 0, 0.2);
+        padding: 0 var(--noora-spacing-4);
+        height: 34px;
         color: #fff;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -1257,8 +1256,8 @@
           /* Wrapper for the open item and its popover: full bar height so
              the popover can hang from the bar's bottom edge. */
           & > [data-part="menubar-app"] {
-            position: relative;
             display: flex;
+            position: relative;
             align-items: center;
             height: 34px;
           }
@@ -1267,14 +1266,14 @@
              bar's 20% with a backdrop blur, the 15px mark centred in it. */
           & > [data-part="menubar-app"] > [data-part="menubar-item"][data-selected] {
             display: flex;
-            align-items: center;
             justify-content: center;
-            width: 38px;
-            height: 25px;
-            border-radius: 12.5px;
-            background: rgba(0, 0, 0, 0.16);
+            align-items: center;
             backdrop-filter: blur(30px);
             -webkit-backdrop-filter: blur(30px);
+            border-radius: 12.5px;
+            background: rgba(0, 0, 0, 0.16);
+            width: 38px;
+            height: 25px;
 
             & > svg {
               width: 15px;
@@ -1302,31 +1301,31 @@
              Colours come from the Noora surface tokens so the menu follows the
              page theme; the shadows deepen in dark mode to stay visible. */
           & > [data-part="menubar-app"] > [data-part="popover"] {
+            display: flex;
             position: absolute;
             top: calc(100% + 3px);
             left: 0;
-            display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            width: 286px;
-            height: 256px;
-            border-radius: 15px;
-            background: var(--noora-surface-background-secondary);
-            padding: 5px 12px;
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-regular) 13px/16px var(--noora-font-body);
             box-shadow:
               inset 0 0 0 1px light-dark(#b7b7b7, var(--noora-neutral-dark-700)),
               0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3)),
               0 0 25px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5));
+            border-radius: 15px;
+            background: var(--noora-surface-background-secondary);
+            padding: 5px 12px;
+            width: 286px;
+            height: 256px;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) 13px/16px var(--noora-font-body);
             white-space: nowrap;
 
             /* Account name over handle on the left, install status centred on
                the right. */
             & > [data-part="popover-header"] {
               display: flex;
-              align-items: center;
               justify-content: space-between;
+              align-items: center;
               margin-top: 7px;
 
               & > [data-part="popover-account"] {
@@ -1354,9 +1353,9 @@
                    brighter arc sweeping round it. */
                 & > [data-part="popover-spinner"] {
                   display: none;
+                  animation: marketing-download-spin 1s linear infinite;
                   width: 14px;
                   height: 14px;
-                  animation: marketing-download-spin 1s linear infinite;
 
                   & > [data-part="spinner-track"] {
                     opacity: 0.25;
@@ -1383,16 +1382,16 @@
             & > [data-part="popover-tray"] {
               display: flex;
               gap: var(--noora-spacing-6);
+              box-sizing: border-box;
               margin: 6px 0 0;
+              box-shadow:
+                0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3)),
+                0 0 25px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5));
               border-radius: 10px;
               background: light-dark(var(--noora-neutral-light-100), var(--noora-neutral-dark-900));
               padding: 10px 12px;
               height: 95px;
-              box-sizing: border-box;
               list-style: none;
-              box-shadow:
-                0 0 2px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.3)),
-                0 0 25px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5));
 
               & > [data-part="popover-app"] {
                 display: flex;
@@ -1407,9 +1406,9 @@
                    more on press. */
                 & > img {
                   display: block;
+                  transition: filter 160ms ease;
                   width: 45px;
                   height: 45px;
-                  transition: filter 160ms ease;
                 }
 
                 &[data-hover] > img {
@@ -1446,8 +1445,8 @@
 
               & > [data-part="popover-row"] {
                 display: flex;
-                align-items: center;
                 justify-content: space-between;
+                align-items: center;
                 height: 24px;
 
                 &[data-submenu] {
@@ -1467,10 +1466,10 @@
                 height: 8px;
 
                 &::before {
-                  content: "";
+                  background: var(--marketing-illustration-neutral-4);
                   width: 100%;
                   height: 1px;
-                  background: var(--marketing-illustration-neutral-4);
+                  content: "";
                 }
               }
             }
@@ -1524,7 +1523,7 @@
           }
         }
       }
-}
+    }
   }
 
   /* Full-width dithered divider bands framing the CTA — same Bayer texture
