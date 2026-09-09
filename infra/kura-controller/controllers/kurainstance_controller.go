@@ -381,38 +381,20 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
-	// volume is pinned to the box it was carved on. Two states leave an instance
-	// with a claim that can never bind, with nothing to self-heal it: a
-	// storageClassName change the live StatefulSet silently ignores (immutable
-	// template), and a bare-metal fleet node reprovisioned out from under a
-	// node-local PV. Both are already broken, so recreate the StatefulSet —
-	// dropping its PVCs via the Delete retention policy — and let it provision
-	// fresh volumes on the current class and node. Requeue while the cleanup is
-	// in flight so the recreated StatefulSet never re-adopts a stale PVC.
-	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	// A grown claim reaches the same immutability, but from a healthy instance
-	// that is still serving, so it does not get the same treatment: re-template
-	// the StatefulSet without disturbing what it runs, then replace the volumes
-	// one replica at a time behind the standby. Requeue between replicas so each
-	// rebuilt pod is serving again before the next is taken.
-	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	} else if inProgress {
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
+	// Roles, and the Services that carry them, resolve BEFORE the storage
+	// lifecycle below. Both storage paths rebuild a volume by deleting a pod and
+	// then short-circuiting the rest of the reconcile until the replacement is
+	// serving again — one ordinal per pass, a full cold bootstrap each — so
+	// whatever is left underneath them is frozen for the length of the rebuild.
+	// A Service pinned to one pod is only correct while it keeps naming a live
+	// one, and the pod a rebuild takes down is exactly the one a frozen pin
+	// still names. That is tolerable for a pin that recovers on the next pass
+	// and not for one that cannot: the public peer Service follows the gateway,
+	// which on a two-replica region is the ordinal the primary is not, so
+	// whichever of the two the rebuild starts with, one of the two pins is left
+	// pointing at a deleted pod for the whole rebuild. Nothing in this block
+	// touches a PVC or the StatefulSet, so the storage paths keep the priority
+	// their own triggers assume.
 	pods, err := r.instancePods(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -421,23 +403,17 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	r.observeCPUUsage(ctx, instance, pods)
 	applyScheduleCap(instance, pods, time.Now())
 	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
-	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
+	primaryPod, evacuating, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	gatewayPod, err := r.selectGatewayPod(ctx, instance, pods, samples, primaryPod)
+	gatewayPod, err := r.selectGatewayPod(ctx, instance, pods, samples, primaryPod, evacuating)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	// The public peer plane follows the gateway, and the gateway is derived
 	// from the primary, so both reconcile only once the roles are settled.
 	if err := r.reconcileInstancePublicPeerService(ctx, instance, gatewayPod); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
@@ -450,6 +426,45 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileExternalService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
+	// volume is pinned to the box it was carved on. Two states leave an instance
+	// with a claim that can never bind, with nothing to self-heal it: a
+	// storageClassName change the live StatefulSet silently ignores (immutable
+	// template), and a bare-metal fleet node reprovisioned out from under a
+	// node-local PV. Both are already broken, so recreate the StatefulSet —
+	// dropping its PVCs via the Delete retention policy — and let it provision
+	// fresh volumes on the current class and node. Requeue while the cleanup is
+	// in flight so the recreated StatefulSet never re-adopts a stale PVC.
+	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+
+	// A grown claim reaches the same immutability, but from a healthy instance
+	// that is still serving, so it does not get the same treatment: re-template
+	// the StatefulSet without disturbing what it runs, then replace the volumes
+	// one replica at a time behind the standby. Requeue between replicas so each
+	// rebuilt pod is serving again before the next is taken.
+	if inProgress, err := r.reconcileDataStorageResize(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, r.publishPeerRoles(ctx, instance, pods, primaryPod, gatewayPod)
+	}
+
+	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.retireLegacyAccountPublicPeerService(ctx, instance, time.Now().UTC()); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
@@ -1752,12 +1767,16 @@ func gatewayServiceSelectorMatches(instance *kurav1alpha1.KuraInstance, selector
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
 // controller restart without a dedicated status field.
+//
+// It also returns the pods sitting on nodes marked for evacuation, so the
+// gateway derivation demotes the same set rather than re-deriving it from a
+// second node listing that could disagree.
 func (r *KuraInstanceReconciler) selectPrimaryPod(
 	ctx context.Context,
 	instance *kurav1alpha1.KuraInstance,
 	pods []corev1.Pod,
 	samples map[string]runtimeStatus,
-) (string, error) {
+) (string, map[string]bool, error) {
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -1765,7 +1784,7 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 		current = service.Spec.Selector[podNameLabel]
 	case apierrors.IsNotFound(err):
 	default:
-		return "", err
+		return "", nil, err
 	}
 
 	health, caughtUp := primaryPodHealthFromSamples(instance, pods, samples, time.Now())
@@ -1779,10 +1798,12 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 	// Only when something else can actually serve. If every pod is on the way
 	// out there is no better primary, and dropping the role would replace a
 	// short gap with no endpoint at all.
-	if err := r.demoteEvacuatingPods(ctx, pods, health, caughtUp); err != nil {
-		return "", err
+	evacuating, err := r.evacuatingPodNames(ctx, pods)
+	if err != nil {
+		return "", nil, err
 	}
-	return choosePrimaryPod(current, instance.Name, pods, health), nil
+	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
+	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }
 
 // selectGatewayPod resolves which pod carries the region's cross-region
@@ -1797,6 +1818,7 @@ func (r *KuraInstanceReconciler) selectGatewayPod(
 	pods []corev1.Pod,
 	samples map[string]runtimeStatus,
 	primaryPod string,
+	evacuating map[string]bool,
 ) (string, error) {
 	current := ""
 	service := &corev1.Service{}
@@ -1807,18 +1829,37 @@ func (r *KuraInstanceReconciler) selectGatewayPod(
 	default:
 		return "", err
 	}
-	return chooseGatewayPod(current, primaryPod, pods, gatewayEligibleFromSamples(pods, samples)), nil
+	return chooseGatewayPod(current, primaryPod, pods, gatewayEligibleFromSamples(pods, samples, evacuating)), nil
 }
 
 // gatewayEligibleFromSamples marks the pods that may hold the gateway role:
-// Ready, and not reported draining by the runtime. Readiness alone is not
-// enough because the drain overlap keeps a pod Ready while it hands off, and
-// a role given to it evaporates seconds later. A pod that could not be
-// sampled has only its readiness as evidence.
-func gatewayEligibleFromSamples(pods []corev1.Pod, samples map[string]runtimeStatus) map[string]bool {
+// Ready, not reported draining by the runtime, and not on a node marked for
+// evacuation. Readiness alone is not enough because the drain overlap keeps a
+// pod Ready while it hands off, and a role given to it evaporates seconds
+// later. A pod that could not be sampled has only its readiness as evidence.
+//
+// A pod on an evacuating node is Ready, not draining and has no deletion
+// timestamp right up until this same reconcile pass deletes it, so nothing in
+// the runtime report distinguishes it — but it is precisely the pod primary
+// selection has just stepped off, which under the complement rule makes it the
+// obvious gateway. Designating it violates INV-5 the same way a draining pod
+// does (kura/docs/replication-design.md §7), only over minutes rather than
+// seconds.
+//
+// Unlike the primary's demotion this is unconditional, with no "only when
+// something else can serve" gate. The gateway has a fallback the primary does
+// not: chooseGatewayPod names the primary when nothing else is eligible, so
+// excluding every evacuating pod still publishes a gateway (INV-3) and lands
+// the role on the replica that leaves last. Gating it would instead deadlock
+// the evacuation sequence, because the standby that has to move first is
+// exactly the pod the complement rule names.
+func gatewayEligibleFromSamples(pods []corev1.Pod, samples map[string]runtimeStatus, evacuating map[string]bool) map[string]bool {
 	eligible := map[string]bool{}
 	for i := range pods {
 		if !podReady(&pods[i]) {
+			continue
+		}
+		if evacuating[pods[i].Name] {
 			continue
 		}
 		if status, ok := samples[pods[i].Name]; ok && status.State == "draining" {
@@ -1837,24 +1878,27 @@ func (r *KuraInstanceReconciler) instancePods(ctx context.Context, instance *kur
 	return pods.Items, nil
 }
 
-// demoteEvacuatingPods marks pods on nodes annotated for evacuation as
-// unroutable, so primary selection hands the role to a pod that is staying.
-// A no-op unless some pod outside the evacuating set is healthy enough to take
-// over.
-func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods []corev1.Pod, health, caughtUp map[string]bool) error {
-	onEvacuating := map[string]bool{}
+// evacuatingPodNames lists the instance's pods sitting on nodes annotated for
+// evacuation.
+//
+// Both role derivations read it, from one node listing, so the primary and the
+// gateway demote the same pods. Deriving them separately is what let the
+// gateway land on exactly the pod the primary had just stepped off.
+func (r *KuraInstanceReconciler) evacuatingPodNames(ctx context.Context, pods []corev1.Pod) (map[string]bool, error) {
+	scheduled := false
 	for i := range pods {
-		if health[pods[i].Name] && pods[i].Spec.NodeName != "" {
-			onEvacuating[pods[i].Spec.NodeName] = false
+		if pods[i].Spec.NodeName != "" {
+			scheduled = true
+			break
 		}
 	}
-	if len(onEvacuating) == 0 {
-		return nil
+	if !scheduled {
+		return nil, nil
 	}
 
 	nodes := &corev1.NodeList{}
 	if err := r.List(ctx, nodes); err != nil {
-		return err
+		return nil, err
 	}
 	leaving := map[string]bool{}
 	for i := range nodes.Items {
@@ -1863,7 +1907,25 @@ func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods 
 		}
 	}
 	if len(leaving) == 0 {
-		return nil
+		return nil, nil
+	}
+
+	evacuating := map[string]bool{}
+	for i := range pods {
+		if leaving[pods[i].Spec.NodeName] {
+			evacuating[pods[i].Name] = true
+		}
+	}
+	return evacuating, nil
+}
+
+// demoteEvacuatingPods marks pods on nodes annotated for evacuation as
+// unroutable, so primary selection hands the role to a pod that is staying.
+// A no-op unless some pod outside the evacuating set is healthy enough to take
+// over.
+func demoteEvacuatingPods(pods []corev1.Pod, health, caughtUp, evacuating map[string]bool) {
+	if len(evacuating) == 0 {
+		return
 	}
 
 	// A successor has to be able to serve AND have the content to serve. Moving
@@ -1872,20 +1934,18 @@ func (r *KuraInstanceReconciler) demoteEvacuatingPods(ctx context.Context, pods 
 	// that looks like success and so is worth gating on explicitly.
 	staying := false
 	for i := range pods {
-		if health[pods[i].Name] && caughtUp[pods[i].Name] && !leaving[pods[i].Spec.NodeName] {
+		name := pods[i].Name
+		if health[name] && caughtUp[name] && !evacuating[name] {
 			staying = true
 			break
 		}
 	}
 	if !staying {
-		return nil
+		return
 	}
-	for i := range pods {
-		if leaving[pods[i].Spec.NodeName] {
-			delete(health, pods[i].Name)
-		}
+	for name := range evacuating {
+		delete(health, name)
 	}
-	return nil
 }
 
 // sampleRuntimeStatuses polls /status/rollout on every pod backing the
@@ -2065,6 +2125,43 @@ func peerRoles(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, primaryPo
 		})
 	}
 	return roles
+}
+
+// publishPeerRoles writes status.peerRoles on a pass that returns before the
+// full status update at the end of Reconcile.
+//
+// The storage-lifecycle paths hold the reconcile for as long as each ordinal
+// takes to rebuild and bootstrap, and the server hands every node its own role
+// and its peers' from this document. Left at its pre-rebuild answer it names a
+// pod the same pass has deleted, so nodes address replication at an address
+// that is gone for the length of the rebuild rather than for a requeue.
+//
+// Only the roles are republished: phase, message and the rollout aggregate are
+// reported from a full pass and a rebuild is not one.
+func (r *KuraInstanceReconciler) publishPeerRoles(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	primaryPod, gatewayPod string,
+) error {
+	roles := peerRoles(instance, pods, primaryPod, gatewayPod)
+	if peerRolesEqual(instance.Status.PeerRoles, roles) {
+		return nil
+	}
+	instance.Status.PeerRoles = roles
+	return r.Status().Update(ctx, instance)
+}
+
+func peerRolesEqual(left, right []kurav1alpha1.KuraInstancePeerRole) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // aggregateRolloutHealth folds the per-pod sample cache into the status
