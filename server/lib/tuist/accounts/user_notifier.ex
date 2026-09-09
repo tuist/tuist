@@ -37,7 +37,7 @@ defmodule Tuist.Accounts.UserNotifier do
   # hex values (Gmail drops <style> blocks, so only the dark-mode guard for
   # the button lives in one). The same shell as the newsletter issue: a
   # masthead box with the wordmark, one bordered content box on the
-  # tertiary ground, and a muted footer line. Every text value is escaped
+  # tertiary ground, and a muted footer box. Every text value is escaped
   # here, so callers pass plain strings (interpolated names, emails).
   # Class rules for the emails that bring their own body HTML (html_email/4).
   @body_styles """
@@ -151,7 +151,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 <tr>
                   <td style="padding: 20px 32px;">
                     <a href="#{escape(Environment.app_url())}" style="display: inline-block; text-decoration: none;">
-                      <img src="#{escape(icon_url)}" alt="Tuist" width="82" height="36" style="display: block; width: 82px; height: 36px; border: 0;" />
+                      <img src="#{escape(icon_url)}" alt="Tuist" width="90" height="36" style="display: block; width: 90px; height: 36px; border: 0;" />
                     </a>
                   </td>
                 </tr>
@@ -173,13 +173,22 @@ defmodule Tuist.Accounts.UserNotifier do
             </td>
           </tr>
           <tr>
-            <td style="padding: 24px 32px 0; text-align: center;">
-              <p style="margin: 0; font-family: #{@font}; font-size: 12px; line-height: 18px; color: #535659;">
-                #{escape(dgettext("dashboard_account", "This email was sent by Tuist. By using our services, you agree to our"))}
-                <a href="#{escape(Environment.app_url(path: "/terms"))}" style="color: #535659; text-decoration: underline;">#{escape(dgettext("dashboard_account", "terms of service"))}</a>.
-                <br />
-                &copy; Tuist GmbH #{year}. #{escape(dgettext("dashboard_account", "All rights reserved."))}
-              </p>
+            <td style="height: 2px; line-height: 2px; font-size: 2px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; border: 1px solid #eff0f1; background: #fdfdfd; border-collapse: separate;">
+                <tr>
+                  <td style="padding: 20px 32px; text-align: center;">
+                    <p style="margin: 0; font-family: #{@font}; font-size: 12px; line-height: 18px; color: #535659;">
+                      #{escape(dgettext("dashboard_account", "This email was sent by Tuist. By using our services, you agree to our"))}
+                      <a href="#{escape(Environment.app_url(path: "/terms"))}" style="color: #535659; text-decoration: underline;">#{escape(dgettext("dashboard_account", "terms of service"))}</a>.
+                      <br />
+                      &copy; Tuist GmbH #{year}. #{escape(dgettext("dashboard_account", "All rights reserved."))}
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -189,19 +198,19 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp paragraph(text) do
-    ~s(<p style="margin: 16px 0 0; font-family: #{@font}; font-size: 16px; line-height: 24px; color: #191a1b;">#{escape(text)}</p>)
+    ~s(<p style="margin: 12px 0 0; font-family: #{@font}; font-size: 14px; line-height: 20px; color: #191a1b;">#{escape(text)}</p>)
   end
 
   defp button_html(nil), do: ""
 
   defp button_html({label, url}) do
-    ~s(<p style="margin: 28px 0 0;"><a class="button-primary" href="#{escape(url)}" style="display: inline-block; font-family: #{@font}; font-size: 14px; line-height: 20px; font-weight: 500; color: #fdfdfd; background: #{@purple}; border: 1px solid #{@purple}; border-radius: 6px; padding: 8px 16px; text-decoration: none;">#{escape(label)}</a></p>)
+    ~s(<p style="margin: 24px 0 0;"><a class="button-primary" href="#{escape(url)}" style="display: inline-block; font-family: #{@font}; font-size: 14px; line-height: 20px; font-weight: 500; color: #fdfdfd; background: #{@purple}; border: 1px solid #{@purple}; border-radius: 6px; padding: 6px 8px; text-decoration: none;">#{escape(label)}</a></p>)
   end
 
   defp note_html(nil), do: ""
 
   defp note_html(lines) when is_list(lines) do
-    ~s(<p style="margin: 28px 0 0; font-family: #{@font}; font-size: 14px; line-height: 20px; color: #535659;">#{Enum.map_join(lines, "<br />", &escape/1)}</p>)
+    ~s(<p style="margin: 24px 0 0; font-family: #{@font}; font-size: 14px; line-height: 20px; color: #535659;">#{Enum.map_join(lines, "<br />", &escape/1)}</p>)
   end
 
   defp note_html(text), do: note_html([text])
