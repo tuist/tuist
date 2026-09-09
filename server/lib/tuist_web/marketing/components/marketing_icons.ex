@@ -439,4 +439,33 @@ defmodule TuistWeb.Marketing.MarketingIcons do
     </svg>
     """
   end
+
+  attr :size, :integer, default: @default_icon_size
+  attr :class, :string, default: ""
+  attr :rest, :global
+
+  # Placeholder for the newsletter issues sort control until the final
+  # artwork lands: an up and a down arrow stacked on the vertical axis.
+  def sort_icon(assigns) do
+    ~H"""
+    <svg
+      width={@size}
+      height={@size}
+      class={@class}
+      {@rest}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M8 2v5M5.5 4.5 8 2l2.5 2.5M8 14V9M5.5 11.5 8 14l2.5-2.5"
+        stroke="currentColor"
+        stroke-width="1.25"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    """
+  end
 end

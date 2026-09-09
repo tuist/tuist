@@ -6,6 +6,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Tuist.Atlas.Email
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Newsletter
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -339,6 +340,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ ~s(phx-hook="NewsletterForm")
       assert html =~ "Supercharge your app development"
       assert html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "lists every past issue oldest first with the sort control when the flag is on", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing_newsletter -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Past newsletter issues"
+      assert html =~ ~s(phx-hook="NewsletterIssuesSort")
+
+      numbers =
+        ~r/data-part="row" data-number="(\d+)"/
+        |> Regex.scan(html)
+        |> Enum.map(fn [_, number] -> String.to_integer(number) end)
+
+      expected = Newsletter.issues() |> Enum.map(& &1.number) |> Enum.sort()
+      assert numbers == expected
+      assert html =~ ~s(href="/newsletter/issues/#{List.first(expected)}")
     end
   end
 

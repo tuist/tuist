@@ -51,6 +51,49 @@ the page stays put and the server's message shows under the row. --%>
       </div>
     </header>
 
+    <%!-- Past issues (Figma: eyebrow and title over a hairline list, one
+    row per issue — number, title, date — each linking to the issue page).
+    Rows render oldest first like the comp; the neutral button above the
+    list flips the order in place through NewsletterIssuesSort, so sorting
+    never round-trips. --%>
+    <section data-part="issues" aria-labelledby="newsletter-issues-title">
+      <div data-part="text">
+        <span data-part="eyebrow">{dgettext("marketing", "Issues")}</span>
+        <h2 id="newsletter-issues-title" data-part="title">
+          {dgettext("marketing", "Past newsletter issues")}
+        </h2>
+      </div>
+      <div data-part="toolbar">
+        <.neutral_button
+          id="newsletter-issues-sort"
+          size="large"
+          phx-hook="NewsletterIssuesSort"
+          data-target="newsletter-issues-list"
+          data-direction="ascending"
+          data-label-ascending={dgettext("marketing", "Sort issues newest first")}
+          data-label-descending={dgettext("marketing", "Sort issues oldest first")}
+          aria-label={dgettext("marketing", "Sort issues newest first")}
+          aria-controls="newsletter-issues-list"
+        >
+          <.sort_icon size={16} />
+        </.neutral_button>
+      </div>
+      <ol id="newsletter-issues-list" data-part="list" data-direction="ascending">
+        <li
+          :for={issue <- @issues}
+          data-part="row"
+          data-number={issue.number}
+          value={issue.number}
+        >
+          <.link href={~p"/newsletter/issues/#{issue.number}"} data-part="link">
+            <span data-part="number">{"##{issue.number}"}</span>
+            <span data-part="issue-title">{issue.title}</span>
+            <span data-part="date">{Timex.format!(issue.date, "{Mshort} {D}, {YYYY}")}</span>
+          </.link>
+        </li>
+      </ol>
+    </section>
+
     <%!-- CTA framed by dithered divider bands, same recipe as the previews
     page's closing CTA. --%>
     <div data-part="divider" aria-hidden="true">
