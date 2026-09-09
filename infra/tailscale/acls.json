@@ -309,7 +309,13 @@
 		// re-advertised.
 		//
 		// Widen to the rack's real prefix only once the catch-all above is gone
-		// and this file is the thing that actually decides reachability.
+		// and this file is the thing that actually decides reachability. That
+		// removal is a PREREQUISITE for the BER1 rack, not a follow-up: a rack
+		// advertised as one prefix under the catch-all gives every device on the
+		// tailnet SSH to every mini, and the runner VMs on this tailnet execute
+		// customer build code. The per-env grants below were written to survive
+		// the removal, so the work is auditing what still leans on the catch-all
+		// (Talos node access, ops laptops) rather than rewriting them.
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["192.168.0.41/32"],

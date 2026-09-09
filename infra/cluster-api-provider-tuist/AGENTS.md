@@ -365,6 +365,34 @@ the route each time; a rack's subnet router is a long-lived box that advertises
 once, so auto-approval would buy nothing and would let any device holding the
 approver tag put a private prefix into the tailnet's routing table.
 
+### Two prerequisites before a real rack replaces the prototype
+
+Both are cheap to do early and expensive to retrofit, and neither is visible
+from the code.
+
+**1. Remove the catch-all grant before widening past /32.** A rack wants its
+mini VLAN advertised as one prefix rather than a /32 per host, and that is only
+safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
+`infra/tailscale/acls.json`. While it is there it subsumes every narrowing
+below it, so an advertised prefix is reachable on every port by every device on
+the tailnet, CI runner VMs included: those execute customer build code and would
+gain SSH to every mini in the rack. The per-env grants in that file were written
+to survive the removal (their comment says exactly that), so the work is an
+audit of what still depends on the catch-all, chiefly Talos node access and ops
+laptops, not a rewrite. Until it is gone, keep advertising per-host /32s, which
+is correct but does not scale past a handful of boxes.
+
+**2. Run two subnet routers, not one.** Tailscale supports HA subnet routing:
+two nodes advertising the same prefix, one primary, automatic failover. A single
+service node is a single point of failure for every first dial and every drift
+push into the rack, which is the one path that has no fallback. Already-Ready
+Nodes keep working without it, which is precisely why this will look fine right
+up until a host needs re-bootstrapping and cannot be reached. The rack's own
+power doctrine is to dual-feed the pets; the service node is a pet.
+
+Both are also why the prototype's /32 is not merely a prototype artefact: it is
+the shape to keep until (1) is done.
+
 ### Operating
 
 Inventory is chart-rendered from `rackFleet.hosts` in the env's values, so
