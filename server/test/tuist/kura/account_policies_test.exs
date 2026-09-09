@@ -76,6 +76,34 @@ defmodule Tuist.Kura.AccountPoliciesTest do
                {:ok, %{plan: :enterprise, service_region: "eu-central"}}
     end
 
+    test "refuses a paid account whose live instance is in a region the catalog does not name" do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. Resolving past it to the residency default
+      # would cold-provision a second instance there, on the very KuraInstance
+      # name the account already holds.
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      live_instance(account, "atlantis")
+
+      assert AccountPolicies.resolve(account) == {:error, :region_unknown}
+    end
+
+    test "refuses a paid account whose placement row names a region the catalog does not name" do
+      account = organization_account()
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      live_instance(account, "us-east")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "atlantis")
+
+      assert AccountPolicies.resolve(account) == {:error, :region_unknown}
+    end
+
+    test "refuses an Air account whose live instance is in a region the catalog does not name" do
+      account = organization_account()
+      live_instance(account, "atlantis")
+
+      assert AccountPolicies.resolve(account) == {:error, :region_unknown}
+    end
+
     test "does not resolve a paid account into its private runner-cache region" do
       # A runner-cache instance is provisioned by a separate identity rule, is
       # never CLI-facing, and lives in a region the lifecycle never iterates.

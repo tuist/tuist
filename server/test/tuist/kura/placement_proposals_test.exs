@@ -199,6 +199,28 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert PlacementProposals.open_proposal_for(account) == nil
     end
 
+    test "leaves an account whose live instance is in a region the catalog does not name alone, without placement rows" do
+      # Without placement rows the sweep reads the live instances, and a live
+      # region the catalog does not name has to count there too, or the account
+      # is placed as if it held only its known region.
+      account = paid_account()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: "https://#{account.name}-atlantis-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 30, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
     test "refreshes the evidence on an unchanged recommendation rather than churning rows" do
       account = paid_account()
       insert_server!(account, "us-east")

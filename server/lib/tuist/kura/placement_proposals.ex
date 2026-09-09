@@ -336,10 +336,13 @@ defmodule Tuist.Kura.PlacementProposals do
     |> Repo.preload(subscriptions: active_subscriptions())
   end
 
+  # Excludes what is known to be private rather than including what is known
+  # to be public, so a live region the catalog does not name still counts as
+  # held; `known_regions?/2` is what reads it.
   defp live_regions(account_ids) do
     Server
     |> where([server], server.account_id in ^account_ids)
-    |> where([server], server.region in ^public_region_ids())
+    |> where([server], server.region not in ^private_region_ids())
     |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses() and server.move_phase == :none)
     |> order_by([server], asc: server.inserted_at, asc: server.id)
     |> select([server], {server.account_id, server.region})
@@ -395,6 +398,12 @@ defmodule Tuist.Kura.PlacementProposals do
   defp public_region_ids do
     Regions.all()
     |> Enum.reject(&Regions.private?/1)
+    |> Enum.map(& &1.id)
+  end
+
+  defp private_region_ids do
+    Regions.all()
+    |> Enum.filter(&Regions.private?/1)
     |> Enum.map(& &1.id)
   end
 end
