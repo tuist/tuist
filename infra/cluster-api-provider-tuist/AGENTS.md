@@ -208,6 +208,23 @@ own source address. Notes:
   refills within seconds, which is why hosts stayed wedged for weeks with the
   watchdog installed and firing.
 
+### Linux fleet node ports
+
+The Linux self-join boxes have the same internet-facing public interface and no
+host firewall, but their node-to-node ports are scoped from inside the cluster
+instead of at a pf edge: `fleet-node-ports-no-world`, a Cilium host policy in
+`infra/helm/platform`, denies `world` the kubelet (10250/tcp), VXLAN (8472/udp)
+and cilium-health (4240/tcp). Cilium already programs these nodes' iptables, so
+a host firewall here is a second filtering layer it cannot see, which is what
+severed a node's pod network when the Vultr image shipped ufw enabled.
+
+That policy selects nodes by `node.cluster.x-k8s.io/instance-type` merely
+existing. `kubeletUnitContent` renders that label into every kubelet unit this
+provider writes and `instanceTypeOrDefault` keeps it non-empty, which is what
+makes the selector a predicate over the bootstrap rather than a list someone
+has to extend per provider. Dropping the label, or setting it from a path that
+can leave it empty, silently unselects the node and reopens the ports.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a

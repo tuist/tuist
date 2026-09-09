@@ -105,3 +105,6 @@ kura-ca-east-ingress-nginx:
 # requests are dropped by the per-instance NetworkPolicy and answer 504.
 kuraGatewayNetworkPolicy:
   enabled: true
+
+fleetNodePortsNetworkPolicy:
+  enabled: true

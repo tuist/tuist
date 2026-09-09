@@ -289,6 +289,19 @@ kuraGatewayNetworkPolicy:
   namespace: kura
   port: 4000
 
+# Denies `world` the kubelet (10250/tcp), Cilium VXLAN (8472/udp) and
+# cilium-health (4240/tcp) ports on bare-metal fleet nodes, whose InternalIP is
+# a routable address and which carry no host firewall. Selects every node the
+# cluster-api-provider-tuist Linux self-join bootstraps, by the
+# node.cluster.x-k8s.io/instance-type label it always writes.
+#
+# Enforced only where Cilium runs `enable-host-firewall: true`; the object
+# applies either way, so confirm the flag on a cluster before relying on it.
+# If a host endpoint ever locks out, set this to false and redeploy, or delete
+# the CiliumClusterwideNetworkPolicy `fleet-node-ports-no-world` directly.
+fleetNodePortsNetworkPolicy:
+  enabled: false
+
 external-dns:
   enabled: true
   provider: cloudflare
