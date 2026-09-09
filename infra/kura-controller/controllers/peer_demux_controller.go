@@ -342,8 +342,12 @@ func (r *PeerDemuxReconciler) image() string {
 	return defaultPeerDemuxImage
 }
 
-func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapInstance := func(_ context.Context, obj client.Object) []reconcile.Request {
+// peerDemuxInstanceEventHandler enqueues the region of the KuraInstance an
+// event is about. EnqueueRequestsFromMapFunc maps both the old and the new
+// object of an update, so a region change also enqueues the region the
+// instance left and that region's demux is torn down.
+func peerDemuxInstanceEventHandler() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
 		instance, ok := obj.(*kurav1alpha1.KuraInstance)
 		if !ok || instance.Spec.Region == "" {
 			return nil
@@ -351,12 +355,15 @@ func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instance.Spec.Region, Namespace: instance.Namespace},
 		}}
-	}
+	})
+}
+
+func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("peer-demux").
 		Watches(
 			&kurav1alpha1.KuraInstance{},
-			handler.EnqueueRequestsFromMapFunc(mapInstance),
+			peerDemuxInstanceEventHandler(),
 			builder.WithPredicates(kuraInstanceDesiredStateChangedPredicate()),
 		).
 		Complete(r)
