@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,6 +35,7 @@ func main() {
 	var watchNamespace string
 	var grpcClusterIssuer string
 	var publicTLSSecretName string
+	var publicTLSDNSNames string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
 
@@ -43,6 +45,7 @@ func main() {
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer backing the per-instance public-host certificate (leaves public TLS unprovisioned when empty)")
 	flag.StringVar(&publicTLSSecretName, "public-tls-secret-name", "", "Shared wildcard TLS Secret every public Ingress terminates on (falls back to a per-instance certificate when empty or not yet issued)")
+	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 
@@ -90,6 +93,25 @@ func main() {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
+	if publicTLSDNSNames != "" {
+		names := []string{}
+		for _, name := range strings.Split(publicTLSDNSNames, ",") {
+			if trimmed := strings.TrimSpace(name); trimmed != "" {
+				names = append(names, trimmed)
+			}
+		}
+		if err := mgr.Add(&controllers.PublicWildcardCertificate{
+			Client:        mgr.GetClient(),
+			Namespace:     watchNamespace,
+			SecretName:    publicTLSSecretName,
+			DNSNames:      names,
+			ClusterIssuer: grpcClusterIssuer,
+		}); err != nil {
+			setupLog.Error(err, "setup PublicWildcardCertificate")
+			os.Exit(1)
+		}
+	}
+
 	if err := (&controllers.PeerDemuxReconciler{
 		Client:    mgr.GetClient(),
 		APIReader: mgr.GetAPIReader(),

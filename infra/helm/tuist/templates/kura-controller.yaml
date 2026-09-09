@@ -297,32 +297,6 @@ subjects:
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
-{{- if $publicWildcard.enabled }}
----
-# Every KuraInstance Ingress in this namespace terminates on this Secret, so an
-# account's endpoint serves the moment its Ingress exists.
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: {{ $publicWildcard.secretName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura
-spec:
-  secretName: {{ $publicWildcard.secretName }}
-  dnsNames:
-    {{- range $publicWildcard.dnsNames }}
-    - {{ . | quote }}
-    {{- end }}
-  issuerRef:
-    name: {{ $tlsClusterIssuer }}
-    kind: ClusterIssuer
-  privateKey:
-    algorithm: ECDSA
-    size: 256
-    rotationPolicy: Always
-{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -370,6 +344,7 @@ spec:
             {{- end }}
             {{- if $publicWildcard.enabled }}
             - --public-tls-secret-name={{ $publicWildcard.secretName }}
+            - --public-tls-dns-names={{ join "," $publicWildcard.dnsNames }}
             {{- end }}
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}

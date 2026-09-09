@@ -93,6 +93,8 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     - **get_xcode_build**: Get detailed metrics for an Xcode build run (by ID or dashboard URL).
     - **list_xcode_build_targets**: List per-target build and compilation durations.
     - **list_xcode_build_files**: List per-file compilation durations (sorted slowest-first by default).
+    - **list_xcode_build_steps**: List recorded operations with timings and outcomes; filter by target or search and paginate, slowest first by default.
+    - **get_xcode_build_step**: Inspect a step's recorded log using its build ID and decimal string step ID.
     - **list_xcode_build_issues**: List warnings and errors.
     - **list_xcode_build_cache_tasks**: List cache hit/miss status per task.
     - **list_xcode_build_cas_outputs**: List CAS upload/download operations.
@@ -142,6 +144,10 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
 
     Use `list_xcode_build_files` filtered by the regressed target. Compare `compilation_duration` per file.
     Identify the slowest files and any new files that appeared in the head build.
+
+    For individual compiler, linker, or script operations, use `list_xcode_build_steps` filtered by the affected target.
+    Inspect relevant output with `get_xcode_build_step`. Step IDs are scoped to each build; compare titles and targets,
+    not IDs. Respect `availability` and `log_truncated`: missing or expired records are not evidence that work did not run.
 
     ### 5. Check issues
 

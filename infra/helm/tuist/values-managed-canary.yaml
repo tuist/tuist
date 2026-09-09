@@ -279,6 +279,27 @@ clickhouse:
         # not the pool label. The second box is joined, tainted and idle until
         # the two-replica work lands.
         nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads from the in-cluster
+    # server yet, so a mirrored write that fails costs a metric and not a
+    # request: inserts are handed to a bounded Task.Supervisor rather than
+    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
+    # cannot overtake the inserts it is meant to erase.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow pool
+    # is not ready for the first seconds of its life, which is what the retry
+    # covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
     keeper:
       replicas: 1
     backup:
@@ -298,17 +319,24 @@ clickhouse:
     # makes the destination reject a non-replicated table, so creation
     # succeeding is the proof.
     #
-    # Being a post-upgrade hook, this re-runs on every deploy while it is
-    # enabled. That is harmless for the clone, which creates what is missing
-    # and leaves the rest, but the step after it is not: advance `task` rather
-    # than leaving this armed once the gate is met.
+    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
+    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
+    # one enabled re-runs it on every deploy. That was harmless for the clone,
+    # which creates what is missing and leaves the rest alone, and it is not
+    # harmless for what comes next.
     #
-    # `cutoff` stays unset. It belongs to the backfill, two steps later, and is
-    # read off the completed rollout of the deploy that turns dual writes on.
+    # `name` and `task` are the step this would run if it were enabled, which
+    # is why they name the *next* one rather than the last that ran.
+    #
+    # `cutoff` is deliberately absent, and arming the backfill without it fails
+    # loudly rather than copying to a stale timestamp. Set it to a moment after
+    # the deploy that turns dual writes on above has finished rolling out: the
+    # backfill covers everything before it, the mirror covers everything after,
+    # and naming the boundary is what stops the two from leaving a gap.
     migration:
-      enabled: true
-      name: schema-clone
-      task: Tuist.Release.clone_clickhouse_schema
+      enabled: false
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
 
   poolSize: "30"
   bufferPoolSize: "30"
