@@ -13,6 +13,12 @@ name: BER1 Smoke
 
 on:
   workflow_dispatch: {}
+  # TEMPORARY, removed before merge. workflow_dispatch only works once the file
+  # is on the default branch, so this is the only way to exercise the job from
+  # the branch that introduces it.
+  push:
+    branches: [claude/beautiful-joliot-04180d]
+    paths: ['.github/workflows/ber1-smoke.yml']
 
 permissions:
   contents: read
