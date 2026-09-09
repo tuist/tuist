@@ -7,18 +7,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// A pointer field whose DeepCopyInto block is missing is shallow-copied by
-// `*out = *in`, so the copy aliases the original — which silently breaks
-// controller-runtime's cache isolation: a reconciler mutating what it believes
-// is its own copy corrupts the cached object and the patch baseline computed
-// from it. `mise run capi-scaleway-applesilicon:generate` emits those blocks,
-// but nothing fails if someone edits the status and skips the regeneration, and
-// the compiler cannot catch it. So assert it here: every pointer must survive a
-// round trip through DeepCopy with its own backing memory.
+// zz_generated.deepcopy.go is written by controller-gen through
+// `mise run capi-scaleway-applesilicon:generate`. A pointer field added to a
+// status without a matching block there is shallow-copied by `*out = *in`, so
+// the copy aliases the original, which silently breaks controller-runtime's
+// cache isolation: a reconciler mutating what it believes is its own copy
+// corrupts the cached object and the patch baseline computed from it. The
+// generator gets this right; a type declaring its own DeepCopyInto, which the
+// generator then skips entirely, does not. The compiler catches neither, so
+// assert it here: every pointer must survive a round trip through DeepCopy with
+// its own backing memory.
 //
 // These pointers live on the embedded HostAgentStatus, which BOTH macOS machine
 // kinds carry, so the assertion is made once on that block and then once per
-// kind — a kind that embedded it without a generated DeepCopyInto of its own
+// kind: a kind that embedded it without a generated DeepCopyInto of its own
 // would alias every one of them.
 func TestHostAgentStatusDeepCopyDoesNotAliasPointers(t *testing.T) {
 	reason := "TartKubeletUpdateExceededRetries"

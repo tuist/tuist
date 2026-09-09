@@ -48,9 +48,20 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
+| `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
 `samm`, `sammt`, `sasc`, `sasm`, `sasmt`, `rh`.
+
+Every kind above is generated from the annotated types in
+[`api/v1alpha1/`](api/v1alpha1/) by
+`mise run capi-scaleway-applesilicon:generate`, which also writes
+`zz_generated.deepcopy.go` and stamps the `cluster.x-k8s.io/v1beta1` contract
+label CAPI core discovers providers by. Schema, printer columns, and the status
+subresource all come from `+kubebuilder:` markers, so a manifest edited by hand
+is reverted by the next run. The `generated` job in
+[`capi-provider-scaleway-applesilicon-image.yml`](../../.github/workflows/capi-provider-scaleway-applesilicon-image.yml)
+re-runs the task and fails on a diff.
 
 ## Architecture
 
