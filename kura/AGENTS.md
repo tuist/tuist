@@ -9,7 +9,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-  - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Preserve cancellation cleanup and wakeups on slot release and pressure changes. Keep occupied-slot and effective-capacity metrics aligned with admission.
+  - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Use the FIFO admission turn and dedicated pressure-tier signal; preserve cancellation cleanup through blocking record writes and expose queue outcomes/depth. Keep occupied-slot and effective-capacity metrics aligned with admission.
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Peer TLS support: `src/peer_tls.rs`

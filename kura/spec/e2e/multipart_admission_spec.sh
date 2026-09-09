@@ -4,8 +4,27 @@ Describe 'memory-derived multipart admission'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
+    if [ -n "${KURA_MULTIPART_TEST_URL:-}" ]; then
+      KURA_US_URL="${KURA_MULTIPART_TEST_URL}"
+      return 0
+    fi
+    # Give the normal-pressure fixture ample room while retaining exactly
+    # 256 MiB between watermarks. Pressure transitions have unit coverage.
+    cat >"${SUITE_TMP_DIR}/admission.yml" <<'YAML'
+services:
+  kura-us:
+    mem_limit: 2g
+    environment:
+      KURA_MEMORY_SOFT_LIMIT_BYTES: "1073741824"
+      KURA_MEMORY_HARD_LIMIT_BYTES: "1342177280"
+      KURA_METADATA_STORE_READ_CACHE_BYTES: "16777216"
+      KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES: "16777216"
+      KURA_METADATA_STORE_WRITE_BUFFER_BYTES: "4194304"
+      KURA_PEERS: ""
+      KURA_DISCOVERY_DNS_NAME: ""
+YAML
+    COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml" -f "${SUITE_TMP_DIR}/admission.yml")
     suite_env COMPOSE_PROJECT_NAME kura-multipart-admission
     ephemeral_ports KURA_US_PORT
     dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -15,18 +34,41 @@ Describe 'memory-derived multipart admission'
   }
 
   teardown_suite() {
-    compose_teardown
+    if [ -n "${KURA_MULTIPART_TEST_URL:-}" ]; then
+      rm -rf "${SUITE_TMP_DIR:?}"
+    else
+      compose_teardown
+    fi
+  }
+
+  resolve_suite_node() {
+    if [ -n "${KURA_MULTIPART_TEST_URL:-}" ]; then
+      KURA_US_URL="${KURA_MULTIPART_TEST_URL}"
+    else
+      resolve_http_node KURA_US kura-us
+    fi
+  }
+
+  metric_value() {
+    curl -fsS "${KURA_US_URL}/metrics" | awk -v name="$1" '$1 == name { print $2 }'
+  }
+
+  wait_metric_value() {
+    for _ in $(seq 1 100); do
+      value="$(metric_value "$1")"
+      [ "${value}" = "$2" ] && return 0
+      sleep 0.1
+    done
+    return 1
   }
 
   BeforeAll 'setup_suite'
-  Before 'resolve_http_node KURA_US kura-us'
+  Before 'resolve_suite_node'
   AfterAll 'teardown_suite'
 
   It 'admits more than 128 sessions and sheds at its memory-derived limit'
-    # Compose gives this node 256 MiB between the soft and hard watermarks.
-    capture_into metrics wait_for_contains "${KURA_US_URL}/metrics" \
-      'kura_multipart_upload_capacity 256' || return 1
-    The variable metrics should include 'kura_multipart_upload_capacity 256'
+    wait_metric_value kura_memory_pressure_state 0 || return 1
+    wait_metric_value kura_multipart_upload_capacity 256 || return 1
 
     capture_into first_start curl -fsS -X POST \
       "${KURA_US_URL}/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=first&name=Module&cache_category=builds" || return 1
@@ -54,15 +96,13 @@ Describe 'memory-derived multipart admission'
       "${KURA_US_URL}/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=waiting&name=Module&cache_category=builds" \
       >"${SUITE_TMP_DIR}/waiting.status" &
     waiting_pid=$!
-    # Observe queue registration before releasing the occupied slot.
+    # Exact gauge matching cannot mistake 20 queued requests for 2.
     for _ in $(seq 1 50); do
-      actions="$(curl -fsS "${KURA_US_URL}/metrics")"
-      case "${actions}" in
-        *'kura_memory_actions_total_total{action="multipart_upload_admission_wait"} 2'*) break ;;
-      esac
+      queued="$(metric_value kura_multipart_upload_waiters)"
+      [ "${queued}" = 1 ] && break
       sleep 0.01
     done
-    The variable actions should include 'kura_memory_actions_total_total{action="multipart_upload_admission_wait"} 2'
+    The variable queued should eq 1
     completed="$(status_only -X POST \
       "${KURA_US_URL}/api/cache/module/complete?upload_id=${first_id}" \
       -H 'content-type: application/json' -d '{"parts":[1]}')"
@@ -73,9 +113,10 @@ Describe 'memory-derived multipart admission'
     waiting_id="$(extract_upload_id "$(cat "${SUITE_TMP_DIR}/waiting.json")")"
     The variable waiting_id should be present
 
-    capture_into metrics wait_for_contains "${KURA_US_URL}/metrics" \
-      'kura_multipart_uploads 256' || return 1
-    The variable metrics should include 'kura_multipart_uploads 256'
-    The variable metrics should include 'kura_multipart_upload_capacity 256'
+    wait_metric_value kura_multipart_uploads 256 || return 1
+    wait_metric_value kura_multipart_upload_capacity 256 || return 1
+    wait_metric_value kura_multipart_upload_waiters 0 || return 1
+    wait_metric_value 'kura_multipart_upload_admissions_total_total{outcome="timeout"}' 1 || return 1
+    wait_metric_value 'kura_multipart_upload_admissions_total_total{outcome="waited"}' 1 || return 1
   End
 End

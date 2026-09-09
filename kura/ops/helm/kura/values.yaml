@@ -212,7 +212,9 @@ config:
 # Multipart session capacity automatically follows memory headroom and pressure.
 # Busy starts wait up to one second in a queue bounded by the effective slot cap.
 # Set KURA_MULTIPART_MAX_ACTIVE_UPLOADS through extraEnv only for a fixed override;
-# the wait and critical-pressure protection still apply.
+# the FIFO wait and critical-pressure protection still apply (effective cap is zero).
+# Staging bytes remain independently limited by KURA_MULTIPART_MAX_STORED_BYTES /
+# KURA_TMP_DIR_MAX_BYTES; size these against disk, not the pod memory ceiling.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

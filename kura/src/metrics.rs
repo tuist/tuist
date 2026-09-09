@@ -118,6 +118,9 @@ pub struct MetricsInner {
     outbox_target_messages: Family<OutboxTargetLabels, Gauge>,
     multipart_uploads: Gauge,
     multipart_upload_capacity: Gauge,
+    multipart_upload_waiters: Gauge,
+    multipart_upload_admissions: Family<MultipartAdmissionLabels, Counter>,
+    multipart_upload_admission_duration: Histogram,
     tmp_dir_bytes: Gauge,
     discovered_peer_nodes: Gauge,
     backfill_horizon_age_ms: Gauge,
@@ -678,6 +681,10 @@ impl Metrics {
         let outbox_lane_messages = Family::<OutboxLaneLabels, Gauge>::default();
         let multipart_uploads = Gauge::default();
         let multipart_upload_capacity = Gauge::default();
+        let multipart_upload_waiters = Gauge::default();
+        let multipart_upload_admissions = Family::<MultipartAdmissionLabels, Counter>::default();
+        let multipart_upload_admission_duration =
+            Histogram::new(exponential_buckets(0.001, 2.0, 14));
         let tmp_dir_bytes = Gauge::default();
         let discovered_peer_nodes = Gauge::default();
         let backfill_horizon_age_ms = Gauge::default();
@@ -1240,6 +1247,21 @@ impl Metrics {
             "kura_multipart_upload_capacity",
             "Current multipart upload admission limit",
             multipart_upload_capacity.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_waiters",
+            "Multipart starts queued for a session slot",
+            multipart_upload_waiters.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_admissions_total",
+            "Multipart session admission outcomes",
+            multipart_upload_admissions.clone(),
+        );
+        registry.register(
+            "kura_multipart_upload_admission_duration_seconds",
+            "Time spent admitting multipart sessions",
+            multipart_upload_admission_duration.clone(),
         );
         registry.register(
             "kura_tmp_dir_bytes",
@@ -1830,6 +1852,9 @@ impl Metrics {
                 outbox_target_messages,
                 multipart_uploads,
                 multipart_upload_capacity,
+                multipart_upload_waiters,
+                multipart_upload_admissions,
+                multipart_upload_admission_duration,
                 tmp_dir_bytes,
                 discovered_peer_nodes,
                 backfill_horizon_age_ms,
@@ -2575,6 +2600,24 @@ impl Metrics {
         if total > recorded {
             self.segment_fsyncs.inc_by(total - recorded);
         }
+    }
+
+    pub fn add_multipart_upload_waiter(&self) {
+        self.multipart_upload_waiters.inc();
+    }
+
+    pub fn remove_multipart_upload_waiter(&self) {
+        self.multipart_upload_waiters.dec();
+    }
+
+    pub fn record_multipart_upload_admission(&self, outcome: &str, duration: Duration) {
+        self.multipart_upload_admissions
+            .get_or_create(&MultipartAdmissionLabels {
+                outcome: outcome.to_owned(),
+            })
+            .inc();
+        self.multipart_upload_admission_duration
+            .observe(duration.as_secs_f64());
     }
 
     pub fn update_multipart_uploads(&self, count: usize, capacity: usize) {
@@ -3478,6 +3521,11 @@ struct MemoryActionLabels {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ResponseStreamProtocolLabels {
     protocol: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct MultipartAdmissionLabels {
+    outcome: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

@@ -972,14 +972,33 @@ headroom, and critical pressure closes new session admission. Compare
 `kura_multipart_uploads` with `kura_multipart_upload_capacity`; occupancy may
 remain above a reduced cap while existing sessions finish. With default
 watermarks, a 4 GiB ceiling permits 1,024 sessions at normal pressure.
-Busy starts now wait up to one second for completion, abort, or pressure recovery.
-The queue accepts at most the current session cap; queue overflow or deadline
-expiry still sheds. A growing
-`kura_memory_actions_total_total{action="multipart_upload_admission_wait"}` with
-no `multipart_uploads` sheds indicates bursts absorbed by waiting, with added
-start latency. Persistent sheds can still indicate a stuck backlog or sustained
-demand above capacity. Older versions without the capacity metric default to
-128 regardless of size.
+Busy starts wait up to one second behind a FIFO admission turn; younger arrivals
+cannot bypass queued requests. Only the queue head listens for releases and
+pressure-tier changes. Critical pressure reports zero capacity even with a fixed
+override. The queue accepts at most the current session cap; overflow and deadline
+expiry still shed, with retry hints expanding as the queue fills.
+
+Compare `kura_multipart_upload_waiters` with the effective capacity to see queue
+saturation. `kura_multipart_upload_admissions_total_total{outcome="waited"}` counts
+successful admission after waiting; `timeout`, `queue_full`, and `critical` count
+rejected admission, while `cancelled` counts dropped waiting futures and
+`immediate` counts immediate admission. The admission-duration histogram shows
+the latency cost. These outcomes end when a slot is reserved, before the record
+write or payload transfer, so successful admission does not prove artifact
+completion. Requests rejected by the outer memory-pressure or outbox gate do
+not enter these admission counters; keep using the cache-write shedding panel
+for those. Older versions only expose the aggregate
+`kura_memory_actions_total_total{action="multipart_upload_admission_wait"}` entry
+counter; versions without the capacity gauge default to 128 sessions.
+
+Session slots do not reserve disk bytes: `/start` supplies no expected artifact
+size. `KURA_MULTIPART_MAX_STORED_BYTES` still defaults to the staging-directory
+byte cap (8 GiB unless configured otherwise). A larger session budget can expose
+`multipart_storage` sheds at `/part`; raising memory alone cannot solve disk
+saturation. Size the byte cap against available staging disk and inspect abandoned
+parts before increasing it. Async record creation retains its slot while a
+cancelled start's record is removed; cleanup failure keeps the record and slot
+for the janitor instead of allowing accounting to undercount.
 
 **An orphaned backlog can outlive the restart that caused it.** Startup seeds the
 admission atomic from persisted state, and when that lands over the limit it logs

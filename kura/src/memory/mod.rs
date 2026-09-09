@@ -94,6 +94,7 @@ struct MemoryControllerInner {
     response_stream_notify_without_waiters: AtomicBool,
     state: AtomicU8,
     pressure_changed: Notify,
+    pressure_tier_changed: Notify,
     /// Mapped regions currently lent out, each holding its pool permit once.
     mmap_regions: StdMutex<HashMap<MmapRegion, MmapRegionEntry>>,
     pools: MemoryPools,
@@ -220,6 +221,7 @@ impl MemoryController {
                 response_stream_notify_without_waiters: AtomicBool::new(false),
                 state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 pressure_changed: Notify::new(),
+                pressure_tier_changed: Notify::new(),
                 mmap_regions: StdMutex::new(HashMap::new()),
                 pools,
                 metrics,
@@ -257,6 +259,7 @@ impl MemoryController {
         if next != current {
             self.inner.state.store(next.as_u8(), Ordering::Relaxed);
             self.inner.pressure_changed.notify_waiters();
+            self.inner.pressure_tier_changed.notify_waiters();
             self.inner
                 .metrics
                 .record_memory_pressure_transition(current.as_str(), next.as_str());
@@ -332,8 +335,8 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
-    pub(crate) fn pressure_changed(&self) -> tokio::sync::futures::Notified<'_> {
-        self.inner.pressure_changed.notified()
+    pub(crate) fn pressure_tier_changed(&self) -> tokio::sync::futures::Notified<'_> {
+        self.inner.pressure_tier_changed.notified()
     }
 
     // Every admission gate below follows the pressure tier alone. The raw
@@ -1128,6 +1131,18 @@ impl MemoryController {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn pressure_tier_signal_ignores_response_permit_releases() {
+        let controller =
+            MemoryController::new(Metrics::new("local".into(), "tenant".into()), 100, 200);
+        let mut changed = Box::pin(controller.pressure_tier_changed());
+        assert!(futures_util::poll!(&mut changed).is_pending());
+        controller.inner.pressure_changed.notify_waiters();
+        assert!(futures_util::poll!(&mut changed).is_pending());
+        controller.observe(150);
+        assert!(futures_util::poll!(&mut changed).is_ready());
+    }
 
     fn mmap_region(source: &str, len: usize) -> MmapRegion {
         MmapRegion {

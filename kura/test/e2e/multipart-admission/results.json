@@ -40,20 +40,20 @@
       "start_statuses": {
         "200": 384
       },
-      "start_p50_ms": 390.24,
-      "start_p99_ms": 687.88,
+      "start_p50_ms": 337.42,
+      "start_p99_ms": 685.32,
       "completed": 768,
       "verified_downloads": 384,
       "ordinary_reads": 66,
-      "ordinary_read_p99_ms": 13.64,
+      "ordinary_read_p99_ms": 17.85,
       "peak_memory_mib": {
-        "kura_jemalloc_allocated_bytes": 118.08,
-        "kura_jemalloc_resident_bytes": 257.56,
-        "kura_memory_transient_reserved_bytes": 12.62,
+        "kura_jemalloc_allocated_bytes": 110.86,
+        "kura_jemalloc_resident_bytes": 258.56,
+        "kura_memory_transient_reserved_bytes": 11.62,
         "kura_memory_elastic_transient_reserved_bytes": 0.0
       },
-      "peak_rss_mib": 230.28,
-      "elapsed_seconds": 7.44
+      "peak_rss_mib": 227.47,
+      "elapsed_seconds": 7.3
     },
     {
       "case": "before-256",
@@ -92,20 +92,20 @@
       "start_statuses": {
         "200": 768
       },
-      "start_p50_ms": 460.46,
-      "start_p99_ms": 988.75,
+      "start_p50_ms": 431.05,
+      "start_p99_ms": 929.09,
       "completed": 1536,
       "verified_downloads": 768,
-      "ordinary_reads": 117,
-      "ordinary_read_p99_ms": 11.72,
+      "ordinary_reads": 119,
+      "ordinary_read_p99_ms": 12.43,
       "peak_memory_mib": {
-        "kura_jemalloc_allocated_bytes": 125.37,
-        "kura_jemalloc_resident_bytes": 330.83,
-        "kura_memory_transient_reserved_bytes": 23.38,
+        "kura_jemalloc_allocated_bytes": 163.13,
+        "kura_jemalloc_resident_bytes": 362.31,
+        "kura_memory_transient_reserved_bytes": 23.69,
         "kura_memory_elastic_transient_reserved_bytes": 0.0
       },
-      "peak_rss_mib": 308.64,
-      "elapsed_seconds": 13.08
+      "peak_rss_mib": 332.33,
+      "elapsed_seconds": 13.26
     },
     {
       "case": "after-1024",
@@ -118,20 +118,20 @@
       "start_statuses": {
         "200": 128
       },
-      "start_p50_ms": 415.61,
-      "start_p99_ms": 479.8,
+      "start_p50_ms": 412.48,
+      "start_p99_ms": 474.69,
       "completed": 1152,
       "verified_downloads": 128,
-      "ordinary_reads": 110,
-      "ordinary_read_p99_ms": 8.63,
+      "ordinary_reads": 111,
+      "ordinary_read_p99_ms": 7.68,
       "peak_memory_mib": {
-        "kura_jemalloc_allocated_bytes": 4.76,
-        "kura_jemalloc_resident_bytes": 22.83,
-        "kura_memory_transient_reserved_bytes": 19.0,
+        "kura_jemalloc_allocated_bytes": 5.02,
+        "kura_jemalloc_resident_bytes": 21.62,
+        "kura_memory_transient_reserved_bytes": 23.88,
         "kura_memory_elastic_transient_reserved_bytes": 0.0
       },
-      "peak_rss_mib": 248.61,
-      "elapsed_seconds": 12.39
+      "peak_rss_mib": 262.06,
+      "elapsed_seconds": 12.21
     },
     {
       "case": "after-overflow",
@@ -145,20 +145,20 @@
         "429": 128,
         "200": 128
       },
-      "start_p50_ms": 31.63,
-      "start_p99_ms": 831.62,
+      "start_p50_ms": 46.67,
+      "start_p99_ms": 652.52,
       "completed": 256,
       "verified_downloads": 128,
-      "ordinary_reads": 32,
-      "ordinary_read_p99_ms": 17.23,
+      "ordinary_reads": 28,
+      "ordinary_read_p99_ms": 10.04,
       "peak_memory_mib": {
-        "kura_jemalloc_allocated_bytes": 3.67,
-        "kura_jemalloc_resident_bytes": 10.23,
-        "kura_memory_transient_reserved_bytes": 9.12,
+        "kura_jemalloc_allocated_bytes": 3.69,
+        "kura_jemalloc_resident_bytes": 10.34,
+        "kura_memory_transient_reserved_bytes": 13.44,
         "kura_memory_elastic_transient_reserved_bytes": 0.0
       },
-      "peak_rss_mib": 146.75,
-      "elapsed_seconds": 3.74
+      "peak_rss_mib": 138.94,
+      "elapsed_seconds": 3.59
     },
     {
       "case": "after-stalled",
@@ -171,20 +171,21 @@
       "start_statuses": {
         "429": 128
       },
-      "start_p50_ms": 1028.72,
-      "start_p99_ms": 1029.43,
+      "start_p50_ms": 1016.84,
+      "start_p99_ms": 1017.73,
       "completed": 128,
       "verified_downloads": 0,
-      "ordinary_reads": 27,
-      "ordinary_read_p99_ms": 2.45,
+      "ordinary_reads": 28,
+      "ordinary_read_p99_ms": 2.4,
       "peak_memory_mib": {
-        "kura_jemalloc_allocated_bytes": 3.73,
-        "kura_jemalloc_resident_bytes": 10.48,
-        "kura_memory_transient_reserved_bytes": 0.12,
+        "kura_jemalloc_allocated_bytes": 3.71,
+        "kura_jemalloc_resident_bytes": 10.55,
+        "kura_memory_transient_reserved_bytes": 5.69,
         "kura_memory_elastic_transient_reserved_bytes": 0.0
       },
-      "peak_rss_mib": 99.27,
-      "elapsed_seconds": 2.99
+      "peak_rss_mib": 97.34,
+      "elapsed_seconds": 3.09
     }
-  ]
+  ],
+  "implementation": "FIFO multipart admission with a dedicated pressure-tier signal and cancellation-safe blocking record writes"
 }

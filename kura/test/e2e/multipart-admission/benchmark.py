@@ -113,6 +113,15 @@ async def run(args, directory, log):
             await asyncio.sleep(.1)
         else:
             raise RuntimeError('Kura did not become ready')
+        if args.shellspec:
+            suite_env = dict(os.environ, KURA_MULTIPART_TEST_URL=f'http://127.0.0.1:{port}')
+            suite = await asyncio.create_subprocess_exec(args.shellspec,
+                'spec/e2e/multipart_admission_spec.sh', env=suite_env,
+                cwd=str(Path(__file__).resolve().parents[3]))
+            code = await suite.wait()
+            if code:
+                raise RuntimeError(f'ShellSpec failed: {code}')
+            return dict(shellspec='passed', capacity=args.headroom_mib)
         status, body = await request(port, start_path('probe'))
         if status != 200:
             raise RuntimeError('probe upload start failed')
@@ -192,6 +201,7 @@ async def run(args, directory, log):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary')
+    parser.add_argument('--shellspec', help='Run the multipart ShellSpec using this executable and the isolated native server')
     parser.add_argument('--headroom-mib', type=int, default=128)
     parser.add_argument('--fixed-limit', type=int)
     parser.add_argument('--burst', type=int, default=128)
@@ -199,6 +209,8 @@ def main():
     parser.add_argument('--hold-ms', type=int, default=200)
     parser.add_argument('--payload-kib', type=int, default=64)
     args = parser.parse_args()
+    if args.shellspec and (args.headroom_mib != 256 or args.fixed_limit):
+        parser.error('--shellspec requires --headroom-mib 256 and no fixed override')
     for name, value in vars(args).items():
         if isinstance(value, int) and value <= 0:
             parser.error(f'{name} must be positive')
