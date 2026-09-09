@@ -750,22 +750,25 @@ ovhFleets:
 # home prefix would expose every device on it, on every port, to every machine
 # on the tailnet including CI runner VMs. Without the route the claim succeeds
 # and bootstrap then fails on a dial timeout, which is loud but wasteful.
-# BER1 prototype, not the rack. Every DEVIATION comment below marks something
-# that is a property of one refurb M1 sitting on a desk on a flat home LAN, and
-# that changes when the real rack exists. Nothing here is a knob to tune: they
-# are consequences of the hardware and the network the prototype runs on.
+# BER1 prototype. Deliberately the same shape as the rack fleet will be, so
+# that standing the rack up is adding hosts rather than rewriting this block.
+#
+# Every remaining difference is marked FORCED and names the physical fact that
+# causes it: a refurb M1 with 16 GB and a 256 GB disk, sitting on a flat home
+# LAN with no switch, no VLANs and no PDU. None of them is a preference, and
+# none should be copied into the rack's values.
 rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
-  # DEVIATION (fleet size): one host. The rack's replicas come from the declared
-  # host count, so production omits this and lets it default. It is pinned here
-  # only because there is one box and an explicit 1 reads as deliberate.
-  replicas: 1
+  # replicas intentionally omitted, exactly as the rack will omit it: it
+  # defaults to the declared host count, so inventory is the fleet and adding a
+  # host scales it. Pinning it here would have been a prototype-ism with no
+  # cause, since the default is already 1.
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
-      # DEVIATION (network): a home LAN address, advertised to the tailnet as a
+      # FORCED (no switch, no VLANs): a home LAN address, advertised to the tailnet as a
       # /32 because the catch-all grant in infra/tailscale/acls.json is still
       # there and a wider prefix would expose the whole house. The rack puts
       # minis on their own VLAN behind the ToR switch and advertises that prefix
@@ -773,10 +776,10 @@ rackFleet:
       # "Two prerequisites before a real rack replaces the prototype" in
       # infra/cluster-api-provider-tuist/AGENTS.md.
       address: 192.168.0.41
-      # DEVIATION (position): no rack, so no shelf or positionU. In the rack
+      # FORCED (no rack): no shelf or positionU. In the rack
       # these carry the physical location a hands-on tech needs to find the box.
       rack: proto
-      # DEVIATION (power): no `power` block at all. The Shelly plug has not been
+      # FORCED (no PDU): no `power` block at all. The Shelly plug has not been
       # delivered, so this host has no outlet: PowerReachable reports False with
       # PowerNotConfigured, the bootstrap-failure ladder skips its reboot tier
       # and escalates straight to quarantine, and `tuist.dev/power-action` is
@@ -795,7 +798,7 @@ rackFleet:
       # way the minis were, and it surfaces as a connection error on
       # PowerReachable rather than as anything naming a route.
   machine:
-    # DEVIATION (hardware): a refurb M1 with 16 GB and 256 GB, bought to prove
+    # FORCED (M1, 16 GB): a refurb M1 bought to prove
     # the plumbing. The rack is leased M5 Pro minis at 18 cores / 64 GB / 2 TB,
     # so every number in this block goes up and guestCapacity stops being 1.
     #
@@ -809,7 +812,7 @@ rackFleet:
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
     maxPods: 3
-    # DEVIATION (storage): cache volumes OFF. A 2 TB rack mini runs the fleet's
+    # FORCED (256 GB disk): cache volumes OFF. A 2 TB rack mini runs the fleet's
     # normal quota; this is only zero because the prototype's disk is 256 GB.
     #
     # This is a 256 GB box: the goldens alone do not leave
