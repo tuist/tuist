@@ -171,7 +171,7 @@ export const ComputeHeroGrid = {
   // then an exponential decay back to neutral behind the front.
   waveLevel(sq, now) {
     if (this.reduced || this.waveDone || this.waveStart == null) return 0;
-    const lagMs = (now - this.waveStart) - this.waveFrac(sq) * WAVE_MS;
+    const lagMs = now - this.waveStart - this.waveFrac(sq) * WAVE_MS;
     if (lagMs <= 0) return 0;
     const rise = Math.min(1, lagMs / WAVE_RISE_MS);
     const decay = Math.exp(-Math.max(0, lagMs - WAVE_RISE_MS) / WAVE_TAIL_MS);
