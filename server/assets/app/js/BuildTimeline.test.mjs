@@ -29,6 +29,8 @@ function fixture() {
     filtered: [],
     search: "",
     allEvents: [],
+    stepsReady: true,
+    metrics: { samples: [{}] },
     cancelFocus() {},
     hideTooltip() {},
     chart: {
@@ -207,9 +209,19 @@ test("search reuses initial metadata without network requests and preserves the 
   }
 });
 
-test("initialization failure cleans up and hides partially mounted content", async () => {
+test("initialization failure cleans up and hides partially mounted content", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ events: [] }) }));
   const parts = new Map(
-    ["timeline-content", "summary", "payload-loading", "payload-error"].map((p) => [p, { hidden: false }]),
+    [
+      "timeline-content",
+      "summary",
+      "payload-loading",
+      "payload-error",
+      "workspace",
+      "empty",
+      "step-count",
+      "target-count",
+    ].map((p) => [p, { hidden: false }]),
   );
   let cleaned = false;
   const view = {
@@ -265,4 +277,102 @@ test("empty messages distinguish absent records, searches and unfiltered gaps", 
     assert.equal(!view.part("no-recorded-steps").hidden, noRecords);
     assert.equal(!view.part("no-matches").hidden, noMatches);
   }
+});
+
+function loadingFixture() {
+  const parts = new Map();
+  const part = (name) => {
+    if (!parts.has(name)) parts.set(name, { hidden: true });
+    return parts.get(name);
+  };
+  return {
+    ...hook,
+    el: { dataset: { version: "1", url: "/build/timeline.json" }, querySelector: (s) => part(s.match(/"(.*?)"/)[1]) },
+    part,
+    pushEvent: async () => ({ timeline: { duration: 100, machine_metrics: [{}] } }),
+    initialize(timeline) {
+      this.metricPayload = timeline;
+      this.part("machine-metrics").hidden = false;
+    },
+    receiveSteps(timeline) {
+      this.receivedSteps = timeline;
+    },
+    destroyed() {
+      this.abort.abort();
+    },
+  };
+}
+
+test("metrics initialize while the independent metadata download is still pending", async (t) => {
+  let resolve;
+  const pending = new Promise((done) => {
+    resolve = done;
+  });
+  const view = loadingFixture();
+  t.mock.method(globalThis, "fetch", (url, options) => {
+    assert.equal(url, "/build/timeline.json");
+    assert.equal(options.credentials, "same-origin");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.signal, view.abort.signal);
+    return pending;
+  });
+  const loading = view.mounted();
+  await new Promise((done) => setImmediate(done));
+  assert.equal(view.part("machine-metrics").hidden, false);
+  assert.equal(view.part("payload-loading").hidden, false);
+  assert.equal(view.receivedSteps, undefined);
+  resolve({ ok: true, json: async () => ({ events: [{ event_id: 1 }] }) });
+  await loading;
+  assert.deepEqual(view.receivedSteps.events, [{ event_id: 1 }]);
+});
+
+test("a failed metadata download preserves already loaded machine metrics", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => ({ ok: false }));
+  const view = loadingFixture();
+  await view.mounted();
+  assert.equal(view.part("machine-metrics").hidden, false);
+  assert.equal(view.part("payload-error").hidden, false);
+  assert.equal(view.part("payload-loading").hidden, true);
+  assert.equal(view.abort.signal.aborted, false);
+});
+
+test("leaving a timeline aborts its download and ignores a late response", async (t) => {
+  let resolve;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const view = loadingFixture();
+  const loading = view.mounted();
+  await new Promise((done) => setImmediate(done));
+  view.destroyed();
+  resolve({ ok: true, json: async () => ({ events: [{ event_id: 1 }] }) });
+  await loading;
+  assert.equal(view.receivedSteps, undefined);
+});
+
+test("receiving steps preserves a range selected on metrics while loading", () => {
+  const view = fixture();
+  const stats = new Map();
+  view.el = {
+    querySelector(s) {
+      if (!stats.has(s)) stats.set(s, {});
+      return stats.get(s);
+    },
+  };
+  view.filter = () => {};
+  const range = { ...view.range };
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 0, target_count: 0 });
+  assert.deepEqual(view.range, range);
+  assert.equal(view.stepsReady, true);
+  assert.equal(view.part("workspace").hidden, false);
+  assert.equal(view.part("empty").hidden, true);
+  view.metrics.samples = [];
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 0, target_count: 0 });
+  assert.equal(view.part("workspace").hidden, true);
+  assert.equal(view.part("empty").hidden, false);
 });
