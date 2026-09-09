@@ -74,6 +74,8 @@ defmodule Tuist.Kura.Reconciler do
   # guards against a runaway query if a regression ever leaks
   # `:running` rows.
   @reconcile_batch_size 200
+  @peer_role_observation_concurrency 8
+  @peer_role_observation_timeout_ms 4_000
 
   @impl Oban.Worker
   def perform(%Job{}) do
@@ -500,6 +502,7 @@ defmodule Tuist.Kura.Reconciler do
 
     latest = latest_deployments(Enum.map(servers, & &1.id))
 
+    observe_peer_roles(servers, latest)
     Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
 
     :ok
@@ -550,6 +553,95 @@ defmodule Tuist.Kura.Reconciler do
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  # Role reads are independent across regions and each can consume its full
+  # cross-cluster timeout. Running a bounded group prevents one slow regional
+  # cluster from serially delaying observation of every account in the batch.
+  # The ordinary server projection stays ordered below this step.
+  defp observe_peer_roles(servers, latest) do
+    observable = Enum.filter(servers, &peer_roles_observable?(&1, Map.get(latest, &1.id)))
+
+    observable
+    |> Task.async_stream(&observe_server_peer_roles/1,
+      max_concurrency: @peer_role_observation_concurrency,
+      ordered: true,
+      timeout: @peer_role_observation_timeout_ms,
+      on_timeout: :kill_task
+    )
+    |> Enum.zip(observable)
+    |> Enum.each(fn
+      {{:ok, :ok}, _server} ->
+        :ok
+
+      {{:exit, reason}, server} ->
+        Logger.warning(
+          "[Kura.Reconciler] peer-role observation task exited for server #{server.id} in #{server.region}: #{inspect(reason)}"
+        )
+    end)
+  end
+
+  defp peer_roles_observable?(_server, nil), do: false
+
+  defp peer_roles_observable?(_server, %Deployment{status: status}) when status in @open_deployment_statuses, do: false
+
+  defp peer_roles_observable?(_server, %Deployment{}), do: true
+
+  # Refreshes `kura_servers.peer_roles` from the backing KuraInstance's
+  # `status.peerRoles`. The mesh view (`Tuist.Kura.Mesh.peer_roles/1`) used to
+  # read the apiserver itself, on the request path of `/_internal/kura/mesh/peers`
+  # — an unbounded, un-rate-limited endpoint every managed pod polls at heartbeat
+  # cadence, whose slowest region decided whether a node made its own 5 s deadline.
+  # The roles change only when the controller moves one, so observing them on the
+  # loop that already observes the instance costs a tick of staleness and takes a
+  # cross-cluster read off every request. Roles are an optimisation over the local
+  # lowest-URL rule (kura/docs/replication-design.md §2.2), so a tick of lag is
+  # only a late role move, never a stalled region.
+  #
+  # Only mesh regions have peers to have roles, and a read that fails leaves the
+  # last known roles in place rather than blanking a live topology on one
+  # unreachable apiserver.
+  #
+  # This runs on the observation pass only, so a server with an open deployment
+  # keeps the roles of its last observation until the rollout closes. That is
+  # the window in which the controller moves a role most, and the one the
+  # published roles are least able to help in: a role naming a pod that is
+  # restarting names a peer no node can see, and an unmatched role is ignored
+  # in favour of the local rule by design. So the rollout window runs on the
+  # local rule either way, and the tick after the deployment closes republishes.
+  defp observe_server_peer_roles(%Server{} = server) do
+    if mesh_region?(server) do
+      case Provisioner.peer_roles(server) do
+        {:ok, roles} ->
+          persist_peer_roles(server, roles)
+
+        {:error, reason} ->
+          Logger.warning("[Kura.Reconciler] could not observe peer roles for server #{server.id}: #{inspect(reason)}")
+
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp persist_peer_roles(%Server{} = server, roles) do
+    case Kura.record_peer_roles(server, roles) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record peer roles for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp mesh_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.mesh?(region) and not Regions.retired?(region)
+      _ -> false
     end
   end
 

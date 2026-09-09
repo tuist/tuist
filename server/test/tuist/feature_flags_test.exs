@@ -63,6 +63,18 @@ defmodule Tuist.FeatureFlagsTest do
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 
+  describe "kura_replication_pull_enabled?/1" do
+    test "reads the per-account replication-pull flag" do
+      account = %Account{id: 42, name: "tuist"}
+      other = %Account{id: 43, name: "other"}
+
+      stub(FunWithFlags, :enabled?, fn :kura_replication_pull, [for: actor] -> actor == account end)
+
+      assert FeatureFlags.kura_replication_pull_enabled?(account)
+      refute FeatureFlags.kura_replication_pull_enabled?(other)
+    end
+  end
+
   describe "turnstile_enabled?/0" do
     test "is on when the env toggle is set and the kill switch is off" do
       stub(Environment, :turnstile_required?, fn -> true end)

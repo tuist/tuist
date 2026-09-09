@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -1235,6 +1236,11 @@ func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
 		}
 		if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != in.Name {
 			t.Fatalf("expected %s Service to select its own pods, got %q", in.Name, got)
+		}
+		// With no pod routable the primary defaults to ordinal 0, and with no
+		// eligible standby the primary is the gateway.
+		if got := lb.Spec.Selector[podNameLabel]; got != in.Name+"-0" {
+			t.Fatalf("expected %s Service to be pinned to the gateway pod, got %q", in.Name, got)
 		}
 	}
 
@@ -3701,6 +3707,452 @@ func TestAggregateRolloutHealthSurfacesBackfillTrouble(t *testing.T) {
 	}
 	if health.BackfillingPeers != 2 {
 		t.Fatalf("expected in-flight peers to still be reported, got %d", health.BackfillingPeers)
+	}
+}
+
+func TestChooseGatewayPod(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	pod := func(ordinal int) string { return fmt.Sprintf("%s-%d", name, ordinal) }
+	cases := []struct {
+		title    string
+		current  string
+		primary  string
+		pods     []int
+		eligible []int
+		want     string
+	}{
+		{"two Ready pods: the complement of the primary", "", pod(0), []int{0, 1}, []int{0, 1}, pod(1)},
+		{"complement holds whichever ordinal the primary has", "", pod(1), []int{0, 1}, []int{0, 1}, pod(0)},
+		{"standby draining: the primary takes the role", "", pod(0), []int{0, 1}, []int{0}, pod(0)},
+		{"standby unready: the primary takes the role", pod(1), pod(0), []int{0, 1}, []int{0}, pod(0)},
+		{"single pod is both primary and gateway", "", pod(0), []int{0}, []int{0}, pod(0)},
+		{"no eligible pod at all still names the primary", "", pod(0), nil, nil, pod(0)},
+		{"sticky: a recovered lower ordinal does not take it back", pod(2), pod(0), []int{0, 1, 2}, []int{0, 1, 2}, pod(2)},
+		{"not sticky on the primary: moves off it once a standby is eligible", pod(0), pod(0), []int{0, 1}, []int{0, 1}, pod(1)},
+		{"primary moves onto the gateway: role falls to the lowest eligible other pod", pod(1), pod(1), []int{0, 1, 2}, []int{0, 1, 2}, pod(0)},
+		{"primary moves onto the gateway with nothing else eligible: primary keeps both", pod(1), pod(1), []int{0, 1}, []int{1}, pod(1)},
+		{"current holder lost eligibility: lowest eligible other pod", pod(2), pod(0), []int{0, 1, 2}, []int{0, 1}, pod(1)},
+		{"orders ordinals numerically, not lexically", "", pod(0), []int{0, 2, 10}, []int{0, 2, 10}, pod(2)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.title, func(t *testing.T) {
+			pods := make([]corev1.Pod, 0, len(tc.pods))
+			for _, ordinal := range tc.pods {
+				pods = append(pods, *kuraPod(name, "kura", ordinal, true))
+			}
+			eligible := map[string]bool{}
+			for _, ordinal := range tc.eligible {
+				eligible[pod(ordinal)] = true
+			}
+			if got := chooseGatewayPod(tc.current, tc.primary, pods, eligible); got != tc.want {
+				t.Fatalf("chooseGatewayPod(current=%q, primary=%q) = %q, want %q", tc.current, tc.primary, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGatewayEligibleFromSamples(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+		*kuraPod(name, "kura", 2, false),
+		*kuraPod(name, "kura", 3, true),
+	}
+	samples := map[string]runtimeStatus{
+		name + "-0": {Ready: true, State: "serving"},
+		name + "-1": {Ready: true, State: "draining"},
+		name + "-2": {Ready: true, State: "serving"},
+	}
+
+	got := gatewayEligibleFromSamples(pods, samples, nil)
+	want := map[string]bool{
+		name + "-0": true, // Ready and serving
+		name + "-3": true, // Ready, unsampled: readiness is the only evidence
+	}
+	if len(got) != len(want) {
+		t.Fatalf("eligible = %v, want %v", got, want)
+	}
+	for pod := range want {
+		if !got[pod] {
+			t.Fatalf("expected %s eligible, got %v", pod, got)
+		}
+	}
+
+	// A pod on a box being retired reports exactly what a healthy one does
+	// right up until the pass that deletes it, so the exclusion comes from the
+	// evacuation set rather than from anything in its status.
+	got = gatewayEligibleFromSamples(pods, samples, map[string]bool{name + "-0": true})
+	if got[name+"-0"] {
+		t.Fatalf("expected the pod on an evacuating node to be ineligible, got %v", got)
+	}
+	if !got[name+"-3"] {
+		t.Fatalf("expected the other Ready pods to stay eligible, got %v", got)
+	}
+}
+
+func TestPeerRolesListsExpectedOrdinalsAndSurplusPods(t *testing.T) {
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	// Ordinal 0 is expected but absent; ordinal 2 is present but beyond the
+	// expected replica count (a scale-down in flight).
+	pods := []corev1.Pod{
+		*kuraPod(instance.Name, instance.Namespace, 2, true),
+		*kuraPod(instance.Name, instance.Namespace, 1, true),
+	}
+
+	got := peerRoles(instance, pods, instance.Name+"-0", instance.Name+"-1")
+	want := []kurav1alpha1.KuraInstancePeerRole{
+		{NodeURL: "https://kura-tuist-eu-1-0.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Primary: true},
+		{NodeURL: "https://kura-tuist-eu-1-1.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443", Gateway: true},
+		{NodeURL: "https://kura-tuist-eu-1-2.kura-tuist-eu-1-headless.kura.svc.cluster.local:7443"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("peerRoles = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("peerRoles[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestPodNodeURLMatchesRenderedEnv(t *testing.T) {
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	env := map[string]string{}
+	for _, envVar := range baseEnv(instance, "", "production") {
+		env[envVar.Name] = envVar.Value
+	}
+	// The template keeps the downward-API placeholders (a literal would roll
+	// every pod); expanding them must yield exactly the URL status publishes.
+	expanded := strings.NewReplacer("$(POD_NAME)", instance.Name+"-1", "$(POD_NAMESPACE)", instance.Namespace).Replace(env["KURA_NODE_URL"])
+	if got := podNodeURL(instance, instance.Name+"-1"); got != expanded {
+		t.Fatalf("podNodeURL = %q, rendered KURA_NODE_URL expands to %q", got, expanded)
+	}
+}
+
+func TestKuraInstanceReconcilePinsPublicPeerServiceToGatewayPod(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	serving := func() runtimeStatus {
+		return runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+	}
+	statuses := map[string]runtimeStatus{
+		instance.Name + "-0": serving(),
+		instance.Name + "-1": serving(),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance,
+			kuraPod(instance.Name, instance.Namespace, 0, true),
+			kuraPod(instance.Name, instance.Namespace, 1, true),
+		).Build(),
+		Scheme:              scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses},
+	}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	reconcile := func() {
+		t.Helper()
+		if _, err := reconciler.Reconcile(ctx, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertRoles := func(primary, gateway string) {
+		t.Helper()
+		assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, primary)
+		assertServiceRoutesTo(t, reconciler, instancePublicPeerServiceName(instance), instance.Namespace, gateway)
+
+		headless := &corev1.Service{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: headlessServiceName(instance), Namespace: instance.Namespace}, headless); err != nil {
+			t.Fatal(err)
+		}
+		if _, pinned := headless.Spec.Selector[podNameLabel]; pinned {
+			t.Fatalf("expected the headless Service to keep selecting every pod, got %v", headless.Spec.Selector)
+		}
+
+		got := &kurav1alpha1.KuraInstance{}
+		if err := reconciler.Get(ctx, req.NamespacedName, got); err != nil {
+			t.Fatal(err)
+		}
+		want := []kurav1alpha1.KuraInstancePeerRole{
+			{NodeURL: podNodeURL(instance, instance.Name+"-0"), Gateway: gateway == instance.Name+"-0", Primary: primary == instance.Name+"-0"},
+			{NodeURL: podNodeURL(instance, instance.Name+"-1"), Gateway: gateway == instance.Name+"-1", Primary: primary == instance.Name+"-1"},
+		}
+		if len(got.Status.PeerRoles) != len(want) {
+			t.Fatalf("status.peerRoles = %+v, want %+v", got.Status.PeerRoles, want)
+		}
+		for i := range want {
+			if got.Status.PeerRoles[i] != want[i] {
+				t.Fatalf("status.peerRoles[%d] = %+v, want %+v", i, got.Status.PeerRoles[i], want[i])
+			}
+		}
+	}
+
+	// Two Ready pods: the primary is ordinal 0 and the gateway its complement.
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-1")
+
+	// The standby drains (still Ready for the overlap): the primary takes the
+	// role rather than the region losing it.
+	draining := serving()
+	draining.State = "draining"
+	statuses[instance.Name+"-1"] = draining
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-0")
+
+	// The standby is back: the role moves off the primary again.
+	statuses[instance.Name+"-1"] = serving()
+	reconcile()
+	assertRoles(instance.Name+"-0", instance.Name+"-1")
+
+	// The primary drains out: serving fails over onto the gateway, which then
+	// carries both roles because nothing else is eligible.
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, false)
+	statuses[instance.Name+"-0"] = draining
+	reconcile()
+	assertRoles(instance.Name+"-1", instance.Name+"-1")
+
+	// Ordinal 0 recovers: the primary is sticky on ordinal 1, so ordinal 0
+	// becomes the complement.
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, true)
+	statuses[instance.Name+"-0"] = serving()
+	reconcile()
+	assertRoles(instance.Name+"-1", instance.Name+"-0")
+}
+
+// evacuationNode is a fleet box the reconcile-level tests schedule pods onto.
+// `retiring` is the state the runbook puts a box into: annotated for evacuation
+// and cordoned, so the replacement cannot land back on it.
+func evacuationNode(name string, retiring bool) *corev1.Node {
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec:       corev1.NodeSpec{Unschedulable: retiring},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+		},
+	}
+	if retiring {
+		node.Annotations = map[string]string{EvacuateNodeAnnotation: "true"}
+	}
+	return node
+}
+
+func podOnNode(pod *corev1.Pod, node string) *corev1.Pod {
+	pod.Spec.NodeName = node
+	pod.Status.PodIP = "10.0.0.1"
+	return pod
+}
+
+// readyEndpoints is the fact the handovers wait on: the Service has an address
+// that belongs to a pod which is staying.
+func readyEndpoints(name, namespace string, pods ...string) *corev1.Endpoints {
+	addresses := make([]corev1.EndpointAddress, 0, len(pods))
+	for _, pod := range pods {
+		addresses = append(addresses, corev1.EndpointAddress{
+			IP:        "10.0.0.1",
+			TargetRef: &corev1.ObjectReference{Kind: "Pod", Name: pod, Namespace: namespace},
+		})
+	}
+	return &corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Subsets:    []corev1.EndpointSubset{{Addresses: addresses}},
+	}
+}
+
+// Evacuation and the gateway derivation meet on the same pod. Primary selection
+// demotes the replica on the retiring box, which under a bare complement rule
+// makes it the obvious gateway — so the peer Service would be pinned to it in
+// the same pass that deletes it, which is INV-5 over minutes rather than the
+// seconds a drain costs (kura/docs/replication-design.md §7).
+func TestKuraInstanceReconcileKeepsTheGatewayOffAnEvacuatingPod(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	caughtUp := runtimeStatus{
+		Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2,
+		BackfillInitialCycle: backfillCycleComplete,
+	}
+	peerService := instancePublicPeerServiceName(instance)
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance,
+			podOnNode(kuraPod(instance.Name, instance.Namespace, 0, true), "old-box"),
+			podOnNode(kuraPod(instance.Name, instance.Namespace, 1, true), "new-box"),
+			evacuationNode("old-box", true),
+			evacuationNode("new-box", false),
+			// The client plane has already handed over to the replica that is
+			// staying, which is what lets evacuation take the other one.
+			readyEndpoints(instance.Name, instance.Namespace, instance.Name+"-1"),
+			readyEndpoints(peerService, instance.Namespace, instance.Name+"-1"),
+		).Build(),
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
+			instance.Name + "-0": caughtUp,
+			instance.Name + "-1": caughtUp,
+		}},
+	}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+
+	// Both roles land on the replica that is staying: the primary because it was
+	// demoted off the retiring box, the gateway because it may not be handed the
+	// pod the primary just stepped off.
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
+	assertServiceRoutesTo(t, reconciler, peerService, instance.Namespace, instance.Name+"-1")
+
+	got := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, req.NamespacedName, got); err != nil {
+		t.Fatal(err)
+	}
+	want := []kurav1alpha1.KuraInstancePeerRole{
+		{NodeURL: podNodeURL(instance, instance.Name+"-0")},
+		{NodeURL: podNodeURL(instance, instance.Name+"-1"), Gateway: true, Primary: true},
+	}
+	if len(got.Status.PeerRoles) != len(want) {
+		t.Fatalf("status.peerRoles = %+v, want %+v", got.Status.PeerRoles, want)
+	}
+	for i := range want {
+		if got.Status.PeerRoles[i] != want[i] {
+			t.Fatalf("status.peerRoles[%d] = %+v, want %+v", i, got.Status.PeerRoles[i], want[i])
+		}
+	}
+
+	// And the pass that resolved the roles is the same one that deletes the pod,
+	// so a gateway pinned to it would have been pinned to something already gone.
+	evacuated := &corev1.Pod{}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-0", Namespace: instance.Namespace}, evacuated)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the pod on the retiring box to be evacuated, got %v", err)
+	}
+}
+
+// A data-volume resize deletes one ordinal's pod per pass and short-circuits the
+// reconcile until the replacement is serving — a full cold bootstrap each. Role
+// resolution and the pins that carry it therefore run above that early return,
+// or the peer Service names a deleted pod for the length of the rebuild and
+// status.peerRoles reports the pre-rebuild answer to every node in the mesh.
+func TestKuraInstanceReconcileMovesThePeerPinThroughADataVolumeResize(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	instance.Spec.StorageSize = "400Gi"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	peerService := instancePublicPeerServiceName(instance)
+
+	claim := func(ordinal int) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+				Namespace: instance.Namespace,
+				Labels:    selectorLabels(instance),
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("200Gi")},
+			}},
+		}
+	}
+	// Already re-templated at the grown claim, so this pass is the volume
+	// replacement itself rather than the StatefulSet swap that precedes it.
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: "data"},
+				Spec: corev1.PersistentVolumeClaimSpec{Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("400Gi")},
+				}},
+			}},
+		},
+	}
+	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance, sts, claim(0), claim(1),
+			kuraPod(instance.Name, instance.Namespace, 0, true),
+			kuraPod(instance.Name, instance.Namespace, 1, true),
+		).Build(),
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
+			instance.Name + "-0": serving,
+			instance.Name + "-1": serving,
+		}},
+	}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	result, err := reconciler.Reconcile(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RequeueAfter != 10*time.Second {
+		t.Fatalf("expected the resize to keep requeuing, got %+v", result)
+	}
+	// The pins exist even though the pass returned early: the peer plane is
+	// reconciled above the storage lifecycle, not underneath it.
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-0")
+	assertServiceRoutesTo(t, reconciler, peerService, instance.Namespace, instance.Name+"-1")
+	assertPeerRoles(t, reconciler, instance, instance.Name+"-0", instance.Name+"-1")
+
+	// Ordinal 0 was taken for rebuild by this same pass.
+	rebuilding := &corev1.Pod{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-0", Namespace: instance.Namespace}, rebuilding); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected ordinal 0 to be taken for rebuild, got %v", err)
+	}
+
+	// The next pass still short-circuits in the resize, and both roles have
+	// followed the surviving replica rather than freezing on the deleted one.
+	result, err = reconciler.Reconcile(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RequeueAfter != 10*time.Second {
+		t.Fatalf("expected the resize to still be in flight, got %+v", result)
+	}
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
+	assertServiceRoutesTo(t, reconciler, peerService, instance.Namespace, instance.Name+"-1")
+	assertPeerRoles(t, reconciler, instance, instance.Name+"-1", instance.Name+"-1")
+}
+
+func assertPeerRoles(t *testing.T, r *KuraInstanceReconciler, instance *kurav1alpha1.KuraInstance, primary, gateway string) {
+	t.Helper()
+	got := &kurav1alpha1.KuraInstance{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	want := make([]kurav1alpha1.KuraInstancePeerRole, 0, replicas(instance))
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		name := fmt.Sprintf("%s-%d", instance.Name, ordinal)
+		want = append(want, kurav1alpha1.KuraInstancePeerRole{
+			NodeURL: podNodeURL(instance, name),
+			Gateway: name == gateway,
+			Primary: name == primary,
+		})
+	}
+	if len(got.Status.PeerRoles) != len(want) {
+		t.Fatalf("status.peerRoles = %+v, want %+v", got.Status.PeerRoles, want)
+	}
+	for i := range want {
+		if got.Status.PeerRoles[i] != want[i] {
+			t.Fatalf("status.peerRoles[%d] = %+v, want %+v", i, got.Status.PeerRoles[i], want[i])
+		}
 	}
 }
 

@@ -27,6 +27,10 @@ pub enum ReplicationOperation {
         /// re-run the trunk-sticky rule against its own view of the key.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         trunk: Option<String>,
+        /// The region that first accepted the write, forwarded so the peer
+        /// stamps the same origin (design §4.1). Additive like `branch`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        origin_region: Option<String>,
     },
     DeleteNamespace {
         namespace_id: String,
@@ -96,6 +100,7 @@ mod tests {
             version_ms: 123,
             branch: Some("main".into()),
             trunk: Some("main".into()),
+            origin_region: None,
         };
         let encoded = serde_json::to_string(&tagged).expect("message should encode");
         assert_eq!(
@@ -114,6 +119,7 @@ mod tests {
             version_ms: 123,
             branch: None,
             trunk: None,
+            origin_region: None,
         };
         let encoded = serde_json::to_string(&untagged).expect("message should encode");
         assert!(
@@ -136,6 +142,7 @@ mod tests {
                 version_ms: 123,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             }
             .name(),
             "upsert_artifact"

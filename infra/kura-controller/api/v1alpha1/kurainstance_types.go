@@ -237,6 +237,16 @@ type KuraInstanceRolloutHealth struct {
 	SampledAt                    *metav1.Time `json:"sampledAt,omitempty"`
 }
 
+// KuraInstancePeerRole is one pod's replication role as the controller
+// resolves it (kura/docs/replication-design.md §2.1). NodeURL is the pod's
+// KURA_NODE_URL — the identity the runtime registers with the server — so
+// the server can match roles to registered peers without translating names.
+type KuraInstancePeerRole struct {
+	NodeURL string `json:"nodeURL"`
+	Gateway bool   `json:"gateway"`
+	Primary bool   `json:"primary"`
+}
+
 type KuraInstanceStatus struct {
 	Phase            string       `json:"phase,omitempty"`
 	PublicURL        string       `json:"publicURL,omitempty"`
@@ -250,6 +260,14 @@ type KuraInstanceStatus struct {
 	// reports, published for the control plane's health-gated progressive
 	// rollout. Absent until at least one reconcile has sampled the pods.
 	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
+
+	// PeerRoles lists every pod of the StatefulSet with the roles the
+	// controller resolved for it: Primary is the pod the public Services
+	// route to, Gateway the pod that carries the region's cross-region
+	// replication — the Ready, non-draining complement of the primary, or
+	// the primary itself when there is none. The server reads it to publish
+	// roles in the mesh peer list.
+	PeerRoles []KuraInstancePeerRole `json:"peerRoles,omitempty"`
 
 	// CPUAutosize carries the CPU observation behind requests.cpu. It is
 	// status because nothing outside the controller sets it, and it has to

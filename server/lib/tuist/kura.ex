@@ -1068,11 +1068,29 @@ defmodule Tuist.Kura do
   self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> select([s], s.region)
+    |> Repo.all()
+  end
+
+  @doc """
+  The account's live steady-state servers without their deployment history:
+  the same rows `server_regions_for_account/1` reduces to regions, for the
+  mesh view that has to address each region's backing resource (the peer
+  roles are read off the `KuraInstance` status, so it needs the
+  `provisioner_node_ref` beside the region).
+  """
+  def mesh_servers_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> Repo.all()
+  end
+
+  defp live_steady_state_servers_query(account_id) do
     Server
     |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
-    |> select([s], s.region)
-    |> Repo.all()
   end
 
   @doc "Fetches a server scoped to the given account."
@@ -1523,6 +1541,25 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Records the replication roles the reconciler read off a server's backing
+  `KuraInstance` (`status.peerRoles`). The mesh view publishes roles from
+  this column rather than reading each region's apiserver on the request
+  path, so `/peers` is a Postgres read again and one slow regional cluster
+  can no longer push a node's peer-view fetch past its own request deadline.
+
+  An empty list is a value, not a no-op: it is how a controller that has
+  published no roles yet (or an instance whose pods went away) clears the
+  ones a previous tick stored. No lock and no broadcast — the reconciler is
+  the only writer and no view renders the column — and an unchanged list
+  writes nothing, so a steady-state fleet costs one read per tick.
+  """
+  def record_peer_roles(%Server{} = server, roles) when is_list(roles) do
+    server
+    |> Server.peer_roles_changeset(%{peer_roles: roles})
+    |> Repo.update()
   end
 
   @doc """
