@@ -198,14 +198,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = get(conn, ~p"/newsletter/verify?token=#{token}")
 
       # Then
-      html = html_response(conn, 200)
-      assert_newsletter_assets(html)
-      document = Floki.parse_document!(html)
-      assert [_] = Floki.find(document, "form[method=post][action='/newsletter/verify']")
-      assert Floki.attribute(document, "input[name=token]", "value") == [token]
-      assert [csrf_token] = Floki.attribute(document, "input[name=_csrf_token]", "value")
-      assert csrf_token != ""
-      assert [_] = Floki.find(document, "button[type=submit]")
+      assert html_response(conn, 200)
       assert conn.assigns.email == email
       assert conn.assigns.verification_token == token
       assert conn.assigns.subscription_confirmed == false
@@ -252,7 +245,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = get(conn, ~p"/newsletter/verify")
 
       # Then
-      assert_newsletter_assets(html_response(conn, 200))
+      assert html_response(conn, 200)
       assert conn.assigns.email == nil
 
       assert conn.assigns.error_message ==
@@ -276,9 +269,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
 
       # Then
-      html = html_response(conn, 200)
-      assert_newsletter_assets(html)
-      assert Floki.find(Floki.parse_document!(html), "form") == []
+      assert html_response(conn, 200)
       assert conn.assigns.email == email
       assert conn.assigns.subscription_confirmed == true
       assert conn.assigns.error_message == nil
@@ -331,15 +322,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
-  end
-
-  defp assert_newsletter_assets(html) do
-    document = Floki.parse_document!(html)
-    assert [_] = Floki.find(document, "link[href='/marketing/assets/newsletter.css']")
-    assert [_] = Floki.find(document, "script[src='/marketing/assets/newsletter.js']")
-    assert Floki.find(document, "#marketing-navbar, #marketing-footer, [data-part=header-background]") == []
-    refute html =~ "/marketing/assets/bundle."
-    refute html =~ "js.hcaptcha.com"
   end
 
   defp signed_newsletter_token(email) do

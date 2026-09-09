@@ -14,7 +14,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.Marketing.Layouts
   alias TuistWeb.Marketing.Localization
 
   plug :assign_default_head_tags
@@ -805,7 +804,6 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   defp assign_newsletter_verify_head(conn) do
     conn
-    |> put_root_layout(html: {Layouts, :newsletter_root})
     |> assign(
       :head_image,
       Tuist.Environment.app_url(

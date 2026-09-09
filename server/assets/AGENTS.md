@@ -17,9 +17,9 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
 - Asset builds for development and production.
-- Newsletter verification uses its own `newsletter` esbuild entry, with Noora
-  tokens and button styles only. It retains analytics but needs no LiveView
-  runtime: confirmation is a regular POST form.
+- Newsletter verification keeps the shared marketing shell and bundle. Its
+  decorative header uses CSS gradients to avoid downloading and decoding the
+  large hero bitmap before the largest paint.
 - Step details show project and target separately, use Noora badges for type and outcome, and pair duration with the dashboard’s standard 16px history icon. The inspector has a small horizontal inset so its scroll boundary does not clip badge borders and shadows.
 - Crosshair styling and synchronized hover time cursors activate only on plot canvases, not metric headings, rulers, controls or surrounding card space.
 - Timeline logs preserve source lines and scroll horizontally; their full height participates in the inspector's vertical scrolling.
