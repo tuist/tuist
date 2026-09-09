@@ -38,7 +38,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
   for {archive_error, reason} <- [bad_eocd: :bad_eocd, bad_crc: {@log_name, :bad_crc}] do
     @tag archive_error: archive_error
     test "retries #{archive_error} without marking the build as failed" do
-      reject(&XCActivityLogParser.parse/4)
+      reject(&XCActivityLogParser.parse/5)
       reject(&Builds.create_build/1)
 
       assert {:error, unquote(Macro.escape(reason))} = ProcessBuildWorker.perform(job(1))
@@ -49,7 +49,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
 
     @tag archive_error: archive_error
     test "marks the build as failed after exhausting retries for #{archive_error}" do
-      reject(&XCActivityLogParser.parse/4)
+      reject(&XCActivityLogParser.parse/5)
       expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)
 
       expect(Builds, :create_build, fn attrs ->
@@ -69,10 +69,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerArchiveTest do
   end
 
   test "continues to parse valid archives and cleans up the extracted files" do
-    expect(XCActivityLogParser, :parse, fn path, _, _, false ->
+    expect(XCActivityLogParser, :parse, fn path, _, _, false, consume ->
       assert File.read!(path) == "original activity log"
       send(self(), {:extracted_path, path})
-      {:ok, %{"status" => "success", "duration" => 1200}}
+      consume.(%{"status" => "success", "duration" => 1200})
     end)
 
     expect(Builds, :get_build, fn @build_id, [project_id: 123] -> {:error, :not_found} end)

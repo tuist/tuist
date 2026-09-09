@@ -3,9 +3,136 @@ defmodule Tuist.BuildsTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Builds.Timeline
+  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+
+  describe "build_timeline/1" do
+    setup do
+      stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
+      :ok
+    end
+
+    test "stores relative timings, isolates builds, and deduplicates processing retries" do
+      event = %{
+        event_id: 1,
+        title: "Compile App.swift",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 100.25,
+        duration_ms: 200.5,
+        status: "success"
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event, event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | title: "Other.swift"}])
+
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      assert stored.title == "Compile App.swift"
+      assert_in_delta stored.start_ms, 100.25, 0.001
+      assert_in_delta stored.duration_ms, 200.5, 0.001
+      assert %{events: [%{title: "Other.swift"}]} = Builds.build_timeline(other.id)
+    end
+
+    test "fills optional step metadata and retains records across ingestion batches" do
+      steps = for id <- 1..501, do: %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success"}
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: stored} = Builds.build_timeline(build.id)
+      assert length(stored) == 501
+      assert Enum.all?(stored, &(&1.target == "" and &1.project == "" and &1.category == ""))
+      assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
+    end
+
+    test "dense windows retain individual steps beyond the old display limit" do
+      steps =
+        for id <- 1..50_001 do
+          %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: events, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert length(events) == 50_001
+      refute Enum.any?(events, &Map.has_key?(&1, :aggregate))
+      assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
+    end
+
+    test "full metadata includes late steps and keyboard navigation stays in the build and search" do
+      steps =
+        Stream.map(1..1600, fn id ->
+          %{
+            event_id: id,
+            title: "Compile #{id}",
+            target: "App",
+            project: "Workspace",
+            category: "swiftCompilation",
+            start_ms: id * 10.0,
+            duration_ms: 5.0,
+            status: "success"
+          }
+        end)
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      {:ok, other} =
+        RunsFixtures.build_fixture(
+          build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
+        )
+
+      assert %{total_count: 1600, events: events} = Builds.build_timeline(build.id)
+      assert length(events) == 1600
+      assert Enum.any?(events, &(&1.start_ms > 15_000))
+
+      assert 1 == Builds.build_timeline_target_count(build.id)
+      assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
+      assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
+      assert nil == Timeline.neighbor(build.id, 1600, "next", [])
+      assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
+    end
+
+    test "loads the entire build including late steps" do
+      steps =
+        for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
+          %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      assert %{duration: 901_000.0, events: events} = Builds.build_timeline(build.id)
+      assert Enum.map(events, & &1.event_id) == [1, 2, 3, 4]
+      assert %{duration: 1_000_000} = Builds.build_timeline(build.id, duration: 1_000_000)
+    end
+
+    test "fetches logs separately and scopes them to their build" do
+      event = %{
+        event_id: 3,
+        title: "Compile",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 0.0,
+        duration_ms: 10.0,
+        status: "success",
+        log: "EmitSwiftModule normal arm64\n<script>output</script>",
+        log_truncated: true
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | log: "Other command"}])
+      assert Builds.build_step_log(build.id, 3) == %{log: event.log, log_truncated: true}
+      assert Builds.build_step_log(other.id, 3).log == "Other command"
+      assert Builds.build_step_log(build.id, 4) == nil
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      refute Map.has_key?(stored, :log)
+    end
+
+    test "old builds have no manufactured timeline" do
+      {:ok, build} = RunsFixtures.build_fixture()
+      assert %{events: [], total_count: 0} = Builds.build_timeline(build.id)
+    end
+  end
 
   describe "create_build/1" do
     test "creates a build" do
@@ -53,6 +180,7 @@ defmodule Tuist.BuildsTest do
       machine_metrics = [
         %{
           timestamp: base_ts + 1.0,
+          offset_ms: 250.0,
           cpu_usage_percent: 45.5,
           memory_used_bytes: 8_000_000_000,
           memory_total_bytes: 16_000_000_000,
@@ -95,6 +223,8 @@ defmodule Tuist.BuildsTest do
       # Then
       build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
       assert length(build.machine_metrics) == 2
+      assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
+      assert Enum.at(build.machine_metrics, 1).offset_ms == nil
       assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
