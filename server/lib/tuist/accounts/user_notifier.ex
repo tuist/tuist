@@ -29,6 +29,10 @@ defmodule Tuist.Accounts.UserNotifier do
     end
   end
 
+  # Shared transactional chrome, styled after the redesigned marketing site:
+  # 600px bordered cards stacked 2px apart on the grey page surface, Inter for copy,
+  # Geist Mono for eyebrows, square corners and hairline dividers. Gmail
+  # drops the web fonts and falls back to the system sans/mono stacks.
   defp html_email(body, icon_url, title \\ "Email Confirmation", locale \\ "en") do
     """
     <!DOCTYPE html>
@@ -39,62 +43,115 @@ defmodule Tuist.Accounts.UserNotifier do
         <meta name="color-scheme" content="light only" />
         <meta name="supported-color-schemes" content="light only" />
         <title>#{title |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()}</title>
-       <style>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet" />
+        <style>
         body {
           margin: 0;
           padding: 0;
-          font-family: "Inter", "Noto Sans Georgian", sans-serif;
+          background-color: #F7F7F7;
+          color: #191A1B;
+          font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Georgian", Helvetica, Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
         }
         .container {
-          max-width: 590px;
-          margin: 0 auto;
-          padding: 20px 40px;
+          padding: 40px 40px 8px;
         }
         h1 {
-          font-weight: 500;
-          font-size: 32px;
-          margin: 0 0 20px 0;
-          color: #333333;
+          font-weight: 400;
+          font-size: 28px;
+          line-height: 34px;
+          letter-spacing: -0.01em;
+          margin: 0 0 16px 0;
+          color: #191A1B;
           text-align: center;
+          text-wrap: balance;
         }
         p {
-          font-size: 16px;
-          line-height: 24px;
-          margin: 0 0 20px 0;
+          font-size: 14px;
+          line-height: 20px;
+          margin: 0 0 16px 0;
+          color: #535659;
           text-align: center;
+        }
+        a {
+          color: #6F2CFF;
+        }
+        .eyebrow {
+          font-family: "Geist Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+          font-size: 12px;
+          line-height: 16px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: #535659;
         }
         .button {
           display: inline-block;
-          padding: 10px 20px;
-          background-color: #622ED4;
-          font-size: 18px;
+          padding: 6px 8px;
+          background-color: #6F2CFF;
+          border: 1px solid #5F01E5;
+          border-radius: 6px;
+          color: #FDFDFD !important;
+          font-size: 14px;
+          line-height: 20px;
           font-weight: 500;
           text-decoration: none;
-          border-radius: 8px;
-          transition: background-color 0.3s ease-in-out;
         }
         .button:hover {
-          background-color: #3c315b;
+          background-color: #5F01E5;
         }
-        footer {
-          text-align: center;
-          padding: 20px 0;
-          color: #999999;
+        footer p {
+          font-size: 12px;
+          line-height: 16px;
+          margin: 0 0 8px 0;
+          color: #707478;
+        }
+        footer a {
+          color: #535659;
+        }
+        @media only screen and (max-width: 640px) {
+          .container {
+            padding: 32px 20px 8px !important;
+          }
         }
         </style>
       </head>
-      <body>
-      <div class="header" style="text-align: center; padding: 20px 0;">
-      <img class="image" src="#{icon_url}" alt="Tuist Icon" style="width: 75px; height: 75px; display: block; margin: 0 auto;" />
-      </div>
-        #{body}
-      <footer>
-      <p style="font-size: 12px">
-         This email was sent by Tuist. By using our services, you agree to our <a href="https://tuist.io/terms/"> terms of service</a>.
-         <br/>
-         © Tuist GmbH 2024. All rights reserved.
-      </p>
-      </footer>
+      <body style="margin: 0; padding: 0; background-color: #F7F7F7;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F7F7F7;">
+          <tr>
+            <td align="center" style="padding: 32px 8px;">
+              <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width: 100%; max-width: 600px;">
+                <tr>
+                  <td align="center" style="padding: 28px 40px; border: 1px solid #EFF0F1; background-color: #FDFDFD;">
+                    <img src="#{icon_url}" alt="Tuist" width="100" height="40" style="display: block; width: 100px; height: 40px; border: 0;" />
+                  </td>
+                </tr>
+                <tr>
+                  <td style="height: 2px; font-size: 0; line-height: 0;"></td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #EFF0F1; background-color: #FDFDFD;">
+                    #{body}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="height: 2px; font-size: 0; line-height: 0;"></td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 20px 40px 24px; border: 1px solid #EFF0F1; background-color: #FDFDFD;">
+                    <footer>
+                      <p>
+                        This email was sent by Tuist. By using our services, you agree to our <a href="https://tuist.dev/terms">terms of service</a> and <a href="https://tuist.dev/privacy">privacy policy</a>.
+                      </p>
+                      <p style="margin: 0;">© Tuist GmbH #{Date.utc_today().year}. All rights reserved.</p>
+                    </footer>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
     </html>
     """
@@ -318,7 +375,8 @@ defmodule Tuist.Accounts.UserNotifier do
     reset_label = dgettext("dashboard_account", "Your free allowance resets on %{date} (UTC).", date: reset_date)
     billing_url = Environment.app_url(path: "/#{account.name}/billing")
     progress = min(percentage, 100)
-    progress_color = if threshold == 100, do: "#D92D20", else: "#622ED4"
+    progress_color = if threshold == 100, do: "#E51D01", else: "#6F2CFF"
+    metric_label = if runner?, do: "Air runners", else: "Air cache"
     account_name = account.name |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
     upgrade_label = dgettext("dashboard_account", "Review usage and upgrade")
@@ -333,22 +391,28 @@ defmodule Tuist.Accounts.UserNotifier do
       html_email(
         """
         <div class="container">
-          <p style="font-size: 13px; font-weight: 600; letter-spacing: 1px; color: #622ED4; margin-bottom: 12px;">#{account_name} · AIR</p>
+          <p class="eyebrow" style="margin: 0 0 20px;">#{account_name} · #{metric_label}</p>
           <h1>#{title}</h1>
-          <p style="color: #555555;">#{description}</p>
-          <div style="padding: 24px; margin: 28px 0; background-color: #F7F5FD; border: 1px solid #E9E3F5; border-radius: 12px;">
-            <p style="font-size: 36px; line-height: 44px; font-weight: 600; color: #{progress_color}; margin-bottom: 8px;">#{percentage}%</p>
-            <p style="font-size: 14px; color: #333333; margin-bottom: 16px;">#{usage_label}</p>
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="height: 8px; background-color: #E9E3F5; border-radius: 4px; overflow: hidden;">
-              <tr><td width="#{progress}%" style="height: 8px; background-color: #{progress_color}; border-radius: 4px;"></td>#{if progress < 100, do: "<td></td>", else: ""}</tr>
-            </table>
-            <p style="font-size: 13px; color: #666666; margin: 16px 0 0;">#{reset_label}</p>
-          </div>
-          <p style="padding: 8px 0;">
-            <a href="#{billing_url}" style="display: inline-block; padding: 12px 24px; background-color: #622ED4; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">#{upgrade_label}</a>
+          <p>#{description}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 28px 0 28px; border: 1px solid #EFF0F1; background-color: #FDFDFD;">
+            <tr>
+              <td align="center" style="padding: 28px 24px 24px;">
+                <p style="font-size: 44px; line-height: 52px; font-weight: 400; letter-spacing: -0.02em; color: #{progress_color}; margin: 0 0 4px;">#{percentage}%</p>
+                <p style="font-size: 14px; line-height: 20px; color: #191A1B; margin: 0 0 20px;">#{usage_label}</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #EFF0F1;">
+                  <tr>
+                    <td width="#{progress}%" style="height: 8px; background-color: #{progress_color}; font-size: 0; line-height: 0;">&nbsp;</td>#{if progress < 100, do: ~s(<td style="height: 8px; font-size: 0; line-height: 0;">&nbsp;</td>), else: ""}
+                  </tr>
+                </table>
+                <p style="font-size: 12px; line-height: 16px; color: #707478; margin: 16px 0 0;">#{reset_label}</p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 0 0 24px;">
+            <a href="#{billing_url}" class="button" style="color: #FDFDFD;">#{upgrade_label}</a>
           </p>
-          <p style="font-size: 14px; color: #555555;">#{pricing_label}</p>
-          <p style="font-size: 12px; line-height: 18px; color: #777777;">#{recipient_label}</p>
+          <p>#{pricing_label}</p>
+          <p style="font-size: 12px; line-height: 16px; color: #707478;">#{recipient_label}</p>
         </div>
         """,
         Environment.email_icon_url(),
