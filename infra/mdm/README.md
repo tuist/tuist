@@ -174,7 +174,16 @@ best-effort availability).
    1Password item as `push-topic` and re-deploy so the enrollment
    profile embeds it.
 
-**Calendar the renewal now: the certificate expires after 1 year.** At
+A daily CronJob (`expiryCheck` in the chart) reports when this, the ABM
+token, or the Developer ID Installer certificate falls inside a 60-day
+window, and fails the job inside 14 days so a broken Slack path still
+surfaces as a failed CronJob. It reads the ABM token live from nanodep,
+but the two certificates come from the copies archived on this item —
+NanoMDM exposes no endpoint for reading back the certificate it holds —
+**so storing the renewed certificate here is part of the renewal, not an
+optional tidy-up**. Skip it and the alarm keeps reporting the old date.
+
+**Calendar the renewal anyway: the certificate expires after 1 year.** At
 renewal time, generate a fresh signed CSR the same way, but click
 **Renew** on the *existing* portal row — never *Create a Certificate*,
 which mints a new topic and orphans every enrolled device. Same Apple

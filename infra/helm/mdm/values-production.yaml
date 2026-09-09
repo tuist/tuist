@@ -48,3 +48,13 @@ postgresql:
   backup:
     enabled: true
     destinationPath: s3://tuist-prod-pg-backups/mdm
+
+# Renewal alarms. Neither the APNs certificate nor the ABM token can be
+# renewed by any API, so being told early is the only mitigation. Set
+# expiryCheck.slack.channel to a channel the people who can act on it
+# actually read; without it the job still logs and still fails on a
+# critical finding, which surfaces as a failed CronJob.
+expiryCheck:
+  enabled: true
+  slack:
+    channel: ""

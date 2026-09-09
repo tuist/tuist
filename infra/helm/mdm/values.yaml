@@ -105,6 +105,27 @@ enroller:
     requests: { cpu: 10m, memory: 32Mi }
     limits: { cpu: 250m, memory: 128Mi }
 
+# Renewal alarms. Two of the three credentials this server depends on
+# cannot be renewed by any API — Apple exposes none for the Push
+# Certificates Portal or for Apple Business Manager — so the only
+# available mitigation is being told early and reliably. Each one stops
+# enrollment silently when it lapses: no error, no alert, devices simply
+# never enroll again.
+expiryCheck:
+  enabled: false
+  schedule: "0 9 * * *"
+  # Days remaining at which to warn, and at which to also fail the job so
+  # it surfaces as a failed CronJob even if Slack delivery is broken.
+  warnDays: 60
+  critDays: 14
+  slack:
+    # Channel to post to. Empty disables posting; the job still logs and
+    # still fails on a critical threshold.
+    channel: ""
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
 postgresql:
   clusterName: ""
   # Two instances, not one: CNPG's `<cluster>-primary` PDB makes a
