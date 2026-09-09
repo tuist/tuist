@@ -257,6 +257,12 @@
              1px bleed ring too, so the zoomed home screen can't peek out
              at the edges. */
           & > [data-part="app-shell"] {
+            /* The hook measures the Tuist tile and overrides these inline
+               before the close animation; the defaults keep the transform
+               valid until then. */
+            --open-x: 50%;
+            --open-y: 40%;
+            --open-scale: 0.16;
             display: flex;
             position: absolute;
             flex-direction: column;
@@ -305,7 +311,7 @@
           }
 
           &[data-app="closed"] > [data-part="app-shell"] {
-            transform: translate(var(--open-x, 50%), var(--open-y, 40%)) scale(var(--open-scale, 0.16));
+            transform: translate(var(--open-x), var(--open-y)) scale(var(--open-scale));
             opacity: 0;
             clip-path: inset(0 0 350.75px 0 round 67px);
             transition:
