@@ -98,3 +98,9 @@ kura-ca-east-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+# The gateways above are host-network, so a region with more than one box needs
+# this to let a gateway reach Kura pods on the other boxes. Without it those
+# requests are dropped by the per-instance NetworkPolicy and answer 504.
+kuraGatewayNetworkPolicy:
+  enabled: true
