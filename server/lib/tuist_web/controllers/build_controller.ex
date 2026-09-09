@@ -8,6 +8,22 @@ defmodule TuistWeb.BuildController do
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
+  def timeline(conn, %{"account_handle" => account, "project_handle" => project_name, "build_run_id" => build_id}) do
+    user = Authentication.current_user(conn)
+
+    with {:ok, project} <- Projects.get_project_by_slug("#{account}/#{project_name}", preload: [:account]),
+         :ok <- Authorization.authorize(:build_read, user, project),
+         {:ok, build} <- Builds.get_build(build_id, project_id: project.id),
+         true <- build.project_id == project.id do
+      # Bandit negotiates HTTP compression; never cache this authenticated response.
+      conn
+      |> put_resp_header("cache-control", "private, no-store")
+      |> json(Builds.build_timeline(build.id, duration: build.duration))
+    else
+      _ -> raise NotFoundError, dgettext("errors", "Build not found")
+    end
+  end
+
   def download(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "build_run_id" => build_id}) do
     user = Authentication.current_user(conn)
 

@@ -3,6 +3,7 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
 - Handle request/response flow and rendering for controller actions.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.

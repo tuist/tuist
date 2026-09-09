@@ -25,11 +25,35 @@ export default {
     this.abort = new AbortController();
     this.part = (part) => this.el.querySelector(`[data-part="${part}"]`);
     const signal = this.abort.signal;
-    this.pushEvent("load-timeline", { version: Number(this.payload) })
-      .then(({ timeline }) => {
+    this.stepsReady = false;
+    this.part("workspace").hidden = true;
+    this.part("empty").hidden = true;
+    this.part("payload-loading").hidden = false;
+    this.part("step-count").hidden = true;
+    this.part("target-count").hidden = true;
+    // Start the compressed metadata download independently of the small metric bootstrap.
+    const steps = fetch(this.el.dataset.url, { credentials: "same-origin", signal, redirect: "error" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Timeline unavailable");
+        return response.json();
+      })
+      .then(
+        (timeline) => ({ timeline }),
+        (error) => ({ error }),
+      );
+    return this.pushEvent("load-timeline", { version: Number(this.payload) })
+      .then(async ({ timeline }) => {
         if (signal.aborted) return;
         if (!timeline) throw new Error("Timeline unavailable");
         this.initialize(timeline);
+        const result = await steps;
+        if (signal.aborted) return;
+        if (result.error) {
+          this.part("payload-loading").hidden = true;
+          this.part("payload-error").hidden = false;
+          return;
+        }
+        this.receiveSteps(result.timeline);
       })
       .catch(() => {
         if (signal.aborted) return;
@@ -41,6 +65,25 @@ export default {
       });
   },
 
+  receiveSteps(timeline) {
+    this.allEvents = normalizeEvents(timeline.events || []);
+    const wasFullBuild = this.range.start === 0 && this.range.span === this.duration;
+    this.duration = Math.max(this.duration, timeline.duration);
+    this.maxSpan = this.duration;
+    this.initialRange = { start: 0, span: this.duration };
+    if (wasFullBuild) this.range = { ...this.initialRange };
+    this.stepsReady = true;
+    this.part("payload-loading").hidden = true;
+    this.part("workspace").hidden = !timeline.total_count && !this.metrics.samples.length;
+    this.part("empty").hidden = !!timeline.total_count || !!this.metrics.samples.length;
+    this.part("step-count").hidden = false;
+    this.part("target-count").hidden = false;
+    this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
+    this.el.querySelector('[data-stat="tasks"]').textContent = timeline.total_count.toLocaleString();
+    this.el.querySelector('[data-stat="targets"]').textContent = timeline.target_count;
+    this.filter();
+  },
+
   initialize(timeline) {
     this.metrics = new TimelineMetrics(timeline.machine_metrics || [], {
       in: this.el.dataset.metricIn,
@@ -49,7 +92,7 @@ export default {
       write: this.el.dataset.metricWrite,
     });
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
-    this.events = normalizeEvents(timeline.events);
+    this.events = normalizeEvents(timeline.events || []);
     this.search = "";
     this.allEvents = this.events;
     this.duration = this.events.reduce(
@@ -61,7 +104,6 @@ export default {
     this.initialRange = { ...this.range };
     this.logRequest = ++nextLogRequest;
     this.palette = null;
-    this.part("payload-loading").hidden = true;
     this.part("payload-error").hidden = true;
     this.part("timeline-content").hidden = false;
     this.part("summary").hidden = false;
@@ -365,8 +407,10 @@ export default {
         this.layoutDirty = false;
         this.syncScroll();
         this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
-        this.part("no-recorded-steps").hidden = this.allEvents.length > 0;
-        this.part("no-matches").hidden = !this.search || !this.allEvents.length || this.layout.events.length > 0;
+        this.part("no-recorded-steps").hidden =
+          !this.stepsReady || !this.metrics.samples.length || this.allEvents.length > 0;
+        this.part("no-matches").hidden =
+          !this.stepsReady || !this.search || !this.allEvents.length || this.layout.events.length > 0;
       }
       this.draw();
     });
