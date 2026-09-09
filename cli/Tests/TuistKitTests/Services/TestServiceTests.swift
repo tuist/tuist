@@ -6149,11 +6149,12 @@ final class TestServiceTests: TuistUnitTestCase {
     }
 
     /// Pins precedence: `-testProductsPath` wins over `-xctestrun` (same as xcodebuild's own
-    /// input-mode precedence), so the `.xctestproducts` graph is read even if a stray graph
-    /// sits next to an unrelated xctestrun.
+    /// input-mode precedence). The test proves it by having each graph hold a distinct hash
+    /// and asserting the bundle graph's hash is the one uploaded — otherwise a run job could
+    /// pair the built products from the bundle with a graph computed for an unrelated
+    /// test-run configuration.
     func test_run_testWithoutBuilding_prefersTestProductsPath_overXctestrun_whenBothProvided() async throws {
-        // Given — both inputs carry a `selective-testing-graph.json`. Only the testProductsPath
-        // one should drive the fast path.
+        // Given — both inputs carry a `selective-testing-graph.json`, with distinct hashes.
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
@@ -6171,10 +6172,42 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
         given(xcodebuildController)
             .run(arguments: .any)
             .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
 
         // When
         try await AlertController.$current.withValue(AlertController()) {
@@ -6188,7 +6221,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         }
 
-        // Then — the fast path took the testProductsPath branch (generator never called).
+        // Then — generator never runs (fast path), and the uploaded hash is the bundle's.
         verify(generatorFactory)
             .testing(
                 config: .any,
@@ -6205,6 +6238,76 @@ final class TestServiceTests: TuistUnitTestCase {
                 schemeName: .any
             )
             .called(0)
+        verify(cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "MyTests", hash: "bundle-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    /// Precedence corner case: if `-testProductsPath` is present but has NO sibling graph, we
+    /// must NOT silently fall through to a `-xctestrun` sibling graph. xcodebuild would still
+    /// run from the testProductsPath input, so consulting the xctestrun's graph would pair
+    /// execution with hashes computed for a different test-run configuration.
+    func test_run_testWithoutBuilding_fallsBackToGeneration_whenTestProductsPathHasNoGraphEvenIfXctestrunHasOne() async throws {
+        // Given — testProductsPath exists but has no `selective-testing-graph.json`. The
+        // xctestrun sibling directory does. The fast path must not fire.
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let xctestrunDirectory = path.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: xctestrunDirectory)
+        let xctestrunPath = xctestrunDirectory.appending(component: "MyApp.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+        try JSONEncoder()
+            .encode(SelectiveTestingGraph(testTargetHashes: ["MyTests": "sibling-hash"]))
+            .write(to: xctestrunDirectory.appending(component: SelectiveTestingGraph.fileName).url)
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([.test(name: "TestScheme")])
+
+        // When
+        try await testRun(
+            path: path,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", testProductsPath.pathString,
+                "-xctestrun", xctestrunPath.pathString,
+            ]
+        )
+
+        // Then — generator did run, the sibling graph was ignored.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(1)
     }
 
     func test_run_build_writesAllTestPlanNames_whenSchemeHasMultiplePlans() async throws {

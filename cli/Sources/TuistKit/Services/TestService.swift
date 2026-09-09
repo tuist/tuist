@@ -973,14 +973,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// contents of a `.xctestproducts` bundle passed via `-testProductsPath`, or alongside a raw
     /// `.xctestrun` file passed via `-xctestrun`. Returning a value lets `test --without-building`
     /// take the bundle fast path and skip project generation.
+    ///
+    /// Precedence matches xcodebuild's own input-mode precedence: if `-testProductsPath` is
+    /// present it owns the test products, so we must only ever read a graph from that bundle. We
+    /// never fall through to a `-xctestrun` sibling in that case, because doing so could pair the
+    /// build products from the bundle with a graph computed for unrelated test-run configuration.
     private func selectiveTestingBundlePath(
         passthroughXcodeBuildArguments: [String],
         relativeTo path: AbsolutePath
     ) async throws -> AbsolutePath? {
-        if let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path),
-           try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
-        {
-            return testProductsPath
+        if let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path) {
+            if try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName)) {
+                return testProductsPath
+            }
+            return nil
         }
         if let xctestrunPath = xctestrunPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path) {
             let siblingDirectory = xctestrunPath.parentDirectory
