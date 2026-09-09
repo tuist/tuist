@@ -935,6 +935,30 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Starts `account`'s free tier over from now.
+
+  Both fields move together, and the second is the one that is easy to
+  miss. The counter is what `cache_access_blocked?/1` reads, so zeroing
+  it is what unblocks the account. `free_tier_reset_at` is what makes
+  that survive: `CommandEvents.account_month_usage/2` counts events from
+  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left
+  the timestamp behind would be recomputed straight back over the
+  threshold at the next nightly sweep.
+
+  This grants a fresh allowance for the rest of the month, not an
+  exemption. The reset goes inert on the first of the next month, when
+  the counting window returns to the month boundary on its own.
+  """
+  def reset_free_tier(%Account{} = account) do
+    account
+    |> Account.free_tier_reset_changeset(%{
+      free_tier_reset_at: DateTime.utc_now(),
+      current_month_remote_cache_hits_count: 0
+    })
+    |> Repo.update()
+  end
+
+  @doc """
   The ids of the given accounts whose free tier is exhausted.
 
   Only accounts already past the threshold need their plan resolved, and those
