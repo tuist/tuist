@@ -122,6 +122,11 @@ expiryCheck:
     # Channel to post to. Empty disables posting; the job still logs and
     # still fails on a critical threshold.
     channel: ""
+    # 1Password item and field holding the bot token, referenced rather
+    # than copied onto the MDM item so rotating it in one place is
+    # enough. Needs chat:write for the channel above.
+    tokenItem: TUIST_OPS_BOT
+    tokenField: slack_bot_token
   resources:
     requests: { cpu: 10m, memory: 32Mi }
     limits: { cpu: 200m, memory: 128Mi }

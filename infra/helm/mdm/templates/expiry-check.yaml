@@ -86,7 +86,11 @@ spec:
       data:
         apns-push-cert.pem: '{{ `{{ index . "apns-push-cert-pem" | default "" | trim }}` }}'
         devid-installer-cert.pem: '{{ `{{ index . "devid-installer-cert-pem" | default "" | trim }}` }}'
-        slack-token: '{{ `{{ index . "slack-token" | default "" | trim }}` }}'
+        slack-token: '{{ `{{ .slackToken | default "" | trim }}` }}'
+  data:
+    - secretKey: slackToken
+      remoteRef:
+        key: {{ printf "%s/%s" .Values.expiryCheck.slack.tokenItem .Values.expiryCheck.slack.tokenField | quote }}
   dataFrom:
     - extract:
         key: {{ .Values.runtimeSecrets.externalSecret.item | quote }}

@@ -51,10 +51,12 @@ postgresql:
 
 # Renewal alarms. Neither the APNs certificate nor the ABM token can be
 # renewed by any API, so being told early is the only mitigation. Set
-# expiryCheck.slack.channel to a channel the people who can act on it
-# actually read; without it the job still logs and still fails on a
-# critical finding, which surfaces as a failed CronJob.
+# renewal ahead of time is the only mitigation. Posts to #notifications;
+# a critical finding also fails the job, so a broken Slack path still
+# surfaces as a failed CronJob rather than as silence.
 expiryCheck:
   enabled: true
   slack:
-    channel: ""
+    # #notifications. The channel ID rather than the name, so a rename
+    # cannot silently stop delivery.
+    channel: "C074MCRL0RE"
