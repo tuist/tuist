@@ -126,7 +126,7 @@ kura-eu-central-ingress-nginx:
     # the same validator for the Kura Ingress annotations.
     admissionWebhooks: &kuraGatewayAdmissionWebhooks
       enabled: false
-    # Anchored so all three regional Kura gateways share ONE nginx config
+    # Anchored so every regional Kura gateway shares ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
     # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
@@ -167,6 +167,31 @@ kura-eu-central-ingress-nginx:
       client-body-buffer-size: "4m"
       http2-max-concurrent-streams: "32"
       http-snippet: "http2_body_preread_size 4m;"
+    metrics:
+      enabled: true
+
+# Declared while the region is gated off everywhere, for the same reason
+# kura-sa-west is: a region whose ingress class no controller declares has its
+# Ingresses go unclaimed the moment it is switched on. eu-west is the correctly
+# named successor to eu-central, the same Paris Dedibox hardware, and it stays
+# off until that fleet is split between the two node pools.
+kura-eu-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
+    ingressClassResource:
+      name: kura-eu-west
+      controllerValue: k8s.io/kura-eu-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
 

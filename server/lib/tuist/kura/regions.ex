@@ -9,7 +9,11 @@ defmodule Tuist.Kura.Regions do
     * `id` — stable opaque identifier (`"eu-central"`, `"us-east"`,
       `"us-west"`, `"local-controller"`).
       Stored on `kura_servers.region`. Never renamed once published
-      because URLs and `account_cache_endpoints` reference it.
+      because URLs and `account_cache_endpoints` reference it. A region
+      whose id turns out to be wrong is succeeded rather than renamed:
+      the correctly named region is added alongside, placement relocates
+      the accounts across, and the old id is marked `retired` once it is
+      drained. `eu-central` and `eu-west` are that pair, both Paris.
     * `display_name` — the customer-facing region label.
     * `provisioner` — the `Tuist.Kura.Provisioner` implementation that
       actually provisions, rolls, and destroys Kura servers here. The
@@ -266,7 +270,50 @@ defmodule Tuist.Kura.Regions do
       egress_burst_mbps: 500,
       # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both
       # sit in the Paris region, so the region's location is the same
-      # everywhere despite the id reading `eu-central`.
+      # everywhere despite the id reading `eu-central`. `eu-west`, the next
+      # entry, is the correctly named successor this one is drained into.
+      country: "FR",
+      subdivision: "FR-IDF"
+    },
+    # EU West (Paris / Scaleway Dedibox) on the same bare-metal shape as
+    # `eu-central`, whose successor it is. `eu-central` has always been Paris:
+    # Dedibox DC5 in production and staging, DC2 in canary. The id said Central
+    # while the boxes sat in France, which reads as Frankfurt to anyone who has
+    # not opened this file, and the private runner-cache region a few entries
+    # down already names the same city honestly as `scw-fr-par-runners`. OVH's
+    # own datacenter list calls Paris `eu-west-par`, so `eu-west` is what the
+    # rest of the industry calls this location too.
+    #
+    # A new region rather than a rename of `eu-central`, because the id is
+    # published: it is stamped on kura_servers, kura_deployments and the storage
+    # rollups, and `cluster_id` mints every account's public hostname. Standing
+    # `eu-west` up beside it lets placement relocate accounts across, which is a
+    # path the fleet already runs, instead of mutating a live identifier in
+    # place. `eu-central` is retired once it is drained.
+    #
+    # Its own `kura-eu-west` node pool rather than sharing `kura-dedibox` with
+    # `eu-central`. One pool per region is load-bearing, not cosmetic:
+    # `Capacity.reserved_gib/1` counts pods carrying `tuist.dev/region`, while
+    # `allocatable_gib/1` sums the nodes the pool selects. Two regions over one
+    # pool would each measure their own reservations against the whole pool's
+    # disk, so neither would see the other's, and `under_pressure?/1` would stay
+    # false on boxes that are full. Splitting the Dedibox fleet between the two
+    # pools is what still blocks serving, and it is out of scope here.
+    %{
+      id: "eu-west",
+      display_name: "EU West",
+      cluster_id: "eu-west-1",
+      ingress_class_name: "kura-eu-west",
+      node_pool: "kura-eu-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Carried over from eu-central unchanged: the same enterprise per-tenant
+      # floor bin-packed as the tuist.dev/egress-mbps request, and the same
+      # Cilium burst ceiling on a box with the same ~1 Gbit/s NIC.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Scaleway Dedibox, Paris, as eu-central already is.
       country: "FR",
       subdivision: "FR-IDF"
     },

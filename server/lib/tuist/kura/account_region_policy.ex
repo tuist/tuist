@@ -22,9 +22,16 @@ defmodule Tuist.Kura.AccountRegionPolicy do
   # Air can never land there either, because Air resolves from the storage-region
   # preference and never from an assignment.
   #
+  # `eu-west` is assignable for a different reason. It is European, so `europe`
+  # will derive to it in the end, but not while it is the empty successor to
+  # `eu-central`: `AccountPolicies` residency still answers `europe` with
+  # `eu-central`, and moving that answer belongs with the drain that gives
+  # `eu-west` its boxes. Until then it arrives only by assignment or by a
+  # placement proposal, like the three above.
+  #
   # Being assignable and being served are separate: this list decides what an
   # assignment may name, `Regions.available?/1` decides whether it resolves.
-  @service_regions ["us-east", "eu-central", "us-west", "ap-southeast", "sa-west"]
+  @service_regions ["us-east", "eu-central", "eu-west", "us-west", "ap-southeast", "sa-west"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "kura_account_region_policies" do

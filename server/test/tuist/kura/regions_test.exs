@@ -64,7 +64,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sets a uniform enterprise egress floor across the bare-metal regions" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "eu-west", "ca-east", "ap-southeast", "sa-west"] do
         assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
       end
 
@@ -104,7 +104,7 @@ defmodule Tuist.Kura.RegionsTest do
       # Safe here and not before: a tiered floor sits far below its ceiling, so
       # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
       # it the pod's cgroup memory.min. That gate ships in this same change.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "eu-west", "ca-east", "ap-southeast", "sa-west"] do
         assert Regions.memory_governed?(Regions.get(id))
       end
 
@@ -114,7 +114,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "bin-packs memory ceilings only where a node budget is advertised" do
       # Every managed region runs on a bare-metal pool the CAPI provider patches
       # with a tuist.dev/memory-ceiling-mib budget.
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "eu-west", "ca-east", "ap-southeast", "sa-west"] do
         assert Regions.memory_ceiling_bin_packed?(Regions.get(id))
       end
 
@@ -125,7 +125,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sizes the managed regions' storage per tier" do
-      for id <- ["us-east", "us-west", "eu-central", "ca-east", "ap-southeast", "sa-west"] do
+      for id <- ["us-east", "us-west", "eu-central", "eu-west", "ca-east", "ap-southeast", "sa-west"] do
         assert Regions.storage_governed?(Regions.get(id))
       end
 
@@ -354,7 +354,8 @@ defmodule Tuist.Kura.RegionsTest do
         # go unclaimed the moment it was switched on, and nothing else in the
         # tree ties the two files together.
         "ap-southeast" => "kura-ap-southeast-ingress-nginx",
-        "sa-west" => "kura-sa-west-ingress-nginx"
+        "sa-west" => "kura-sa-west-ingress-nginx",
+        "eu-west" => "kura-eu-west-ingress-nginx"
       }
 
       for {id, platform_ingress_key} <- platform_ingress_keys do
@@ -388,6 +389,8 @@ defmodule Tuist.Kura.RegionsTest do
         "us-east" => %{country: "US", subdivision: "US-VA"},
         "us-west" => %{country: "US", subdivision: "US-OR"},
         "eu-central" => %{country: "FR", subdivision: "FR-IDF"},
+        # The same Paris location as eu-central, whose successor it is.
+        "eu-west" => %{country: "FR", subdivision: "FR-IDF"},
         "ca-east" => %{country: "CA", subdivision: "CA-QC"},
         "scw-fr-par-runners" => %{country: "FR", subdivision: "FR-IDF"},
         # Singapore is a city-state: its ISO 3166-2 codes are CDC statistical
@@ -469,6 +472,53 @@ defmodule Tuist.Kura.RegionsTest do
       end)
 
       assert Regions.available() == []
+    end
+  end
+
+  describe "eu-west" do
+    test "is eu-central's successor on the same Paris hardware shape" do
+      assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
+               Regions.get("eu-west")
+
+      assert Regions.get("eu-west").display_name == "EU West"
+      assert config.cluster_id == "eu-west-1"
+      assert config.ingress_class_name == "kura-eu-west"
+      assert config.storage_class == "scw-local-nvme"
+      assert config.gateway == :host_network
+      assert config.hetzner_location == nil
+      assert config.replicas == 2
+      assert config.storage_size == nil
+    end
+
+    test "sits in the same country as the region it succeeds" do
+      assert Regions.get("eu-west").provisioner_config.country ==
+               Regions.get("eu-central").provisioner_config.country
+
+      assert Regions.get("eu-west").provisioner_config.country == "FR"
+    end
+
+    test "takes its own node pool rather than sharing eu-central's" do
+      # Capacity measures a region's reservations from pod labels but its disk
+      # from the pool's nodes, so two regions over one pool would each miss the
+      # other's usage and neither would see the boxes fill.
+      assert Regions.get("eu-west").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-eu-west"
+             }
+
+      refute Regions.get("eu-west").provisioner_config.node_selector ==
+               Regions.get("eu-central").provisioner_config.node_selector
+    end
+
+    test "is not served in an environment whose gate omits it" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "us-east", "us-west"]
+      end)
+
+      refute Regions.available?("eu-west")
+      refute "eu-west" in Enum.map(Regions.selectable(), & &1.id)
     end
   end
 
@@ -699,6 +749,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.exists?("us-west")
       assert Regions.exists?("ap-southeast")
       assert Regions.exists?("sa-west")
+      assert Regions.exists?("eu-west")
       assert Regions.exists?("local-controller")
       refute Regions.exists?("local")
       refute Regions.exists?("nope")

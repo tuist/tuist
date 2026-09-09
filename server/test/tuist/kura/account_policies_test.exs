@@ -392,6 +392,12 @@ defmodule Tuist.Kura.AccountPoliciesTest do
             refute service_region == "sa-west",
                    "region=#{region} plan=#{plan} derived to sa-west"
 
+            # eu-west is European, so it is the one region here that will be
+            # derived one day. Not while it is the empty successor: `europe`
+            # still answers eu-central, and that moves with the drain.
+            refute service_region == "eu-west",
+                   "region=#{region} plan=#{plan} derived to eu-west"
+
           {:error, _reason} ->
             :ok
         end

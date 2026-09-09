@@ -91,6 +91,36 @@ kura-eu-central-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+# EU West (Paris, Scaleway Dedibox), the correctly named successor to
+# eu-central on the same hardware. Identical host-network shape: the gateway
+# binds the box's public IP because Dedibox has no Hetzner LB.
+#
+# Disabled until the region is served. It flips to true alongside the
+# TUIST_KURA_AVAILABLE_REGIONS entry and the kura-eu-west node pool, which is
+# carved out of the Dedibox fleet eu-central runs on today; until that pool has
+# a node this would schedule nothing anyway.
+kura-eu-west-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-eu-west
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
 kura-us-east-ingress-nginx:
   enabled: true
   controller:

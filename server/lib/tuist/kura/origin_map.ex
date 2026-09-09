@@ -17,19 +17,34 @@ defmodule Tuist.Kura.OriginMap do
 
   # Bumped when an entry moves. Recorded on decisions rather than compared
   # against anything: it dates a verdict, it does not gate one.
-  @version 1
+  @version 2
 
   # Nearest first, and every list names every candidate region. An origin
   # always has an answer, so a region being unserved or unfunded narrows the
   # choice instead of leaving the account unplaced.
+  #
+  # `eu-west` and `eu-central` are the same boxes in Paris, so they sit adjacent
+  # in every list, and `eu-central` leads while it is the one holding them.
+  # Ordering `eu-west` ahead of it is part of the change that gives it hardware,
+  # not this one: `Origins.traffic_mix/2` reads the head of these lists without
+  # consulting availability, so promoting an empty region here would attribute
+  # live traffic to boxes that do not exist.
   @zone_preferences %{
-    us_east: ["us-east", "ca-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
-    us_west: ["us-west", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-central"],
-    canada_east: ["ca-east", "us-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
-    europe: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"],
-    apac: ["ap-southeast", "us-west", "us-east", "eu-central", "ca-east", "sa-west"],
-    south_america: ["sa-west", "us-east", "ca-east", "us-west", "eu-central", "ap-southeast"],
-    africa_middle_east: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"]
+    us_east: ["us-east", "ca-east", "us-west", "eu-central", "eu-west", "sa-west", "ap-southeast"],
+    us_west: ["us-west", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-central", "eu-west"],
+    canada_east: ["ca-east", "us-east", "us-west", "eu-central", "eu-west", "sa-west", "ap-southeast"],
+    europe: ["eu-central", "eu-west", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"],
+    apac: ["ap-southeast", "us-west", "us-east", "eu-central", "eu-west", "ca-east", "sa-west"],
+    south_america: ["sa-west", "us-east", "ca-east", "us-west", "eu-central", "eu-west", "ap-southeast"],
+    africa_middle_east: [
+      "eu-central",
+      "eu-west",
+      "us-east",
+      "ca-east",
+      "us-west",
+      "ap-southeast",
+      "sa-west"
+    ]
   }
 
   # Where an origin no entry covers is served from. The same region an account

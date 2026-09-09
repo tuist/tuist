@@ -15,6 +15,29 @@ defmodule Tuist.Kura.OriginMapTest do
       assert ["eu-central" | _rest] = OriginMap.candidates("ZA")
     end
 
+    test "keeps the two Paris regions adjacent, the one with the boxes first" do
+      # Same hardware, so nothing sits between them. eu-central leads while it
+      # is the one serving; promoting eu-west belongs with the change that
+      # gives it boxes.
+      for origin <- ["FR", "DE", "ZA", "US-VA", "SG", "BR", "CA-QC"] do
+        candidates = OriginMap.candidates(origin)
+        central = Enum.find_index(candidates, &(&1 == "eu-central"))
+        west = Enum.find_index(candidates, &(&1 == "eu-west"))
+
+        assert west == central + 1, "eu-central and eu-west are not adjacent for #{origin}"
+      end
+    end
+
+    test "adding eu-west moves no traffic on its own" do
+      # candidates/1 states distance and Origins.traffic_mix/2 reads its head
+      # without consulting availability, so an empty region must not lead.
+      assert OriginMap.preferred("FR", ["eu-central", "us-east"]) == "eu-central"
+      assert OriginMap.preferred("FR", ["eu-central", "eu-west"]) == "eu-central"
+
+      # It is still reachable once something permits it and nothing nearer is.
+      assert OriginMap.preferred("FR", ["eu-west", "us-east"]) == "eu-west"
+    end
+
     test "splits the countries that hold more than one region" do
       assert ["us-west" | _rest] = OriginMap.candidates("US-OR")
       assert ["us-west" | _rest] = OriginMap.candidates("US-CA")
