@@ -190,8 +190,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 additionalStrings: additionalStrings,
                 external: projectHash,
                 embeddedProductReferences: embeddedProductReferencesHash,
-                destinations: destinations,
-                hashedStrings: stringsToHash
+                destinations: destinations
             )
 
             return TargetContentHash(
@@ -377,15 +376,20 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             stringsToHash.append(settingsHash)
         }
 
+        let foreignBuildHash: String?
         if let foreignBuild = graphTarget.target.foreignBuild {
             let inputsResult = try await foreignBuildHasher.hash(
                 inputs: foreignBuild.inputs,
                 hashedPaths: hashedPaths
             )
             hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
-            let foreignBuildHash = try contentHasher.hash(
+            foreignBuildHash = try contentHasher.hash(
                 "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
             )
+        } else {
+            foreignBuildHash = nil
+        }
+        if let foreignBuildHash {
             stringsToHash.append(foreignBuildHash)
         }
 
@@ -442,7 +446,9 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             additionalStrings: additionalStrings,
             embeddedProductReferences: embeddedProductReferencesHash,
             destinations: destinations,
-            hashedStrings: stringsToHash
+            foreignBuild: foreignBuildHash,
+            testDevice: destinationHashes.first,
+            testRuntime: destinationHashes.last
         )
 
         return TargetContentHash(

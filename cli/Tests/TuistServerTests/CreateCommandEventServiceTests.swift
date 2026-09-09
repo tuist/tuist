@@ -5,21 +5,23 @@ import TuistCore
 @testable import TuistServer
 
 struct CreateCommandEventServiceTests {
-    @Test func serializes_each_hash_snapshot_without_replacing_declared_destinations() throws {
+    @Test func serializes_individual_hash_inputs_without_replacing_declared_destinations() throws {
         let binary = TargetContentHashSubhashes.test(
             embeddedProductReferences: "embedded-hash",
             destinations: ["iPhone"],
-            hashedStrings: ["binary", "iPhone", "embedded-hash"]
+            foreignBuild: "foreign-hash"
         )
         let selective = TargetContentHashSubhashes.test(
             destinations: ["mac"],
-            hashedStrings: ["testing", "mac"]
+            testDevice: "iPhone 16",
+            testRuntime: "iOS-16"
         )
         let graph = RunGraph(
             name: "Graph",
             projects: [.test(targets: [.test(
                 destinations: [.iPhone, .iPad, .mac],
-                binaryCacheMetadata: .init(hash: "binary", hit: .miss, subhashes: binary),
+                binaryCacheMetadata: .init(hash: "binary", hit: .miss, subhashes: binary)
+            ), .test(
                 selectiveTestingMetdata: .init(hash: "testing", hit: .local, subhashes: selective)
             )])],
             binaryBuildDuration: nil
@@ -33,12 +35,16 @@ struct CreateCommandEventServiceTests {
         let binaryMetadata = try #require(target["binary_cache_metadata"] as? [String: Any])
         let binaryInputs = try #require(binaryMetadata["subhashes"] as? [String: Any])
         #expect(binaryInputs["destinations"] as? [String] == binary.destinations)
-        #expect(binaryInputs["hashed_strings"] as? [String] == binary.hashedStrings)
+        #expect(binaryInputs["foreign_build"] as? String == "foreign-hash")
+        #expect(binaryInputs["test_device"] as? String == "")
+        #expect(binaryInputs["test_runtime"] as? String == "")
         #expect(binaryInputs["embedded_product_references"] as? String == "embedded-hash")
-        let selectiveMetadata = try #require(target["selective_testing_metadata"] as? [String: Any])
+        let selectiveMetadata = try #require(targets[1]["selective_testing_metadata"] as? [String: Any])
         let selectiveInputs = try #require(selectiveMetadata["subhashes"] as? [String: Any])
         #expect(selectiveInputs["destinations"] as? [String] == selective.destinations)
-        #expect(selectiveInputs["hashed_strings"] as? [String] == selective.hashedStrings)
+        #expect(selectiveInputs["foreign_build"] as? String == "")
+        #expect(selectiveInputs["test_device"] as? String == "iPhone 16")
+        #expect(selectiveInputs["test_runtime"] as? String == "iOS-16")
         #expect(selectiveInputs["embedded_product_references"] as? String == "")
     }
 
@@ -52,7 +58,9 @@ struct CreateCommandEventServiceTests {
         )
         let data = try JSONEncoder().encode(CreateCommandEventService().map(graph: graph))
         let json = try #require(String(data: data, encoding: .utf8))
-        #expect(!json.contains("hashed_strings"))
+        #expect(!json.contains("foreign_build"))
+        #expect(!json.contains("test_device"))
+        #expect(!json.contains("test_runtime"))
         #expect(!json.contains("embedded_product_references"))
         let target = try #require(CreateCommandEventService().map(graph: graph).projects.first?.targets.first)
         #expect(target.binary_cache_metadata?.subhashes?.destinations == nil)

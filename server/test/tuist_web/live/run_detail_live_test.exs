@@ -17,7 +17,7 @@ defmodule TuistWeb.RunDetailLiveTest do
   end
 
   describe "run detail" do
-    test "JSON comparison retains purpose-specific hash inputs and historical unknowns", %{
+    test "JSON comparison retains individual hash inputs and historical unknowns", %{
       conn: conn,
       organization: organization,
       project: project,
@@ -27,24 +27,27 @@ defmodule TuistWeb.RunDetailLiveTest do
       graph = XcodeFixtures.xcode_graph_fixture(command_event_id: run.id)
       xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
 
-      XcodeFixtures.xcode_target_fixture(
-        name: "Library",
-        xcode_project_id: xcode_project.id,
-        binary_cache_hash: "binary",
-        selective_testing_hash: "testing",
-        destinations: ["iphone", "ipad", "mac"],
-        binary_cache_hash_inputs: JSON.encode!(%{"destinations" => ["iPhone"], "embedded_product_references" => ""}),
-        selective_testing_hash_inputs:
-          JSON.encode!(%{"destinations" => ["mac"], "embedded_product_references" => "embedded"})
-      )
+      for {purpose, destinations} <- [{:binary_cache_hash, ["iPhone"]}, {:selective_testing_hash, ["mac"]}] do
+        XcodeFixtures.xcode_target_fixture([
+          {purpose, "hash"},
+          {:name, "Target"},
+          {:xcode_project_id, xcode_project.id},
+          {:destinations, ["iphone", "ipad", "mac"]},
+          {:hashed_destinations, destinations},
+          {:hashed_destinations_recorded, true},
+          {:embedded_product_references_hash, ""},
+          {:foreign_build_hash, "foreign"},
+          {:test_device, ""},
+          {:test_runtime, ""}
+        ])
 
-      XcodeFixtures.xcode_target_fixture(
-        name: "Historical",
-        xcode_project_id: xcode_project.id,
-        binary_cache_hash: "old-binary",
-        selective_testing_hash: "old-testing",
-        destinations: ["iphone", "ipad", "mac"]
-      )
+        XcodeFixtures.xcode_target_fixture([
+          {purpose, "old"},
+          {:name, "Historical"},
+          {:xcode_project_id, xcode_project.id},
+          {:destinations, ["iphone", "ipad", "mac"]}
+        ])
+      end
 
       for {tab, button, expected} <- [
             {"module-cache", "copy-binary-cache-json", ["iPhone"]},
@@ -56,11 +59,21 @@ defmodule TuistWeb.RunDetailLiveTest do
           lv |> render() |> Floki.parse_fragment!() |> Floki.find("##{button}") |> Floki.attribute("data-clipboard-value")
 
         targets = JSON.decode!(json)
-        library = Enum.find(targets, &(&1["name"] == "Library"))
+        library = Enum.find(targets, &(&1["name"] == "Target"))
         historical = Enum.find(targets, &(&1["name"] == "Historical"))
-        assert library["hash_inputs"]["destinations"] == expected
-        assert historical["hash_inputs"]["destinations"] == nil
-        assert Map.has_key?(historical["hash_inputs"], "destinations")
+        assert library["hashed_destinations"] == expected
+        assert historical["hashed_destinations"] == nil
+        assert Map.has_key?(historical, "hashed_destinations")
+        assert library["embedded_product_references_hash"] == ""
+        assert library["foreign_build_hash"] == "foreign"
+        assert library["test_device"] == ""
+        assert library["test_runtime"] == ""
+
+        for field <- ["embedded_product_references_hash", "foreign_build_hash", "test_device", "test_runtime"] do
+          assert historical[field] == nil
+          assert Map.has_key?(historical, field)
+        end
+
         refute Map.has_key?(library, "destinations")
         refute Map.has_key?(historical, "destinations")
       end

@@ -47,11 +47,12 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                target_settings_hash: nil,
                buildable_folders_hash: nil,
                additional_hashing_inputs_hash: "additional_inputs_hash",
-               hash_inputs: %{
-                 "destinations" => ["iPhone"],
-                 "hashed_strings" => ["input", "iPhone"],
-                 "embedded_product_references" => "embedded"
-               },
+               additional_strings: ["custom-input"],
+               hashed_destinations: ["iPhone"],
+               embedded_product_references_hash: "embedded",
+               foreign_build_hash: "",
+               test_device: "",
+               test_runtime: "",
                external_hash: nil
              }
            ]
@@ -84,9 +85,12 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
       assert target["product"] == "framework"
       assert target["bundle_id"] == "com.example.MyTarget"
       assert target["product_name"] == "MyTarget"
-      assert target["hash_inputs"]["destinations"] == ["iPhone"]
-      assert target["hash_inputs"]["hashed_strings"] == ["input", "iPhone"]
-      assert target["hash_inputs"]["embedded_product_references"] == "embedded"
+      assert target["additional_strings"] == ["custom-input"]
+      assert target["hashed_destinations"] == ["iPhone"]
+      assert target["test_device"] == ""
+      assert target["test_runtime"] == ""
+      assert target["subhashes"]["embedded_product_references"] == "embedded"
+      assert target["subhashes"]["foreign_build"] == ""
       assert target["subhashes"]["sources"] == "src_hash"
       assert target["subhashes"]["dependencies"] == "dep_hash"
       assert target["subhashes"]["additional_hashing_inputs"] == "additional_inputs_hash"
@@ -126,11 +130,12 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
                target_settings_hash: nil,
                buildable_folders_hash: nil,
                additional_hashing_inputs_hash: nil,
-               hash_inputs: %{
-                 "destinations" => ["iPhone"],
-                 "hashed_strings" => ["input", "iPhone"],
-                 "embedded_product_references" => "embedded"
-               },
+               additional_strings: ["custom-input"],
+               hashed_destinations: nil,
+               embedded_product_references_hash: nil,
+               foreign_build_hash: nil,
+               test_device: nil,
+               test_runtime: nil,
                external_hash: nil
              }
            ]
@@ -157,6 +162,8 @@ defmodule TuistWeb.API.ModuleCacheTargetsControllerTest do
       target = hd(response["targets"])
       assert is_nil(target["cache_status"])
       assert target["subhashes"] == %{}
+      assert target["hashed_destinations"] == nil
+      assert Map.has_key?(target, "hashed_destinations")
     end
 
     test "filters targets by cache_status", %{conn: conn, user: user, project: project} do

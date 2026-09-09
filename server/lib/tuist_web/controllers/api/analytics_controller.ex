@@ -372,16 +372,23 @@ defmodule TuistWeb.API.AnalyticsController do
                                      description:
                                        "Sorted raw destinations used to compute this hash. Omitted when unavailable."
                                    },
-                                   hashed_strings: %Schema{
-                                     type: :array,
-                                     items: %Schema{type: :string},
-                                     description:
-                                       "Exact ordered strings passed to the final content hasher. Omitted when unavailable."
-                                   },
                                    embedded_product_references: %Schema{
                                      type: :string,
                                      description:
                                        "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
                                    },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
@@ -435,16 +442,23 @@ defmodule TuistWeb.API.AnalyticsController do
                                      description:
                                        "Sorted raw destinations used to compute this hash. Omitted when unavailable."
                                    },
-                                   hashed_strings: %Schema{
-                                     type: :array,
-                                     items: %Schema{type: :string},
-                                     description:
-                                       "Exact ordered strings passed to the final content hasher. Omitted when unavailable."
-                                   },
                                    embedded_product_references: %Schema{
                                      type: :string,
                                      description:
                                        "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
                                    },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},

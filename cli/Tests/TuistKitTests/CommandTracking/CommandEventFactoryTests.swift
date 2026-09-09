@@ -113,7 +113,7 @@ struct CommandEventFactoryTests {
                     sources: "sources-hash-a",
                     dependencies: "deps-hash-a",
                     destinations: ["iPhone"],
-                    hashedStrings: ["binary-input"]
+                    foreignBuild: "binary-input"
                 ),
                 "hash-b": .test(
                     sources: "sources-hash-b",
@@ -123,7 +123,7 @@ struct CommandEventFactoryTests {
                     sources: "sources-hash-a-tests",
                     dependencies: "deps-hash-a-tests",
                     destinations: ["mac"],
-                    hashedStrings: ["testing-input"]
+                    testDevice: "testing-input"
                 ),
             ],
             previewId: nil,
@@ -172,7 +172,7 @@ struct CommandEventFactoryTests {
                                         sources: "sources-hash-a",
                                         dependencies: "deps-hash-a",
                                         destinations: ["iPhone"],
-                                        hashedStrings: ["binary-input"]
+                                        foreignBuild: "binary-input"
                                     )
                                 ),
                                 selectiveTestingMetdata: nil
@@ -191,7 +191,7 @@ struct CommandEventFactoryTests {
                                         sources: "sources-hash-a-tests",
                                         dependencies: "deps-hash-a-tests",
                                         destinations: ["mac"],
-                                        hashedStrings: ["testing-input"]
+                                        testDevice: "testing-input"
                                     )
                                 )
                             ),

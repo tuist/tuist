@@ -177,18 +177,23 @@
                                                     deployment_target: subhashes.deploymentTarget,
                                                     destinations: subhashes.destinations,
                                                     embedded_product_references: subhashes.embeddedProductReferences
-                                                        ?? (subhashes.hashedStrings == nil ? nil : ""),
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
-                                                    hashed_strings: subhashes.hashedStrings,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )
@@ -227,18 +232,23 @@
                                                     deployment_target: subhashes.deploymentTarget,
                                                     destinations: subhashes.destinations,
                                                     embedded_product_references: subhashes.embeddedProductReferences
-                                                        ?? (subhashes.hashedStrings == nil ? nil : ""),
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     entitlements: subhashes.entitlements,
                                                     environment: subhashes.environment,
                                                     external: subhashes.external,
-                                                    hashed_strings: subhashes.hashedStrings,
+                                                    foreign_build: subhashes.foreignBuild
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
                                                     headers: subhashes.headers,
                                                     info_plist: subhashes.infoPlist,
                                                     project_settings: subhashes.projectSettings,
                                                     resources: subhashes.resources,
                                                     sources: subhashes.sources,
                                                     target_scripts: subhashes.targetScripts,
-                                                    target_settings: subhashes.targetSettings
+                                                    target_settings: subhashes.targetSettings,
+                                                    test_device: subhashes.testDevice
+                                                        ?? (subhashes.destinations == nil ? nil : ""),
+                                                    test_runtime: subhashes.testRuntime
+                                                        ?? (subhashes.destinations == nil ? nil : "")
                                                 )
                                             }
                                         )

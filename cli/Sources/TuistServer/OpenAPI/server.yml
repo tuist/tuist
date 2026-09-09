@@ -11562,10 +11562,10 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -11578,20 +11578,20 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -12476,13 +12476,9 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
-                                        hashed_strings:
-                                          description: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
-                                          items:
-                                            type: string
-                                            x-struct:
-                                            x-validate:
-                                          type: array
+                                        foreign_build:
+                                          description: Foreign build hash. Empty means none; omitted means unavailable.
+                                          type: string
                                           x-struct:
                                           x-validate:
                                         headers:
@@ -12517,6 +12513,16 @@ paths:
                                           x-validate:
                                         target_settings:
                                           description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_device:
+                                          description: UI test device name. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_runtime:
+                                          description: UI test runtime identifier. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -12686,13 +12692,9 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
-                                        hashed_strings:
-                                          description: Exact ordered strings passed to the final content hasher. Omitted when unavailable.
-                                          items:
-                                            type: string
-                                            x-struct:
-                                            x-validate:
-                                          type: array
+                                        foreign_build:
+                                          description: Foreign build hash. Empty means none; omitted means unavailable.
+                                          type: string
                                           x-struct:
                                           x-validate:
                                         headers:
@@ -12727,6 +12729,16 @@ paths:
                                           x-validate:
                                         target_settings:
                                           description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_device:
+                                          description: UI test device name. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_runtime:
+                                          description: UI test runtime identifier. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -24110,6 +24122,15 @@ paths:
                   targets:
                     items:
                       properties:
+                        additional_strings:
+                          description: Additional strings included in the hash, in their original order.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         bundle_id:
                           description: The bundle identifier.
                           nullable: true
@@ -24132,10 +24153,14 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
-                        hash_inputs:
-                          additionalProperties: true
-                          description: Inputs recorded for this cache hash. Null fields are unavailable; empty values are known empty inputs. Destinations are hashed raw values, never declared graph destinations.
-                          type: object
+                        hashed_destinations:
+                          description: Sorted raw destinations used to compute the hash. Null means unavailable; an empty array means none.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          nullable: true
+                          type: array
                           x-struct:
                           x-validate:
                         name:
@@ -24160,8 +24185,20 @@ paths:
                             type: string
                             x-struct:
                             x-validate:
-                          description: Non-nil hash components.
+                          description: Individual hash components. Unavailable components are omitted; an empty new component means none.
                           type: object
+                          x-struct:
+                          x-validate:
+                        test_device:
+                          description: UI test device name. Null means unavailable; empty means none.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_runtime:
+                          description: UI test runtime identifier. Null means unavailable; empty means none.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       required:

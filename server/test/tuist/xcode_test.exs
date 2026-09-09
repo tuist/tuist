@@ -11,13 +11,15 @@ defmodule Tuist.XcodeTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "Tuist.Xcode" do
-    test "round-trips independent hash input snapshots through ClickHouse analytics" do
+    test "round-trips individual hash inputs through ClickHouse analytics" do
       event = CommandEventsFixtures.command_event_fixture()
 
       inputs = fn destinations ->
         %{
           "destinations" => destinations,
-          "hashed_strings" => ["same-components"] ++ destinations,
+          "foreign_build" => "foreign",
+          "test_device" => "",
+          "test_runtime" => "",
           "project_settings" => "same-settings",
           "embedded_product_references" => "embedded"
         }
@@ -36,7 +38,11 @@ defmodule Tuist.XcodeTest do
                   %{
                     "name" => "Library",
                     "destinations" => ["iphone", "ipad", "mac"],
-                    "binary_cache_metadata" => %{"hash" => "binary", "subhashes" => inputs.(["iPad", "iPhone", "mac"])},
+                    "binary_cache_metadata" => %{"hash" => "binary", "subhashes" => inputs.(["iPad", "iPhone", "mac"])}
+                  },
+                  %{
+                    "name" => "Tests",
+                    "destinations" => ["iphone", "ipad", "mac"],
                     "selective_testing_metadata" => %{"hash" => "testing", "subhashes" => inputs.(["iPad", "iPhone"])}
                   }
                 ]
@@ -50,9 +56,12 @@ defmodule Tuist.XcodeTest do
       {testing, _} = Xcode.selective_testing_analytics(event)
       assert [binary_target] = binary.cacheable_targets
       assert [testing_target] = testing.test_modules
-      assert binary_target.hash_inputs["destinations"] == ["iPad", "iPhone", "mac"]
-      assert testing_target.hash_inputs["destinations"] == ["iPad", "iPhone"]
-      assert binary_target.hash_inputs["embedded_product_references"] == "embedded"
+      assert binary_target.hashed_destinations == ["iPad", "iPhone", "mac"]
+      assert testing_target.hashed_destinations == ["iPad", "iPhone"]
+      assert binary_target.embedded_product_references_hash == "embedded"
+      assert binary_target.foreign_build_hash == "foreign"
+      assert testing_target.test_device == ""
+      assert testing_target.test_runtime == ""
       assert binary_target.project_settings_hash == testing_target.project_settings_hash
       assert binary_target.destinations == testing_target.destinations
     end

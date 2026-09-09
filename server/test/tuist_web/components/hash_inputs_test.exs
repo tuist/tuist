@@ -6,21 +6,18 @@ defmodule TuistWeb.Components.HashInputsTest do
   alias Tuist.Xcode.XcodeTarget
   alias TuistWeb.Runs.ModuleCacheTab
 
-  test "renders the effective destination difference despite identical declared destinations" do
-    target = %XcodeTarget{destinations: ["iphone", "ipad", "mac"], external_hash: "same"}
+  test "renders effective destination differences despite identical declared destinations" do
+    target = %XcodeTarget{
+      destinations: ["iphone", "ipad", "mac"],
+      external_hash: "same",
+      embedded_product_references_hash: "embedded",
+      foreign_build_hash: "foreign",
+      test_device: "iPhone 16",
+      test_runtime: "iOS-16"
+    }
 
     render = fn destinations ->
-      target = %{
-        target
-        | binary_cache_hash_inputs:
-            JSON.encode!(%{
-              "destinations" => destinations,
-              "external" => "same",
-              "embedded_product_references" => "embedded"
-            })
-      }
-
-      render_component(&ModuleCacheTab.subhashes_list/1, target: XcodeTarget.with_hash_inputs(target, :binary_cache))
+      render_component(&ModuleCacheTab.subhashes_list/1, target: %{target | hashed_destinations: destinations})
     end
 
     broad = render.(["iPad", "iPhone", "mac", "macWithiPadDesign"])
@@ -28,29 +25,27 @@ defmodule TuistWeb.Components.HashInputsTest do
     assert broad =~ "iPad, iPhone, mac, macWithiPadDesign"
     assert narrow =~ "iPad, iPhone, macWithiPadDesign"
     refute narrow =~ "iPad, iPhone, mac, macWithiPadDesign"
-    assert narrow =~ "embedded"
+    for value <- ["embedded", "foreign", "iPhone 16", "iOS-16"], do: assert(narrow =~ value)
   end
 
-  test "historical destinations are unavailable while a recorded empty set is known" do
-    target = %XcodeTarget{destinations: ["iphone", "mac"]}
-
-    historical =
-      render_component(&ModuleCacheTab.subhashes_list/1, target: XcodeTarget.with_hash_inputs(target, :binary_cache))
-
+  test "historical destinations are unavailable while recorded empty inputs are known" do
+    target = %XcodeTarget{destinations: ["iphone", "mac"], hashed_destinations: nil}
+    historical = render_component(&ModuleCacheTab.subhashes_list/1, target: target)
     assert historical =~ "Hashed destinations"
     assert historical =~ "Unavailable"
     refute historical =~ "iphone"
 
     empty = %{
       target
-      | binary_cache_hash_inputs:
-          JSON.encode!(%{"destinations" => [], "embedded_product_references" => "", "hashed_strings" => []})
+      | hashed_destinations: [],
+        embedded_product_references_hash: "",
+        foreign_build_hash: "",
+        test_device: "",
+        test_runtime: ""
     }
 
-    empty = XcodeTarget.with_hash_inputs(empty, :binary_cache)
     html = render_component(&ModuleCacheTab.subhashes_list/1, target: empty)
     assert html =~ "None"
-    assert html =~ "[]"
     refute html =~ "Unavailable"
   end
 end

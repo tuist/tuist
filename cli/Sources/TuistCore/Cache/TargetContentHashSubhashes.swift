@@ -45,8 +45,11 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
 
     /// Sorted raw destinations used by the hasher, absent in historical reports.
     public let destinations: [String]?
-    /// Exact ordered strings passed to the final content hasher, absent in historical reports.
-    public let hashedStrings: [String]?
+    /// Hash of the foreign build script and its inputs, when present.
+    public let foreignBuild: String?
+    /// Device name and runtime included when hashing UI tests.
+    public let testDevice: String?
+    public let testRuntime: String?
 
     public init(
         sources: String? = nil,
@@ -68,7 +71,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         external: String? = nil,
         embeddedProductReferences: String? = nil,
         destinations: [String]? = nil,
-        hashedStrings: [String]? = nil
+        foreignBuild: String? = nil,
+        testDevice: String? = nil,
+        testRuntime: String? = nil
     ) {
         self.sources = sources
         self.resources = resources
@@ -89,7 +94,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.external = external
         self.embeddedProductReferences = embeddedProductReferences
         self.destinations = destinations
-        self.hashedStrings = hashedStrings
+        self.foreignBuild = foreignBuild
+        self.testDevice = testDevice
+        self.testRuntime = testRuntime
     }
 
     #if DEBUG
@@ -113,7 +120,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
             external: String? = nil,
             embeddedProductReferences: String? = nil,
             destinations: [String]? = nil,
-            hashedStrings: [String]? = nil
+            foreignBuild: String? = nil,
+            testDevice: String? = nil,
+            testRuntime: String? = nil
         ) -> TargetContentHashSubhashes {
             TargetContentHashSubhashes(
                 sources: sources,
@@ -135,7 +144,9 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 external: external,
                 embeddedProductReferences: embeddedProductReferences,
                 destinations: destinations,
-                hashedStrings: hashedStrings
+                foreignBuild: foreignBuild,
+                testDevice: testDevice,
+                testRuntime: testRuntime
             )
         }
     #endif

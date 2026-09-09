@@ -33,7 +33,7 @@ msgstr ""
 msgid "%{run_duration}s"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:433
+#: lib/tuist_web/components/runs/module_cache_tab.ex:446
 #, elixir-autogen, elixir-format
 msgid "Additional strings"
 msgstr ""
@@ -133,7 +133,7 @@ msgstr ""
 msgid "Build:"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:421
+#: lib/tuist_web/components/runs/module_cache_tab.ex:434
 #, elixir-autogen, elixir-format
 msgid "Buildable folders"
 msgstr ""
@@ -244,7 +244,7 @@ msgstr ""
 msgid "Cacheable Tasks"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:490
+#: lib/tuist_web/components/runs/module_cache_tab.ex:503
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
 msgstr ""
@@ -363,22 +363,22 @@ msgstr ""
 msgid "Copy as JSON"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:357
+#: lib/tuist_web/components/runs/module_cache_tab.ex:370
 #, elixir-autogen, elixir-format
 msgid "Copy files"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:363
+#: lib/tuist_web/components/runs/module_cache_tab.ex:376
 #, elixir-autogen, elixir-format
 msgid "Core data models"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:403
+#: lib/tuist_web/components/runs/module_cache_tab.ex:416
 #, elixir-autogen, elixir-format
 msgid "Dependencies"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:385
+#: lib/tuist_web/components/runs/module_cache_tab.ex:398
 #, elixir-autogen, elixir-format
 msgid "Deployment target"
 msgstr ""
@@ -423,12 +423,12 @@ msgstr ""
 msgid "Duration"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:397
+#: lib/tuist_web/components/runs/module_cache_tab.ex:410
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:375
+#: lib/tuist_web/components/runs/module_cache_tab.ex:388
 #: lib/tuist_web/live/xcode_builds_live.ex:439
 #: lib/tuist_web/live/xcode_builds_live.html.heex:356
 #, elixir-autogen, elixir-format
@@ -453,7 +453,7 @@ msgstr ""
 msgid "Errors and Warnings"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:342
+#: lib/tuist_web/components/runs/module_cache_tab.ex:355
 #, elixir-autogen, elixir-format
 msgid "External"
 msgstr ""
@@ -602,7 +602,7 @@ msgstr ""
 msgid "Hash"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:380
+#: lib/tuist_web/components/runs/module_cache_tab.ex:393
 #, elixir-autogen, elixir-format
 msgid "Headers"
 msgstr ""
@@ -631,7 +631,7 @@ msgstr ""
 msgid "Incremental"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:391
+#: lib/tuist_web/components/runs/module_cache_tab.ex:404
 #, elixir-autogen, elixir-format
 msgid "Info.plist"
 msgstr ""
@@ -646,7 +646,7 @@ msgid "Key"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:249
-#: lib/tuist_web/components/runs/module_cache_tab.ex:505
+#: lib/tuist_web/components/runs/module_cache_tab.ex:518
 #: lib/tuist_web/live/build_run_live.ex:1292
 #: lib/tuist_web/live/build_run_live.ex:1536
 #: lib/tuist_web/live/build_run_live.html.heex:1037
@@ -673,7 +673,7 @@ msgid "Mac device"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:255
-#: lib/tuist_web/components/runs/module_cache_tab.ex:531
+#: lib/tuist_web/components/runs/module_cache_tab.ex:544
 #: lib/tuist_web/live/build_run_live.ex:1294
 #: lib/tuist_web/live/build_run_live.ex:1537
 #: lib/tuist_web/live/build_run_live.html.heex:1065
@@ -760,7 +760,7 @@ msgstr ""
 msgid "No warnings detected"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:615
+#: lib/tuist_web/components/runs/module_cache_tab.ex:632
 #: lib/tuist_web/live/build_run_live.html.heex:332
 #: lib/tuist_web/live/run_detail_live.html.heex:167
 #: lib/tuist_web/live/run_detail_live.html.heex:173
@@ -812,7 +812,7 @@ msgstr ""
 msgid "Project"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:409
+#: lib/tuist_web/components/runs/module_cache_tab.ex:422
 #, elixir-autogen, elixir-format
 msgid "Project settings"
 msgstr ""
@@ -847,7 +847,7 @@ msgid "Recent Builds"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:243
-#: lib/tuist_web/components/runs/module_cache_tab.ex:518
+#: lib/tuist_web/components/runs/module_cache_tab.ex:531
 #: lib/tuist_web/live/build_run_live.ex:1293
 #: lib/tuist_web/live/build_run_live.ex:1535
 #: lib/tuist_web/live/build_run_live.html.heex:1051
@@ -860,7 +860,7 @@ msgid "Remote"
 msgstr ""
 
 #: lib/tuist_web/components/build_timeline.ex:125
-#: lib/tuist_web/components/runs/module_cache_tab.ex:351
+#: lib/tuist_web/components/runs/module_cache_tab.ex:364
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
@@ -933,7 +933,7 @@ msgstr ""
 msgid "Source"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:346
+#: lib/tuist_web/components/runs/module_cache_tab.ex:359
 #, elixir-autogen, elixir-format
 msgid "Sources"
 msgstr ""
@@ -973,12 +973,12 @@ msgstr ""
 msgid "Target"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:369
+#: lib/tuist_web/components/runs/module_cache_tab.ex:382
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:415
+#: lib/tuist_web/components/runs/module_cache_tab.ex:428
 #, elixir-autogen, elixir-format
 msgid "Target settings"
 msgstr ""
@@ -1527,7 +1527,7 @@ msgstr ""
 msgid "Total data uploaded to the remote cache during this run (%{count} artifacts)."
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:427
+#: lib/tuist_web/components/runs/module_cache_tab.ex:440
 #, elixir-autogen, elixir-format
 msgid "Additional hashing inputs"
 msgstr ""
@@ -1715,13 +1715,22 @@ msgstr ""
 msgid "Hashed destinations"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:332
-#, elixir-autogen, elixir-format
-msgid "Ordered hash inputs"
-msgstr ""
-
-#: lib/tuist_web/components/runs/module_cache_tab.ex:336
-#: lib/tuist_web/components/runs/module_cache_tab.ex:614
+#: lib/tuist_web/components/runs/module_cache_tab.ex:631
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
+msgstr ""
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:332
+#, elixir-autogen, elixir-format
+msgid "Foreign build"
+msgstr ""
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:340
+#, elixir-autogen, elixir-format
+msgid "Test device"
+msgstr ""
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:348
+#, elixir-autogen, elixir-format
+msgid "Test runtime"
 msgstr ""

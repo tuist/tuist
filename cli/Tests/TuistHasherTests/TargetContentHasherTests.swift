@@ -117,8 +117,7 @@ struct TargetContentHasherTests {
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
                 external: "hash",
-                destinations: ["iPad", "iPhone"],
-                hashedStrings: ["hash", "Target", "app", "settings_hash", "settings_hash", "dependencies_hash", "iPad", "iPhone"]
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -148,19 +147,7 @@ struct TargetContentHasherTests {
                 targetSettings: "settings_hash",
                 additionalStrings: ["additional_string_one", "additional_string_two"],
                 external: "hash",
-                destinations: ["iPad", "iPhone"],
-                hashedStrings: [
-                    "hash",
-                    "Target",
-                    "app",
-                    "settings_hash",
-                    "settings_hash",
-                    "dependencies_hash",
-                    "iPad",
-                    "iPhone",
-                    "additional_string_one",
-                    "additional_string_two",
-                ]
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -203,28 +190,7 @@ struct TargetContentHasherTests {
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
                 additionalStrings: ["additional_string"],
-                destinations: ["iPad", "iPhone"],
-                hashedStrings: [
-                    "Target",
-                    "app",
-                    "io.tuist.Target",
-                    "Target",
-                    "dependencies_hash",
-                    "sources_hash",
-                    "resources_hash",
-                    "copy_files_hash",
-                    "core_data_models_hash",
-                    "target_scripts_hash",
-                    "dictionary_hash",
-                    "iPad",
-                    "iPhone",
-                    "additional_string",
-                    "iPad",
-                    "iPhone",
-                    "deployment_targets_hash",
-                    "settings_hash",
-                    "settings_hash",
-                ]
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -348,28 +314,7 @@ struct TargetContentHasherTests {
                 targetSettings: "settings_hash",
                 buildableFolders:
                 "/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header",
-                destinations: ["iPad", "iPhone"],
-                hashedStrings: [
-                    "Target",
-                    "app",
-                    "io.tuist.Target",
-                    "Target",
-                    "dependencies_hash",
-                    "sources_hash",
-                    "resources_hash",
-                    "copy_files_hash",
-                    "core_data_models_hash",
-                    "target_scripts_hash",
-                    "dictionary_hash",
-                    "iPad",
-                    "iPhone",
-                    "/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header",
-                    "iPad",
-                    "iPhone",
-                    "deployment_targets_hash",
-                    "settings_hash",
-                    "settings_hash",
-                ]
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -600,28 +545,8 @@ struct TargetContentHasherTests {
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
                 destinations: ["iPad", "iPhone"],
-                hashedStrings: [
-                    "Target",
-                    "ui_tests",
-                    "io.tuist.Target",
-                    "Target",
-                    "dependencies_hash",
-                    "sources_hash",
-                    "resources_hash",
-                    "copy_files_hash",
-                    "core_data_models_hash",
-                    "target_scripts_hash",
-                    "dictionary_hash",
-                    "iPad",
-                    "iPhone",
-                    "iPhone 16",
-                    "iOS-16",
-                    "iPad",
-                    "iPhone",
-                    "deployment_targets_hash",
-                    "settings_hash",
-                    "settings_hash",
-                ]
+                testDevice: "iPhone 16",
+                testRuntime: "iOS-16"
             )
         )
     }
@@ -642,19 +567,36 @@ struct TargetContentHasherTests {
         #expect(first.hash != second.hash)
         #expect(first.subhashes.destinations == ["iPad", "iPhone", "mac", "macWithiPadDesign"])
         #expect(second.subhashes.destinations == ["iPad", "iPhone", "macWithiPadDesign"])
-        #expect(first.subhashes.hashedStrings?.filter { $0 != "mac" } == second.subhashes.hashedStrings)
-        #expect(first.subhashes.hashedStrings?.joined(separator: "-") == first.hash)
-        #expect(second.subhashes.hashedStrings?.joined(separator: "-") == second.hash)
+        #expect(first.hash.replacingOccurrences(of: "-mac-", with: "-") == second.hash)
         #expect(first.subhashes.projectSettings == second.subhashes.projectSettings)
         #expect(first.subhashes.dependencies == second.subhashes.dependencies)
         #expect(first.subhashes.external == second.subhashes.external)
+    }
+
+    @Test func captures_foreign_build_hash_without_changing_composition() async throws {
+        let target = GraphTarget.test(target: .test(foreignBuild: ForeignBuild(
+            script: "build-library",
+            inputs: [],
+            output: .xcframework(path: try AbsolutePath(validating: "/tmp/Library.xcframework"), linking: .static)
+        )))
+        given(foreignBuildHasher).hash(inputs: .any, hashedPaths: .any)
+            .willReturn((hash: "foreign-inputs", hashedPaths: [:]))
+
+        let result = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:], destination: nil)
+
+        #expect(result.subhashes.foreignBuild == "foreignBuild-Target-build-library-foreign-inputs")
+        #expect(result.hash.hasSuffix("-foreignBuild-Target-build-library-foreign-inputs"))
+        #expect(result.subhashes.testDevice == nil)
+        #expect(result.subhashes.testRuntime == nil)
     }
 
     @Test func historical_subhashes_decode_without_inventing_inputs() throws {
         let historical = Data(#"{"projectSettings":"settings","additionalStrings":[]}"#.utf8)
         let subhashes = try JSONDecoder().decode(TargetContentHashSubhashes.self, from: historical)
         #expect(subhashes.destinations == nil)
-        #expect(subhashes.hashedStrings == nil)
+        #expect(subhashes.foreignBuild == nil)
+        #expect(subhashes.testDevice == nil)
+        #expect(subhashes.testRuntime == nil)
         #expect(subhashes.embeddedProductReferences == nil)
     }
 }

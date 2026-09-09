@@ -316,7 +316,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
           {dgettext("dashboard_builds", "Hashed destinations")}:
         </span>
         <span data-part="subhash-value">
-          {hash_input_value(Map.get(@target, :hash_inputs, %{})["destinations"])}
+          {hash_input_value(Map.get(@target, :hashed_destinations))}
         </span>
       </div>
       <div data-part="subhash-item">
@@ -324,18 +324,31 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
           {dgettext("dashboard_builds", "Embedded product references")}:
         </span>
         <span data-part="subhash-value">
-          {hash_input_value(Map.get(@target, :hash_inputs, %{})["embedded_product_references"])}
+          {hash_input_value(Map.get(@target, :embedded_product_references_hash))}
         </span>
       </div>
       <div data-part="subhash-item">
         <span data-part="subhash-label">
-          {dgettext("dashboard_builds", "Ordered hash inputs")}:
+          {dgettext("dashboard_builds", "Foreign build")}:
         </span>
         <span data-part="subhash-value">
-          {case Map.get(@target, :hash_inputs, %{})["hashed_strings"] do
-            nil -> dgettext("dashboard_builds", "Unavailable")
-            strings -> JSON.encode!(strings)
-          end}
+          {hash_input_value(Map.get(@target, :foreign_build_hash))}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Test device")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :test_device))}
+        </span>
+      </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">
+          {dgettext("dashboard_builds", "Test runtime")}:
+        </span>
+        <span data-part="subhash-value">
+          {hash_input_value(Map.get(@target, :test_runtime))}
         </span>
       </div>
       <div :if={@target.external_hash != ""} data-part="subhash-item">
@@ -579,10 +592,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   end
 
   defp target_to_json_map(target) do
-    target = XcodeTarget.with_hash_inputs(target, :binary_cache)
-
     %{
-      hash_inputs: target.hash_inputs,
       name: target.name,
       binary_cache_hit: target.binary_cache_hit,
       binary_cache_hash: target.binary_cache_hash,
@@ -609,6 +619,13 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
     |> Map.new()
+    |> Map.merge(%{
+      hashed_destinations: XcodeTarget.hashed_destinations(target),
+      embedded_product_references_hash: target.embedded_product_references_hash,
+      foreign_build_hash: target.foreign_build_hash,
+      test_device: target.test_device,
+      test_runtime: target.test_runtime
+    })
   end
 
   defp hash_input_value(nil), do: dgettext("dashboard_builds", "Unavailable")

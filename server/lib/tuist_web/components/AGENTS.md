@@ -19,4 +19,4 @@ This area owns shared UI components for LiveView and templates.
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 
-- Run cache details and JSON comparisons use the hash-specific snapshot. Missing historical destinations and other unrecorded inputs display as unavailable; recorded empty inputs remain distinguishable.
+- Run cache details and JSON comparisons use individual recorded hash inputs. Missing historical destinations and other unrecorded inputs display as unavailable; recorded empty inputs remain distinguishable.

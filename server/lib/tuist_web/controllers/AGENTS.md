@@ -15,4 +15,4 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 
-- Command event schemas accept hash-specific effective destinations, ordered final-hash strings and embedded product references. Module-cache responses expose hash inputs with null for unavailable historical fields.
+- Command event schemas accept effective destinations and individual subhashes, including embedded products, foreign builds, and UI-test device/runtime inputs. Module-cache responses expose null for unavailable typed inputs and omit unavailable subhashes to preserve the existing string-valued map contract.

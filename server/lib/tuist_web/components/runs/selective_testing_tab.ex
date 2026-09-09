@@ -212,10 +212,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   end
 
   defp target_to_json_map(target) do
-    target = XcodeTarget.with_hash_inputs(target, :selective_testing)
-
     %{
-      hash_inputs: target.hash_inputs,
       name: target.name,
       selective_testing_hit: target.selective_testing_hit,
       selective_testing_hash: target.selective_testing_hash,
@@ -242,6 +239,13 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
     |> Map.new()
+    |> Map.merge(%{
+      hashed_destinations: XcodeTarget.hashed_destinations(target),
+      embedded_product_references_hash: target.embedded_product_references_hash,
+      foreign_build_hash: target.foreign_build_hash,
+      test_device: target.test_device,
+      test_runtime: target.test_runtime
+    })
   end
 
   defp empty_value?(nil), do: true
