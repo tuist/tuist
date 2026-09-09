@@ -40,8 +40,13 @@ kuraController:
   # chart. The controller uses it for the shared wildcard below, and for the
   # per-instance certificate of any instance that wildcard does not cover.
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  # Disabled until the wildcard can be issued without blocking a release.
+  # `--rollback-on-failure` defaults Helm 4's wait strategy to `watcher`, which
+  # waits on every resource in the release including cert-manager Certificates,
+  # so a wildcard held in ACME backoff fails the whole deploy and rolls it back.
+  # Re-enable once the Certificate is created outside the release.
   publicWildcardCertificate:
-    enabled: true
+    enabled: false
     dnsNames:
       - "*.kura.tuist.dev"
   telemetry:
