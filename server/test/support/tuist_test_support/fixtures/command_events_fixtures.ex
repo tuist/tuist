@@ -31,7 +31,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
           command_arguments: Keyword.get(attrs, :command_arguments, []),
           duration: Keyword.get(attrs, :duration, 0),
           tuist_version: "4.1.0",
-          swift_version: "5.2",
+          swift_version: Keyword.get(attrs, :swift_version, "5.2"),
           macos_version: "10.15",
           project_id: project_id,
           cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
