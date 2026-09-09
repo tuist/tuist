@@ -6,7 +6,6 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kura.OriginRollup
-  alias Tuist.Kura.PlacementNotifier
   alias Tuist.Kura.PlacementProposal
   alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerRegions
@@ -23,7 +22,6 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
-    stub(PlacementNotifier, :notify_applied, fn _proposal -> :ok end)
 
     :ok
   end
@@ -115,23 +113,6 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
       |> Enum.count(&(&1 == "eu-central"))
 
     assert applied == 1
-  end
-
-  test "announces an automatic apply" do
-    # Nobody chose it, so the channel is where it shows up.
-    stub_budgets(%{correct: 1})
-    test_process = self()
-
-    stub(PlacementNotifier, :notify_applied, fn proposal ->
-      send(test_process, {:notified, proposal.kind, proposal.to_region})
-      :ok
-    end)
-
-    account_with_moved_traffic()
-
-    assert :ok = perform_job(PlacementWorker, %{})
-
-    assert_received {:notified, :correct, "eu-central"}
   end
 
   defp stub_budgets(budgets) do

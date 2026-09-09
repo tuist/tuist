@@ -25,7 +25,6 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
     ]
 
   alias Tuist.Kura
-  alias Tuist.Kura.PlacementNotifier
   alias Tuist.Kura.PlacementProposals
 
   @impl Oban.Worker
@@ -57,24 +56,11 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
         budget when budget > 0 ->
           kind
           |> PlacementProposals.open_proposals(budget)
-          |> Enum.each(&apply_automatically/1)
+          |> Enum.each(&Kura.apply_placement_proposal(&1, "automatic"))
 
         _exhausted ->
           :ok
       end
     end)
-  end
-
-  # Notified rather than only recorded. Everything else that moves a customer's
-  # cache unattended is either an operator's own action or paged on by Grafana;
-  # an apply is neither, and its cost lands on a customer whose next build
-  # reads a cold region.
-  defp apply_automatically(proposal) do
-    case Kura.apply_placement_proposal(proposal, "automatic") do
-      {:ok, _outcome} -> PlacementNotifier.notify_applied(proposal)
-      # A proposal whose premises moved between the sweep and the apply is
-      # superseded rather than applied, which is the mechanism working.
-      {:error, _reason} -> :ok
-    end
   end
 end
