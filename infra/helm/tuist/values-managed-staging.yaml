@@ -750,24 +750,55 @@ ovhFleets:
 # home prefix would expose every device on it, on every port, to every machine
 # on the tailnet including CI runner VMs. Without the route the claim succeeds
 # and bootstrap then fails on a dial timeout, which is loud but wasteful.
+# BER1 prototype, not the rack. Every DEVIATION comment below marks something
+# that is a property of one refurb M1 sitting on a desk on a flat home LAN, and
+# that changes when the real rack exists. Nothing here is a knob to tune: they
+# are consequences of the hardware and the network the prototype runs on.
 rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
+  # DEVIATION (fleet size): one host. The rack's replicas come from the declared
+  # host count, so production omits this and lets it default. It is pinned here
+  # only because there is one box and an explicit 1 reads as deliberate.
   replicas: 1
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
+      # DEVIATION (network): a home LAN address, advertised to the tailnet as a
+      # /32 because the catch-all grant in infra/tailscale/acls.json is still
+      # there and a wider prefix would expose the whole house. The rack puts
+      # minis on their own VLAN behind the ToR switch and advertises that prefix
+      # once, which removes the per-host ACL edit this address costs today. See
+      # "Two prerequisites before a real rack replaces the prototype" in
+      # infra/cluster-api-provider-tuist/AGENTS.md.
       address: 192.168.0.41
+      # DEVIATION (position): no rack, so no shelf or positionU. In the rack
+      # these carry the physical location a hands-on tech needs to find the box.
       rack: proto
-      # The Shelly plug has not been delivered. Until it is, this host has no
-      # outlet: PowerReachable reports False with PowerNotConfigured, the
-      # bootstrap-failure ladder skips its reboot tier and escalates straight to
-      # quarantine, and `tuist.dev/power-action` is refused. All of that is
-      # correct behaviour for a box nobody can power-cycle remotely: it is
-      # visible rather than silent, which is the point. Add the `power` block
-      # when the plug lands.
+      # DEVIATION (power): no `power` block at all. The Shelly plug has not been
+      # delivered, so this host has no outlet: PowerReachable reports False with
+      # PowerNotConfigured, the bootstrap-failure ladder skips its reboot tier
+      # and escalates straight to quarantine, and `tuist.dev/power-action` is
+      # refused. That is correct behaviour for a box nobody can power-cycle
+      # remotely, and it is visible rather than silent, which is the point.
+      #
+      # The rack does not use a Shelly. A Shelly is a home and office prototype
+      # stand-in; the rack runs per-outlet-switched PDUs on the management VLAN,
+      # with their own driver, one credential Secret per PDU shared by every
+      # host plugged into it.
+      #
+      # KNOWN GAP for whoever adds the first `power` block: the controller dials
+      # `power.host` directly from its Pod, with no egress Service in front of
+      # it, unlike the host's SSH address. A Pod has no route to a subnet-routed
+      # address, so a PDU on a LAN or a management VLAN is unreachable the same
+      # way the minis were, and it surfaces as a connection error on
+      # PowerReachable rather than as anything naming a route.
   machine:
+    # DEVIATION (hardware): a refurb M1 with 16 GB and 256 GB, bought to prove
+    # the plumbing. The rack is leased M5 Pro minis at 18 cores / 64 GB / 2 TB,
+    # so every number in this block goes up and guestCapacity stops being 1.
+    #
     # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
     # ~2 GB Virtualization.framework reserves for the host, below which
     # `tart run` fails with `memorySize > maximumAllowedMemorySize`.
@@ -778,7 +809,10 @@ rackFleet:
     # guest slot can transiently hold its running Pod plus a predecessor GC has
     # not collected yet.
     maxPods: 3
-    # Cache volumes OFF. This is a 256 GB box: the goldens alone do not leave
+    # DEVIATION (storage): cache volumes OFF. A 2 TB rack mini runs the fleet's
+    # normal quota; this is only zero because the prototype's disk is 256 GB.
+    #
+    # This is a 256 GB box: the goldens alone do not leave
     # room for the fleet's normal quota, and the point of this host is to
     # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
     # from unset, which would inherit the fleet's non-zero global.
