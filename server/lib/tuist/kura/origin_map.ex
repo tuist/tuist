@@ -31,7 +31,16 @@ defmodule Tuist.Kura.OriginMap do
     europe_east: ["eu-east", "eu-central", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
     apac: ["ap-southeast", "us-west", "us-central", "us-east", "eu-central", "eu-east", "ca-east", "sa-west"],
     south_america: ["sa-west", "us-east", "us-central", "ca-east", "us-west", "eu-central", "eu-east", "ap-southeast"],
-    africa_middle_east: ["eu-central", "eu-east", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"]
+    africa_middle_east: [
+      "eu-central",
+      "eu-east",
+      "us-east",
+      "ca-east",
+      "us-central",
+      "us-west",
+      "ap-southeast",
+      "sa-west"
+    ]
   }
 
   # Where an origin no entry covers is served from. The same region an account
