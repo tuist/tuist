@@ -573,7 +573,22 @@ spec:
         # ConfigMap edit sits on disk unread until something else restarts
         # the pod. ClickHouse reloads some of these itself, but not the
         # profile settings that gate the replicated-engine guard.
-        checksum/config: {{ printf "%s|%s" ($m | toYaml) $password | sha256sum | trunc 32 }}
+        #
+        # `migration` and `shadowWrites` are omitted because neither reaches
+        # this server's configuration. `migration` selects a step and its
+        # cutoff, and `shadowWrites` is read by the application's env. Hashing
+        # them restarted the database on every step of the very migration they
+        # describe, which is not a theoretical cost: enabling dual writes
+        # rolled the pod out from under the mirror and lost four writes to a
+        # terminal error, and arming the backfill rolled it again five seconds
+        # after the backfill Job started, so the copy died on `connection
+        # refused` before reading a single row.
+        #
+        # Everything else stays hashed, including `backup`, which does reach
+        # the ConfigMap through the disk declaration. The rule is that a value
+        # is omitted only when it configures the client or the rollout rather
+        # than the server.
+        checksum/config: {{ printf "%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}
