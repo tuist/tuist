@@ -124,12 +124,7 @@
         id="widget-misses"
         title={miss_reason_title(@selected_miss_reason)}
         legend_color={miss_reason_color(@selected_miss_reason)}
-        description={
-          dgettext(
-            "dashboard_cache",
-            "Module builds that were a cache miss: the module's own content changed, only an upstream dependency changed, or it had never been cached."
-          )
-        }
+        description={miss_reason_description(@selected_miss_reason)}
         value={if totals, do: format_number(miss_reason_value(totals, @selected_miss_reason))}
         phx_click="select_widget"
         phx_value_widget="misses"

@@ -117,10 +117,14 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       document
       |> Floki.find("#module-build-history-table tbody tr")
       |> Enum.map(fn row ->
-        row |> Floki.find("td") |> Enum.at(2) |> Floki.text() |> String.trim()
+        row |> Floki.find("td") |> Enum.at(2) |> Floki.find("[data-type=badge]") |> Floki.text() |> String.trim()
       end)
 
     assert reasons == ["Changed", "Cached", "Cold"]
+
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "same branch")
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "does not mean the module was never cached")
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=trigger][tabindex=0]")
 
     results =
       document
@@ -306,6 +310,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
     assert has_element?(lv, "#widget-why-it-misses", "Changed misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
+    assert has_element?(lv, "#widget-why-it-misses", "does not necessarily mean its source code was edited")
 
     # The other two widgets are the ones the modules page keeps in its table.
     assert has_element?(lv, "#widget-hit-rate")

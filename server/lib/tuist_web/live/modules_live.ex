@@ -7,6 +7,7 @@ defmodule TuistWeb.ModulesLive do
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.ModuleCache, only: [miss_reason_description: 1]
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker

@@ -2274,8 +2274,10 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
-    `:dependency_induced`, and `:unclassified` (misses with no comparable prior
-    build: first-seen / cold / evicted).
+    `:dependency_induced`, and `:unclassified` (misses without an earlier
+    observation in the comparison window, or not explained by the compared inputs).
+    These are command observations; restored cache results can be reported by
+    multiple test shards belonging to the same build.
   """
   def module_invalidations(opts \\ []) do
     opts
@@ -3060,9 +3062,10 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  Returns a daily breakdown of why a module missed: `changed` (its own content
-  differed from its previous build), `upstream` (only a dependency differed), and
-  `cold` (a miss with no comparable prior build — first-seen or evicted).
+  Returns a daily breakdown of reported misses: `changed` (the module's compared
+  direct inputs differed), `upstream` (only its dependency or external package hash
+  differed), and `cold` (no earlier observation, or no difference in the compared
+  inputs). Cold does not establish that an artifact was never cached or was evicted.
 
   Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
   day instead of by module. Requires `:name`.

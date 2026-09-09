@@ -192,6 +192,7 @@ defmodule TuistWeb.ModulesLiveTest do
 
     assert has_element?(lv, "#widget-misses", "Changed misses")
     assert has_element?(lv, "#widget-misses", "1")
+    assert has_element?(lv, "#widget-misses", "sources, resources, or build settings")
     assert_patched(lv, base <> "?miss-reason=changed")
 
     render_click(lv, "select_miss_reason", %{"type" => "cold"})
@@ -199,6 +200,8 @@ defmodule TuistWeb.ModulesLiveTest do
 
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
+    assert has_element?(lv, "#widget-misses", "repeated misses for the same cache key")
+    assert has_element?(lv, "#widget-misses", "test shards can repeat an earlier build's cache results")
   end
 
   test "pages through the modules table", %{

@@ -164,12 +164,7 @@
         id="widget-why-it-misses"
         title={miss_reason_title(@selected_miss_reason)}
         legend_color={miss_reason_legend(@selected_miss_reason)}
-        description={
-          dgettext(
-            "dashboard_cache",
-            "Builds where this module was a cache miss: its own content changed, only an upstream dependency changed, or it had never been cached."
-          )
-        }
+        description={miss_reason_description(@selected_miss_reason)}
         value={
           if @module.ok?,
             do: format_number(miss_reason_value(@module.result, @selected_miss_reason))
@@ -531,11 +526,26 @@
             />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Reason")}>
-            <.badge_cell
-              label={build_reason_label(build.reason)}
-              color={build_reason_color(build.reason)}
-              style="light-fill"
-            />
+            <.tooltip
+              id={"module-miss-reason-#{build.id}"}
+              size="large"
+              title={build_reason_label(build.reason)}
+              description={
+                if build.reason == "hit",
+                  do: reason_description("hit"),
+                  else: miss_reason_description(build.reason)
+              }
+            >
+              <:trigger :let={attrs}>
+                <div {attrs} tabindex="0">
+                  <.badge_cell
+                    label={build_reason_label(build.reason)}
+                    color={build_reason_color(build.reason)}
+                    style="light-fill"
+                  />
+                </div>
+              </:trigger>
+            </.tooltip>
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell

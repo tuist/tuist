@@ -15,3 +15,4 @@ This area owns helper functions for views, forms, and UI utilities.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - `GradleTask` shares task outcome labels and colors between build tables, task overviews, and individual execution details.
+- `ModuleCache` shares miss-reason definitions and comparison limitations between module overview widgets and per-module history.
