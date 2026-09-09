@@ -183,13 +183,22 @@
 
     loki.process "cache_docker" {
       // The application also sends structured logs through loki.source.api.
-      // Drop routine completion duplicates from Docker while preserving every
-      // warning, error, and unusual response.
+      // Sample routine completions from Docker while preserving every warning,
+      // error, and unusual response. 404 is a cache miss here, not a failure.
+      //
+      // This was an outright drop. Sampling keeps a proportional record of
+      // successful customer data access, which section 1.1 of the logging and
+      // monitoring policy asks for and a total drop does not, and matches the
+      // rate the other three request-completion rules already use: the server
+      // and kura ingress rules in infra/helm/k8s-monitoring/values.yaml and the
+      // loki.source.api rule below.
       stage.match {
         selector = "{app=\"cache-docker\"} |~ \"status=(2[0-9]{2}|404).*\\[info\\] Request completed\""
-        action   = "drop"
 
-        drop_counter_reason = "cache_request_completion_duplicate"
+        stage.sampling {
+          rate                = 0.1
+          drop_counter_reason = "cache_request_completion_sampling"
+        }
       }
 
       forward_to = [loki.write.grafana_cloud.receiver]
