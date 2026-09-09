@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // FailoverIPSpec keeps a provider failover/additional IP routed to a healthy box
@@ -74,107 +73,4 @@ type FailoverIPList struct {
 
 func init() {
 	SchemeBuilder.Register(&FailoverIP{}, &FailoverIPList{})
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPSpec) DeepCopyInto(out *FailoverIPSpec) {
-	*out = *in
-	if in.NodePoolSelector != nil {
-		out.NodePoolSelector = make(map[string]string, len(in.NodePoolSelector))
-		for k, v := range in.NodePoolSelector {
-			out.NodePoolSelector[k] = v
-		}
-	}
-	if in.DemuxSelector != nil {
-		out.DemuxSelector = make(map[string]string, len(in.DemuxSelector))
-		for k, v := range in.DemuxSelector {
-			out.DemuxSelector[k] = v
-		}
-	}
-}
-
-// DeepCopy creates a new FailoverIPSpec.
-func (in *FailoverIPSpec) DeepCopy() *FailoverIPSpec {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPSpec)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPStatus) DeepCopyInto(out *FailoverIPStatus) {
-	*out = *in
-	if in.LastReconciledAt != nil {
-		out.LastReconciledAt = (*in.LastReconciledAt).DeepCopy()
-	}
-}
-
-// DeepCopy creates a new FailoverIPStatus.
-func (in *FailoverIPStatus) DeepCopy() *FailoverIPStatus {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPStatus)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIP) DeepCopyInto(out *FailoverIP) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	in.Spec.DeepCopyInto(&out.Spec)
-	in.Status.DeepCopyInto(&out.Status)
-}
-
-// DeepCopy creates a new FailoverIP.
-func (in *FailoverIP) DeepCopy() *FailoverIP {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIP)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyObject returns a runtime.Object copy of the receiver.
-func (in *FailoverIP) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
-}
-
-// DeepCopyInto copies the receiver into out.
-func (in *FailoverIPList) DeepCopyInto(out *FailoverIPList) {
-	*out = *in
-	out.TypeMeta = in.TypeMeta
-	in.ListMeta.DeepCopyInto(&out.ListMeta)
-	if in.Items != nil {
-		out.Items = make([]FailoverIP, len(in.Items))
-		for i := range in.Items {
-			in.Items[i].DeepCopyInto(&out.Items[i])
-		}
-	}
-}
-
-// DeepCopy creates a new FailoverIPList.
-func (in *FailoverIPList) DeepCopy() *FailoverIPList {
-	if in == nil {
-		return nil
-	}
-	out := new(FailoverIPList)
-	in.DeepCopyInto(out)
-	return out
-}
-
-// DeepCopyObject returns a runtime.Object copy of the receiver.
-func (in *FailoverIPList) DeepCopyObject() runtime.Object {
-	if c := in.DeepCopy(); c != nil {
-		return c
-	}
-	return nil
 }

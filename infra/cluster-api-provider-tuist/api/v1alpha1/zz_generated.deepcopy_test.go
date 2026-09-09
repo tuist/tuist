@@ -104,3 +104,62 @@ func assertHostAgentUnaliased(t *testing.T, copied, original HostAgentStatus) {
 		t.Fatal("LastUpdateFailureTime is shared with the original; the embedded HostAgentStatus was shallow-copied")
 	}
 }
+
+// FailoverIP declared its own DeepCopy methods, which is what kept it out of
+// zz_generated.deepcopy.go until they were removed in favour of generated ones.
+func TestFailoverIPDeepCopyDoesNotAliasReferences(t *testing.T) {
+	reconciledAt := metav1.NewTime(time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC))
+
+	original := &FailoverIP{
+		Spec: FailoverIPSpec{
+			IP:               "203.0.113.10",
+			Vendor:           "ovh",
+			NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-ovh-fr-par"},
+			DemuxSelector:    map[string]string{"app.kubernetes.io/component": "peer-demux"},
+		},
+		Status: FailoverIPStatus{LastReconciledAt: &reconciledAt},
+	}
+	copied := original.DeepCopy()
+
+	t.Run("LastReconciledAt", func(t *testing.T) {
+		if copied.Status.LastReconciledAt == original.Status.LastReconciledAt {
+			t.Fatal("copy shares the original's pointer; add a DeepCopyInto block for it")
+		}
+		*copied.Status.LastReconciledAt = metav1.NewTime(time.Unix(0, 0))
+		if got := original.Status.LastReconciledAt.Time; !got.Equal(reconciledAt.Time) {
+			t.Fatalf("mutating the copy changed the original to %v; want %v", got, reconciledAt.Time)
+		}
+	})
+
+	selectors := []struct {
+		name     string
+		copied   map[string]string
+		original map[string]string
+		key      string
+		want     string
+	}{
+		{
+			name:     "NodePoolSelector",
+			copied:   copied.Spec.NodePoolSelector,
+			original: original.Spec.NodePoolSelector,
+			key:      "node.cluster.x-k8s.io/pool",
+			want:     "kura-ovh-fr-par",
+		},
+		{
+			name:     "DemuxSelector",
+			copied:   copied.Spec.DemuxSelector,
+			original: original.Spec.DemuxSelector,
+			key:      "app.kubernetes.io/component",
+			want:     "peer-demux",
+		},
+	}
+
+	for _, s := range selectors {
+		t.Run(s.name, func(t *testing.T) {
+			s.copied[s.key] = "mutated"
+			if got := s.original[s.key]; got != s.want {
+				t.Fatalf("writing to the copy changed the original to %q; want %q", got, s.want)
+			}
+		})
+	}
+}
