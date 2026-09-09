@@ -96,6 +96,27 @@ defmodule Tuist.Kura do
   @doc "Seconds a draining server keeps serving before teardown."
   def drain_seconds, do: @drain_seconds
 
+  # How long a provisioning attempt may go without producing a routable
+  # endpoint before the wait stops being a startup delay and starts being a
+  # stall. Every wait the reconciler treats as benign (DNS that has not
+  # propagated, a workload whose endpoint is not serving yet) is benign for
+  # seconds, not for hours: instances reach `:active` in about two minutes, so
+  # this sits far enough past that to never fire on a slow start and close
+  # enough to surface a stall inside a build cycle.
+  #
+  # The clock is the open deployment's `inserted_at`, not the server's
+  # `updated_at`. A stalled server is precisely one nothing writes to, so its
+  # `updated_at` is frozen at the moment the attempt began and cannot say how
+  # long the attempt has run. Exactly one deployment is open per server at a
+  # time (`ensure_no_open_deployment/1`), it is inserted when the attempt
+  # starts (a first provision and a cold return out of `:archived` both go
+  # through `insert_initial_deployment/3`), and it closes when the server
+  # activates, which makes it the one clock that measures the attempt itself.
+  @provisioning_stall_seconds 900
+
+  @doc "Seconds a provisioning attempt may run without a routable endpoint before it counts as stalled."
+  def provisioning_stall_seconds, do: @provisioning_stall_seconds
+
   # How long a client may hold an endpoint answer before it has to ask again.
   # Lives here rather than on the controller that sets the header because the
   # drain below has to outlast it, and two numbers that must agree should not
@@ -2088,6 +2109,36 @@ defmodule Tuist.Kura do
     |> where([s], s.status in ^@unroutable_statuses and s.region in ^region_ids)
     |> group_by([s], s.region)
     |> select([s], {s.region, count(s.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @open_deployment_statuses [:pending, :running]
+
+  @doc """
+  Counts, per region, the instances whose provisioning attempt has run past
+  `provisioning_stall_seconds/0` without producing a routable endpoint.
+
+  The subset of `unroutable_instance_counts/1` that is actually wrong. That
+  count includes every instance still starting, so it is only readable as "how
+  long did it persist"; this one excludes them by construction, because a
+  healthy attempt closes its deployment in about two minutes and leaves. A
+  fleet with nothing stuck reads zero, which is what makes it alertable on the
+  value rather than on the duration.
+
+  Counting the deployment rather than the server status is deliberate: it
+  covers a stall in any of the non-serving states, `:replicating` included,
+  without depending on which one the projection last derived.
+  """
+  def stalled_instance_counts(region_ids) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@provisioning_stall_seconds, :second)
+
+    Server
+    |> join(:inner, [s], d in Deployment, on: d.kura_server_id == s.id)
+    |> where([s, d], s.status in ^@unroutable_statuses and s.region in ^region_ids)
+    |> where([_s, d], d.status in ^@open_deployment_statuses and d.inserted_at <= ^cutoff)
+    |> group_by([s], s.region)
+    |> select([s], {s.region, count(s.id, :distinct)})
     |> Repo.all()
     |> Map.new()
   end

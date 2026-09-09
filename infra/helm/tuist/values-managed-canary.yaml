@@ -25,7 +25,7 @@ registry:
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
-  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # Keep terminate-then-replace on the canary pool. The chart default
   # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
   # while every other Deployment in the release is surging too, so the extra
   # Pods queue behind each other on FailedScheduling and whichever waits past
@@ -150,7 +150,7 @@ server:
     tlsSecretName: tuist-tls-cloudflare-origin
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
-  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # alongside the live pod on the canary nodepool. Steady-state
   # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
@@ -162,7 +162,7 @@ server:
 
   # The migration hook runs before Helm can roll any workload pods, so it
   # must fit next to the steady-state canary server, processor, Redis, and
-  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # telemetry pods on the canary cluster. `Tuist.Release.migrate` only
   # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
   # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
   # canary server's request so the hook fits whenever the server fits;
@@ -391,10 +391,10 @@ egressTreeAgent:
   nodePools: [kura-dedibox, kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
-# replica), 10Gi per instance. Matches the cluster's general-purpose
-# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
-# requires one CNPG instance per host, so a 3-instance cluster would
-# leave the third pod permanently Pending until md-0 was scaled up.
+# replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
+# on separate hosts. The general-purpose pool has three workers so hooks
+# and rolling updates have headroom; keep CNPG at two instances rather
+# than consuming that capacity with another database replica.
 # Canary is a soak environment, not an HA-shape one; production keeps
 # the 3-instance design on its 3-worker pool. Each instance is a
 # streaming replica holding the whole DB, so the size is per-replica

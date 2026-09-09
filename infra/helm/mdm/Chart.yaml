@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mdm
+description: Self-hosted Apple MDM for the Mac runner fleet (NanoMDM + SCEP + NanoDEP + enrollment brain)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
