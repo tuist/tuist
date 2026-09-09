@@ -11,6 +11,9 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   The Docker asset builder must copy Noora's node_modules from the npm stage
   alongside its built assets so those source imports resolve their dependencies.
 - Asset builds for development and production.
+- Newsletter verification uses its own `newsletter` esbuild entry, with Noora
+  tokens and button styles only. It retains analytics but needs no LiveView
+  runtime: confirmation is a regular POST form.
 - Browser real user monitoring. `shared/js/analytics.js` initializes the Grafana
   Faro Web SDK from the `globalThis.analytics` config that
   `TuistWeb.LayoutComponents.head_analytics_scripts` renders, and every bundle

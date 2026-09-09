@@ -3,9 +3,26 @@
   flex-direction: column;
   align-items: center;
   gap: var(--noora-spacing-11);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--noora-spacing-9) var(--noora-spacing-6) var(--noora-spacing-12);
+  max-width: 960px;
+  min-height: 100svh;
 
-  @media (min-width: 1024px) {
-    padding: var(--noora-spacing-11) 0;
+  & > [data-part="home"] {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    text-decoration: none;
+  }
+
+  & a:focus-visible,
+  & button:focus-visible {
+    outline: 2px solid var(--noora-purple-500);
+    outline-offset: 4px;
   }
 
   & > [data-part="header"] {
@@ -13,7 +30,8 @@
     flex-direction: column;
     align-items: center;
     gap: var(--noora-spacing-9);
-    padding-top: var(--noora-spacing-12);
+    padding-top: var(--noora-spacing-9);
+    max-width: 100%;
 
     & > [data-part="image"] {
       filter: drop-shadow(0 7px 15px rgba(0, 0, 0, 0.06)) drop-shadow(0 28px 28px rgba(0, 0, 0, 0.05))
@@ -30,17 +48,17 @@
     & > [data-part="title"] {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
+      font-size: clamp(2rem, 5vw, 4rem);
+      line-height: 1.1;
       text-align: center;
     }
 
     & > [data-part="description"] {
+      max-width: 644px;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-large);
       text-align: center;
-
-      @media (min-width: 1024px) {
-        width: 644px;
-      }
+      overflow-wrap: anywhere;
     }
   }
 
@@ -49,12 +67,10 @@
     flex-direction: column;
     align-items: center;
     gap: var(--noora-spacing-9);
+
+    max-width: 596px;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-large);
     text-align: center;
-
-    @media (min-width: 1024px) {
-      width: 596px;
-    }
   }
 }

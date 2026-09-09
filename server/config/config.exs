@@ -70,6 +70,16 @@ config :esbuild,
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
+  newsletter: [
+    args: [
+      "newsletter.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/marketing/assets/newsletter.js",
+      "--external:/fonts/*"
+    ],
+    cd: Path.expand("../assets/marketing", __DIR__)
+  ],
   docs: [
     args: [
       "docs.js",
