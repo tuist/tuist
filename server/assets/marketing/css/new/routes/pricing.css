@@ -198,8 +198,8 @@
          edge regardless of trait count. */
       & > [data-part="traits"] {
         display: flex;
-        flex-direction: column;
         flex-grow: 1;
+        flex-direction: column;
         align-self: stretch;
         gap: var(--noora-spacing-6);
         margin: var(--noora-spacing-8) 0 0;
@@ -370,8 +370,8 @@
 
       & [data-part="cell-plan"] {
         border-left: 1px solid var(--marketing-stroke-default);
-        width: 270px;
         padding: var(--noora-spacing-9) 0;
+        width: 270px;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
         text-align: center;
@@ -392,9 +392,9 @@
          horizontal padding, name → description → hint stacked with an 8px
          gap. */
       & [data-part="cell-feature"] {
+        vertical-align: middle;
         padding: var(--noora-spacing-8) var(--noora-spacing-4);
         text-align: left;
-        vertical-align: middle;
 
         & > [data-part="feature-name"] {
           color: var(--noora-surface-label-primary);
@@ -422,11 +422,11 @@
       }
 
       & [data-part="cell-value"] {
+        vertical-align: middle;
         border-left: 1px solid var(--marketing-stroke-default);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         text-align: center;
-        vertical-align: middle;
 
         & > [data-part="description"] {
           margin-top: var(--noora-spacing-2);
@@ -434,9 +434,9 @@
         }
 
         & svg {
+          vertical-align: middle;
           width: 16px;
           height: 16px;
-          vertical-align: middle;
         }
 
         &[data-available="true"] svg {
@@ -526,25 +526,25 @@
          right of the text column. The answer reuses the question's column
          width — nothing renders below the chevron. */
       & > [data-part="question"] {
-        border-top: 1px solid var(--marketing-stroke-default);
         transition: background 0.15s ease;
-
-        &:not([open]):hover {
-          background: var(--noora-surface-background-secondary);
-        }
+        border-top: 1px solid var(--marketing-stroke-default);
         /* Lets block-size animate to `auto` so the disclosure opens
            smoothly; browsers without ::details-content support just
            toggle instantly. */
         interpolate-size: allow-keywords;
 
+        &:not([open]):hover {
+          background: var(--noora-surface-background-secondary);
+        }
+
         &::details-content {
           opacity: 0;
-          block-size: 0;
-          overflow-y: clip;
           transition:
             content-visibility 0.25s allow-discrete,
             opacity 0.25s ease,
             block-size 0.25s ease;
+          block-size: 0;
+          overflow-y: clip;
 
           @media (prefers-reduced-motion: reduce) {
             transition: none;
@@ -562,8 +562,8 @@
           display: flex;
           align-items: center;
           gap: var(--noora-spacing-6);
-          padding: var(--noora-spacing-7);
           cursor: pointer;
+          padding: var(--noora-spacing-7);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-body-large);
           list-style: none;
