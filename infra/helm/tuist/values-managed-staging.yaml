@@ -768,16 +768,17 @@ rackFleet:
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
-      # FORCED (no switch, no VLANs): a home LAN address, advertised to the tailnet as a
-      # /32 because the catch-all grant in infra/tailscale/acls.json is still
-      # there and a wider prefix would expose the whole house. The rack puts
+      # FORCED (no switch, no VLANs): a home LAN address, advertised to the
+      # tailnet as a /32 because the catch-all grant in
+      # infra/tailscale/acls.json is still there and a wider prefix would
+      # expose the whole house. The rack puts
       # minis on their own VLAN behind the ToR switch and advertises that prefix
       # once, which removes the per-host ACL edit this address costs today. See
       # "Two prerequisites before a real rack replaces the prototype" in
       # infra/cluster-api-provider-tuist/AGENTS.md.
       address: 192.168.0.41
-      # FORCED (no rack): no shelf or positionU. In the rack
-      # these carry the physical location a hands-on tech needs to find the box.
+      # FORCED (no rack): no shelf or positionU. In the rack these carry the
+      # physical location a hands-on tech needs to find the box.
       rack: proto
       # FORCED (no PDU): no `power` block at all. The Shelly plug has not been
       # delivered, so this host has no outlet: PowerReachable reports False with
@@ -798,9 +799,9 @@ rackFleet:
       # way the minis were, and it surfaces as a connection error on
       # PowerReachable rather than as anything naming a route.
   machine:
-    # FORCED (M1, 16 GB): a refurb M1 bought to prove
-    # the plumbing. The rack is leased M5 Pro minis at 18 cores / 64 GB / 2 TB,
-    # so every number in this block goes up and guestCapacity stops being 1.
+    # FORCED (M1, 16 GB): a refurb M1 bought to prove the plumbing. The rack is
+    # leased M5 Pro minis at 18 cores / 64 GB / 2 TB, so every number in this
+    # block goes up and guestCapacity stops being 1.
     #
     # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
     # ~2 GB Virtualization.framework reserves for the host, below which
@@ -814,8 +815,7 @@ rackFleet:
     maxPods: 3
     # FORCED (256 GB disk): cache volumes OFF. A 2 TB rack mini runs the fleet's
     # normal quota; this is only zero because the prototype's disk is 256 GB.
-    #
-    # This is a 256 GB box: the goldens alone do not leave
+    # The goldens alone do not leave
     # room for the fleet's normal quota, and the point of this host is to
     # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
     # from unset, which would inherit the fleet's non-zero global.
