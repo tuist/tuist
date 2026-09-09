@@ -81,6 +81,13 @@ rules:
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]
+  # The evacuation and gateway handover gates read the client and peer
+  # Services' core Endpoints to see which pod traffic actually lands on before
+  # deleting the other; without list/watch the cached client's informer is
+  # forbidden and every reconcile wedges.
+  - apiGroups: [""]
+    resources: [endpoints]
+    verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
   # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
