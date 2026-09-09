@@ -15,23 +15,23 @@
 
   & .noora-dropdown-content {
     display: block;
-    opacity: 0;
     transform: translateY(-0.25rem);
+    opacity: 0;
     transition:
       opacity 150ms var(--ease-out-cubic),
       transform 150ms var(--ease-out-cubic);
   }
 
   & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] > [data-part="content"] {
-    opacity: 1;
     transform: translateY(0);
+    opacity: 1;
     transition:
       opacity 200ms var(--ease-out-cubic),
       transform 200ms var(--ease-out-cubic);
 
     @starting-style {
-      opacity: 0;
       transform: translateY(-0.25rem);
+      opacity: 0;
     }
   }
 
@@ -79,18 +79,17 @@
   [id^="marketing-"] .noora-dropdown[data-part="category-select"],
   [id^="marketing-"] .noora-dropdown[data-part="plan-select"] {
     & .noora-dropdown-content {
-      box-sizing: border-box;
       transform: translateY(100%);
-      padding: var(--noora-spacing-4) var(--noora-spacing-4)
-        max(var(--noora-spacing-6), env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      padding: var(--noora-spacing-4) var(--noora-spacing-4) max(var(--noora-spacing-6), env(safe-area-inset-bottom));
     }
 
     & > [data-part="trigger"][data-state="open"] + [data-part="positioner"] > [data-part="content"] {
       transform: translateY(0);
 
       @starting-style {
-        opacity: 0;
         transform: translateY(100%);
+        opacity: 0;
       }
     }
   }
