@@ -8,14 +8,6 @@
     padding: var(--noora-spacing-11) 0;
   }
 
-  & > [data-part="header-background"] {
-    filter: none;
-    background: linear-gradient(180deg, transparent 75%, var(--noora-surface-background-primary)),
-      radial-gradient(ellipse at 20% 60%, #ece3fc 0%, transparent 65%),
-      radial-gradient(ellipse at 80% 50%, #f5eafb 0%, transparent 65%), linear-gradient(135deg, #efedfd, #fcf8fd);
-    height: 635px;
-  }
-
   & > [data-part="header"] {
     display: flex;
     flex-direction: column;

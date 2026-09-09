@@ -340,8 +340,22 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   def header_background(assigns) do
     ~H"""
     <picture data-part="header-background">
-      <source media="(max-width: 1024px)" srcset={~p"/images/hero-background-sm.webp"} />
-      <img src={~p"/images/hero-background.webp"} alt="" decoding="async" />
+      <source
+        media="(max-width: 1024px)"
+        srcset={
+          "#{~p"/images/hero-background-mobile-640.webp"} 640w, #{~p"/images/hero-background-mobile-1280.webp"} 1280w, #{~p"/images/hero-background-sm.webp"} 1608w"
+        }
+        sizes="100vw"
+      />
+      <img
+        src={~p"/images/hero-background-1920.webp"}
+        srcset={
+          "#{~p"/images/hero-background-1920.webp"} 1920w, #{~p"/images/hero-background-3840.webp"} 3840w, #{~p"/images/hero-background.webp"} 5760w"
+        }
+        sizes="100vw"
+        alt=""
+        decoding="async"
+      />
     </picture>
     """
   end

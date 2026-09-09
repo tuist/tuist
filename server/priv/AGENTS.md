@@ -9,6 +9,10 @@ This directory contains database migrations and other private assets.
 - Marketing and app image assets are checked by `mise run marketing:image-budget`.
   Signup artwork is WebP at twice its rendered width; keep replacements within
   the static-image budget.
+- The shared marketing header keeps the original `hero-background.webp` and
+  `hero-background-sm.webp` artwork, with responsive derivatives at desktop
+  widths 1920/3840 and mobile widths 640/1280. Regenerate from those originals
+  with `magick INPUT -resize WIDTHx -quality 85 -define webp:method=6 OUTPUT`.
 
 ## Demo Data
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
