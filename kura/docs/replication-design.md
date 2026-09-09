@@ -944,6 +944,9 @@ not ready to flip traffic until every step below holds:
    disabled for every account. The runtime continues pushing throughout this
    stage. Wait for the normal fleet rollout to finish so every managed pod has
    the drain grace period and the pull-capable binary before changing behavior.
+   Canary this first rollout and require the peer-view readiness wait to stay
+   within one heartbeat interval; a slow regional control plane must not delay
+   the reconciliation batch beyond its 30-second cadence.
 2. Run `test/e2e/kura_compatibility_rollout.sh` against the immediately previous
    Kura release. Both upgrade and rollback directions must converge before a
    release tag is promoted.
@@ -967,14 +970,22 @@ not ready to flip traffic until every step below holds:
    one full support window has passed and the oldest supported self-hosted
    version understands pull.
 
+Do not combine this rollout with a node-evacuation annotation on a
+single-replica instance or while the other replica is not ready. The controller
+intentionally holds evacuation until another caught-up pod can receive both
+the client and peer planes. Restore or scale the sibling first.
+
 Rollback starts by disabling `kura_replication_pull` for the affected accounts,
 not by replacing the binary. Each continuously reachable peer is reintroduced
 to the legacy scheduler as a level-triggered transition, which schedules a
 backward catch-up pass even though membership itself did not change. Wait for
 those passes and the `+pull` manifest-revision rollback to complete, confirm
 that outbox delivery has resumed and no account remains in pull mode, and only
-then roll the runtime back if needed. Keep the outbox column family and serving
-routes throughout the support window, as required by §5.3.
+then roll the runtime back if needed. A feed persisted from the pull lifetime
+still owns the shutdown drain until it deactivates, even after the local mode
+has changed to push, because an older sibling may still be consuming it during
+the rolling handover. Keep the outbox column family and serving routes
+throughout the support window, as required by §5.3.
 
 ---
 

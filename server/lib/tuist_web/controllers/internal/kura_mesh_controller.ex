@@ -112,10 +112,10 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # response past the 5 s deadline the polling node gives it.
   def peers(conn, params) do
     case authorize_registration(conn, params) do
-      {:ok, account} ->
+      {:ok, account, credential_kind} ->
         json(conn, %{
           peers: Mesh.self_hosted_peer_urls(account),
-          peer_roles: Mesh.peer_roles(account),
+          peer_roles: peer_roles(account, credential_kind),
           replication_pull: Mesh.replication_pull?(account),
           refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
         })
@@ -134,7 +134,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   def register(conn, %{"node_id" => node_id, "advertised_http_url" => advertised_http_url} = params)
       when is_binary(node_id) and is_binary(advertised_http_url) do
     case authorize_registration(conn, params) do
-      {:ok, account} ->
+      {:ok, account, _credential_kind} ->
         if tenant_mismatch?(params, account) do
           conn
           |> put_status(:conflict)
@@ -203,15 +203,22 @@ defmodule TuistWeb.Internal.KuraMeshController do
     case basic_credentials(conn) do
       {:ok, client_id, client_secret} ->
         if dedicated_kura_client?(client_id) do
-          authorize_control_plane_registration(client_id, client_secret, params)
+          with {:ok, account} <- authorize_control_plane_registration(client_id, client_secret, params) do
+            {:ok, account, :managed}
+          end
         else
-          authorize_self_hosted(client_id, client_secret)
+          with {:ok, account} <- authorize_self_hosted(client_id, client_secret) do
+            {:ok, account, :self_hosted}
+          end
         end
 
       _ ->
         {:error, :unauthorized}
     end
   end
+
+  defp peer_roles(account, :managed), do: Mesh.peer_roles(account)
+  defp peer_roles(_account, :self_hosted), do: []
 
   # The credential is Tuist's own control-plane client rather than a customer's,
   # and it speaks for every instance the provisioner manages, including

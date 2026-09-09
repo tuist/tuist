@@ -874,6 +874,34 @@ defmodule Tuist.Kura.ReconcilerTest do
   end
 
   describe "peer-role observation" do
+    test "observes independent regions concurrently" do
+      first_server = mesh_server()
+      second_server = mesh_server()
+      test_process = self()
+
+      expect(Provisioner, :peer_roles, 2, fn %Server{id: id} ->
+        send(test_process, {:peer_roles_started, self()})
+
+        receive do
+          :continue_peer_roles -> {:ok, [%{url: "https://#{id}.peer:7443", gateway: true}]}
+        end
+      end)
+
+      reconcile = Task.async(fn -> Reconciler.reconcile() end)
+      assert_receive {:peer_roles_started, first}, 1_000
+      assert_receive {:peer_roles_started, second}, 1_000
+      send(first, :continue_peer_roles)
+      send(second, :continue_peer_roles)
+
+      assert Task.await(reconcile) == :ok
+
+      for server <- [first_server, second_server] do
+        assert Repo.get!(Server, server.id).peer_roles == [
+                 %{"url" => "https://#{server.id}.peer:7443", "gateway" => true}
+               ]
+      end
+    end
+
     test "records the roles the controller publishes for a mesh server" do
       server = mesh_server()
 

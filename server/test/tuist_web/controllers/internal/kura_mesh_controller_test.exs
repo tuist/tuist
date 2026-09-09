@@ -335,9 +335,15 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
   test "returns the self-hosted peer view with a self-hosted credential", %{
     conn: conn,
+    account: account,
     client: client,
     secret: secret
   } do
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-central",
+      peer_roles: [%{"url" => "https://internal-pod.kura.svc:7443", "gateway" => true}]
+    )
+
     conn
     |> basic_auth(client.client_id, secret)
     |> post(~p"/_internal/kura/mesh/enroll", %{
@@ -352,6 +358,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert %{
              "peers" => ["https://kura-1.acme.test:4433"],
+             "peer_roles" => [],
              "refresh_interval_seconds" => interval
            } = json_response(conn, 200)
 

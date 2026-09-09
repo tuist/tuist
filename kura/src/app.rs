@@ -488,7 +488,10 @@ async fn run_with_config(
     // told to stop accepting, because the cursor arrives on the sibling's
     // next forward request; and it is normally nothing, since the sibling
     // long-polls continuously and draining wakes its poll at once.
-    if state.replication_pull() && state.store.sync_feed().enabled() {
+    // A feed can remain enabled on disk while a rolling pull-to-push rollback
+    // replaces this node. An older sibling may still be consuming it, so the
+    // feed itself, rather than this process's current mode, owns the drain.
+    if state.store.sync_feed().enabled() {
         let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
         let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
         let deadline = Instant::now() + shutdown_budget.remaining().saturating_sub(margin);

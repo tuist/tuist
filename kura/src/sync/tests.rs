@@ -974,6 +974,8 @@ async fn without_a_feed_the_bound_is_the_settle_window() {
 #[tokio::test]
 async fn status_advertises_traffic_state_pulling_and_incarnation() {
     let context = test_context(|config| config.replication_pull = true).await;
+    let _ = snapshot(&context).await;
+    assert!(context.state.store.sync_feed().enabled());
     let response = internal_router(context.state.clone())
         .oneshot(
             Request::builder()
@@ -993,6 +995,10 @@ async fn status_advertises_traffic_state_pulling_and_incarnation() {
     );
     assert!(context.state.set_replication_pull(false));
     assert!(!context.state.replication_pull());
+    assert!(
+        context.state.store.sync_feed().enabled(),
+        "rollback can leave a feed active for an older sibling until its stale window expires"
+    );
 }
 
 // A-25 (design §11.2): a pulling peer whose advertised membership view does

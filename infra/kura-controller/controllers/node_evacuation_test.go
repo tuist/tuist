@@ -6,10 +6,13 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -521,6 +524,32 @@ func peerEndpoints(pods ...string) *corev1.Endpoints {
 	endpoints := servingEndpoints(pods...)
 	endpoints.Name = "kura-acct-region-peers-public"
 	return endpoints
+}
+
+func TestEndpointServedByAnotherPodHoldsWhenEndpointsAreForbidden(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Get: func(_ context.Context, _ client.WithWatch, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
+					if _, ok := obj.(*corev1.Endpoints); ok {
+						return apierrors.NewForbidden(schema.GroupResource{Resource: "endpoints"}, key.Name, errors.New("forbidden"))
+					}
+					return nil
+				},
+			}).Build(),
+	}
+
+	served, err := reconciler.endpointServedByAnotherPod(context.Background(), "kura", "kura-acct-region", "kura-acct-region-0")
+	if err != nil {
+		t.Fatalf("expected a safe hold, got %v", err)
+	}
+	if served {
+		t.Fatal("expected a forbidden Endpoints read to hold the handover")
+	}
 }
 
 // The client Service having handed over is not the whole handover. The peer

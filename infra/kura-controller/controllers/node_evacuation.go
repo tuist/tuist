@@ -231,6 +231,13 @@ func (r *KuraInstanceReconciler) endpointServedByAnotherPod(ctx context.Context,
 	switch err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, endpoints); {
 	case apierrors.IsNotFound(err):
 		return false, nil
+	case apierrors.IsForbidden(err):
+		// A controller image can briefly overlap an older chart during an
+		// upgrade or rollback. Missing read permission must hold evacuation,
+		// not fail every instance reconcile before the chart catches up.
+		log.FromContext(ctx).Error(err, "holding pod handover because Endpoints cannot be read",
+			"reason", "endpoints_forbidden", "service", name, "namespace", namespace)
+		return false, nil
 	case err != nil:
 		return false, err
 	}

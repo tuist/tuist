@@ -67,6 +67,10 @@ the same `A-n` tag):
 | A-31 | Capacity decisions on arrival-ordered pages are per entry | an old entry below the next evictee is declined, then a newer entry in the same page is fetched and applied; the pass does not latch capacity completion |
 | A-32 | Feed reactivation invalidates old cursors | a consumer caught up at the old head receives `410 floor` after deactivate and reactivate; writes made while disabled arrive through the required bootstrap |
 | A-33 | Reverting pull is a level-triggered legacy transition | a continuously reachable peer is rediscovered by the legacy scheduler when this node disables pull or the peer stops advertising it, despite no membership edge |
+| A-34 | A rollback keeps the persisted feed's drain obligation | after pull changes to push, an already-enabled feed remains active for an older sibling and shutdown gates on the feed itself |
+| A-35 | Self-hosted peer views do not expose managed pod roles | a self-hosted credential receives an empty `peer_roles` list even when the account has stored internal pod roles; the managed credential still receives them |
+| A-36 | Endpoint permission skew holds evacuation | a forbidden core Endpoints read returns “not served” without an error, so the controller retains the pod until its chart permissions catch up |
+| A-37 | Slow regional role reads do not serialize a tick | two blocked peer-role observations both start before either is released, under the reconciler's bounded worker group |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 

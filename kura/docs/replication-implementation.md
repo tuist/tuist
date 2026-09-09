@@ -1018,3 +1018,31 @@ the reachable push peer set with the scheduler's present set. A newly eligible
 peer is rediscovered even without a topology change, and its backward pass is
 armed before the sync coordinator closes the pull link on that tick. Ring A:
 A-33.
+
+**D-33 — An enabled feed owns shutdown drain independently of the local
+mode.** During a rolling pull-to-push rollback, a restarted node can boot in
+push mode with the previous pull lifetime's feed still enabled on disk. A
+sibling that has not crossed the revision boundary may still consume it.
+Shutdown therefore waits for consumers whenever the feed is enabled, not only
+when the local node currently advertises pull. Ring A: A-34.
+
+**D-34 — Published pod roles are scoped to managed credentials.** The managed
+peer-view endpoint also accepts self-hosted credentials for compatibility, but
+the controller roles contain internal cluster addresses that self-hosted nodes
+cannot use. The endpoint now distinguishes the credential kind and returns an
+empty role list to self-hosted callers, matching the heartbeat endpoint's
+boundary. Ring A: A-35.
+
+**D-35 — Missing Endpoints permission fails safe.** The evacuation handover
+uses core Endpoints as the fact that a Service selector has propagated. A
+controller binary can briefly overlap an older chart during upgrade or
+rollback, so a forbidden read now means “not released” instead of failing the
+whole instance reconcile. The pod remains in place until the chart grants the
+read. Ring A: A-36.
+
+**D-36 — Peer-role observations are bounded in parallel.** Every regional
+read has a three-second ceiling, but doing up to 200 of them serially could
+delay the entire reconciliation tick for minutes during a regional control
+plane incident. Independent role observations now run with eight workers and a
+four-second task ceiling before the existing ordered server projection. Ring
+A: A-37.

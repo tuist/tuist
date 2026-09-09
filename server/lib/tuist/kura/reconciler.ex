@@ -74,6 +74,8 @@ defmodule Tuist.Kura.Reconciler do
   # guards against a runaway query if a regression ever leaks
   # `:running` rows.
   @reconcile_batch_size 200
+  @peer_role_observation_concurrency 8
+  @peer_role_observation_timeout_ms 4_000
 
   @impl Oban.Worker
   def perform(%Job{}) do
@@ -500,6 +502,7 @@ defmodule Tuist.Kura.Reconciler do
 
     latest = latest_deployments(Enum.map(servers, & &1.id))
 
+    observe_peer_roles(servers, latest)
     Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
 
     :ok
@@ -527,8 +530,6 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
-    observe_peer_roles(server)
-
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
         reconcile_manifest_revision(server, desired)
@@ -555,6 +556,38 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
+  # Role reads are independent across regions and each can consume its full
+  # cross-cluster timeout. Running a bounded group prevents one slow regional
+  # cluster from serially delaying observation of every account in the batch.
+  # The ordinary server projection stays ordered below this step.
+  defp observe_peer_roles(servers, latest) do
+    observable = Enum.filter(servers, &peer_roles_observable?(&1, Map.get(latest, &1.id)))
+
+    observable
+    |> Task.async_stream(&observe_server_peer_roles/1,
+      max_concurrency: @peer_role_observation_concurrency,
+      ordered: true,
+      timeout: @peer_role_observation_timeout_ms,
+      on_timeout: :kill_task
+    )
+    |> Enum.zip(observable)
+    |> Enum.each(fn
+      {{:ok, :ok}, _server} ->
+        :ok
+
+      {{:exit, reason}, server} ->
+        Logger.warning(
+          "[Kura.Reconciler] peer-role observation task exited for server #{server.id} in #{server.region}: #{inspect(reason)}"
+        )
+    end)
+  end
+
+  defp peer_roles_observable?(_server, nil), do: false
+
+  defp peer_roles_observable?(_server, %Deployment{status: status}) when status in @open_deployment_statuses, do: false
+
+  defp peer_roles_observable?(_server, %Deployment{}), do: true
+
   # Refreshes `kura_servers.peer_roles` from the backing KuraInstance's
   # `status.peerRoles`. The mesh view (`Tuist.Kura.Mesh.peer_roles/1`) used to
   # read the apiserver itself, on the request path of `/_internal/kura/mesh/peers`
@@ -577,7 +610,7 @@ defmodule Tuist.Kura.Reconciler do
   # restarting names a peer no node can see, and an unmatched role is ignored
   # in favour of the local rule by design. So the rollout window runs on the
   # local rule either way, and the tick after the deployment closes republishes.
-  defp observe_peer_roles(%Server{} = server) do
+  defp observe_server_peer_roles(%Server{} = server) do
     if mesh_region?(server) do
       case Provisioner.peer_roles(server) do
         {:ok, roles} ->
