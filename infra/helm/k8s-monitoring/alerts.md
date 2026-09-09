@@ -972,7 +972,14 @@ headroom, and critical pressure closes new session admission. Compare
 `kura_multipart_uploads` with `kura_multipart_upload_capacity`; occupancy may
 remain above a reduced cap while existing sessions finish. With default
 watermarks, a 4 GiB ceiling permits 1,024 sessions at normal pressure.
-Older versions without the capacity metric default to 128 regardless of size.
+Busy starts now wait up to one second for completion, abort, or pressure recovery.
+The queue accepts at most the current session cap; queue overflow or deadline
+expiry still sheds. A growing
+`kura_memory_actions_total_total{action="multipart_upload_admission_wait"}` with
+no `multipart_uploads` sheds indicates bursts absorbed by waiting, with added
+start latency. Persistent sheds can still indicate a stuck backlog or sustained
+demand above capacity. Older versions without the capacity metric default to
+128 regardless of size.
 
 **An orphaned backlog can outlive the restart that caused it.** Startup seeds the
 admission atomic from persisted state, and when that lands over the limit it logs

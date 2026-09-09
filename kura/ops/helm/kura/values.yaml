@@ -210,7 +210,9 @@ config:
 # just leaves the attributes off, except that a region name beginning with a
 # country code (`fr-par`) still answers for the country.
 # Multipart session capacity automatically follows memory headroom and pressure.
-# Set KURA_MULTIPART_MAX_ACTIVE_UPLOADS through extraEnv only for a fixed override.
+# Busy starts wait up to one second in a queue bounded by the effective slot cap.
+# Set KURA_MULTIPART_MAX_ACTIVE_UPLOADS through extraEnv only for a fixed override;
+# the wait and critical-pressure protection still apply.
 extraEnv: []
 extraEnvFrom: []
 extraVolumes: []

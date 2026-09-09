@@ -12413,7 +12413,7 @@
               "transformations": []
             }
           },
-          "description": "Occupied multipart session slots and the effective admission limit. Automatic sizing uses one slot per MiB of transient memory headroom; normal pressure includes elastic capacity, constrained pressure uses at most the base budget and half the full headroom, and critical pressure admits no new sessions. KURA_MULTIPART_MAX_ACTIVE_UPLOADS overrides automatic sizing. Existing sessions can remain above a reduced limit while they complete or expire. Older versions report a RocksDB estimate for occupied slots, which can substantially overcount completed uploads; compare only versions exporting the capacity gauge.\n\nPrometheus names: `kura_multipart_uploads`, `kura_multipart_upload_capacity`",
+          "description": "Occupied multipart session slots and the effective admission limit. Automatic sizing uses one slot per MiB of transient memory headroom; normal pressure includes elastic capacity, constrained pressure uses at most the base budget and half the full headroom, and critical pressure admits no new sessions. KURA_MULTIPART_MAX_ACTIVE_UPLOADS overrides automatic sizing. Existing sessions can remain above a reduced limit while they complete or expire. Busy starts wait up to one second in a queue bounded by the effective slot cap; overflow and timeout still shed. The memory-actions panel exposes multipart_upload_admission_wait for starts absorbed into the queue. Older versions report a RocksDB estimate for occupied slots, which can substantially overcount completed uploads; compare only versions exporting the capacity gauge.\n\nPrometheus names: `kura_multipart_uploads`, `kura_multipart_upload_capacity`",
           "id": 33,
           "links": [],
           "title": "multipart_uploads",
@@ -16729,7 +16729,7 @@
               "transformations": []
             }
           },
-          "description": "Memory pressure actions taken by the node\n\nPrometheus name: `kura_memory_actions_total_total` · labels: action",
+          "description": "Memory pressure actions taken by the node. multipart_upload_admission_wait counts multipart starts entering the bounded one-second slot wait; compare against write sheds and HTTP latency to distinguish absorbed bursts from sustained overload.\n\nPrometheus name: `kura_memory_actions_total_total` · labels: action",
           "id": 74,
           "links": [],
           "title": "memory_actions_total (rate)",

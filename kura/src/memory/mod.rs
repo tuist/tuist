@@ -332,6 +332,10 @@ impl MemoryController {
         MemoryPressure::from_u8(self.inner.state.load(Ordering::Relaxed))
     }
 
+    pub(crate) fn pressure_changed(&self) -> tokio::sync::futures::Notified<'_> {
+        self.inner.pressure_changed.notified()
+    }
+
     // Every admission gate below follows the pressure tier alone. The raw
     // cgroup charge (`memory.current`) is deliberately not consulted: it is
     // dominated by reclaimable clean file cache on a warm serving node, sits

@@ -9,12 +9,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
 - Backfill peer catch-up walker (the only peer catch-up path): `src/backfill/` — `claims.rs` (shared exclusive-claim set), `lifecycle.rs` (per-peer pass scheduling machine), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (watermark/horizon and capacity rules)
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
-  - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting. Keep occupied-slot and effective-capacity metrics aligned with admission.
+  - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Preserve cancellation cleanup and wakeups on slot release and pressure changes. Keep occupied-slot and effective-capacity metrics aligned with admission.
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
+  - `test/e2e/multipart-admission/` provides a real-binary multipart burst comparison, including verified download round trips.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 - Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`

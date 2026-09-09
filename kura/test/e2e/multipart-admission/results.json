@@ -1,0 +1,190 @@
+{
+  "date": "2026-09-09",
+  "platform": "macOS arm64",
+  "baseline_commit": "94d7538febc6f1667479a414362e0aacccd78349",
+  "results": [
+    {
+      "case": "before-128",
+      "capacity": 128,
+      "headroom_mib": 128,
+      "burst": 128,
+      "rounds": 3,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "429": 384
+      },
+      "start_p50_ms": 18.5,
+      "start_p99_ms": 34.38,
+      "completed": 384,
+      "verified_downloads": 0,
+      "ordinary_reads": 45,
+      "ordinary_read_p99_ms": 3.18,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 3.28,
+        "kura_jemalloc_resident_bytes": 9.78,
+        "kura_memory_transient_reserved_bytes": 0.12,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 158.05,
+      "elapsed_seconds": 4.97
+    },
+    {
+      "case": "after-128",
+      "capacity": 128,
+      "headroom_mib": 128,
+      "burst": 128,
+      "rounds": 3,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "200": 384
+      },
+      "start_p50_ms": 390.24,
+      "start_p99_ms": 687.88,
+      "completed": 768,
+      "verified_downloads": 384,
+      "ordinary_reads": 66,
+      "ordinary_read_p99_ms": 13.64,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 118.08,
+        "kura_jemalloc_resident_bytes": 257.56,
+        "kura_memory_transient_reserved_bytes": 12.62,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 230.28,
+      "elapsed_seconds": 7.44
+    },
+    {
+      "case": "before-256",
+      "capacity": 256,
+      "headroom_mib": 256,
+      "burst": 256,
+      "rounds": 3,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "429": 768
+      },
+      "start_p50_ms": 41.79,
+      "start_p99_ms": 50.38,
+      "completed": 768,
+      "verified_downloads": 0,
+      "ordinary_reads": 79,
+      "ordinary_read_p99_ms": 4.51,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 55.92,
+        "kura_jemalloc_resident_bytes": 158.16,
+        "kura_memory_transient_reserved_bytes": 0.12,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 212.89,
+      "elapsed_seconds": 8.57
+    },
+    {
+      "case": "after-256",
+      "capacity": 256,
+      "headroom_mib": 256,
+      "burst": 256,
+      "rounds": 3,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "200": 768
+      },
+      "start_p50_ms": 460.46,
+      "start_p99_ms": 988.75,
+      "completed": 1536,
+      "verified_downloads": 768,
+      "ordinary_reads": 117,
+      "ordinary_read_p99_ms": 11.72,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 125.37,
+        "kura_jemalloc_resident_bytes": 330.83,
+        "kura_memory_transient_reserved_bytes": 23.38,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 308.64,
+      "elapsed_seconds": 13.08
+    },
+    {
+      "case": "after-1024",
+      "capacity": 1024,
+      "headroom_mib": 1024,
+      "burst": 128,
+      "rounds": 1,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "200": 128
+      },
+      "start_p50_ms": 415.61,
+      "start_p99_ms": 479.8,
+      "completed": 1152,
+      "verified_downloads": 128,
+      "ordinary_reads": 110,
+      "ordinary_read_p99_ms": 8.63,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 4.76,
+        "kura_jemalloc_resident_bytes": 22.83,
+        "kura_memory_transient_reserved_bytes": 19.0,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 248.61,
+      "elapsed_seconds": 12.39
+    },
+    {
+      "case": "after-overflow",
+      "capacity": 128,
+      "headroom_mib": 128,
+      "burst": 256,
+      "rounds": 1,
+      "hold_ms": 200,
+      "payload_kib": 64,
+      "start_statuses": {
+        "429": 128,
+        "200": 128
+      },
+      "start_p50_ms": 31.63,
+      "start_p99_ms": 831.62,
+      "completed": 256,
+      "verified_downloads": 128,
+      "ordinary_reads": 32,
+      "ordinary_read_p99_ms": 17.23,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 3.67,
+        "kura_jemalloc_resident_bytes": 10.23,
+        "kura_memory_transient_reserved_bytes": 9.12,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 146.75,
+      "elapsed_seconds": 3.74
+    },
+    {
+      "case": "after-stalled",
+      "capacity": 128,
+      "headroom_mib": 128,
+      "burst": 128,
+      "rounds": 1,
+      "hold_ms": 1500,
+      "payload_kib": 64,
+      "start_statuses": {
+        "429": 128
+      },
+      "start_p50_ms": 1028.72,
+      "start_p99_ms": 1029.43,
+      "completed": 128,
+      "verified_downloads": 0,
+      "ordinary_reads": 27,
+      "ordinary_read_p99_ms": 2.45,
+      "peak_memory_mib": {
+        "kura_jemalloc_allocated_bytes": 3.73,
+        "kura_jemalloc_resident_bytes": 10.48,
+        "kura_memory_transient_reserved_bytes": 0.12,
+        "kura_memory_elastic_transient_reserved_bytes": 0.0
+      },
+      "peak_rss_mib": 99.27,
+      "elapsed_seconds": 2.99
+    }
+  ]
+}

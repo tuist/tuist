@@ -2177,13 +2177,17 @@ async fn start_module_upload(
         Ok(true) => {
             Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
         }
-        Ok(false) => match state.store.start_multipart_upload(
-            &query.namespace.tenant_id,
-            &query.namespace.namespace_id,
-            &query.cache_category,
-            &query.hash,
-            &query.name,
-        ) {
+        Ok(false) => match state
+            .store
+            .start_multipart_upload(
+                &query.namespace.tenant_id,
+                &query.namespace.namespace_id,
+                &query.cache_category,
+                &query.hash,
+                &query.name,
+            )
+            .await
+        {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
             Err(error) if is_multipart_capacity_error(&error) => capacity_shed_response(
                 &state.metrics,
@@ -7944,7 +7948,7 @@ mod tests {
         let upload_id = context
             .state
             .store
-            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .try_start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
         let query_text = format!("upload_id={upload_id}&part_number=1");
         let query = AuthorizationQuery::parse(Some(&query_text));
