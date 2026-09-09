@@ -145,6 +145,8 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 
+Run setup as the same macOS user that runs the build. Tuist uses that user's graphical login session when available, or starts a background LaunchAgent when the runner has no graphical login session. No desktop login or `sudo` is required. On runners without a graphical login, run setup at the start of each job so the cache service is also started after a reboot.
+
 For authentication, you can use either <.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> (recommended for supported CI providers) or an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> via the `TUIST_TOKEN` environment variable.
 
 An example workflow for GitHub Actions using OIDC authentication:
