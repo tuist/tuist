@@ -40,7 +40,7 @@ on:
       project:
         description: Existing Gradle project authorized for this repository's OIDC token
         type: string
-        default: tuist/gradle-plugin
+        default: tuist/tuist
 
 # Smoke runs a public curl + a few uname-style assertions; never
 # reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
