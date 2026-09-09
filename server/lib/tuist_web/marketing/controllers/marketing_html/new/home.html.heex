@@ -27,16 +27,14 @@
                 <.button
                   href={~p"/users/register"}
                   label={dgettext("marketing", "Get started")}
-                >
-                </.button>
+                ></.button>
                 <.button
                   target="_blank"
                   rel="noopener noreferrer"
                   href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
                   variant="secondary"
                   label={dgettext("marketing", "Talk to us")}
-                >
-                </.button>
+                ></.button>
               </nav>
             </section>
           </div>
@@ -359,8 +357,7 @@
                 data-cell={cell}
                 data-gap={gap}
                 aria-hidden="true"
-              >
-              </canvas>
+              ></canvas>
               <canvas
                 data-part="spark"
                 id="compute-spark"
@@ -369,8 +366,7 @@
                 data-logo-size={logo}
                 data-cy={cy}
                 aria-hidden="true"
-              >
-              </canvas>
+              ></canvas>
               <div
                 data-part="tasks"
                 id="compute-tasks"
@@ -493,8 +489,7 @@
                 data-cell={v_cell}
                 data-gap={v_gap}
                 aria-hidden="true"
-              >
-              </canvas>
+              ></canvas>
               <canvas
                 data-part="spark"
                 id="compute-spark-v"
@@ -504,8 +499,7 @@
                 data-cy={v_cx}
                 data-orientation="vertical"
                 aria-hidden="true"
-              >
-              </canvas>
+              ></canvas>
               <div
                 data-part="tasks"
                 id="compute-tasks-v"
@@ -584,8 +578,7 @@
               data-radius="2"
               data-cols="45"
               data-rows="12"
-            >
-            </canvas>
+            ></canvas>
           </div>
         </div>
       </div>
@@ -662,8 +655,7 @@
         data-phase="0"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="frameworks" aria-labelledby="frameworks-heading">
@@ -725,8 +717,7 @@
         data-phase="7.3"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="transparency" aria-labelledby="transparency-heading">
@@ -765,8 +756,7 @@
                 data-noise="0"
                 data-colors="--marketing-transparency-dither-shallow,--marketing-transparency-dither-mid,--marketing-transparency-dither-deep"
                 aria-hidden="true"
-              >
-              </canvas>
+              ></canvas>
               <svg width="0" height="0" aria-hidden="true">
                 <defs>
                   <clipPath
@@ -801,8 +791,7 @@
               data-shape="#security-soc-ping-shape"
               data-size="145 145"
               aria-hidden="true"
-            >
-            </canvas>
+            ></canvas>
             <svg width="0" height="0" aria-hidden="true">
               <defs>
                 <g id="security-soc-ping-shape">
@@ -886,8 +875,7 @@
               id="transparency-tuist-dither"
               phx-hook="TuistDitherParticles"
               data-opacity="0.9"
-            >
-            </canvas>
+            ></canvas>
           </span>
           <span data-part="grid-label" data-pos="members">
             {dgettext("marketing", "1500+ members")}
@@ -918,8 +906,7 @@
         data-phase="14.9"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="testimonials" aria-labelledby="testimonials-title">
@@ -952,15 +939,13 @@
               aria-label={
                 dgettext("marketing", "Read the %{company} case study", company: "Monzo")
               }
-            >
-            </a>
+            ></a>
             <canvas
               data-part="dots"
               id="customers-dots-monzo"
               phx-hook="CustomersDitherDots"
               aria-hidden="true"
-            >
-            </canvas>
+            ></canvas>
             <span data-part="logo" aria-label="Monzo"><.monzo_org_logo_color /></span>
             <p>{dgettext("marketing", "Monzo slashed CI pipeline time by 70%")}</p>
           </article>
@@ -971,15 +956,13 @@
               aria-label={
                 dgettext("marketing", "Read the %{company} case study", company: "Trendyol")
               }
-            >
-            </a>
+            ></a>
             <canvas
               data-part="dots"
               id="customers-line-trendyol"
               phx-hook="CustomersDitherLine"
               aria-hidden="true"
-            >
-            </canvas>
+            ></canvas>
             <span data-part="logo" aria-label="Trendyol"><.trendyol_org_logo /></span>
             <p>{dgettext("marketing", "Trendyol reduced build times by 65%")}</p>
           </article>
@@ -1026,8 +1009,7 @@
         data-phase="22.1"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="cta" aria-labelledby="cta-title">
@@ -1061,8 +1043,7 @@
         data-phase="29.6"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>
