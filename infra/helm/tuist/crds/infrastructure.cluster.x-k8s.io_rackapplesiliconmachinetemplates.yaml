@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: staticapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io
+  name: rackapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io
   labels:
     cluster.x-k8s.io/v1beta1: v1alpha1
 spec:
@@ -12,19 +12,19 @@ spec:
   names:
     categories:
       - cluster-api
-    kind: StaticAppleSiliconMachineTemplate
-    listKind: StaticAppleSiliconMachineTemplateList
-    plural: staticapplesiliconmachinetemplates
+    kind: RackAppleSiliconMachineTemplate
+    listKind: RackAppleSiliconMachineTemplateList
+    plural: rackapplesiliconmachinetemplates
     shortNames:
-      - sasmt
-    singular: staticapplesiliconmachinetemplate
+      - rasmt
+    singular: rackapplesiliconmachinetemplate
   scope: Namespaced
   versions:
     - name: v1alpha1
       schema:
         openAPIV3Schema:
           description: |-
-            StaticAppleSiliconMachineTemplate is the template MachineDeployment +
+            RackAppleSiliconMachineTemplate is the template MachineDeployment +
             MachineSet objects clone Machines from. Scaling the fleet is a replica count
             against this one template because nothing host-specific lives in it: the
             per-box facts are on the RackHost objects the clones then claim.
@@ -48,17 +48,17 @@ spec:
               type: object
             spec:
               description: |-
-                StaticAppleSiliconMachineTemplateSpec wraps the per-Machine spec into the
+                RackAppleSiliconMachineTemplateSpec wraps the per-Machine spec into the
                 template shape CAPI expects.
               properties:
                 template:
                   description: |-
-                    StaticAppleSiliconMachineTemplateResource is the embedded "spec" CAPI's
+                    RackAppleSiliconMachineTemplateResource is the embedded "spec" CAPI's
                     MachineSet controller clones from when scaling up a MachineDeployment.
                   properties:
                     spec:
                       description: |-
-                        StaticAppleSiliconMachineSpec is the desired state of one Mac mini we own.
+                        RackAppleSiliconMachineSpec is the desired state of one Mac mini we own.
 
                         It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
                         bootstrap, same host-config drift loop, same tailnet egress Service, but the
@@ -137,7 +137,7 @@ spec:
                         providerID:
                           description: |-
                             ProviderID, set by the controller once a RackHost is claimed, takes the
-                            shape `static-applesilicon://<site>/<serial>`; composed from the two
+                            shape `rack-applesilicon://<site>/<serial>`; composed from the two
                             durable physical facts, so re-cabling a host to a new address does not
                             change its identity to CAPI. CAPI core expects this to populate; without
                             it the parent Machine never goes Ready. The scheme is deliberately

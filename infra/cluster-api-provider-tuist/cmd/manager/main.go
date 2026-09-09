@@ -619,11 +619,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&macos.StaticAppleSiliconMachineReconciler{
+	if err := (&macos.RackAppleSiliconMachineReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
 		CredentialsManager: credsManager,
-		Recorder:           mgr.GetEventRecorderFor("staticapplesiliconmachine-controller"),
+		Recorder:           mgr.GetEventRecorderFor("rackapplesiliconmachine-controller"),
 		Kubeconfig:         kubeconfigBuilder,
 		// The same fleet config the Scaleway kind gets: a rack mini and a
 		// rented one run the same host config, which is what lets one workload
@@ -642,7 +642,7 @@ func main() {
 		Power:                         powerRegistry,
 		SecretsNamespace:              secretsNamespace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup StaticAppleSiliconMachineReconciler")
+		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
 		os.Exit(1)
 	}
 

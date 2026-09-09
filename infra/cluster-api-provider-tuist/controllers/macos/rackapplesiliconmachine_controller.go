@@ -33,14 +33,14 @@ import (
 	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
-// StaticMachineFinalizer keeps the CR alive until its RackHost claim is
+// RackMachineFinalizer keeps the CR alive until its RackHost claim is
 // released. Unlike the Scaleway finalizer this guards no billing: we own the
 // hardware either way, but a claim that outlives its Machine takes a physical
 // box out of the pool, and in a rack sized to demand that is capacity nobody
 // can get back without noticing the strand first.
-const StaticMachineFinalizer = "staticapplesilicon.cluster.x-k8s.io/finalizer"
+const RackMachineFinalizer = "rackapplesilicon.cluster.x-k8s.io/finalizer"
 
-// StaticAppleSiliconMachineReconciler joins Mac minis we own to the cluster.
+// RackAppleSiliconMachineReconciler joins Mac minis we own to the cluster.
 //
 // It is the Scaleway kind's reconciler with the provider removed and the pool
 // moved in-cluster. Everything from "we have a host and its credentials"
@@ -61,7 +61,7 @@ const StaticMachineFinalizer = "staticapplesilicon.cluster.x-k8s.io/finalizer"
 //   - Delete releases the claim and stops. No reinstall, no wipe: no API can
 //     do either to hardware in our own rack, and the host is expected to
 //     outlive every Kubernetes object that ever referred to it.
-type StaticAppleSiliconMachineReconciler struct {
+type RackAppleSiliconMachineReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	CredentialsManager *credentials.Manager
@@ -131,16 +131,16 @@ type StaticAppleSiliconMachineReconciler struct {
 	PowerCycleSettle time.Duration
 }
 
-func (r *StaticAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
+func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
 	if r.PowerCycleSettle > 0 {
 		return r.PowerCycleSettle
 	}
 	return defaultPowerCycleSettle
 }
 
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=staticapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=staticapplesiliconmachines/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=staticapplesiliconmachines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines/finalizers,verbs=update
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts,verbs=get;list;watch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts/status,verbs=get;update;patch
 
@@ -150,13 +150,13 @@ func (r *StaticAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
 // return, the defer would swallow the patch failure, and the function would
 // report success: leaving Status.RackHost unpersisted after a successful claim
 // and letting the next reconcile claim a second host.
-func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+func (r *RackAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
 
-	machine := &infrav1.StaticAppleSiliconMachine{}
+	machine := &infrav1.RackAppleSiliconMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
-			forgetStaticMachinePhase(req.Name)
+			forgetRackMachinePhase(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, getErr
@@ -171,7 +171,7 @@ func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req
 			err = patchErr
 		}
 	}()
-	defer func() { recordStaticMachinePhase(machine) }()
+	defer func() { recordRackMachinePhase(machine) }()
 
 	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
@@ -182,8 +182,8 @@ func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req
 		return r.reconcileDelete(ctx, machine)
 	}
 
-	if !controllerutil.ContainsFinalizer(machine, StaticMachineFinalizer) {
-		controllerutil.AddFinalizer(machine, StaticMachineFinalizer)
+	if !controllerutil.ContainsFinalizer(machine, RackMachineFinalizer) {
+		controllerutil.AddFinalizer(machine, RackMachineFinalizer)
 	}
 
 	var cluster *clusterv1.Cluster
@@ -221,9 +221,9 @@ func (r *StaticAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req
 	return r.reconcileNormal(ctx, machine)
 }
 
-func (r *StaticAppleSiliconMachineReconciler) reconcileNormal(
+func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -349,9 +349,9 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileNormal(
 // The terminal-failure handling is the shared one and the reasoning for every
 // branch lives with it (see shouldClearTerminalFailure). What is per-kind here
 // is only the transport fallback below.
-func (r *StaticAppleSiliconMachineReconciler) reconcileHostConfigDrift(
+func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 	host *infrav1.RackHost,
 	sshKey []byte,
 	sudoPassword, knownFingerprint string,
@@ -439,9 +439,9 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 // claimRackHost binds this Machine to a free host, or confirms the binding it
 // already has. Returns (nil, result, nil) when there is nothing to claim yet:
 // a wait, not a failure.
-func (r *StaticAppleSiliconMachineReconciler) claimRackHost(
+func (r *RackAppleSiliconMachineReconciler) claimRackHost(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 ) (*infrav1.RackHost, ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -523,7 +523,7 @@ func (r *StaticAppleSiliconMachineReconciler) claimRackHost(
 		Type:    clusterv1.MachineInternalIP,
 		Address: host.Spec.Address,
 	}}
-	providerID := staticProviderID(host)
+	providerID := rackProviderID(host)
 	machine.Spec.ProviderID = &providerID
 
 	conditions.MarkTrue(machine, shared.ProvisionedCondition)
@@ -641,9 +641,9 @@ func selectClaimableHosts(all []infrav1.RackHost, pool, machineName string) ([]i
 // inventory, not a provider's, so the host is marked out of the pool first.
 // The Machine then claims a different host if the rack has one, and the bad box
 // stays visible as quarantined until a human clears it.
-func (r *StaticAppleSiliconMachineReconciler) handleBootstrapFailure(
+func (r *RackAppleSiliconMachineReconciler) handleBootstrapFailure(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 	host *infrav1.RackHost,
 	cause error,
 ) ctrl.Result {
@@ -726,9 +726,9 @@ func (r *StaticAppleSiliconMachineReconciler) handleBootstrapFailure(
 // failing would strand a host it has already given back; retiring a rack host
 // is all local writes and is safe to retry, and proceeding to claim another box
 // with the old credentials still live is the exact hazard this exists to close.
-func (r *StaticAppleSiliconMachineReconciler) retireHost(
+func (r *RackAppleSiliconMachineReconciler) retireHost(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 ) error {
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		return fmt.Errorf("revoke node identity: %w", err)
@@ -756,7 +756,7 @@ func (r *StaticAppleSiliconMachineReconciler) retireHost(
 // quarantineHost marks a host out of the pool and releases its claim, in that
 // order. Quarantine first: releasing first would leave a window in which this
 // machine's own next reconcile re-claims the box it just gave up on.
-func (r *StaticAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, host *infrav1.RackHost, reason string) error {
+func (r *RackAppleSiliconMachineReconciler) quarantineHost(ctx context.Context, host *infrav1.RackHost, reason string) error {
 	fresh := &infrav1.RackHost{}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(host), fresh); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -780,7 +780,7 @@ func (r *StaticAppleSiliconMachineReconciler) quarantineHost(ctx context.Context
 // releaseHost clears this machine's claim without quarantining: the ordinary
 // delete path. It is a no-op when the host is already free or has been claimed
 // by someone else, so a retried delete cannot steal a live host's claim.
-func (r *StaticAppleSiliconMachineReconciler) releaseHost(ctx context.Context, machine *infrav1.StaticAppleSiliconMachine) error {
+func (r *RackAppleSiliconMachineReconciler) releaseHost(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
 	if machine.Status.RackHost == "" {
 		return nil
 	}
@@ -808,7 +808,7 @@ func (r *StaticAppleSiliconMachineReconciler) releaseHost(ctx context.Context, m
 	return nil
 }
 
-func (r *StaticAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
+func (r *RackAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context, host *infrav1.RackHost) error {
 	if host.Spec.Power == nil {
 		return fmt.Errorf("host %s has no power outlet configured", host.Name)
 	}
@@ -835,9 +835,9 @@ func (r *StaticAppleSiliconMachineReconciler) cycleHostPower(ctx context.Context
 	return power.Cycle(ctx, driver, outlet, r.powerCycleSettle())
 }
 
-func (r *StaticAppleSiliconMachineReconciler) reconcileDelete(
+func (r *RackAppleSiliconMachineReconciler) reconcileDelete(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
@@ -921,7 +921,7 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileDelete(
 		}
 	}
 
-	controllerutil.RemoveFinalizer(machine, StaticMachineFinalizer)
+	controllerutil.RemoveFinalizer(machine, RackMachineFinalizer)
 	return ctrl.Result{}, nil
 }
 
@@ -940,9 +940,9 @@ type prepError struct {
 // without the other: the failure mode that has bitten this provider four
 // times, most expensively when the Tailscale tags reached only the bootstrap
 // path and froze the production fleet.
-func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
+func (r *RackAppleSiliconMachineReconciler) perHostConfig(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 	host *infrav1.RackHost,
 	sshKey []byte,
 	sudoPassword, knownFingerprint string,
@@ -971,11 +971,11 @@ func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
 		UserPassword:         sudoPassword,
 		SSHPrivateKey:        sshKey,
 		NodeName:             machine.Name,
-		ProviderID:           providerIDOfStatic(machine),
+		ProviderID:           providerIDOfRack(machine),
 		Kubeconfig:           kubeconfigYAML,
 		TailscaleAuthKey:     tailscaleAuthKey,
 		VNCRelayHost:         r.egressHost(machine.Name),
-		NodeLabels:           staticMachineNodeLabels(machine),
+		NodeLabels:           rackMachineNodeLabels(machine),
 		KnownHostFingerprint: knownFingerprint,
 	}, nil
 }
@@ -983,9 +983,9 @@ func (r *StaticAppleSiliconMachineReconciler) perHostConfig(
 // persistFingerprint stores a newly-observed TOFU pin. Failures are logged, not
 // returned: losing a pin costs a re-capture on the next dial, while failing the
 // push over it would turn a successful bootstrap into a retry.
-func (r *StaticAppleSiliconMachineReconciler) persistFingerprint(
+func (r *RackAppleSiliconMachineReconciler) persistFingerprint(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 	observed, known string,
 ) {
 	if observed == "" || observed == known {
@@ -996,7 +996,7 @@ func (r *StaticAppleSiliconMachineReconciler) persistFingerprint(
 	}
 }
 
-func (r *StaticAppleSiliconMachineReconciler) fleetName(machine *infrav1.StaticAppleSiliconMachine) string {
+func (r *RackAppleSiliconMachineReconciler) fleetName(machine *infrav1.RackAppleSiliconMachine) string {
 	if machine.Spec.FleetName != "" {
 		return machine.Spec.FleetName
 	}
@@ -1010,23 +1010,23 @@ func (r *StaticAppleSiliconMachineReconciler) fleetName(machine *infrav1.StaticA
 //
 // It is a pure dial target. HostConfigHash strips PerHost.IP, so switching
 // between the two does not drift a host's config.
-func (r *StaticAppleSiliconMachineReconciler) dialTarget(host *infrav1.RackHost) string {
+func (r *RackAppleSiliconMachineReconciler) dialTarget(host *infrav1.RackHost) string {
 	if h := rackEgressHost(r.egressConfig(), host.Name); h != "" {
 		return h
 	}
 	return host.Spec.Address
 }
 
-func (r *StaticAppleSiliconMachineReconciler) reconcileRackEgress(
+func (r *RackAppleSiliconMachineReconciler) reconcileRackEgress(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 	host *infrav1.RackHost,
 ) error {
 	return reconcileRackEgressService(ctx, r.Client, r.egressConfig(),
 		host.Name, host.Spec.Address, machine.Spec.FleetName)
 }
 
-func (r *StaticAppleSiliconMachineReconciler) egressConfig() egressConfig {
+func (r *RackAppleSiliconMachineReconciler) egressConfig() egressConfig {
 	return egressConfig{
 		Namespace:      r.EgressNamespace,
 		ProxyGroup:     r.EgressProxyGroup,
@@ -1035,13 +1035,13 @@ func (r *StaticAppleSiliconMachineReconciler) egressConfig() egressConfig {
 	}
 }
 
-func (r *StaticAppleSiliconMachineReconciler) egressHost(machineName string) string {
+func (r *RackAppleSiliconMachineReconciler) egressHost(machineName string) string {
 	return egressServiceHost(r.egressConfig(), machineName)
 }
 
-func (r *StaticAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
+func (r *RackAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 	ctx context.Context,
-	machine *infrav1.StaticAppleSiliconMachine,
+	machine *infrav1.RackAppleSiliconMachine,
 ) error {
 	return reconcileEgressService(ctx, r.Client, r.egressConfig(),
 		machine.Name, machine.Spec.FleetName, r.hostSizing(machine).GuestCapacity)
@@ -1049,7 +1049,7 @@ func (r *StaticAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 
 // hostSizing resolves this Machine's SKU-shaped fields: the per-Machine
 // override where set, the operator-global default otherwise.
-func (r *StaticAppleSiliconMachineReconciler) hostSizing(machine *infrav1.StaticAppleSiliconMachine) hostSizing {
+func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppleSiliconMachine) hostSizing {
 	sizing := hostSizing{
 		HostCPU:              r.FleetConfig.HostCPU,
 		HostMemoryMB:         r.FleetConfig.HostMemoryMB,
@@ -1086,22 +1086,22 @@ func (r *StaticAppleSiliconMachineReconciler) hostSizing(machine *infrav1.Static
 	return sizing
 }
 
-func (r *StaticAppleSiliconMachineReconciler) hostConfig(
-	machine *infrav1.StaticAppleSiliconMachine,
+func (r *RackAppleSiliconMachineReconciler) hostConfig(
+	machine *infrav1.RackAppleSiliconMachine,
 	perHost bootstrap.PerHost,
 ) bootstrap.Config {
 	return applyHostSizing(r.FleetConfig, r.hostSizing(machine), perHost)
 }
 
-func (r *StaticAppleSiliconMachineReconciler) desiredHostConfigHash(machine *infrav1.StaticAppleSiliconMachine) string {
+func (r *RackAppleSiliconMachineReconciler) desiredHostConfigHash(machine *infrav1.RackAppleSiliconMachine) string {
 	return hostConfigHashFor(r.FleetConfig, r.hostSizing(machine))
 }
 
-// staticProviderID composes the providerID from the host's two durable physical
+// rackProviderID composes the providerID from the host's two durable physical
 // facts, so re-cabling a box to a new address does not change its identity to
 // CAPI. The scheme is foreign to the Hetzner CCM, which is what keeps it from
 // reaping these Nodes.
-func staticProviderID(host *infrav1.RackHost) string {
+func rackProviderID(host *infrav1.RackHost) string {
 	serial := host.Spec.Serial
 	if serial == "" {
 		// An inventory record with no serial is still usable: the CR name is
@@ -1111,20 +1111,20 @@ func staticProviderID(host *infrav1.RackHost) string {
 		// because a missing serial degrades rather than breaks.
 		serial = host.Name
 	}
-	return fmt.Sprintf("static-applesilicon://%s/%s", host.Spec.Location.Site, serial)
+	return fmt.Sprintf("rack-applesilicon://%s/%s", host.Spec.Location.Site, serial)
 }
 
-func providerIDOfStatic(m *infrav1.StaticAppleSiliconMachine) string {
+func providerIDOfRack(m *infrav1.RackAppleSiliconMachine) string {
 	if m.Spec.ProviderID == nil {
 		return ""
 	}
 	return *m.Spec.ProviderID
 }
 
-// staticMachineNodeLabels are the labels tart-kubelet stamps on the Node it
+// rackMachineNodeLabels are the labels tart-kubelet stamps on the Node it
 // registers: the fleet membership label workloads pin to via nodeSelector,
 // matching what the Scaleway kind writes so one workload can target both.
-func staticMachineNodeLabels(m *infrav1.StaticAppleSiliconMachine) map[string]string {
+func rackMachineNodeLabels(m *infrav1.RackAppleSiliconMachine) map[string]string {
 	if m.Spec.FleetName == "" {
 		return nil
 	}
@@ -1146,17 +1146,17 @@ func describeLocation(host *infrav1.RackHost) string {
 	return out
 }
 
-func (r *StaticAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RackAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	concurrency := r.MaxConcurrentReconciles
 	if concurrency <= 0 {
 		concurrency = 1
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.StaticAppleSiliconMachine{}).
+		For(&infrav1.RackAppleSiliconMachine{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: concurrency}).
 		Watches(
 			&clusterv1.Machine{},
-			handler.EnqueueRequestsFromMapFunc(staticMachineForCAPIMachine),
+			handler.EnqueueRequestsFromMapFunc(rackMachineForCAPIMachine),
 		).
 		// Wake on inventory changes so a host added to the pool, un-quarantined
 		// or made claimable is picked up at once rather than at the next
@@ -1164,17 +1164,17 @@ func (r *StaticAppleSiliconMachineReconciler) SetupWithManager(mgr ctrl.Manager)
 		// hosts are declared and one that appears stuck for a minute per host.
 		Watches(
 			&infrav1.RackHost{},
-			handler.EnqueueRequestsFromMapFunc(r.staticMachinesForRackHost),
+			handler.EnqueueRequestsFromMapFunc(r.rackMachinesForRackHost),
 		).
 		Complete(r)
 }
 
-func staticMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.Request {
+func rackMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile.Request {
 	m, ok := o.(*clusterv1.Machine)
 	if !ok {
 		return nil
 	}
-	if m.Spec.InfrastructureRef.Kind != "StaticAppleSiliconMachine" {
+	if m.Spec.InfrastructureRef.Kind != "RackAppleSiliconMachine" {
 		return nil
 	}
 	return []reconcile.Request{{
@@ -1185,15 +1185,15 @@ func staticMachineForCAPIMachine(_ context.Context, o client.Object) []reconcile
 	}}
 }
 
-// staticMachinesForRackHost enqueues the machines a host event could unblock:
+// rackMachinesForRackHost enqueues the machines a host event could unblock:
 // its current holder, plus every hostless machine whose pool it belongs to.
-func (r *StaticAppleSiliconMachineReconciler) staticMachinesForRackHost(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *RackAppleSiliconMachineReconciler) rackMachinesForRackHost(ctx context.Context, o client.Object) []reconcile.Request {
 	host, ok := o.(*infrav1.RackHost)
 	if !ok {
 		return nil
 	}
 
-	machines := &infrav1.StaticAppleSiliconMachineList{}
+	machines := &infrav1.RackAppleSiliconMachineList{}
 	if err := r.List(ctx, machines, client.InNamespace(host.Namespace)); err != nil {
 		log.FromContext(ctx).Error(err, "list machines for rack host event", "host", host.Name)
 		return nil

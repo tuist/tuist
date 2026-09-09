@@ -31,7 +31,7 @@ func newRackHostReconciler(t *testing.T, driver power.Driver, objs ...runtime.Ob
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackHost{}, &infrav1.StaticAppleSiliconMachine{}).
+		WithStatusSubresource(&infrav1.RackHost{}, &infrav1.RackAppleSiliconMachine{}).
 		Build()
 	r := &RackHostReconciler{
 		Client:           c,
@@ -192,7 +192,7 @@ func TestOrphanedClaimIsReleased(t *testing.T) {
 
 func TestLiveClaimIsLeftAlone(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	machine := staticMachine("ber1-0")
+	machine := rackMachine("ber1-0")
 	r := newRackHostReconciler(t, &stubPowerDriver{on: true}, host, machine)
 
 	reconcileHost(t, r, "mini-01")
@@ -279,7 +279,7 @@ func TestPowerCutIsRefusedForAServingNode(t *testing.T) {
 				h.Annotations = map[string]string{PowerActionAnnotation: action}
 			})
 			driver := &stubPowerDriver{on: true}
-			r := newRackHostReconciler(t, driver, host, staticMachine("ber1-0"), node("ber1-0", true))
+			r := newRackHostReconciler(t, driver, host, rackMachine("ber1-0"), node("ber1-0", true))
 
 			reconcileHost(t, r, "mini-01")
 
@@ -301,7 +301,7 @@ func TestPowerOnIsAllowedForAServingNode(t *testing.T) {
 		h.Annotations = map[string]string{PowerActionAnnotation: "on"}
 	})
 	driver := &stubPowerDriver{}
-	r := newRackHostReconciler(t, driver, host, staticMachine("ber1-0"), node("ber1-0", true))
+	r := newRackHostReconciler(t, driver, host, rackMachine("ber1-0"), node("ber1-0", true))
 
 	reconcileHost(t, r, "mini-01")
 
@@ -327,7 +327,7 @@ func TestPowerCutIsAllowedWhenTheNodeIsNotServing(t *testing.T) {
 				h.Annotations = map[string]string{PowerActionAnnotation: "cycle"}
 			})
 			driver := &stubPowerDriver{on: true}
-			objs := append([]runtime.Object{host, staticMachine("ber1-0")}, tc.objs...)
+			objs := append([]runtime.Object{host, rackMachine("ber1-0")}, tc.objs...)
 			r := newRackHostReconciler(t, driver, objs...)
 
 			reconcileHost(t, r, "mini-01")
@@ -348,7 +348,7 @@ func TestForcedPowerCutOverridesTheServingGuard(t *testing.T) {
 		}
 	})
 	driver := &stubPowerDriver{on: true}
-	r := newRackHostReconciler(t, driver, host, staticMachine("ber1-0"), node("ber1-0", true))
+	r := newRackHostReconciler(t, driver, host, rackMachine("ber1-0"), node("ber1-0", true))
 
 	reconcileHost(t, r, "mini-01")
 
@@ -366,11 +366,11 @@ func TestForcedPowerCutOverridesTheServingGuard(t *testing.T) {
 // --- watch mapping ----------------------------------------------------------
 
 func TestRackHostForStaticMachineMapsOnlyBoundMachines(t *testing.T) {
-	bound := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
+	bound := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
 	if reqs := rackHostForStaticMachine(context.Background(), bound); len(reqs) != 1 || reqs[0].Name != "mini-01" {
 		t.Fatalf("bound machine mapped to %v, want mini-01", reqs)
 	}
-	if reqs := rackHostForStaticMachine(context.Background(), staticMachine("ber1-1")); len(reqs) != 0 {
+	if reqs := rackHostForStaticMachine(context.Background(), rackMachine("ber1-1")); len(reqs) != 0 {
 		t.Fatalf("hostless machine mapped to %v, want nothing", reqs)
 	}
 }

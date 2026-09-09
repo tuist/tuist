@@ -59,7 +59,7 @@ spec:
   {{- /*
   A pool normally binds to the fleet this block renders for, but it may name
   another. Needed because a macOS host fleet is no longer one thing: rack-owned
-  minis (rackFleet, StaticAppleSiliconMachine) are a separate CAPI fleet with
+  minis (rackFleet, RackAppleSiliconMachine) are a separate CAPI fleet with
   their own Node label, and a pool that could only ever select
   runnersFleetName could never place work on them. Without this the rack can
   join the cluster and run nothing, which is most of the point of the rack.

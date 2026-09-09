@@ -82,7 +82,7 @@ spec:
                 job: it is inventory, not a workload, and nothing here is read by anything
                 running on the host.
 
-                Keeping it separate from StaticAppleSiliconMachine is what makes a
+                Keeping it separate from RackAppleSiliconMachine is what makes a
                 MachineDeployment work at all. The alternative, address and outlet inline on
                 each Machine, forces one MachineDeployment per box (a Machine is cloned from
                 a template, so every clone would carry the same address), and worse, a
@@ -131,7 +131,7 @@ spec:
                   type: object
                 pool:
                   description: |-
-                    Pool is the claim marker: a StaticAppleSiliconMachine claims a free
+                    Pool is the claim marker: a RackAppleSiliconMachine claims a free
                     RackHost whose pool equals its own `spec.adoptPool`. It is the direct
                     analog of the Scaleway kind's name prefix, OVH's displayName prefix and
                     Dedibox's adopt tag, and like them it is the ENVIRONMENT BOUNDARY:
@@ -231,7 +231,7 @@ spec:
                   type: string
                 claimedBy:
                   description: |-
-                    ClaimedBy is the name of the StaticAppleSiliconMachine currently holding
+                    ClaimedBy is the name of the RackAppleSiliconMachine currently holding
                     this host, empty when free. The claim is a status write guarded by the
                     apiserver's resourceVersion check, which makes it strictly safer than
                     the rename-is-the-claim trick the Scaleway kind uses: two reconciles

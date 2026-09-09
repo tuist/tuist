@@ -5,7 +5,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// StaticAppleSiliconMachineSpec is the desired state of one Mac mini we own.
+// RackAppleSiliconMachineSpec is the desired state of one Mac mini we own.
 //
 // It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
 // bootstrap, same host-config drift loop, same tailnet egress Service, but the
@@ -18,9 +18,9 @@ import (
 // membership, kubelet version). That split is the point of having two kinds: a
 // MachineDeployment clones this spec N times, and a spec carrying an address
 // could not be cloned more than once.
-type StaticAppleSiliconMachineSpec struct {
+type RackAppleSiliconMachineSpec struct {
 	// ProviderID, set by the controller once a RackHost is claimed, takes the
-	// shape `static-applesilicon://<site>/<serial>`; composed from the two
+	// shape `rack-applesilicon://<site>/<serial>`; composed from the two
 	// durable physical facts, so re-cabling a host to a new address does not
 	// change its identity to CAPI. CAPI core expects this to populate; without
 	// it the parent Machine never goes Ready. The scheme is deliberately
@@ -107,8 +107,8 @@ type StaticAppleSiliconMachineSpec struct {
 	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
 }
 
-// StaticAppleSiliconMachineStatus is the observed state of the Machine.
-type StaticAppleSiliconMachineStatus struct {
+// RackAppleSiliconMachineStatus is the observed state of the Machine.
+type RackAppleSiliconMachineStatus struct {
 	// HostAgentStatus carries the phase, terminal-failure fields and
 	// host-config drift bookkeeping shared with the Scaleway macOS kind.
 	HostAgentStatus `json:",inline"`
@@ -137,40 +137,40 @@ type StaticAppleSiliconMachineStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=staticapplesiliconmachines,scope=Namespaced,categories=cluster-api,shortName=sasm
+// +kubebuilder:resource:path=rackapplesiliconmachines,scope=Namespaced,categories=cluster-api,shortName=rasm
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="RackHost",type=string,JSONPath=".status.rackHost"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// StaticAppleSiliconMachine is one Mac mini we own, joined as a cluster Node.
-type StaticAppleSiliconMachine struct {
+// RackAppleSiliconMachine is one Mac mini we own, joined as a cluster Node.
+type RackAppleSiliconMachine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StaticAppleSiliconMachineSpec   `json:"spec,omitempty"`
-	Status StaticAppleSiliconMachineStatus `json:"status,omitempty"`
+	Spec   RackAppleSiliconMachineSpec   `json:"spec,omitempty"`
+	Status RackAppleSiliconMachineStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// StaticAppleSiliconMachineList is a list of StaticAppleSiliconMachine.
-type StaticAppleSiliconMachineList struct {
+// RackAppleSiliconMachineList is a list of RackAppleSiliconMachine.
+type RackAppleSiliconMachineList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []StaticAppleSiliconMachine `json:"items"`
+	Items           []RackAppleSiliconMachine `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&StaticAppleSiliconMachine{}, &StaticAppleSiliconMachineList{})
+	SchemeBuilder.Register(&RackAppleSiliconMachine{}, &RackAppleSiliconMachineList{})
 }
 
 // GetConditions / SetConditions implement the CAPI conditions.Setter interface.
-func (m *StaticAppleSiliconMachine) GetConditions() clusterv1.Conditions {
+func (m *RackAppleSiliconMachine) GetConditions() clusterv1.Conditions {
 	return m.Status.Conditions
 }
 
-func (m *StaticAppleSiliconMachine) SetConditions(c clusterv1.Conditions) {
+func (m *RackAppleSiliconMachine) SetConditions(c clusterv1.Conditions) {
 	m.Status.Conditions = c
 }

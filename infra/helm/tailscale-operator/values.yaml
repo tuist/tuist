@@ -171,7 +171,7 @@ macminiEgress:
     # ProxyGroup to it.
     #
     # Only needed by an env that runs RACK-owned Mac minis
-    # (StaticAppleSiliconMachine). Those are not on the tailnet when the
+    # (RackAppleSiliconMachine). Those are not on the tailnet when the
     # operator first has to reach them, since bootstrap is what puts them
     # there, so the only path is a LAN address behind a subnet router. A proxy
     # that does not accept routes answers `no matching peer` for such an

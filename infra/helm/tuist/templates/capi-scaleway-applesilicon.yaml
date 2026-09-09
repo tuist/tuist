@@ -49,8 +49,8 @@ rules:
       - dediboxmachinetemplates
       - vultrmachines
       - vultrmachinetemplates
-      - staticapplesiliconmachines
-      - staticapplesiliconmachinetemplates
+      - rackapplesiliconmachines
+      - rackapplesiliconmachinetemplates
       - rackhosts
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
@@ -67,8 +67,8 @@ rules:
       - dediboxmachines/finalizers
       - vultrmachines/status
       - vultrmachines/finalizers
-      - staticapplesiliconmachines/status
-      - staticapplesiliconmachines/finalizers
+      - rackapplesiliconmachines/status
+      - rackapplesiliconmachines/finalizers
       # rackhosts/status carries the claim. It is the only status in this
       # provider written by a DIFFERENT object's reconciler, and it is written
       # with Update rather than a merge patch so the apiserver's

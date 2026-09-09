@@ -89,8 +89,8 @@ func TestMachineStatusesDeepCopyTheirHostAgentStatus(t *testing.T) {
 		assertHostAgentUnaliased(t, original.DeepCopy().HostAgentStatus, original.HostAgentStatus)
 	})
 
-	t.Run("StaticAppleSiliconMachineStatus", func(t *testing.T) {
-		original := &StaticAppleSiliconMachineStatus{HostAgentStatus: *agent.DeepCopy()}
+	t.Run("RackAppleSiliconMachineStatus", func(t *testing.T) {
+		original := &RackAppleSiliconMachineStatus{HostAgentStatus: *agent.DeepCopy()}
 		assertHostAgentUnaliased(t, original.DeepCopy().HostAgentStatus, original.HostAgentStatus)
 	})
 }

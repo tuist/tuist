@@ -271,7 +271,7 @@
 		// Staging cluster → the BER1 rack's host LAN, on SSH only.
 		//
 		// This is the FIRST-DIAL path for rack-owned Mac minis
-		// (StaticAppleSiliconMachine). A rented mini has a public IP the
+		// (RackAppleSiliconMachine). A rented mini has a public IP the
 		// operator can reach before anything is installed on it; a mini in a
 		// rack we own does not, and it is not on the tailnet yet either: 
 		// bootstrap is what puts it there. So the operator reaches it at its

@@ -15,7 +15,7 @@ Hardware we own has no such API, so the pool has to be Kubernetes objects:
     outlet. Rendered from `rackFleet.hosts` below, so adding a mini to the
     rack is a values PR reviewed like any other, and the inventory is
     versioned rather than living in someone's kubectl history.
-  * StaticAppleSiliconMachineTemplate + MachineDeployment, exactly as the
+  * RackAppleSiliconMachineTemplate + MachineDeployment, exactly as the
     Scaleway fleets render them. The Machines carry NO host identity at all,
     which is what lets one template be cloned N times and one replica count
     scale the rack.
@@ -113,7 +113,7 @@ with no value.
 {{- $templateName := printf "%s-%s" $fleetName (toYaml $machineSpec | sha256sum | trunc 8) }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: StaticAppleSiliconMachineTemplate
+kind: RackAppleSiliconMachineTemplate
 metadata:
   name: {{ $templateName }}
   namespace: {{ .Release.Namespace }}
@@ -177,6 +177,6 @@ spec:
         dataSecretName: {{ $bootstrapSecret }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-        kind: StaticAppleSiliconMachineTemplate
+        kind: RackAppleSiliconMachineTemplate
         name: {{ $templateName }}
 {{- end }}

@@ -1626,7 +1626,7 @@ count by (instance) (
 ```
 
 The instance exclusion is load-bearing, not noise suppression. A
-`StaticAppleSiliconMachine` is a Mac mini in a rack we operate, with no Scaleway
+`RackAppleSiliconMachine` is a Mac mini in a rack we operate, with no Scaleway
 Private Network and no prospect of one, so it correctly has no `vlan` device.
 Without the exclusion every rack host pages as critical from the moment it
 joins, which is what happened on 2026-09-09 when the first one did.

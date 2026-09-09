@@ -7,7 +7,7 @@ machine kinds:
 
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
-- `StaticAppleSiliconMachine`: Mac minis **we own**, in a rack we
+- `RackAppleSiliconMachine`: Mac minis **we own**, in a rack we
   operate (the BER1 colo programme). Same host bootstrap and drift
   loop as the Scaleway kind; the host comes from a `RackHost` in the
   cluster's own inventory rather than a vendor API, and its reboot is
@@ -42,7 +42,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `StaticAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
+| `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
@@ -51,7 +51,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `sasm`, `sasmt`, `rh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rasmt`, `rh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -238,7 +238,7 @@ Two auxiliary controllers run alongside it:
 
 ## Rack-owned hosts
 
-`StaticAppleSiliconMachine` joins Mac minis we bought, in a rack we operate. It
+`RackAppleSiliconMachine` joins Mac minis we bought, in a rack we operate. It
 is the Scaleway kind with the provider removed and the pool moved in-cluster:
 same `bootstrap.Run`, same `HostConfigHash` drift loop, same terminal-failure
 and cooldown rules, same per-machine tailnet egress Service: all of which live
@@ -251,7 +251,7 @@ stay invisible until a fleet has been running stale config for weeks.
 Every other machine kind gets its pool from a vendor API: Scaleway's server list
 filtered by a name prefix, OVH's by a displayName prefix, Dedibox's by a tag.
 Hardware we own has no such API, so the pool has to be Kubernetes objects: one
-`RackHost` per box, carrying the physical facts, and a `StaticAppleSiliconMachine`
+`RackHost` per box, carrying the physical facts, and a `RackAppleSiliconMachine`
 that claims one.
 
 Folding the address and the outlet onto the Machine instead is the obvious
@@ -414,7 +414,7 @@ history.
 ```bash
 kubectl get rh                      # pool, address, claimed-by, power, quarantined
 kubectl get rh -o wide              # + serial and site
-kubectl get sasm                    # the Machines, with the host each holds
+kubectl get rasm                    # the Machines, with the host each holds
 ```
 
 `replicas` is a machine count and must not exceed the claimable hosts: a Machine
@@ -486,7 +486,7 @@ infra/cluster-api-provider-tuist/
 ├── controllers/
 │   ├── macos/
 │   │   ├── scalewayapplesiliconmachine_controller.go
-│   │   ├── staticapplesiliconmachine_controller.go  # rack-owned minis
+│   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
 │   │   ├── rackhost_controller.go   # physical inventory: power, orphan claims
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-

@@ -83,7 +83,7 @@ var (
 
 	rackHostClaimedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "capt_rackhost_claimed",
-		Help: "1 when the RackHost is held by a StaticAppleSiliconMachine, 0 when it is free. Summed per pool this is the rack's utilisation, and free == 0 is what a MachineDeployment scale-up will fail to satisfy. Labels: host, pool, site, quarantined.",
+		Help: "1 when the RackHost is held by a RackAppleSiliconMachine, 0 when it is free. Summed per pool this is the rack's utilisation, and free == 0 is what a MachineDeployment scale-up will fail to satisfy. Labels: host, pool, site, quarantined.",
 	}, []string{"host", "pool", "site", "quarantined"})
 )
 
@@ -173,7 +173,7 @@ func (r *RackHostReconciler) powerCycleSettle() time.Duration {
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackhosts/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=staticapplesiliconmachines,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=rackapplesiliconmachines,verbs=get;list;watch
 
 func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("rackhost", req.NamespacedName)
@@ -236,7 +236,7 @@ func (r *RackHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	return ctrl.Result{RequeueAfter: powerPollInterval}, nil
 }
 
-// releaseIfOrphaned clears a claim held by a StaticAppleSiliconMachine that no
+// releaseIfOrphaned clears a claim held by a RackAppleSiliconMachine that no
 // longer exists. Reports whether it released.
 //
 // It reads the machine through the cached client, which is enough: a claim is
@@ -247,7 +247,7 @@ func (r *RackHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav
 	if host.Status.ClaimedBy == "" {
 		return false, nil
 	}
-	machine := &infrav1.StaticAppleSiliconMachine{}
+	machine := &infrav1.RackAppleSiliconMachine{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: host.Namespace, Name: host.Status.ClaimedBy}, machine)
 	switch {
 	case err == nil:
@@ -257,7 +257,7 @@ func (r *RackHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav
 	}
 
 	r.Recorder.Eventf(host, corev1.EventTypeWarning, "ClaimReleased",
-		"Released the claim held by %s: no such StaticAppleSiliconMachine. The host is free to be claimed again.",
+		"Released the claim held by %s: no such RackAppleSiliconMachine. The host is free to be claimed again.",
 		host.Status.ClaimedBy)
 	log.FromContext(ctx).Info("released orphaned rack host claim",
 		"host", host.Name, "claimedBy", host.Status.ClaimedBy)
@@ -456,7 +456,7 @@ func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// freed on the spot rather than at the next poll interval: that
 		// latency is a scale-up sitting on NoAvailableHost.
 		Watches(
-			&infrav1.StaticAppleSiliconMachine{},
+			&infrav1.RackAppleSiliconMachine{},
 			handler.EnqueueRequestsFromMapFunc(rackHostForStaticMachine),
 		).
 		Complete(r)
@@ -464,7 +464,7 @@ func (r *RackHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // rackHostForStaticMachine maps a machine event to the host it holds.
 func rackHostForStaticMachine(_ context.Context, o client.Object) []reconcile.Request {
-	m, ok := o.(*infrav1.StaticAppleSiliconMachine)
+	m, ok := o.(*infrav1.RackAppleSiliconMachine)
 	if !ok || m.Status.RackHost == "" {
 		return nil
 	}

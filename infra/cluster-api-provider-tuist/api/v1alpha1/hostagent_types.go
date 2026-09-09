@@ -120,6 +120,6 @@ func (m *ScalewayAppleSiliconMachine) HostAgent() *HostAgentStatus {
 
 // HostAgent returns a pointer into the CR's own status so the shared macOS
 // helpers mutate the object the caller is about to patch, not a copy.
-func (m *StaticAppleSiliconMachine) HostAgent() *HostAgentStatus {
+func (m *RackAppleSiliconMachine) HostAgent() *HostAgentStatus {
 	return &m.Status.HostAgentStatus
 }

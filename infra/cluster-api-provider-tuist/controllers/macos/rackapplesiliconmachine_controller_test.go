@@ -60,10 +60,10 @@ func rackHost(name string, mutate ...func(*infrav1.RackHost)) *infrav1.RackHost 
 	return h
 }
 
-func staticMachine(name string, mutate ...func(*infrav1.StaticAppleSiliconMachine)) *infrav1.StaticAppleSiliconMachine {
-	m := &infrav1.StaticAppleSiliconMachine{
+func rackMachine(name string, mutate ...func(*infrav1.RackAppleSiliconMachine)) *infrav1.RackAppleSiliconMachine {
+	m := &infrav1.RackAppleSiliconMachine{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNamespace},
-		Spec: infrav1.StaticAppleSiliconMachineSpec{
+		Spec: infrav1.RackAppleSiliconMachineSpec{
 			AdoptPool: testPool,
 			FleetName: testFleet,
 		},
@@ -89,7 +89,7 @@ func fleetSecret(mutate ...func(*corev1.Secret)) *corev1.Secret {
 	return s
 }
 
-func newStaticReconciler(t *testing.T, objs ...runtime.Object) *StaticAppleSiliconMachineReconciler {
+func newRackReconciler(t *testing.T, objs ...runtime.Object) *RackAppleSiliconMachineReconciler {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{
@@ -102,9 +102,9 @@ func newStaticReconciler(t *testing.T, objs ...runtime.Object) *StaticAppleSilic
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.StaticAppleSiliconMachine{}, &infrav1.RackHost{}).
+		WithStatusSubresource(&infrav1.RackAppleSiliconMachine{}, &infrav1.RackHost{}).
 		Build()
-	return &StaticAppleSiliconMachineReconciler{
+	return &RackAppleSiliconMachineReconciler{
 		Client:                  c,
 		Recorder:                fakeRecorder(),
 		CredentialsManager:      &credentials.Manager{Client: c, Namespace: testNamespace},
@@ -116,7 +116,7 @@ func newStaticReconciler(t *testing.T, objs ...runtime.Object) *StaticAppleSilic
 	}
 }
 
-func getHost(t *testing.T, r *StaticAppleSiliconMachineReconciler, name string) *infrav1.RackHost {
+func getHost(t *testing.T, r *RackAppleSiliconMachineReconciler, name string) *infrav1.RackHost {
 	t.Helper()
 	h := &infrav1.RackHost{}
 	if err := r.Get(context.Background(), types.NamespacedName{Namespace: testNamespace, Name: name}, h); err != nil {
@@ -128,8 +128,8 @@ func getHost(t *testing.T, r *StaticAppleSiliconMachineReconciler, name string) 
 // --- claim ------------------------------------------------------------------
 
 func TestClaimBindsAFreeHostAndComposesTheProviderID(t *testing.T) {
-	machine := staticMachine("ber1-0")
-	r := newStaticReconciler(t, rackHost("mini-01"), machine)
+	machine := rackMachine("ber1-0")
+	r := newRackReconciler(t, rackHost("mini-01"), machine)
 
 	host, result, err := r.claimRackHost(context.Background(), machine)
 	if err != nil {
@@ -148,7 +148,7 @@ func TestClaimBindsAFreeHostAndComposesTheProviderID(t *testing.T) {
 	// The providerID is composed from the two DURABLE physical facts, not the
 	// address: re-cabling a box onto a new IP must not change its identity to
 	// CAPI, or the Node binding breaks on a network change.
-	if want := "static-applesilicon://ber1/C07FC05JQ6NY"; ptr.Deref(machine.Spec.ProviderID, "") != want {
+	if want := "rack-applesilicon://ber1/C07FC05JQ6NY"; ptr.Deref(machine.Spec.ProviderID, "") != want {
 		t.Fatalf("providerID = %q, want %q", ptr.Deref(machine.Spec.ProviderID, ""), want)
 	}
 	if !conditions.IsTrue(machine, shared.ProvisionedCondition) {
@@ -160,8 +160,8 @@ func TestClaimBindsAFreeHostAndComposesTheProviderID(t *testing.T) {
 // the spec is what a MachineTemplate clones, so an address there would be
 // copied onto every replica.
 func TestClaimKeepsTheAddressOutOfTheSpec(t *testing.T) {
-	machine := staticMachine("ber1-0")
-	r := newStaticReconciler(t, rackHost("mini-01"), machine)
+	machine := rackMachine("ber1-0")
+	r := newRackReconciler(t, rackHost("mini-01"), machine)
 
 	if _, _, err := r.claimRackHost(context.Background(), machine); err != nil {
 		t.Fatalf("claimRackHost: %v", err)
@@ -172,11 +172,11 @@ func TestClaimKeepsTheAddressOutOfTheSpec(t *testing.T) {
 }
 
 func TestClaimIsIdempotentForTheHostAlreadyHeld(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 
 	got, _, err := r.claimRackHost(context.Background(), machine)
 	if err != nil {
@@ -212,11 +212,11 @@ func TestClaimDropsAStolenOrVanishedHost(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+			machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 				m.Status.RackHost = "mini-01"
 				m.Status.Ready = true
 			})
-			r := newStaticReconciler(t, append(tc.objs, machine)...)
+			r := newRackReconciler(t, append(tc.objs, machine)...)
 
 			host, _, err := r.claimRackHost(context.Background(), machine)
 			if err != nil {
@@ -258,8 +258,8 @@ func TestClaimRaceIsResolvedByOptimisticConcurrency(t *testing.T) {
 	)
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithRuntimeObjects(rackHost("mini-01"), staticMachine("ber1-0")).
-		WithStatusSubresource(&infrav1.StaticAppleSiliconMachine{}, &infrav1.RackHost{}).
+		WithRuntimeObjects(rackHost("mini-01"), rackMachine("ber1-0")).
+		WithStatusSubresource(&infrav1.RackAppleSiliconMachine{}, &infrav1.RackHost{}).
 		WithInterceptorFuncs(interceptor.Funcs{
 			List: func(ctx context.Context, cl client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 				if err := cl.List(ctx, list, opts...); err != nil {
@@ -286,13 +286,13 @@ func TestClaimRaceIsResolvedByOptimisticConcurrency(t *testing.T) {
 		Build()
 	inner = c
 
-	r := &StaticAppleSiliconMachineReconciler{
+	r := &RackAppleSiliconMachineReconciler{
 		Client:             c,
 		Recorder:           fakeRecorder(),
 		CredentialsManager: &credentials.Manager{Client: c, Namespace: testNamespace},
 		SecretsNamespace:   testNamespace,
 	}
-	machine := staticMachine("ber1-0")
+	machine := rackMachine("ber1-0")
 
 	host, result, err := r.claimRackHost(context.Background(), machine)
 	if err != nil {
@@ -320,9 +320,9 @@ func TestClaimRaceIsResolvedByOptimisticConcurrency(t *testing.T) {
 // The filter is the other half: once a competing claim IS visible, the host
 // must be passed over before any write is attempted.
 func TestClaimSkipsAHostAlreadyVisiblyClaimed(t *testing.T) {
-	first := staticMachine("ber1-0")
-	second := staticMachine("ber1-1")
-	r := newStaticReconciler(t, rackHost("mini-01"), first, second)
+	first := rackMachine("ber1-0")
+	second := rackMachine("ber1-1")
+	r := newRackReconciler(t, rackHost("mini-01"), first, second)
 	ctx := context.Background()
 
 	if _, _, err := r.claimRackHost(ctx, first); err != nil {
@@ -344,8 +344,8 @@ func TestClaimSkipsAHostAlreadyVisiblyClaimed(t *testing.T) {
 }
 
 func TestClaimRefusesAnUnscopedScan(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) { m.Spec.AdoptPool = "" })
-	r := newStaticReconciler(t, rackHost("mini-01"), machine)
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.AdoptPool = "" })
+	r := newRackReconciler(t, rackHost("mini-01"), machine)
 
 	host, result, err := r.claimRackHost(context.Background(), machine)
 	if err != nil {
@@ -409,8 +409,8 @@ func TestSelectClaimableHostsFiltersAndExplains(t *testing.T) {
 }
 
 func TestNoAvailableHostSaysThePoolIsEmpty(t *testing.T) {
-	machine := staticMachine("ber1-0")
-	r := newStaticReconciler(t, machine)
+	machine := rackMachine("ber1-0")
+	r := newRackReconciler(t, machine)
 
 	host, result, err := r.claimRackHost(context.Background(), machine)
 	if err != nil || host != nil {
@@ -472,13 +472,13 @@ func registryWithShelly(d power.Driver) *power.Registry {
 }
 
 func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		// One short of the threshold, so this failure crosses it.
 		m.Status.BootstrapAttempts = 2
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 	driver := &stubPowerDriver{on: true}
 	r.Power = registryWithShelly(driver)
 
@@ -499,13 +499,13 @@ func TestBootstrapFailureCyclesTheOutletAtTheRebootThreshold(t *testing.T) {
 }
 
 func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 4
 		m.Status.BootstrapRebootIssued = true
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 	driver := &stubPowerDriver{on: true}
 	r.Power = registryWithShelly(driver)
 
@@ -519,12 +519,12 @@ func TestBootstrapFailureCyclesTheOutletOnlyOnce(t *testing.T) {
 // A failed cycle must leave the flag clear so the next attempt retries it:
 // otherwise a transient PDU error costs the host its only recovery.
 func TestFailedPowerCycleIsRetriedOnTheNextAttempt(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 2
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true, err: errors.New("plug unreachable")})
 
 	r.handleBootstrapFailure(context.Background(), machine, host, errors.New("ssh wedged"))
@@ -541,15 +541,15 @@ func TestFailedPowerCycleIsRetriedOnTheNextAttempt(t *testing.T) {
 // host without quarantining it hands the same broken box straight back on the
 // next reconcile, and the Machine loops on it forever.
 func TestBootstrapExhaustionQuarantinesTheHostRatherThanReleasingIt(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
 		m.Status.Ready = true
-		m.Spec.ProviderID = ptr.To("static-applesilicon://ber1/C07FC05JQ6NY")
+		m.Spec.ProviderID = ptr.To("rack-applesilicon://ber1/C07FC05JQ6NY")
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
 	spare := rackHost("mini-02")
-	r := newStaticReconciler(t, host, spare, machine)
+	r := newRackReconciler(t, host, spare, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true})
 
 	r.handleBootstrapFailure(context.Background(), machine, host, errors.New("unrecoverable"))
@@ -587,12 +587,12 @@ func TestBootstrapExhaustionQuarantinesTheHostRatherThanReleasingIt(t *testing.T
 // The TOFU pin belongs to the host that was given up on. Carrying it to the
 // replacement makes every bootstrap fail on a fingerprint mismatch.
 func TestBootstrapExhaustionDropsTheHostFingerprint(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true})
 
 	ctx := context.Background()
@@ -617,16 +617,16 @@ func TestBootstrapExhaustionDropsTheHostFingerprint(t *testing.T) {
 // --- delete -----------------------------------------------------------------
 
 func TestDeleteReleasesTheHostWithoutQuarantiningOrWipingIt(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
-		m.Finalizers = []string{StaticMachineFinalizer}
+		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) {
 		h.Status.ClaimedBy = "ber1-0"
 		h.Status.ClaimedAt = ptr.To(metav1.Now())
 	})
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 
 	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
 		t.Fatalf("reconcileDelete: %v", err)
@@ -650,13 +650,13 @@ func TestDeleteReleasesTheHostWithoutQuarantiningOrWipingIt(t *testing.T) {
 // delete, or one racing a re-claim, would otherwise release a host another
 // Machine is actively bootstrapping.
 func TestDeleteLeavesAClaimHeldBySomeoneElseAlone(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
-		m.Finalizers = []string{StaticMachineFinalizer}
+		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-7" })
-	r := newStaticReconciler(t, host, machine)
+	r := newRackReconciler(t, host, machine)
 
 	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
 		t.Fatalf("reconcileDelete: %v", err)
@@ -667,11 +667,11 @@ func TestDeleteLeavesAClaimHeldBySomeoneElseAlone(t *testing.T) {
 }
 
 func TestDeleteOfAHostlessMachineCompletes(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
-		m.Finalizers = []string{StaticMachineFinalizer}
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
+		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
-	r := newStaticReconciler(t, machine)
+	r := newRackReconciler(t, machine)
 
 	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
 		t.Fatalf("reconcileDelete: %v", err)
@@ -707,12 +707,12 @@ func TestReconcileRefusesToMintFleetCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			machine := staticMachine("ber1-0")
+			machine := rackMachine("ber1-0")
 			objs := []runtime.Object{rackHost("mini-01"), machine}
 			if tc.secret != nil {
 				objs = append(objs, tc.secret)
 			}
-			r := newStaticReconciler(t, objs...)
+			r := newRackReconciler(t, objs...)
 
 			result, err := r.reconcileNormal(context.Background(), machine)
 			if err != nil {
@@ -768,21 +768,21 @@ func TestDesiredHostConfigHashMatchesWhatIsPushed(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name    string
-		machine *infrav1.StaticAppleSiliconMachine
+		machine *infrav1.RackAppleSiliconMachine
 	}{
-		{"fleet defaults", staticMachine("m")},
-		{"overridden sizing", staticMachine("m", func(m *infrav1.StaticAppleSiliconMachine) {
+		{"fleet defaults", rackMachine("m")},
+		{"overridden sizing", rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) {
 			m.Spec.HostCPU = 18
 			m.Spec.HostMemoryMB = 61440
 			m.Spec.MaxPods = 5
 			m.Spec.GuestCapacity = 2
 		})},
-		{"cache volumes disabled", staticMachine("m", func(m *infrav1.StaticAppleSiliconMachine) {
+		{"cache volumes disabled", rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) {
 			m.Spec.RunnerCacheVolumeGiB = ptr.To(0)
 		})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &StaticAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
+			r := &RackAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
 			pushed := r.hostConfig(tc.machine, bootstrap.PerHost{
 				IP: "192.168.0.41", NodeName: "m", Kubeconfig: "kubeconfig",
 			})
@@ -797,7 +797,7 @@ func TestDesiredHostConfigHashMatchesWhatIsPushed(t *testing.T) {
 // quota, so an explicit 0 has to mean "off" rather than collapsing into unset
 // and silently inheriting a quota whose diskutil call would fail.
 func TestRunnerCacheVolumeResolvesOnPresence(t *testing.T) {
-	r := &StaticAppleSiliconMachineReconciler{
+	r := &RackAppleSiliconMachineReconciler{
 		FleetConfig:          bootstrap.Config{RunnerCacheVolumeGiB: 80},
 		DefaultGuestCapacity: 1,
 	}
@@ -812,15 +812,15 @@ func TestRunnerCacheVolumeResolvesOnPresence(t *testing.T) {
 		{"negative is treated as unset", ptr.To(-1), 80},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m := staticMachine("m", func(m *infrav1.StaticAppleSiliconMachine) { m.Spec.RunnerCacheVolumeGiB = tc.spec })
+			m := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.RunnerCacheVolumeGiB = tc.spec })
 			if got := r.hostSizing(m).RunnerCacheVolumeGiB; got != tc.want {
 				t.Fatalf("RunnerCacheVolumeGiB = %d, want %d", got, tc.want)
 			}
 		})
 	}
 
-	unset := staticMachine("m")
-	disabled := staticMachine("m", func(m *infrav1.StaticAppleSiliconMachine) { m.Spec.RunnerCacheVolumeGiB = ptr.To(0) })
+	unset := rackMachine("m")
+	disabled := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.RunnerCacheVolumeGiB = ptr.To(0) })
 	if r.desiredHostConfigHash(unset) == r.desiredHostConfigHash(disabled) {
 		t.Fatal("disabling cache volumes does not drift the host; the change would never reach it")
 	}
@@ -832,8 +832,8 @@ func TestRunnerCacheVolumeResolvesOnPresence(t *testing.T) {
 // discovers minis by the `tuist.dev/macmini-egress` label, so a rack mini that
 // labelled itself differently would silently never be scraped.
 func TestEgressServiceIsShapedLikeTheScalewayKinds(t *testing.T) {
-	machine := staticMachine("ber1-0")
-	r := newStaticReconciler(t, machine)
+	machine := rackMachine("ber1-0")
+	r := newRackReconciler(t, machine)
 	r.EgressNamespace = "tailscale"
 	r.EgressProxyGroup = "macmini-egress"
 	r.EgressMagicDNSSuffix = "tail1234.ts.net"
@@ -880,11 +880,11 @@ func containsString(haystack []string, needle string) bool {
 func TestNodeLabelsMatchTheScalewayKind(t *testing.T) {
 	// One workload pins `tuist.dev/fleet`; a rack mini and a rented one in the
 	// same fleet must both carry it or the nodeSelector splits the fleet.
-	m := staticMachine("ber1-0")
-	if got := staticMachineNodeLabels(m)["tuist.dev/fleet"]; got != testFleet {
+	m := rackMachine("ber1-0")
+	if got := rackMachineNodeLabels(m)["tuist.dev/fleet"]; got != testFleet {
 		t.Fatalf("fleet label = %q, want %q", got, testFleet)
 	}
-	if labels := staticMachineNodeLabels(staticMachine("x", func(m *infrav1.StaticAppleSiliconMachine) { m.Spec.FleetName = "" })); labels != nil {
+	if labels := rackMachineNodeLabels(rackMachine("x", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.FleetName = "" })); labels != nil {
 		t.Fatalf("labels for a fleetless machine = %v, want nil", labels)
 	}
 }
@@ -894,15 +894,15 @@ func TestNodeLabelsMatchTheScalewayKind(t *testing.T) {
 // Machine, so the claim filter deliberately does not require one.
 func TestProviderIDFallsBackToTheRecordNameWithoutASerial(t *testing.T) {
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Spec.Serial = "" })
-	if want, got := "static-applesilicon://ber1/mini-01", staticProviderID(host); got != want {
+	if want, got := "rack-applesilicon://ber1/mini-01", rackProviderID(host); got != want {
 		t.Fatalf("providerID = %q, want %q", got, want)
 	}
 }
 
 func TestNodeDriftDetectionSharedWithTheScalewayKind(t *testing.T) {
-	machine := staticMachine("ber1-0")
+	machine := rackMachine("ber1-0")
 	conditions.MarkTrue(machine, BootstrappedCondition)
-	r := newStaticReconciler(t, machine)
+	r := newRackReconciler(t, machine)
 
 	// Inside the grace window a missing Node is the first registration still
 	// propagating, not drift.
@@ -933,13 +933,13 @@ func TestNodeDriftDetectionSharedWithTheScalewayKind(t *testing.T) {
 // A host becoming claimable must wake the machines that could take it, or a
 // rack bring-up appears stuck for a requeue interval per host.
 func TestRackHostEventWakesHolderAndWaitingMachines(t *testing.T) {
-	holder := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
-	waiting := staticMachine("ber1-1")
-	otherPool := staticMachine("prod-0", func(m *infrav1.StaticAppleSiliconMachine) { m.Spec.AdoptPool = "production" })
-	settled := staticMachine("ber1-2", func(m *infrav1.StaticAppleSiliconMachine) { m.Status.RackHost = "mini-09" })
-	r := newStaticReconciler(t, holder, waiting, otherPool, settled, rackHost("mini-01"))
+	holder := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-01" })
+	waiting := rackMachine("ber1-1")
+	otherPool := rackMachine("prod-0", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.AdoptPool = "production" })
+	settled := rackMachine("ber1-2", func(m *infrav1.RackAppleSiliconMachine) { m.Status.RackHost = "mini-09" })
+	r := newRackReconciler(t, holder, waiting, otherPool, settled, rackHost("mini-01"))
 
-	requests := r.staticMachinesForRackHost(context.Background(), rackHost("mini-01"))
+	requests := r.rackMachinesForRackHost(context.Background(), rackHost("mini-01"))
 
 	var names []string
 	for _, req := range requests {
@@ -955,7 +955,7 @@ func TestCAPIMachineMappingIgnoresOtherKinds(t *testing.T) {
 		kind string
 		want int
 	}{
-		{"StaticAppleSiliconMachine", 1},
+		{"RackAppleSiliconMachine", 1},
 		{"ScalewayAppleSiliconMachine", 0},
 	} {
 		m := &clusterv1.Machine{Spec: clusterv1.MachineSpec{
@@ -963,7 +963,7 @@ func TestCAPIMachineMappingIgnoresOtherKinds(t *testing.T) {
 				Kind: tc.kind, Name: "ber1-0", Namespace: testNamespace,
 			},
 		}}
-		if got := len(staticMachineForCAPIMachine(context.Background(), m)); got != tc.want {
+		if got := len(rackMachineForCAPIMachine(context.Background(), m)); got != tc.want {
 			t.Errorf("kind %s mapped to %d requests, want %d", tc.kind, got, tc.want)
 		}
 	}
@@ -971,7 +971,7 @@ func TestCAPIMachineMappingIgnoresOtherKinds(t *testing.T) {
 
 // --- rack egress (the first-dial path) --------------------------------------
 
-func withEgress(r *StaticAppleSiliconMachineReconciler) *StaticAppleSiliconMachineReconciler {
+func withEgress(r *RackAppleSiliconMachineReconciler) *RackAppleSiliconMachineReconciler {
 	r.EgressNamespace = "tailscale-operator"
 	r.EgressProxyGroup = "macmini-egress"
 	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
@@ -984,7 +984,7 @@ func withEgress(r *StaticAppleSiliconMachineReconciler) *StaticAppleSiliconMachi
 // pod dialling 192.168.0.41 directly gets nothing but its default route.
 func TestRackHostIsDialledThroughItsEgressService(t *testing.T) {
 	host := rackHost("mini-01")
-	r := withEgress(newStaticReconciler(t, host))
+	r := withEgress(newRackReconciler(t, host))
 
 	want := "rack-mini-01.tailscale-operator.svc.cluster.local"
 	if got := r.dialTarget(host); got != want {
@@ -997,7 +997,7 @@ func TestRackHostIsDialledThroughItsEgressService(t *testing.T) {
 // own network.
 func TestRackHostFallsBackToItsAddressWithoutEgress(t *testing.T) {
 	host := rackHost("mini-01")
-	r := newStaticReconciler(t, host)
+	r := newRackReconciler(t, host)
 
 	if got := r.dialTarget(host); got != "192.168.0.41" {
 		t.Fatalf("dial target = %q, want the raw address", got)
@@ -1008,9 +1008,9 @@ func TestRackHostFallsBackToItsAddressWithoutEgress(t *testing.T) {
 // name: a rack mini has no tailnet identity until bootstrap gives it one, so
 // the FQDN annotation the rented fleet uses would point at nothing.
 func TestRackEgressServiceFrontsTheAddressNotAnFQDN(t *testing.T) {
-	machine := staticMachine("ber1-0")
+	machine := rackMachine("ber1-0")
 	host := rackHost("mini-01")
-	r := withEgress(newStaticReconciler(t, host, machine))
+	r := withEgress(newRackReconciler(t, host, machine))
 
 	if err := r.reconcileRackEgress(context.Background(), machine, host); err != nil {
 		t.Fatalf("reconcileRackEgress: %v", err)
@@ -1044,13 +1044,13 @@ func TestRackEgressServiceFrontsTheAddressNotAnFQDN(t *testing.T) {
 // Both Services are named differently and must both be cleaned up: one after
 // the Machine, one after the host it held.
 func TestDeleteRemovesBothEgressServices(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
-		m.Finalizers = []string{StaticMachineFinalizer}
+		m.Finalizers = []string{RackMachineFinalizer}
 		m.DeletionTimestamp = ptr.To(metav1.Now())
 	})
 	host := rackHost("mini-01", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
-	r := withEgress(newStaticReconciler(t, host, machine))
+	r := withEgress(newRackReconciler(t, host, machine))
 	ctx := context.Background()
 
 	for _, n := range []string{"ber1-0", "rack-mini-01"} {
@@ -1083,7 +1083,7 @@ func TestDeleteRemovesBothEgressServices(t *testing.T) {
 // is pre-seeded so EnsureNodeIdentity returns without waiting for a controller
 // that does not exist in a fake client.
 func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
-	machine := staticMachine("ber1-0")
+	machine := rackMachine("ber1-0")
 	host := rackHost("mini-01")
 	tokenSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1096,7 +1096,7 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "ts", Namespace: testNamespace},
 		Data:       map[string][]byte{"auth-key": []byte("tskey-abc")},
 	}
-	r := withEgress(newStaticReconciler(t, host, machine, tokenSecret, tailscaleSecret))
+	r := withEgress(newRackReconciler(t, host, machine, tokenSecret, tailscaleSecret))
 	r.CredentialsManager.NodeIdentityClusterRole = "tart-kubelet"
 	r.CredentialsManager.TailscaleAuthKeySecretName = "ts"
 	r.Kubeconfig = &kubeconfig.Builder{APIServerURL: "https://api.staging.example:6443"}
@@ -1136,7 +1136,7 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 // name, and the stale Node keeps the old host's providerID, which tart-kubelet
 // will not overwrite. Two physical machines then answer for one Node.
 func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01"
 		m.Status.BootstrapAttempts = 7
 	})
@@ -1146,7 +1146,7 @@ func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
 	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
 		Name: "tart-kubelet-ber1-0", Namespace: testNamespace,
 	}}
-	r := newStaticReconciler(t, host, machine, node, sa)
+	r := newRackReconciler(t, host, machine, node, sa)
 	r.Power = registryWithShelly(&stubPowerDriver{on: true})
 	ctx := context.Background()
 
@@ -1168,8 +1168,8 @@ func TestQuarantineRevokesTheNodeIdentityAndDropsTheStaleNode(t *testing.T) {
 func TestClaimPrefersAHostThisMachineAlreadyHolds(t *testing.T) {
 	mine := rackHost("mini-09", func(h *infrav1.RackHost) { h.Status.ClaimedBy = "ber1-0" })
 	freeAndEarlier := rackHost("mini-01")
-	machine := staticMachine("ber1-0") // status.rackHost lost
-	r := newStaticReconciler(t, mine, freeAndEarlier, machine)
+	machine := rackMachine("ber1-0") // status.rackHost lost
+	r := newRackReconciler(t, mine, freeAndEarlier, machine)
 
 	host, _, err := r.claimRackHost(context.Background(), machine)
 	if err != nil {
@@ -1187,11 +1187,11 @@ func TestClaimPrefersAHostThisMachineAlreadyHolds(t *testing.T) {
 // verifying the new host's key against the old host's fingerprint, which fails
 // every dial and eventually quarantines a perfectly healthy machine.
 func TestLosingAClaimDropsTheHostFingerprint(t *testing.T) {
-	machine := staticMachine("ber1-0", func(m *infrav1.StaticAppleSiliconMachine) {
+	machine := rackMachine("ber1-0", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.RackHost = "mini-01" // inventory record since deleted
 	})
 	replacement := rackHost("mini-02")
-	r := newStaticReconciler(t, replacement, machine)
+	r := newRackReconciler(t, replacement, machine)
 	ctx := context.Background()
 
 	if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, "pw", "tuist"); err != nil {

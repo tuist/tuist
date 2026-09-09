@@ -26,7 +26,7 @@
 # needing to roll the chart values every time the CAPI controller
 # replaces a machine.
 #
-# The exception is a rack-owned mini (StaticAppleSiliconMachine),
+# The exception is a rack-owned mini (RackAppleSiliconMachine),
 # which has no tailnet identity until bootstrap gives it one. Those
 # are reached at their LAN address behind a subnet router, with
 # `tailscale.com/tailnet-ip` instead of the FQDN annotation, and the
