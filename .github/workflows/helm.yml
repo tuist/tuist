@@ -35,6 +35,7 @@ on:
       - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
+      - .github/scripts/test-kura-analytics.sh
       - .github/workflows/pentest-deployment.yml
       - .github/workflows/pentest-platform-reconcile.yml
   pull_request:
@@ -46,6 +47,7 @@ on:
       - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
+      - .github/scripts/test-kura-analytics.sh
       - .github/workflows/pentest-deployment.yml
       - .github/workflows/pentest-platform-reconcile.yml
   merge_group: {}
@@ -139,6 +141,10 @@ jobs:
           tar -xzf "$archive" kubeconform
           install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify Kura analytics configuration
+        run: |
+          mise install yq
+          bash .github/scripts/test-kura-analytics.sh
       - name: helm template + kubeconform
         # Each entry: name|chart|release|values (values is space-separated;
         # the tuist umbrella layers values-managed-common.yaml under the

@@ -52,6 +52,33 @@ server:
     shardBundles: 14
 ```
 
+## Kura analytics
+
+Managed environments enable `kuraController.analytics.enabled`. The chart
+syncs `CACHE_API_KEY/password` from the same secret store used by the server
+into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
+`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service. Both
+values are needed: Kura otherwise accepts Bazel build events while leaving
+analytics delivery disabled. This also enables cache-operation analytics
+and Bazel test-artifact delivery.
+
+The controller rolls Kura pods when the shared Secret changes. After rollout,
+`kura_analytics_queue_capacity` should be positive (the default is 1000).
+Run a Bazel build with `--bes_upload_mode=wait_for_upload_complete`, then
+verify its invocation appears in Tuist and that
+`kura_analytics_events_total_total{pipeline="bazel_invocations",result="sent"}`
+increases. Successful upload to Kura alone does not prove server ingestion.
+Events accepted while analytics were disabled are not retained for replay.
+
+This automatic secret sync requires `server.config.managedSecrets` and stays
+disabled by default for self-hosted installs. Those installs can supply both
+runtime variables through `kuraController.sharedSecrets.data` or an externally
+managed shared Secret, using the same signing key as their server.
+
+Validate the environment isolation, signing-key source, and configuration
+requirements with `bash .github/scripts/test-kura-analytics.sh` from the
+repository root (requires Helm and yq).
+
 ## Local validation
 
 Render manifests:
