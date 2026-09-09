@@ -6,6 +6,7 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorker do
   use Oban.Worker
 
   alias Tuist.Accounts
+  alias Tuist.Billing.AirUsageNotifications
 
   @impl Oban.Worker
 
@@ -18,6 +19,9 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorker do
       updated_at: updated_at
     )
 
-    :ok
+    case AirUsageNotifications.enqueue(account_id, updated_at) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 end

@@ -29,7 +29,7 @@ defmodule Tuist.Accounts.UserNotifier do
     end
   end
 
-  defp html_email(body, icon_url) do
+  defp html_email(body, icon_url, title \\ "Email Confirmation") do
     """
     <!DOCTYPE html>
     <html lang="en">
@@ -38,7 +38,7 @@ defmodule Tuist.Accounts.UserNotifier do
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="color-scheme" content="light only" />
         <meta name="supported-color-schemes" content="light only" />
-        <title>Email Confirmation</title>
+        <title>#{title |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()}</title>
        <style>
         body {
           margin: 0;
@@ -92,7 +92,7 @@ defmodule Tuist.Accounts.UserNotifier do
       <p style="font-size: 12px">
          This email was sent by Tuist. By using our services, you agree to our <a href="https://tuist.io/terms/"> terms of service</a>.
          <br/>
-         © Tuist GmbH 2024. All rights reserved.
+         © Tuist GmbH #{Date.utc_today().year}. All rights reserved.
       </p>
       </footer>
       </body>
@@ -259,6 +259,89 @@ defmodule Tuist.Accounts.UserNotifier do
       )
 
     user_email |> build_email(subject, body) |> Mailer.deliver_now()
+  end
+
+  def deliver_air_usage_notification(user, account, notification) do
+    user |> air_usage_email(account, notification) |> Mailer.deliver_now()
+  end
+
+  @doc """
+  Builds an Air usage email for delivery or local preview.
+  """
+  def air_usage_email(user, account, %{threshold: threshold, usage: usage, limit: limit, period_start: period_start}) do
+    {title, description} =
+      if threshold == 100 do
+        {
+          dgettext("dashboard_account", "You've reached your Air limit"),
+          dgettext(
+            "dashboard_account",
+            "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
+          )
+        }
+      else
+        {
+          dgettext("dashboard_account", "You're approaching your Air limit"),
+          dgettext(
+            "dashboard_account",
+            "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
+          )
+        }
+      end
+
+    subject =
+      dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air limit",
+        account_name: account.name,
+        threshold: threshold
+      )
+
+    usage_label = dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
+    reset_date = period_start |> Timex.shift(months: 1) |> Timex.beginning_of_month() |> Calendar.strftime("%B %-d, %Y")
+    reset_label = dgettext("dashboard_account", "Your free allowance resets on %{date} (UTC).", date: reset_date)
+    billing_url = Environment.app_url(path: "/#{URI.encode_www_form(account.name)}/billing")
+    progress = min(div(usage * 100, limit), 100)
+    progress_color = if threshold == 100, do: "#D92D20", else: "#622ED4"
+    account_name = account.name |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+    body =
+      html_email(
+        """
+        <div class="container">
+          <p style="font-size: 13px; font-weight: 600; letter-spacing: 1px; color: #622ED4; margin-bottom: 12px;">#{account_name} · AIR</p>
+          <h1>#{title}</h1>
+          <p style="color: #555555;">#{description}</p>
+          <div style="padding: 24px; margin: 28px 0; background-color: #F7F5FD; border: 1px solid #E9E3F5; border-radius: 12px;">
+            <p style="font-size: 36px; line-height: 44px; font-weight: 600; color: #{progress_color}; margin-bottom: 8px;">#{progress}%</p>
+            <p style="font-size: 14px; color: #333333; margin-bottom: 16px;">#{usage_label}</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="height: 8px; background-color: #E9E3F5; border-radius: 4px; overflow: hidden;">
+              <tr><td width="#{progress}%" style="height: 8px; background-color: #{progress_color}; border-radius: 4px;"></td>#{if progress < 100, do: "<td></td>", else: ""}</tr>
+            </table>
+            <p style="font-size: 13px; color: #666666; margin: 16px 0 0;">#{reset_label}</p>
+          </div>
+          <p style="padding: 8px 0;">
+            <a href="#{billing_url}" style="display: inline-block; padding: 12px 24px; background-color: #622ED4; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">#{dgettext("dashboard_account", "Review usage and upgrade")}</a>
+          </p>
+          <p style="font-size: 14px; color: #555555;">#{dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")}</p>
+          <p style="font-size: 12px; line-height: 18px; color: #777777;">#{dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")}</p>
+        </div>
+        """,
+        Environment.email_icon_url(),
+        title
+      )
+
+    user.email
+    |> build_email(subject, body)
+    |> text_body("""
+    #{title}
+
+    #{account.name}: #{usage_label} (#{progress}%).
+    #{description}
+    #{reset_label}
+
+    #{dgettext("dashboard_account", "Review usage and upgrade")}: #{billing_url}
+
+    #{dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")}
+    #{dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")}
+    """)
   end
 
   @doc """
