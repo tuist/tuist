@@ -471,6 +471,38 @@ makes sense in a cluster where somebody can actually write that status.
 work, an RMA) by setting `spec.unclaimable: true`. It stops the next claim; it
 does not evict the current one, the same shape as `Node.spec.unschedulable`.
 
+**Renaming a machine kind leaves three objects behind**, in every cluster the
+old name reached. The deploy workflow ships CRDs with `kubectl apply -f crds/`,
+which adds and updates but never prunes, and the superseded MachineTemplate
+carries `helm.sh/resource-policy: keep` so Helm will not collect it either. The
+MachineDeployment rolls onto the new kind and the old kind's objects stay:
+
+```bash
+kubectl get crd | grep <oldkind>
+kubectl get <oldkind>machinetemplates -A
+kubectl get machinesets -n <ns> -o custom-columns=\
+NAME:.metadata.name,INFRA:.spec.template.spec.infrastructureRef.kind
+```
+
+They are inert once the fleet has drained through the old controller, since
+nothing reconciles the kind any more and the retained MachineSet is at zero
+replicas. Removing them is cluster-admin work and is not available through the
+kubectl gateway on any tier, staging included: `machinesets`,
+`<kind>machinetemplates` and `customresourcedefinitions` are all read-only
+there by design. Delete oldest reference first so no live object is left
+pointing at a kind that is going away:
+
+```bash
+kubectl delete machineset <old-revision-machineset> -n <ns>
+kubectl delete <oldkind>machinetemplate <name> -n <ns>
+kubectl delete crd <oldkind>machines.infrastructure.cluster.x-k8s.io \
+                   <oldkind>machinetemplates.infrastructure.cluster.x-k8s.io
+```
+
+Check `spec.replicas` and that it owns no Machines before deleting a MachineSet:
+the other MachineSets under a MachineDeployment are its rollout history and are
+not stale.
+
 ## Module layout
 
 ```
