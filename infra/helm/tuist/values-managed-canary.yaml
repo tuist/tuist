@@ -235,6 +235,14 @@ server:
     # interim-paced ordering here; kept aligned with production.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Matches production so the cascade runs the automatic-apply path before
+    # production gets it. What it proves is bounded: this environment has one
+    # public region and its accounts are acceptance-test accounts reclaimed the
+    # next day, so the sweep has nowhere to move anything to and no history to
+    # move it on. It exercises the parse, the per-kind budget and the sweep
+    # under a non-empty value, not a real transition.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=2,correct=2,relocate=1
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to

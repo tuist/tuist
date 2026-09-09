@@ -6,6 +6,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kura.OriginRollup
+  alias Tuist.Kura.PlacementNotifier
   alias Tuist.Kura.PlacementProposal
   alias Tuist.Kura.PlacementProposals
   alias Tuist.Kura.PlacerRegions
@@ -22,15 +23,16 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+    stub(PlacementNotifier, :notify_applied, fn _proposal -> :ok end)
 
     :ok
   end
 
-  test "opens proposals and applies nothing while the budget is zero" do
-    # The supervised phase: placement proposes, an operator applies. Raising
-    # the budget is what graduates it, which is a configuration change rather
-    # than a different code path.
-    stub(Environment, :kura_placement_automatic_applies_per_day, fn -> 0 end)
+  test "opens proposals and applies nothing while every budget is zero" do
+    # The supervised phase: placement proposes, an operator applies. Raising a
+    # budget is what graduates it, which is a configuration change rather than
+    # a different code path.
+    stub_budgets(%{})
     account = account_with_moved_traffic()
 
     assert :ok = perform_job(PlacementWorker, %{})
@@ -39,8 +41,8 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     assert PlacerRegions.primary_region(account) == nil
   end
 
-  test "applies within the budget once it is raised" do
-    stub(Environment, :kura_placement_automatic_applies_per_day, fn -> 1 end)
+  test "applies within the budget once the kind is raised" do
+    stub_budgets(%{correct: 1})
     account = account_with_moved_traffic()
 
     assert :ok = perform_job(PlacementWorker, %{})
@@ -52,8 +54,20 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     assert applied.resolved_by == "automatic"
   end
 
+  test "leaves a kind alone while another kind is draining" do
+    # The budget is what says a kind may run unattended. A number raised for
+    # the additive kind cannot be spent by the kind that gives a region up.
+    stub_budgets(%{expand: 5})
+    account = account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    assert %PlacementProposal{status: :open, kind: :correct} = PlacementProposals.open_proposal_for(account)
+    assert PlacerRegions.primary_region(account) == nil
+  end
+
   test "stops at the budget rather than moving every account it could" do
-    stub(Environment, :kura_placement_automatic_applies_per_day, fn -> 1 end)
+    stub_budgets(%{correct: 1})
     first = account_with_moved_traffic()
     second = account_with_moved_traffic()
 
@@ -70,7 +84,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
   test "spends the budget over a trailing day rather than per pass" do
     # A rate, not a per-pass count, so changing the cadence cannot multiply how
     # much the fleet moves in a day.
-    stub(Environment, :kura_placement_automatic_applies_per_day, fn -> 1 end)
+    stub_budgets(%{correct: 1})
     first = account_with_moved_traffic()
     second = account_with_moved_traffic()
 
@@ -83,6 +97,46 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
       |> Enum.count(&(&1 == "eu-central"))
 
     assert applied == 1
+  end
+
+  test "one kind's spend does not draw down another kind's budget" do
+    stub_budgets(%{correct: 1, expand: 1})
+    first = account_with_moved_traffic()
+    second = account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    # Both passes spent the same kind's single applies-per-day, so the second
+    # account is still waiting even though a budget elsewhere went unused.
+    applied =
+      [first, second]
+      |> Enum.map(&PlacerRegions.primary_region/1)
+      |> Enum.count(&(&1 == "eu-central"))
+
+    assert applied == 1
+  end
+
+  test "announces an automatic apply" do
+    # Nobody chose it, so the channel is where it shows up.
+    stub_budgets(%{correct: 1})
+    test_process = self()
+
+    stub(PlacementNotifier, :notify_applied, fn proposal ->
+      send(test_process, {:notified, proposal.kind, proposal.to_region})
+      :ok
+    end)
+
+    account_with_moved_traffic()
+
+    assert :ok = perform_job(PlacementWorker, %{})
+
+    assert_received {:notified, :correct, "eu-central"}
+  end
+
+  defp stub_budgets(budgets) do
+    configured = Map.new(budgets, fn {kind, count} -> {to_string(kind), count} end)
+    stub(Environment, :kura_placement_automatic_applies_per_day, fn -> configured end)
   end
 
   defp account_with_moved_traffic do

@@ -197,6 +197,31 @@ server:
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # What the placement sweep may apply on its own, per kind per day. Unset
+    # until 2026-09-09, which left placement proposing and an operator
+    # applying every time.
+    #
+    # Per kind because the kinds do not cost the same thing. An `expand` opens
+    # a region and leaves every cache the account already has where it is; the
+    # others give a region up, and what they spend is the refill of whatever
+    # was warm in it. `relocate` is the lowest because it is the only kind that
+    # can abandon a region an account has held long enough to have filled.
+    # `correct` replaces a first placement while it is still days old, so what
+    # it abandons is a cache that was barely warm and was chosen by a guess.
+    #
+    # Small on purpose: the numbers drain the backlog that had accumulated by
+    # the time this was set over several days rather than in one pass, so the
+    # first unattended moves are watched rather than found afterwards.
+    #
+    # `retire` is deliberately absent, which leaves it at zero. Its floors span
+    # 90 days while origin attribution only starts on 2026-08-31, so every one
+    # of them currently reads a fraction of its window and any region can look
+    # quiet against it. What keeps that theoretical is that no account has held
+    # a region for the full window yet, and that stops being true as instances
+    # age past 90 days, well before the history fills on 2026-11-29. Raise it
+    # once the window is real, not before.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=2,correct=2,relocate=1
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
