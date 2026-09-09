@@ -48,17 +48,22 @@ struct LaunchAgentServiceTests {
             bootoutTimeout: .milliseconds(500)
         )
         given(launchctlController)
+            .preferredDomain()
+            .willReturn(.gui)
+        given(launchctlController)
             .job(label: .any)
             .willReturn(nil)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_createsDirectoryAndPlist() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [LaunchAgentDomain.gui, .user])
+    func setupLaunchAgent_createsDirectoryAndPlist(domain: LaunchAgentDomain) async throws {
+        resetLaunchctlController(domain: domain)
+        given(launchctlController).job(label: .any).willReturn(nil)
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -73,6 +78,10 @@ struct LaunchAgentServiceTests {
         )
 
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        let plist = try #require(PropertyListSerialization.propertyList(
+            from: Data(plistContent.utf8), format: nil
+        ) as? [String: Any])
+        #expect(plist["LimitLoadToSessionType"] as? String == (domain == .gui ? "Aqua" : "Background"))
         #expect(plistContent.contains("<string>tuist.test</string>"))
         #expect(plistContent.contains("<string>/usr/local/bin/tuist</string>"))
         #expect(plistContent.contains("<string>test-start</string>"))
@@ -89,8 +98,33 @@ struct LaunchAgentServiceTests {
         #expect(!plistContent.contains("<key>KeepAlive</key>\n            <true/>"))
 
         verify(launchctlController)
-            .bootstrap(plistPath: .value(expectedPlistPath))
+            .bootstrap(plistPath: .value(expectedPlistPath), domain: .value(domain))
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_preservesExistingAgentWhenDomainLookupFails() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let plistPath = Environment.current.homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.test.plist"
+        )
+        try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
+        try await fileSystem.writeText("existing plist", at: plistPath)
+        launchctlController.reset()
+        given(launchctlController)
+            .preferredDomain()
+            .willThrow(CommandError.terminated(
+                1, stderr: "Operation not permitted", command: ["/bin/launchctl", "print", "gui/501"]
+            ))
+
+        await #expect(throws: CommandError.self) {
+            try await subject.setupLaunchAgent(label: "tuist.test", plistFileName: "tuist.test.plist", programArguments: [])
+        }
+
+        #expect(try await fileSystem.readTextFile(at: plistPath) == "existing plist")
+        verify(launchctlController).bootout(label: .any).called(0)
+        verify(launchctlController).bootstrap(plistPath: .any, domain: .any).called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -99,7 +133,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -126,7 +160,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -157,7 +191,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: expectedPlistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -167,7 +201,7 @@ struct LaunchAgentServiceTests {
             .willReturn()
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -181,7 +215,7 @@ struct LaunchAgentServiceTests {
             .called(1)
 
         verify(launchctlController)
-            .bootstrap(plistPath: .value(expectedPlistPath))
+            .bootstrap(plistPath: .value(expectedPlistPath), domain: .value(.gui))
             .called(1)
     }
 
@@ -198,7 +232,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: expectedPlistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -219,7 +253,7 @@ struct LaunchAgentServiceTests {
         }
 
         verify(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .called(0)
         #expect(try await fileSystem.readTextFile(at: expectedPlistPath) == "existing plist")
     }
@@ -229,7 +263,7 @@ struct LaunchAgentServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -237,7 +271,7 @@ struct LaunchAgentServiceTests {
             .bootout(label: .value("tuist.test"))
             .willReturn()
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -250,7 +284,7 @@ struct LaunchAgentServiceTests {
             .bootout(label: .value("tuist.test"))
             .called(1)
         verify(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .called(1)
     }
 
@@ -266,7 +300,7 @@ struct LaunchAgentServiceTests {
         )
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willThrow(bootstrapError)
 
         await #expect(
@@ -306,7 +340,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = currentMisePath
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -333,7 +367,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: plistPath)
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -362,7 +396,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.makeDirectory(at: plistPath.parentDirectory)
         try await fileSystem.writeText("existing plist", at: plistPath)
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(nil)
@@ -393,7 +427,7 @@ struct LaunchAgentServiceTests {
             command: ["/bin/launchctl", "bootout", "gui/501/tuist.test"]
         )
 
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -415,7 +449,7 @@ struct LaunchAgentServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func teardownLaunchAgent_succeedsWhenPlistIsMissing() async throws {
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(nil)
@@ -441,7 +475,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = currentMisePath
 
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -465,13 +499,13 @@ struct LaunchAgentServiceTests {
 
         // A process launchd spawned after this setup booted nothing out owns the
         // label, so the refusal really is the redundant bootstrap it looks like.
-        launchctlController.reset()
+        resetLaunchctlController()
         let answers = AnswerSequence<LaunchAgentJob?>(answers: [nil, LaunchAgentJob(processIdentifier: 7)])
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willProduce { _ in answers.next() }
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willThrow(
                 CommandError.terminated(
                     5,
@@ -498,7 +532,7 @@ struct LaunchAgentServiceTests {
             command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
         )
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willThrow(bootstrapError)
 
         await #expect(
@@ -518,7 +552,7 @@ struct LaunchAgentServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
-        launchctlController.reset()
+        resetLaunchctlController()
         let answers = AnswerSequence<LaunchAgentJob?>(
             answers: [LaunchAgentJob(processIdentifier: 4242), LaunchAgentJob(processIdentifier: 4242), nil]
         )
@@ -529,7 +563,7 @@ struct LaunchAgentServiceTests {
             .bootout(label: .value("tuist.test"))
             .willReturn()
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -540,7 +574,7 @@ struct LaunchAgentServiceTests {
 
         #expect(answers.consumed == 3)
         verify(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .called(1)
     }
 
@@ -554,7 +588,7 @@ struct LaunchAgentServiceTests {
             launchctlController: launchctlController,
             bootoutTimeout: .milliseconds(250)
         )
-        launchctlController.reset()
+        resetLaunchctlController()
         let answers = AnswerSequence<LaunchAgentJob?>(answers: [LaunchAgentJob(processIdentifier: 4242)])
         given(launchctlController)
             .job(label: .value("tuist.test"))
@@ -563,7 +597,7 @@ struct LaunchAgentServiceTests {
             .bootout(label: .value("tuist.test"))
             .willReturn()
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -574,7 +608,7 @@ struct LaunchAgentServiceTests {
 
         #expect(answers.consumed > 1, "the wait must poll rather than give up on the pre-bootout answer")
         verify(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .called(1)
     }
 
@@ -599,7 +633,7 @@ struct LaunchAgentServiceTests {
         // still in the domain under the SAME process when the bootstrap is
         // refused. Nothing bootstrapped the plist just written, and the outgoing
         // process is about to exit.
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 4242))
@@ -612,7 +646,7 @@ struct LaunchAgentServiceTests {
             command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
         )
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willThrow(bootstrapError)
 
         // When / Then
@@ -633,7 +667,7 @@ struct LaunchAgentServiceTests {
         // Given: the label is in the domain but nothing is running under it. The
         // presence of the label says the bootstrap was redundant; the missing
         // process says no configuration is serving anything.
-        launchctlController.reset()
+        resetLaunchctlController()
         let answers = AnswerSequence<LaunchAgentJob?>(
             answers: [nil, LaunchAgentJob(processIdentifier: nil)]
         )
@@ -641,7 +675,7 @@ struct LaunchAgentServiceTests {
             .job(label: .value("tuist.test"))
             .willProduce { _ in answers.next() }
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willThrow(
                 CommandError.terminated(
                     5,
@@ -665,7 +699,7 @@ struct LaunchAgentServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
-        launchctlController.reset()
+        resetLaunchctlController()
         let answers = AnswerSequence<LaunchAgentJob?>(answers: [LaunchAgentJob(processIdentifier: 4242), nil])
         given(launchctlController)
             .job(label: .value("tuist.test"))
@@ -674,7 +708,7 @@ struct LaunchAgentServiceTests {
             .bootout(label: .value("tuist.test"))
             .willReturn()
         given(launchctlController)
-            .bootstrap(plistPath: .any)
+            .bootstrap(plistPath: .any, domain: .any)
             .willReturn()
 
         let displaced = try await subject.setupLaunchAgent(
@@ -690,7 +724,7 @@ struct LaunchAgentServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func runningProcessIdentifier_reportsTheProcessBehindTheLabel() async throws {
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(LaunchAgentJob(processIdentifier: 7))
@@ -700,11 +734,16 @@ struct LaunchAgentServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func runningProcessIdentifier_isNilWhenTheLabelIsNotInTheDomain() async throws {
-        launchctlController.reset()
+        resetLaunchctlController()
         given(launchctlController)
             .job(label: .value("tuist.test"))
             .willReturn(nil)
 
         #expect(await subject.runningProcessIdentifier(label: "tuist.test") == nil)
+    }
+
+    private func resetLaunchctlController(domain: LaunchAgentDomain = .gui) {
+        launchctlController.reset()
+        given(launchctlController).preferredDomain().willReturn(domain)
     }
 }
