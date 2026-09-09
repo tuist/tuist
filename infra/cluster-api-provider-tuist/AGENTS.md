@@ -407,6 +407,139 @@ power doctrine is to dual-feed the pets; the service node is a pet.
 Both are also why the prototype's /32 is not merely a prototype artefact: it is
 the shape to keep until (1) is done.
 
+### Host macOS updates
+
+Nothing updates the host macOS on a mini we own. Whatever the MDM installed at
+enrollment is what the box runs until a human intervenes, and that is the same
+shape as the PDU gap: what keeps rented capacity current is a provider API call,
+and owned hardware has no analog. `ScalewayAppleSiliconMachineSpec.OS` names a
+release family, and the release path reinstalls onto that family's newest
+published image, so a rented fleet tracks point releases with nobody chasing
+them. Both of the things that field drives, adoption matching and reinstall, are
+Scaleway API calls. Neither exists here.
+
+**The decision: host updates are an operator-run wave, one box at a time, and
+nothing automates them.** Minor updates inside a release family are
+`softwareupdate` over SSH, run by a human in a window where the host has been
+taken out of the fleet first. Moves across release families are a DFU restore
+over the KVM, which is also the only way back from a box that wedges. No
+controller drives either, and `RackAppleSiliconMachine` gets no `OS` field.
+
+**Why no field.** The Scaleway `OS` field is read by adoption and by reinstall.
+A rack has neither, so the same field here would be a declaration nothing
+enforces: the fleet would carry a reviewed, authoritative-looking macOS version
+that no code compares against any host, and the first time it disagreed with
+reality nothing would say so. The version does need to be written down, and its
+home is the IPSW the DFU restore targets, because DFU is this fleet's reinstall.
+`infra/mdm/README.md` already says "DFU-restored to the pinned IPSW"; no file
+actually pins one, and that is the gap to close rather than a CR field. It is
+also worth being deliberate now because the field is free today, with one
+prototype host, and becomes a migration on a live fleet once the rack fills.
+
+**Why not the drift loop.** Folding an OS target into `HostConfigHash` looks
+like reuse and is the most dangerous of the three options:
+
+- `HostConfigHash` is fleet-wide by construction, which is the whole point of
+  it: a config change rolls to every host. An OS target inside it starts every
+  mini in the pool updating on the same reconcile, and the loop has no notion of
+  a wave because nothing else it pushes takes longer than seconds.
+- The MachineHealthCheck would remediate mid-update. It fires at 1800s on
+  `Ready`, an update is longer than that and reboots one or more times, and
+  remediation deletes the Machine: `retireHost` revokes the kubelet identity,
+  deletes the Node and drops the TOFU fingerprint, so a box twenty minutes into
+  an update comes back needing a full re-bootstrap. Widening the window is not
+  free either, since 1800s was picked against a measured 20-second rejoin after
+  a power cut.
+- The recovery ladder is actively wrong for it. Bootstrap exhaustion escalates
+  to a power cycle, and this fleet's power cycle is cutting mains. Applied to a
+  host part-way through an OS install, that is how a mini becomes a DFU restore.
+
+So option (b) is not a small change to a loop that already exists: it is a wave
+scheduler, a remediation suppressor and new timeout tiers, added to the one loop
+whose rules this provider has repeatedly got wrong in ways that stay invisible
+for weeks.
+
+**Why not MDM, yet.** NanoMDM is a protocol server. Declarative update
+enforcement with deadlines needs KMFDDM or equivalent deployed on top of it,
+which is not deployed and which `infra/mdm/README.md` records as out of scope for
+the pilot, so "the MDM stack already exists" is not true of this capability.
+
+The deeper reason is that deploying it would not finish the job. MDM knows
+nothing about Kubernetes: a deadline fires when it fires, the mini it reboots may
+be halfway through a customer's build, and the Node it takes down is then a
+MachineHealthCheck target like any other. The drain below is what makes an update
+safe, and no MDM can do it. **That makes the drain a prerequisite for adopting
+MDM enforcement, not an alternative to it**, so the procedure here is not thrown
+away when the fleet outgrows hand-orchestration. What should trigger the switch
+is box count: once a wave is more hosts than one person will walk through
+carefully, deploy KMFDDM, keep the drain, and let MDM supply the installer and
+the deadline.
+
+One dependency to keep alive either way: MDM-driven updates on Apple silicon do
+not authorize without a bootstrap token, which escrows at the service account's
+first GUI login and never over SSH. That is step 6 of the MDM validation
+checklist, and the same login is what makes the account a volume owner, which is
+what lets `softwareupdate` install as that user. The checklist has not been run
+on real hardware yet, so **confirm on the prototype that the service account can
+actually drive a `softwareupdate` install** before trusting the procedure below;
+it is the one step here with no code backing it up.
+
+**The procedure.** The host stays claimed throughout: never delete the Machine to
+update it, because that revokes its identity and turns an update into a
+re-bootstrap. `spec.unclaimable` is not the tool either, since it stops the next
+claim without evicting the current one.
+
+```bash
+kubectl cordon <node>                       # no new VM pods land
+kubectl get pods -A --field-selector spec.nodeName=<node>   # let running builds finish
+kubectl annotate machine <machine> cluster.x-k8s.io/skip-remediation=""
+kubectl annotate rasm <machine> cluster.x-k8s.io/paused=true
+```
+
+The two annotations are both load-bearing and stop different things.
+`skip-remediation` is read by the MachineHealthCheck and is what keeps the
+reboots from being read as a dead host. `paused` is read by this controller
+(`annotations.HasPaused`) and stops the drift loop dialing a box that is
+rebooting, which would otherwise burn its update-retry budget and drive the CR
+terminal-Failed for reasons that have nothing to do with its config.
+
+Then install, watch it rejoin, and reverse the four steps: remove `paused`,
+remove `skip-remediation`, `kubectl uncordon`. Do one host, confirm it is Ready
+and taking work, and only then start the next. `unhealthyRange: "[0-1]"` means a
+wave that goes wrong on several boxes at once suppresses remediation entirely,
+which protects the rack but also means nothing will tell you the wave is failing
+except the hosts not coming back.
+
+**Who notices when a new guest image needs a newer host.** Nobody, today, and
+this is the part most likely to bite first. A Tart guest cannot boot on a host
+whose Virtualization.framework is older than the guest's macOS, so the image
+roadmap pushes the host floor forward whether or not anyone plans it, and two
+things conspire to hide it:
+
+- `infra/macos-xcode-image/macos-xcode.pkr.hcl` builds from
+  `ghcr.io/cirruslabs/macos-tahoe-base:latest`. The guest floor floats on every
+  rebake and no file records where it moved to.
+- The bake cannot catch it. It runs on the `vm-image-builder` fleet, which is
+  Scaleway hosts on `OS: Tahoe`, so those hosts reinstall onto the newest Tahoe
+  on their own while the rack stays where MDM left it. A green bake proves the
+  image boots on a host that is newer than the rack's, so the failure surfaces
+  on the rack at the first `tart run` of an already-published image.
+
+**Until that is mechanical, publishing an image is what triggers the check**, and
+it is a human step in the image runbook: read the base image's macOS version, and
+do not publish onto the rack pool without confirming the rack's hosts are at
+least that new. Whoever bakes the image owns this.
+
+The reason it cannot be mechanical yet is that **nothing in the cluster knows
+what macOS a rack mini runs**. `tart-kubelet` sets `OperatingSystem`,
+`Architecture`, `KubeletVersion` and `ContainerRuntimeVersion` on the Node and
+leaves `NodeInfo.OSImage` empty, so `kubectl get nodes -o wide` reports nothing
+for these boxes and there is no series to alert on. Reporting `sw_vers` into
+`OSImage` is the missing piece, and it is worth distinguishing from the `OS`
+field rejected above: that one would declare a version nothing enforces, this one
+publishes a fact the host already knows. It is the cheapest way to make the floor
+check a comparison rather than a memory, and it is the recommended follow-up.
+
 ### Operating
 
 Inventory is chart-rendered from `rackFleet.hosts` in the env's values, so

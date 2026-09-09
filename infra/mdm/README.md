@@ -354,6 +354,14 @@ release it from ABM/supervision; it locks in after 30 days.
   enforcement (deadlines) needs KMFDDM or equivalent on top. Out of
   scope for the pilot — major versions are DFU reprovisions, and minor
   update waves are orchestrated by the operator (cordon/drain) anyway.
+  That is now the fleet's decided process, with the drain procedure and
+  the conditions that would justify deploying KMFDDM written up under
+  "Host macOS updates" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`. Note that step 6 below
+  (the GUI login that escrows the bootstrap token) is load-bearing for
+  updates and not only for MDM: it is also what makes the service
+  account a volume owner, without which `softwareupdate` cannot install
+  as that user.
 
 ## Validation checklist (physical M1, later)
 
