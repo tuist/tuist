@@ -397,6 +397,22 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+    |> Kernel.++(swift_registry_sync_children())
+  end
+
+  # Extra processes that only run on `TUIST_MODE=swift_registry_sync`
+  # pods. `QueueHealthCheck` supervises the sync queues and stops the
+  # BEAM if it can prove the local producer has wedged; kubernetes then
+  # replaces the pod. Kept out of the main child list so it can't fire
+  # on `:web`, `:processor`, or `:xcresult_processor` where the same
+  # queue names are either not consumed or actively being drained by
+  # legitimate long-running work.
+  defp swift_registry_sync_children do
+    if Environment.swift_registry_sync_mode?() and not Environment.test?() do
+      [Tuist.Registry.Swift.QueueHealthCheck]
+    else
+      []
+    end
   end
 
   # Only in the tree while a destination is configured, which is only during
