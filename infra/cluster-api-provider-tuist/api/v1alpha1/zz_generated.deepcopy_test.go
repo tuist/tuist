@@ -7,14 +7,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// controller-tools is not a dependency of this module, so zz_generated.deepcopy.go
-// is maintained by hand. A pointer field added to the status without a matching
-// block there is shallow-copied by `*out = *in`, so the copy aliases the
-// original — which silently breaks controller-runtime's cache isolation: a
-// reconciler mutating what it believes is its own copy corrupts the cached
-// object and the patch baseline computed from it. The compiler cannot catch it,
-// so assert it here: every pointer must survive a round trip through DeepCopy
-// with its own backing memory.
+// zz_generated.deepcopy.go is written by controller-gen through
+// `mise run capi-scaleway-applesilicon:generate`. A pointer field added to a
+// status without a matching block there is shallow-copied by `*out = *in`, so
+// the copy aliases the original, which silently breaks controller-runtime's
+// cache isolation: a reconciler mutating what it believes is its own copy
+// corrupts the cached object and the patch baseline computed from it. The
+// generator gets this right; a type declaring its own DeepCopyInto, which the
+// generator then skips entirely, does not. The compiler catches neither, so
+// assert it here: every pointer must survive a round trip through DeepCopy with
+// its own backing memory.
 func TestScalewayAppleSiliconMachineStatusDeepCopyDoesNotAliasPointers(t *testing.T) {
 	reason := "TartKubeletUpdateExceededRetries"
 	message := "tart-kubelet update failed 5 times"
