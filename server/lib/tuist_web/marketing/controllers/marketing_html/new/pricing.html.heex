@@ -206,7 +206,8 @@ features = [
   },
   %{
     name: dgettext("marketing", "Support"),
-    description: dgettext("marketing", "Get help when you need it through various support channels."),
+    description:
+      dgettext("marketing", "Get help when you need it through various support channels."),
     hint: nil,
     values: [
       %{
@@ -243,13 +244,25 @@ features = [
       <div data-part="plans">
         <div data-part="text">
           <span data-part="eyebrow">{dgettext("marketing", "Plans")}</span>
-          <h2 data-part="title" id="pricing-plans-title">{dgettext("marketing", "Pricing plans")}</h2>
+          <h2 data-part="title" id="pricing-plans-title">
+            {dgettext("marketing", "Pricing plans")}
+          </h2>
         </div>
         <div data-part="grid">
-          <article :for={plan <- plans} data-part="plan" data-plan={plan.id} data-popular={plan.popular}>
+          <article
+            :for={plan <- plans}
+            data-part="plan"
+            data-plan={plan.id}
+            data-popular={plan.popular}
+          >
             <div data-part="head">
               <h3 data-part="name">{plan.name}</h3>
-              <.badge :if={plan.popular} label={dgettext("marketing", "Popular")} color="primary" style="light-fill" />
+              <.badge
+                :if={plan.popular}
+                label={dgettext("marketing", "Popular")}
+                color="primary"
+                style="light-fill"
+              />
             </div>
             <p data-part="description">{plan.description}</p>
             <div data-part="price">
@@ -262,7 +275,12 @@ features = [
                 <span>{trait}</span>
               </li>
             </ul>
-            <.button variant={plan.cta_variant} size="large" label={plan.cta_label} href={plan.cta_href} />
+            <.button
+              variant={plan.cta_variant}
+              size="large"
+              label={plan.cta_label}
+              href={plan.cta_href}
+            />
           </article>
         </div>
       </div>
@@ -315,88 +333,93 @@ features = [
           </div>
         </div>
         <div data-part="table-frame">
-        <table data-part="table">
-          <thead data-part="head">
-            <tr data-part="row">
-              <td data-part="cell-blank"></td>
-              <th
-                :for={{plan, index} <- Enum.with_index(plans)}
-                data-part="cell-plan"
-                data-popular={plan.popular}
-                data-plan-index={index}
-                class={if index == 0, do: "active"}
-                scope="col"
-              >
-                {plan.name}
-              </th>
-            </tr>
-          </thead>
-          <tbody data-part="body">
-            <tr :for={feature <- features} data-part="row">
-              <th data-part="cell-feature" scope="row">
-                <div data-part="feature-name">{feature.name}</div>
-                <div :if={feature.description} data-part="feature-description">
-                  {feature.description}
-                </div>
-                <.tooltip
-                  :if={not is_nil(feature.hint) and not is_nil(feature[:hint_text])}
-                  id={"#{feature.name}-hint"}
-                  size="large"
-                  description={feature.hint_text}
-                  title={dgettext("marketing", "Hits")}
+          <table data-part="table">
+            <thead data-part="head">
+              <tr data-part="row">
+                <td data-part="cell-blank"></td>
+                <th
+                  :for={{plan, index} <- Enum.with_index(plans)}
+                  data-part="cell-plan"
+                  data-popular={plan.popular}
+                  data-plan-index={index}
+                  class={if index == 0, do: "active"}
+                  scope="col"
                 >
-                  <:trigger :let={attrs}>
-                    <span {attrs}>
-                      <.hint_text label={feature.hint} />
-                    </span>
-                  </:trigger>
-                </.tooltip>
-              </th>
-              <td
-                :for={{value, index} <- Enum.with_index(feature.values)}
-                data-part="cell-value"
-                data-plan-index={index}
-                class={if index == 0, do: "active"}
-                data-available={
-                  cond do
-                    value == :available -> true
-                    value == :unavailable -> false
-                    true -> nil
-                  end
-                }
-              >
-                <%= cond do %>
-                  <% value == :available -> %>
-                    <.system_check />
-                  <% value == :unavailable -> %>
-                    <.math_x />
-                  <% is_map(value) and Map.has_key?(value, :price) -> %>
-                    <div data-part="value">{value.price}</div>
-                    <div data-part="description">{value.description}</div>
-                  <% is_map(value) and Map.has_key?(value, :value) -> %>
-                    <div data-part="value">{value.value}</div>
-                    <div data-part="description">{value.description}</div>
-                  <% is_map(value) and Map.has_key?(value, :level) -> %>
-                    <div data-part="value">{value.level}</div>
-                    <div data-part="description">{value.description}</div>
-                  <% true -> %>
-                    {value}
-                <% end %>
-              </td>
-            </tr>
-            <tr data-part="row">
-              <td data-part="cell-feature"></td>
-              <td
-                :for={{plan, index} <- Enum.with_index(plans)}
-                data-part="cell-cta"
-                data-plan-index={index}
-                class={if index == 0, do: "active"}
-              >
-                <.button variant={plan.cta_variant} size="large" label={plan.cta_label} href={plan.cta_href} />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  {plan.name}
+                </th>
+              </tr>
+            </thead>
+            <tbody data-part="body">
+              <tr :for={feature <- features} data-part="row">
+                <th data-part="cell-feature" scope="row">
+                  <div data-part="feature-name">{feature.name}</div>
+                  <div :if={feature.description} data-part="feature-description">
+                    {feature.description}
+                  </div>
+                  <.tooltip
+                    :if={not is_nil(feature.hint) and not is_nil(feature[:hint_text])}
+                    id={"#{feature.name}-hint"}
+                    size="large"
+                    description={feature.hint_text}
+                    title={dgettext("marketing", "Hits")}
+                  >
+                    <:trigger :let={attrs}>
+                      <span {attrs}>
+                        <.hint_text label={feature.hint} />
+                      </span>
+                    </:trigger>
+                  </.tooltip>
+                </th>
+                <td
+                  :for={{value, index} <- Enum.with_index(feature.values)}
+                  data-part="cell-value"
+                  data-plan-index={index}
+                  class={if index == 0, do: "active"}
+                  data-available={
+                    cond do
+                      value == :available -> true
+                      value == :unavailable -> false
+                      true -> nil
+                    end
+                  }
+                >
+                  <%= cond do %>
+                    <% value == :available -> %>
+                      <.system_check />
+                    <% value == :unavailable -> %>
+                      <.math_x />
+                    <% is_map(value) and Map.has_key?(value, :price) -> %>
+                      <div data-part="value">{value.price}</div>
+                      <div data-part="description">{value.description}</div>
+                    <% is_map(value) and Map.has_key?(value, :value) -> %>
+                      <div data-part="value">{value.value}</div>
+                      <div data-part="description">{value.description}</div>
+                    <% is_map(value) and Map.has_key?(value, :level) -> %>
+                      <div data-part="value">{value.level}</div>
+                      <div data-part="description">{value.description}</div>
+                    <% true -> %>
+                      {value}
+                  <% end %>
+                </td>
+              </tr>
+              <tr data-part="row">
+                <td data-part="cell-feature"></td>
+                <td
+                  :for={{plan, index} <- Enum.with_index(plans)}
+                  data-part="cell-cta"
+                  data-plan-index={index}
+                  class={if index == 0, do: "active"}
+                >
+                  <.button
+                    variant={plan.cta_variant}
+                    size="large"
+                    label={plan.cta_label}
+                    href={plan.cta_href}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -443,8 +466,7 @@ features = [
         data-phase="22.1"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
 
     <section data-part="cta" aria-labelledby="cta-title">
@@ -478,8 +500,7 @@ features = [
         data-phase="29.6"
         data-dither="on"
         data-opacity="0.3"
-      >
-      </canvas>
+      ></canvas>
     </div>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>
