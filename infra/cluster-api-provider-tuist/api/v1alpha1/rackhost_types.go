@@ -122,9 +122,10 @@ type RackHostLocation struct {
 // PowerOutletRef addresses one switched outlet.
 type PowerOutletRef struct {
 	// Driver selects the power backend. `shelly` speaks the Shelly Gen2 RPC
-	// (with a Gen1 fallback) and is what the BER1 prototype uses as a PDU
-	// stand-in; the rack's switched 3-phase PDUs get their own driver rather
-	// than being forced through this one.
+	// (with a Gen1 fallback) and is for home and office prototypes only: it is
+	// the BER1 prototype's PDU stand-in, not a rack driver. A colo rack's
+	// switched PDUs get their own driver rather than being forced through this
+	// one.
 	// +kubebuilder:default=shelly
 	// +kubebuilder:validation:Enum=shelly
 	Driver string `json:"driver,omitempty"`

@@ -287,7 +287,9 @@ mode behind it:
 - **Reboot is a PDU outlet.** Apple silicon powers on when mains is applied and
   every fleet host runs `pmset autorestart 1`, so cutting and restoring an
   outlet is a cold boot with nobody at a console. `internal/power` holds the
-  drivers; `power.Cycle` drives off/settle/on itself rather than using a
+  drivers, and the only one shipped today is `shelly`, which is scoped to home
+  and office prototypes: a colo rack's switched PDUs get their own driver.
+  `power.Cycle` drives off/settle/on itself rather than using a
   device's native cycle verb, because the settle interval is the one parameter
   that matters and no two devices agree on it. It verifies the outlet actually
   went off before powering back on: a cycle that silently failed to cut power

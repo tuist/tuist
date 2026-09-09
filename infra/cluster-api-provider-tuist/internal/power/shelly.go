@@ -15,10 +15,13 @@ const DriverShelly = "shelly"
 
 // Shelly drives a Shelly switch over its local HTTP API.
 //
-// It is the BER1 prototype's PDU stand-in: a single-outlet plug validating the
-// power path before the rack's switched 3-phase PDUs exist, but it is also a
-// real answer for a small deployment, so it is implemented properly rather than
-// as a placeholder.
+// Scope: home and office prototypes only. This is the BER1 prototype's PDU
+// stand-in, validating the power path on a desk before a rack exists. It is not
+// a rack driver: a colo rack runs switched PDUs whose management interface is
+// nothing like this one, and those get their own driver rather than being
+// forced through this one. It is still implemented properly rather than
+// stubbed, because a stand-in that only half works proves nothing about the
+// path it stands in for.
 //
 // Two generations of firmware are in the wild and they share no endpoint:
 // Gen2+ (Plus/Pro, and everything Shelly currently sells) exposes a JSON-RPC
