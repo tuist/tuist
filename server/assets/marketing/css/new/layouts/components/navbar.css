@@ -1,4 +1,8 @@
 #marketing-navbar {
+  /* Cursor position for the bottom-hairline glow; the home page's
+     PlatformBackground hook writes real values inline. */
+  --hx: -9999px;
+  --hy: -9999px;
   display: flex;
   position: sticky;
   top: 0;
@@ -16,14 +20,8 @@
      PlatformBackground hook on the home page; inert everywhere else. */
   &::after {
     position: absolute;
-    -webkit-mask-image: radial-gradient(
-      170px circle at var(--hx, -9999px) var(--hy, -9999px),
-      var(--marketing-edge-glow-stops)
-    );
-    mask-image: radial-gradient(
-      170px circle at var(--hx, -9999px) var(--hy, -9999px),
-      var(--marketing-edge-glow-stops)
-    );
+    -webkit-mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
+    mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
     inset: 0;
     border-bottom: 1px solid var(--marketing-edge-glow-color);
     pointer-events: none;

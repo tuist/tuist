@@ -1970,7 +1970,7 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline: 3px solid var(--noora-purple-500);
         outline-offset: 6px;
       }
 
@@ -2267,7 +2267,7 @@
             rgba(111, 44, 255, 0.14) 0%,
             rgba(244, 66, 119, 0.04) 100%
           ),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%), var(--Purple-50, #f4f4ff);
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%), var(--noora-purple-50);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
       }
     }
@@ -2287,7 +2287,7 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline: 3px solid var(--noora-purple-500);
         outline-offset: 6px;
       }
 
@@ -2444,7 +2444,7 @@
       }
 
       & > [data-part="overlay-link"]:focus-visible {
-        outline: 3px solid var(--noora-purple-60, #6f2cff);
+        outline: 3px solid var(--noora-purple-500);
         outline-offset: 6px;
       }
 
@@ -2598,7 +2598,6 @@
 
           & > h1 {
             color: var(--noora-surface-label-primary);
-            font-family: var(--noora-font-display);
             font: var(--noora-font-weight-semibold) var(--noora-font-display-xlarge);
             letter-spacing: -0.045rem;
             text-shadow: 0px 1px 1px rgba(0, 0, 0, 0.25);
@@ -2772,7 +2771,7 @@
         }
 
         & > [data-part="overlay-link"]:focus-visible {
-          outline: 3px solid var(--noora-purple-60, #6f2cff);
+          outline: 3px solid var(--noora-purple-500);
           /* Inward: the cell's overflow: hidden would clip an outset ring. */
           outline-offset: -3px;
         }
@@ -2886,6 +2885,9 @@
       overflow: hidden;
 
       & > [data-part="row"] {
+        /* Overridden inline with the row's real card count by the marquee
+           component; 4 keeps the keyframe period sane before that. */
+        --marquee-card-count: 4;
         overflow: hidden;
 
         &[data-viewport="desktop"] {
@@ -2921,7 +2923,7 @@
           /* One loop covers one group's width (card count × card width), so
              scaling the period by the row's card count keeps every row —
              desktop and mobile — drifting at the same speed. */
-          animation: marketing-testimonials-marquee calc(var(--marquee-card-count, 4) * 12s) linear infinite;
+          animation: marketing-testimonials-marquee calc(var(--marquee-card-count) * 12s) linear infinite;
           width: max-content;
 
           @media (prefers-reduced-motion: reduce) {

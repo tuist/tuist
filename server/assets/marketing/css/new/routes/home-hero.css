@@ -63,6 +63,11 @@
   }
 
   [data-part="hero"] {
+    /* Cursor position for the edge glow; the PlatformBackground hook writes
+       real values inline and removes them on leave, so this keeps the glow
+       off-canvas. */
+    --hx: -9999px;
+    --hy: -9999px;
     display: flex;
     position: relative;
     grid-column: 2;
@@ -101,14 +106,8 @@
     /* Cursor-proximity recolor of the card border (fed --hx/--hy by JS). */
     & > [data-part="edge-glow"] {
       position: absolute;
-      -webkit-mask-image: radial-gradient(
-        170px circle at var(--hx, -9999px) var(--hy, -9999px),
-        var(--marketing-edge-glow-stops)
-      );
-      mask-image: radial-gradient(
-        170px circle at var(--hx, -9999px) var(--hy, -9999px),
-        var(--marketing-edge-glow-stops)
-      );
+      -webkit-mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
+      mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
       inset: 0;
       border: 1px solid var(--marketing-edge-glow-color);
       pointer-events: none;
@@ -160,6 +159,8 @@
   }
 
   [data-part="panel"] {
+    --hx: -9999px;
+    --hy: -9999px;
     position: absolute;
     left: var(--panel-x);
     box-sizing: border-box;
@@ -169,14 +170,8 @@
     /* Cursor-proximity recolor drawn exactly over the panel's own border. */
     &::after {
       position: absolute;
-      -webkit-mask-image: radial-gradient(
-        170px circle at var(--hx, -9999px) var(--hy, -9999px),
-        var(--marketing-edge-glow-stops)
-      );
-      mask-image: radial-gradient(
-        170px circle at var(--hx, -9999px) var(--hy, -9999px),
-        var(--marketing-edge-glow-stops)
-      );
+      -webkit-mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
+      mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
       inset: -1px;
       border: 1px solid var(--marketing-edge-glow-color);
       content: "";
