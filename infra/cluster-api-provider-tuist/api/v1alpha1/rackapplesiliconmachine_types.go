@@ -84,10 +84,11 @@ type RackAppleSiliconMachineSpec struct {
 	GuestCapacity int `json:"guestCapacity,omitempty"`
 
 	// MaxPods is the Pod ceiling tart-kubelet advertises (`--max-pods`). Sized
-	// as guests x 2 + 1: a Pod stays bound to its Node after it finishes, so
-	// each guest slot can transiently hold its running Pod plus a predecessor
-	// GC has not collected, and the +1 is margin. Falls back to the operator's
-	// global default when unset.
+	// as guests x 2 + 1: a Pod stays bound to its Node after it finishes and the
+	// scheduler counts it against pods capacity until GC deletes it, so each
+	// guest slot can transiently hold its running Pod plus a predecessor, and
+	// the +1 is margin. It is not the concurrent-VM limit; Apple's cap of two is
+	// enforced by Tart. Falls back to the operator's global default when unset.
 	// +optional
 	MaxPods int `json:"maxPods,omitempty"`
 
