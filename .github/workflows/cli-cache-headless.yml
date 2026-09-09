@@ -6,6 +6,7 @@ on:
     paths:
       - "cli/Sources/TuistLaunchctl/**"
       - "cli/Sources/TuistKit/Services/Setup/SetupCacheCommandService.swift"
+      - "cli/Sources/TuistKit/Services/Setup/CacheSocketService.swift"
       - "cli/Sources/TuistKit/Services/Teardown/TeardownCacheCommandService.swift"
       - "mise/tasks/cli/cache-headless-e2e.sh"
       - ".github/workflows/cli-cache-headless.yml"
@@ -21,7 +22,7 @@ jobs:
   headless-cache:
     name: Headless Xcode cache end-to-end
     if: github.event.pull_request.head.repo.fork != true
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 45
     env:
       MISE_GITHUB_ATTESTATIONS: 0
