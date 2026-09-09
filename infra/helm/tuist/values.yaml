@@ -1524,6 +1524,107 @@ vultrFleet:
 vultrFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
+# colo programme), as opposed to capacity ordered from a provider API.
+#
+# Two things are declared here and they are different in kind. `hosts` is
+# physical INVENTORY: one entry per box, each rendering a RackHost the fleet's
+# Machines claim from. Everything under `machine` is WORKLOAD shape, cloned onto
+# every Machine by the MachineTemplate. Keeping them apart is what lets one
+# replica count scale the rack; see templates/rack-fleet.yaml.
+rackFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-fleet
+
+  # The claim marker AND the environment boundary. A Machine claims a free
+  # RackHost whose pool matches, so staging and production inventory can coexist
+  # as long as their pools differ. Required when enabled.
+  pool: ""
+
+  # Machine count. Defaults to the number of declared hosts: a Machine with
+  # nowhere to land sits on NoAvailableHost forever, which leaves the
+  # MachineDeployment permanently below spec. Set it lower to stage a rack one
+  # box at a time.
+  replicas: null
+
+  # Default rack site for hosts that don't name their own. Load-bearing: it
+  # composes the providerID, so it must be stable for the life of a host.
+  site: ""
+
+  # Default SSH account. On rack hosts this is the MDM-provisioned service
+  # account, not a provider-issued one.
+  sshUser: tuist
+
+  # The rack's physical inventory. Adding a mini is a values PR: the record is
+  # then versioned and reviewed, rather than living in someone's kubectl
+  # history. Nothing here is workload config: see `machine` below for that.
+  #
+  #   - name: ber1-proto-01     # RackHost object name; also the Node name's box
+  #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
+  #     address: 192.168.0.41   # what the operator SSHes to, normally the
+  #                             # in-rack LAN address reached over a tailnet
+  #                             # subnet route advertised by the rack's service
+  #                             # node. Routing it separately from the host's
+  #                             # OWN tailnet identity is deliberate: bootstrap
+  #                             # stops and replaces tailscaled, which over a
+  #                             # host-transported session drops the tunnel it
+  #                             # is riding.
+  #     site: ber1
+  #     rack: r1
+  #     shelf: s3
+  #     positionU: 12
+  #     power:                  # the fleet's remote reboot: Apple silicon boots
+  #       driver: shelly        # on power-apply and every host runs
+  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
+  #       outlet: "0"           # cold boot with nobody at a console.
+  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #     unclaimable: false      # takes a box out of the pool (bench work, RMA)
+  #                             # without deleting its inventory record
+  hosts: []
+
+  # Workload shape, cloned onto every Machine. Each field falls back to the
+  # operator's global default when unset.
+  machine:
+    hostCPU: null            # cores advertised on the Node
+    hostMemoryMB: null       # RAM advertised, minus the ~2 GB
+                             # Virtualization.framework reserves for the host
+    guestCapacity: null      # Tart guests the host is expected to run
+    maxPods: null            # Node Pod ceiling; size as guests x 2 + 1
+    # Cache-volume quota in GiB. An explicit 0 means "cache volumes off on this
+    # host" (the only setting that fits a 256 GB prototype box) and is
+    # deliberately distinguishable from unset, which inherits the global.
+    runnerCacheVolumeGiB: null
+
+  # The fleet SSH key + the service account's password, synced from 1Password.
+  # NOT optional: the controller never mints a replacement, because a credential
+  # generated in-cluster is one no MDM-provisioned host has heard of.
+  sshExternalSecret:
+    enabled: false
+    item: BER1_FLEET_SSH
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
+  # management segment with no password needs none; leave disabled and omit
+  # `power.credentialsSecret` on the hosts.
+  powerExternalSecret:
+    enabled: false
+    item: BER1_PDU
+    secretName: ""       # default: <fleet-name>-power
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      username: username
+      password: password
+
 macosFleet:
   enabled: false
   name: ""             # default: <release>-macos-fleet
@@ -2214,6 +2315,11 @@ runnersFleet:
     #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
     #   # Linux block); override here to add extra labels.
     #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
+    #   # Optional. Host fleet whose Nodes this pool's runners land on;
+    #   # defaults to this block's own fleet. Set it to place work on a
+    #   # macOS fleet other than runnersFleet, which today means the
+    #   # rack-owned minis in `rackFleet`.
+    #   fleetSelector: ""
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336

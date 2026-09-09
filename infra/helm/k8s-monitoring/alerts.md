@@ -1642,7 +1642,10 @@ says so, which matters once a region has boxes with different budgets.
 
 ```promql
 count by (instance) (
-  node_load1{job="tuist-macos-node-exporter", instance!~".*-rack-fleet-.*"}
+  node_load1{
+    job="tuist-macos-node-exporter",
+    instance!~".*-rack-fleet-.*"
+  }
 )
 unless
 count by (instance) (
@@ -1652,6 +1655,17 @@ count by (instance) (
   }
 )
 ```
+
+The instance exclusion is load-bearing, not noise suppression. A
+`RackAppleSiliconMachine` is a Mac mini in a rack we operate, with no Scaleway
+Private Network and no prospect of one, so it correctly has no `vlan` device.
+Without the exclusion every rack host pages as critical from the moment it
+joins, which is what happened on 2026-09-09 when the first one did.
+
+When BER1 gains its in-rack kura region, the cache path there is in-rack L2
+rather than a Scaleway PN. Checking it is a NEW rule keyed on whatever that path
+exposes, not a widening of this one. Removing the exclusion to "cover the rack"
+only restores the false positive.
 
 - Pending period: 10 minutes (a legitimate re-attachment recreates the
   interface, so don't fire on the gap)
