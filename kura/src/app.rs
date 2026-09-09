@@ -630,9 +630,10 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             .metrics
                             .update_outbox_target_messages(&snapshot.outbox_target_messages);
                         state.runtime.update_outbox_depth(snapshot.outbox_messages);
-                        state
-                            .metrics
-                            .update_multipart_uploads(snapshot.multipart_uploads);
+                        state.metrics.update_multipart_uploads(
+                            snapshot.multipart_uploads,
+                            snapshot.multipart_upload_capacity,
+                        );
                         state
                             .metrics
                             .update_promotion_queue_depth(snapshot.promotion_queue_depth);
