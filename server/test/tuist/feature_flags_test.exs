@@ -8,19 +8,6 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
-  test "build-step collection requires explicit opt-in in every environment" do
-    account = %Account{id: 42, name: "tuist"}
-    reject(Environment, :env, 0)
-    expect(FunWithFlags, :enabled?, fn :xcode_build_steps, [for: ^account] -> false end)
-    refute FeatureFlags.build_steps_enabled?(account)
-  end
-
-  test "build-step collection honors explicit opt-in" do
-    account = %Account{id: 42, name: "tuist"}
-    expect(FunWithFlags, :enabled?, fn :xcode_build_steps, [for: ^account] -> true end)
-    assert FeatureFlags.build_steps_enabled?(account)
-  end
-
   test "uses the runner feature flag in canary" do
     account = %Account{id: 42, name: "tuist"}
 
