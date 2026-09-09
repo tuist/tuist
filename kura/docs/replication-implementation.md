@@ -983,3 +983,38 @@ the pinned pod instead cannot terminate, because the pin only moves once the
 pod stops being routable, which the rebuild is what causes. Controller tests
 cover evacuation × gateway, the resize following the surviving replica, and
 the peer-plane release gate.
+
+**D-29 — Forward responses capture the feed head and frontier together.** A
+write could previously commit between the response's `head()` read and its
+later `frontier_ms()` read. The scan excluded that write but the response could
+advertise a frontier beyond its timestamp, letting the receiving gateway expose
+newer records to another region before the omitted row arrived. Snapshot and
+page responses now take both values while holding the feed's allocation lock.
+Ring A: A-30.
+
+**D-30 — Capacity declines are per entry on arrival-ordered passes.** The
+descending legacy walk may stop considering segmented records once it reaches
+one older than the next evictee because every following record is older. Feed
+and ascending-region pages do not have that ordering guarantee. They now
+decline only the individual record at listing and dispatch time, release its
+claim for any waiter, and continue evaluating later entries. Their cursor or
+watermark may still advance because the declined record was observed, but a
+newer record later in the page is no longer skipped. Ring A: A-31.
+
+**D-31 — Feed deactivation leaves a durable lifetime boundary.** Trimming to
+the old head left a caught-up cursor equal to the floor valid after the feed
+was reactivated. A write made while the feed was disabled could therefore be
+missed without the reader taking a fresh snapshot. Deactivation now reserves
+and discards one sequence and persists the floor through that gap. Every old
+cursor is below the new floor, while the next lifetime starts strictly above
+it and must bootstrap. Ring A: A-32.
+
+**D-32 — Pull-to-push handover is level-triggered.** Membership updates carry
+set differences, so a peer that stayed reachable while this node reverted its
+flag, or while the peer stopped advertising pull, produced no discovery event.
+The legacy scheduler had already removed it and therefore scheduled no catch-up
+pass for the interval in which pull owned delivery. Each evaluation now compares
+the reachable push peer set with the scheduler's present set. A newly eligible
+peer is rediscovered even without a topology change, and its backward pass is
+armed before the sync coordinator closes the pull link on that tick. Ring A:
+A-33.

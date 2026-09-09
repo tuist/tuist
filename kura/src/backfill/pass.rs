@@ -306,6 +306,27 @@ struct PassContext<'a> {
 }
 
 impl PassContext<'_> {
+    fn arrival_ordered(&self) -> bool {
+        matches!(&self.tuning.source, PassSource::Entries(_))
+    }
+
+    fn capacity_declines(&self, version_ms: u64) -> bool {
+        let inputs = self.state.store.backfill_capacity_inputs();
+        capacity_complete(
+            inputs.segment_count,
+            inputs.ring_total_segments,
+            inputs.next_evictee_stat_ms,
+            version_ms,
+        )
+    }
+
+    fn note_capacity_skipped(&self) {
+        self.state
+            .metrics
+            .record_backfill_listed_tuple("capacity_skipped");
+        self.update_stats(|stats| stats.tuples_capacity_skipped += 1);
+    }
+
     /// Mutates the stats under the lock and refreshes the pass-progress
     /// gauges from the result, so progress is observable while the pass runs
     /// (the 2026-07-16 silence lesson).
@@ -428,14 +449,12 @@ async fn list_entry(
 
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
-    if kind == BackfillRecordKind::SegmentArtifact && !context.capacity_fired() {
-        let inputs = context.state.store.backfill_capacity_inputs();
-        if capacity_complete(
-            inputs.segment_count,
-            inputs.ring_total_segments,
-            inputs.next_evictee_stat_ms,
-            entry.version_ms,
-        ) {
+    if kind == BackfillRecordKind::SegmentArtifact {
+        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+            context.note_capacity_skipped();
+            return Ok(());
+        }
+        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -455,11 +474,7 @@ async fn list_entry(
             version_ms: entry.version_ms,
         });
         debug_assert_eq!(decision, ListDecision::CapacitySkipped);
-        context
-            .state
-            .metrics
-            .record_backfill_listed_tuple("capacity_skipped");
-        context.update_stats(|stats| stats.tuples_capacity_skipped += 1);
+        context.note_capacity_skipped();
         return Ok(());
     }
 
@@ -692,22 +707,19 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if !context.capacity_fired() {
-            let inputs = context.state.store.backfill_capacity_inputs();
-            if capacity_complete(
-                inputs.segment_count,
-                inputs.ring_total_segments,
-                inputs.next_evictee_stat_ms,
-                item.key.version_ms,
-            ) {
-                context.guard.mark_capacity_complete();
-                context.capacity_fired.store(true, Ordering::Relaxed);
-                tracing::info!(
-                    peer = context.peer,
-                    cursor_version_ms = item.key.version_ms,
-                    "backfill pass capacity-completed at dispatch; segmented fetches stop"
-                );
-            }
+        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+            context.guard.resolve_capacity_declined(&item.key);
+            context.note_capacity_skipped();
+            return Ok(());
+        }
+        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+            context.guard.mark_capacity_complete();
+            context.capacity_fired.store(true, Ordering::Relaxed);
+            tracing::info!(
+                peer = context.peer,
+                cursor_version_ms = item.key.version_ms,
+                "backfill pass capacity-completed at dispatch; segmented fetches stop"
+            );
         }
         if context.capacity_fired() {
             // The claim was stripped by mark_capacity_complete and resolved
@@ -2308,6 +2320,83 @@ mod tests {
                 .store
                 .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "dead-ns", 250)
                 .expect("tombstone check should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn arrival_ordered_capacity_decline_does_not_skip_a_newer_entry() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        build_index(&peer);
+        let page = peer
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .expect("index page");
+        let entries = page
+            .entries
+            .into_iter()
+            .map(|row| BackfillEntry {
+                record_kind: row.kind.as_str().to_owned(),
+                record_id: row.record_id,
+                version_ms: row.version_ms,
+                size: row.size,
+            })
+            .collect();
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        let local = test_context(|config| config.cas_capacity_bytes = Some(1)).await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut forward = tuning();
+        forward.source = PassSource::Entries(entries);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, forward).await;
+        let BackfillPassOutcome::Completed {
+            capacity_completed,
+            stats,
+            ..
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert!(
+            !capacity_completed,
+            "an arrival page never latches completion"
+        );
+        assert_eq!(stats.tuples_capacity_skipped, 1);
+        assert!(claim_set.is_empty());
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_none()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some(),
+            "the newer entry after a declined older entry still applies"
         );
     }
 

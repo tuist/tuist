@@ -336,8 +336,9 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   the mesh's stale-peer window. A region of one therefore carries no feed at
   all. Activation is persisted (`sync/meta/enabled`), so a restart brings the
   feed back as it was instead of silently switching it off under a sibling
-  still reading forward; deactivation after the stale window clears it
-  (D-10).
+  still reading forward; deactivation after the stale window clears it and
+  advances the floor across one reserved gap, so a cursor from the previous
+  feed lifetime must take a new snapshot after reactivation (D-10, D-31).
 - **Trimmed from below.** Every request carries the sibling's cursor, and the
   source deletes rows at or below it in a batched trim — with one consumer per
   direction, that position is a single number. Trims are range deletes and
@@ -932,6 +933,48 @@ keeps applying to those links — until the supported-version floor moves past
 the shipped binary. Plan for the outbox living alongside the new path for at
 least one support window, and make sure the metrics distinguish the two so the
 remaining push traffic is visible rather than assumed gone.
+
+### 5.4 Warm rollout and rollback gate
+
+The binary rollout and the behavior flip are separate operations. A release is
+not ready to flip traffic until every step below holds:
+
+1. Deploy the database migration, server, custom-resource definition,
+   controller, chart defaults, and runtime while `kura_replication_pull` stays
+   disabled for every account. The runtime continues pushing throughout this
+   stage. Wait for the normal fleet rollout to finish so every managed pod has
+   the drain grace period and the pull-capable binary before changing behavior.
+2. Run `test/e2e/kura_compatibility_rollout.sh` against the immediately previous
+   Kura release. Both upgrade and rollback directions must converge before a
+   release tag is promoted.
+3. Enable one low-traffic account that has two managed regions. Prefer an
+   account with an enrolled self-hosted peer so the first wave exercises both
+   negotiated pull and the push exception. Do not flip an account while it has
+   another Kura deployment in progress.
+4. Let the manifest-revision rollout replace one pod at a time. A replacement
+   must become ready with its initial catch-up complete before its sibling is
+   replaced. Keep serving traffic on the existing primary and keep the public
+   peer Service on the gateway selected by the controller, so the cache stays
+   warm throughout the rollout.
+5. Soak the account for at least 30 minutes after its last pod converges. During
+   the soak, the forward cursor stays near the feed head, the region sync
+   success age stays below five minutes, every region has exactly one gateway,
+   and the feed-drop and drain-timeout counters do not increase. Outbox depth
+   reaches zero except for a peer that remains on push by negotiation. Cache
+   error and miss rates must not regress from the account's pre-flip baseline.
+6. Expand by account waves, repeating the same gate after every wave. Stop the
+   rollout on the first failed gate. The flag remains per account until at least
+   one full support window has passed and the oldest supported self-hosted
+   version understands pull.
+
+Rollback starts by disabling `kura_replication_pull` for the affected accounts,
+not by replacing the binary. Each continuously reachable peer is reintroduced
+to the legacy scheduler as a level-triggered transition, which schedules a
+backward catch-up pass even though membership itself did not change. Wait for
+those passes and the `+pull` manifest-revision rollback to complete, confirm
+that outbox delivery has resumed and no account remains in pull mode, and only
+then roll the runtime back if needed. Keep the outbox column family and serving
+routes throughout the support window, as required by §5.3.
 
 ---
 

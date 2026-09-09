@@ -167,11 +167,11 @@ async fn feed_rows_follow_the_echo_rule_and_the_activation() {
     assert!(store.sync_feed_page(0, 100).expect("page").is_empty());
     assert_eq!(
         store.sync_feed().floor(),
-        3,
-        "the dropped rows are below the floor"
+        4,
+        "the dropped rows and lifetime boundary are below the floor"
     );
     write_inline(store, "after-deactivation", b"e").await;
-    assert_eq!(store.sync_feed().head(), 3, "off again: no rows");
+    assert_eq!(store.sync_feed().head(), 4, "off again: no rows");
 }
 
 // A-23: the origin rides the manifest on both codecs.
@@ -470,6 +470,38 @@ async fn an_exhausted_forward_page_reports_the_head_over_an_aborted_gap() {
     let page: SyncForwardPage = serde_json::from_value(body_json(response).await).expect("page");
     assert_eq!(page.entries.len(), 1);
     assert_eq!((page.next, page.head), (4, 4));
+}
+
+#[tokio::test]
+async fn reactivation_rejects_a_cursor_from_the_previous_feed_lifetime() {
+    let context = test_context(|_| {}).await;
+    let first = snapshot(&context).await;
+    write_inline(&context.state.store, "before-disable", b"1").await;
+    let caught_up = forward(&context, &format!("&after={}:0", first.incarnation)).await;
+    let caught_up: SyncForwardPage =
+        serde_json::from_value(body_json(caught_up).await).expect("page");
+
+    context
+        .state
+        .store
+        .sync_feed_deactivate()
+        .await
+        .expect("deactivate");
+    write_inline(&context.state.store, "while-disabled", b"2").await;
+    let second = snapshot(&context).await;
+    assert!(
+        second.floor > caught_up.next,
+        "lifetime boundary raises the floor"
+    );
+
+    let stale = forward(
+        &context,
+        &format!("&after={}:{}", first.incarnation, caught_up.next),
+    )
+    .await;
+    assert_eq!(stale.status(), StatusCode::GONE);
+    let gone: SyncForwardGone = serde_json::from_value(body_json(stale).await).expect("gone");
+    assert_eq!(gone.error, "floor");
 }
 
 // A-8: a long-poll wakes on the next commit and returns at the deadline.

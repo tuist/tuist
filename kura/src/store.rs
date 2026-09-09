@@ -7634,9 +7634,15 @@ impl Store {
         if !self.sync_feed.set_enabled(false) {
             return Ok(());
         }
-        let head = self.sync_feed.head();
+        // Reserve and discard one sequence as a lifetime boundary. Raising
+        // the floor through it invalidates even a consumer caught up exactly
+        // at the previous head, while the next activated lifetime starts
+        // strictly above it. The persistent incarnation still identifies the
+        // volume; the gap identifies this feed lifetime.
+        let boundary = self.sync_feed.allocate();
+        let floor = boundary.seq();
         let mut batch = WriteBatch::default();
-        self.stage_sync_feed_trim(&mut batch, head);
+        self.stage_sync_feed_trim(&mut batch, floor);
         batch.delete_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
             sync_meta_key(SYNC_META_ENABLED).as_bytes(),
@@ -7647,7 +7653,8 @@ impl Store {
             ApplyDurability::Sync,
         )
         .await?;
-        self.sync_feed.raise_floor(head);
+        self.sync_feed.raise_floor(floor);
+        drop(boundary);
         self.sync_feed.clear_consumers();
         tracing::info!(
             "arrival feed deactivated: no sibling has read it within the stale-peer window"

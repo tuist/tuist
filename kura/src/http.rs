@@ -2856,7 +2856,7 @@ async fn internal_sync_forward(
                 format!("Failed to activate the arrival feed: {error}"),
             );
         }
-        let head = feed.head();
+        let (head, frontier_ms) = feed.head_and_frontier();
         feed.note_consumer_snapshot(peer, head);
         let watermarks = match state.store.sync_watermarks() {
             Ok(watermarks) => watermarks,
@@ -2873,7 +2873,7 @@ async fn internal_sync_forward(
             floor: feed.floor(),
             watermarks,
             now: now_ms(),
-            frontier_ms: feed.frontier_ms(),
+            frontier_ms,
         })
         .into_response();
     };
@@ -2917,7 +2917,7 @@ async fn internal_sync_forward(
         tokio::pin!(notified);
         // One head for the scan and for the response: reporting a head the
         // scan did not cover would hide the rows in between (D-26).
-        let head = feed.head();
+        let (head, frontier_ms) = feed.head_and_frontier();
         let rows = match state.store.sync_feed_page_to(position.seq, limit, head) {
             Ok(rows) => rows,
             Err(error) => {
@@ -2956,7 +2956,7 @@ async fn internal_sync_forward(
                 next,
                 head,
                 now: now_ms(),
-                frontier_ms: feed.frontier_ms(),
+                frontier_ms,
             })
             .into_response();
         }

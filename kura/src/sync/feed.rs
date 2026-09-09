@@ -356,9 +356,13 @@ impl SyncFeedState {
     /// The contiguous committed head: every seq at or below it has resolved.
     pub fn head(&self) -> u64 {
         let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        Self::head_with_inflight(&inflight, self.next_seq.load(Ordering::Acquire))
+    }
+
+    fn head_with_inflight(inflight: &BTreeMap<u64, u64>, next_seq: u64) -> u64 {
         match inflight.first_key_value() {
             Some((&lowest, _)) => lowest - 1,
-            None => self.next_seq.load(Ordering::Acquire) - 1,
+            None => next_seq - 1,
         }
     }
 
@@ -368,10 +372,23 @@ impl SyncFeedState {
     /// index (D-24).
     pub fn frontier_ms(&self) -> u64 {
         let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        self.frontier_with_inflight(&inflight)
+    }
+
+    fn frontier_with_inflight(&self, inflight: &BTreeMap<u64, u64>) -> u64 {
         match inflight.first_key_value() {
             Some((_, &stamp)) => stamp,
             None => now_ms().max(self.last_stamp_ms.load(Ordering::Relaxed)),
         }
+    }
+
+    /// A response-safe head/frontier pair. Allocation takes the same lock,
+    /// so the frontier can never describe a write above the captured head.
+    pub fn head_and_frontier(&self) -> (u64, u64) {
+        let inflight = self.inflight.lock().unwrap_or_else(|e| e.into_inner());
+        let frontier = self.frontier_with_inflight(&inflight);
+        let head = Self::head_with_inflight(&inflight, self.next_seq.load(Ordering::Acquire));
+        (head, frontier)
     }
 
     /// Rows currently retained (head − floor), the depth gauge.
@@ -635,6 +652,20 @@ mod tests {
             frontier >= first_stamp && frontier >= now_ms().saturating_sub(1),
             "with nothing in flight the frontier is now, got {frontier}"
         );
+    }
+
+    #[test]
+    fn head_and_frontier_are_captured_under_one_allocation_lock() {
+        let feed = Arc::new(SyncFeedState::new(1, 0, 0, true, 1000));
+        let first = feed.allocate();
+        let second = feed.allocate();
+        second.commit();
+
+        assert_eq!(feed.head_and_frontier(), (0, first.stamp_ms()));
+        first.commit();
+        let (head, frontier) = feed.head_and_frontier();
+        assert_eq!(head, 2);
+        assert!(frontier >= now_ms().saturating_sub(1));
     }
 
     #[test]

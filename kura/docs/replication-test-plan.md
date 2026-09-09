@@ -63,6 +63,10 @@ the same `A-n` tag):
 | A-29a | An exhausted forward page reports the head (D-26) | with two aborted allocations at the sibling's head, the page above the cursor is empty and reports `next == head` with no lag; a page cut short by the limit still reports its last row |
 | A-29b | A gap at the sibling's feed head does not freeze the link frontier (D-26) | after the gap opens on a quiet sibling, the puller's frontier passes its own later write, the write becomes listable, and the link reports no lag |
 | A-29c | A link that gave up its bootstrap stops bounding the listing (D-25) | while within the budget the bound is 0 and the lag gauge saturates at 86400; once the budget is spent the link is settled and abandoned, the bound follows the settle window again, and a later reported frontier bounds the listing once more |
+| A-30 | A forward response captures one feed state | `head` and `frontier_ms` are read under the allocation lock, so the frontier cannot cover a sequence above the response head |
+| A-31 | Capacity decisions on arrival-ordered pages are per entry | an old entry below the next evictee is declined, then a newer entry in the same page is fetched and applied; the pass does not latch capacity completion |
+| A-32 | Feed reactivation invalidates old cursors | a consumer caught up at the old head receives `410 floor` after deactivate and reactivate; writes made while disabled arrive through the required bootstrap |
+| A-33 | Reverting pull is a level-triggered legacy transition | a continuously reachable peer is rediscovered by the legacy scheduler when this node disables pull or the peer stops advertising it, despite no membership edge |
 
 ## Ring B — docker compose end-to-end (minutes, laptop)
 
