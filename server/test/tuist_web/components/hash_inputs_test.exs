@@ -31,7 +31,7 @@ defmodule TuistWeb.Components.HashInputsTest do
   test "historical destinations are unavailable while recorded empty inputs are known" do
     target = %XcodeTarget{destinations: ["iphone", "mac"], hashed_destinations: nil}
     historical = render_component(&ModuleCacheTab.subhashes_list/1, target: target)
-    assert historical =~ "Hashed destinations"
+    assert historical =~ "Destinations"
     assert historical =~ "Unavailable"
     refute historical =~ "iphone"
 

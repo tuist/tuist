@@ -313,7 +313,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       </div>
       <div data-part="subhash-item">
         <span data-part="subhash-label">
-          {dgettext("dashboard_builds", "Hashed destinations")}:
+          {dgettext("dashboard_builds", "Destinations")}:
         </span>
         <span data-part="subhash-value">
           {hash_input_value(Map.get(@target, :hashed_destinations))}

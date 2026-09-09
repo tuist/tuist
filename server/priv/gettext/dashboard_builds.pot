@@ -1710,11 +1710,6 @@ msgstr ""
 msgid "Embedded product references"
 msgstr ""
 
-#: lib/tuist_web/components/runs/module_cache_tab.ex:316
-#, elixir-autogen, elixir-format
-msgid "Hashed destinations"
-msgstr ""
-
 #: lib/tuist_web/components/runs/module_cache_tab.ex:631
 #, elixir-autogen, elixir-format
 msgid "Unavailable"
@@ -1733,4 +1728,9 @@ msgstr ""
 #: lib/tuist_web/components/runs/module_cache_tab.ex:348
 #, elixir-autogen, elixir-format
 msgid "Test runtime"
+msgstr ""
+
+#: lib/tuist_web/components/runs/module_cache_tab.ex:316
+#, elixir-autogen, elixir-format
+msgid "Destinations"
 msgstr ""
