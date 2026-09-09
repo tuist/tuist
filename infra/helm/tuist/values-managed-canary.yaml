@@ -334,9 +334,33 @@ clickhouse:
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
     migration:
-      enabled: false
+      enabled: true
       name: backfill
       task: Tuist.Release.backfill_clickhouse
+      # The minute the deploy that turned dual writes on finished rolling out
+      # was 10:40:52Z, and this is deliberately later than that. Four mirrored
+      # writes ended in a terminal `error` during that window, because the
+      # ClickHouse pod was itself restarting alongside the writers, so those
+      # rows reached Cloud and not the destination. A cutoff after them is what
+      # makes the backfill pick them up.
+      #
+      # Later is the safe direction. The backfill covers everything up to the
+      # cutoff and the mirror covers everything from the moment it started, so
+      # a cutoff after the mirror began overlaps rather than leaves a gap, and
+      # the overlap costs nothing: each chunk fills gaps by row identity rather
+      # than appending, so re-copying a range it already holds is a no-op.
+      cutoff: "2026-09-09T11:20:00Z"
+      # An ordinary Job rather than a deploy hook, so the release does not wait
+      # for the copy. Canary's dataset is small enough that waiting would work
+      # here, which is exactly why this is the place to exercise the path
+      # production needs: helm waits for hook Jobs, and a terabyte-scale copy
+      # would hold the release for hours and then fail it on the deadline,
+      # rolling the release back with it.
+      #
+      # Consequence for reading the result: the deploy going green says the
+      # copy started, not that it finished. The gate is every chunk recorded
+      # done in the ledger with no failures, read from the Job afterwards.
+      background: true
 
   poolSize: "30"
   bufferPoolSize: "30"
