@@ -728,10 +728,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     conn =
       if email_version? do
         conn
-        |> put_resp_header("Content-Type", "text/plain; charset=utf-8")
+        |> put_resp_header("content-type", "text/plain; charset=utf-8")
         |> PlugMinifyHtml.call(PlugMinifyHtml.init([]))
       else
-        put_resp_header(conn, "Content-Type", "text/html")
+        put_resp_header(conn, "content-type", "text/html")
       end
 
     open_graph_image_url =
@@ -740,8 +740,12 @@ defmodule TuistWeb.Marketing.MarketingController do
         marketing: true
       )
 
+    issues = Newsletter.issues()
+
     render(conn, String.to_atom("newsletter_issue"),
       issue: issue,
+      previous_issue: Enum.find(issues, &(&1.number == issue.number - 1)),
+      next_issue: Enum.find(issues, &(&1.number == issue.number + 1)),
       email_version?: email_version?,
       open_graph_image_url: open_graph_image_url
     )
