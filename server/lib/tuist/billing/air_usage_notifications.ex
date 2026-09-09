@@ -9,22 +9,22 @@ defmodule Tuist.Billing.AirUsageNotifications do
   alias Tuist.Billing
   alias Tuist.Billing.AirUsageNotification
   alias Tuist.Billing.Workers.AirUsageNotificationWorker
+  alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
   def enqueue(account_id, updated_at) do
-    Repo.transaction(fn ->
-      account = Repo.one!(from(a in Account, where: a.id == ^account_id, lock: "FOR UPDATE"))
+    account = Repo.get!(Account, account_id)
 
-      if current_month?(updated_at) && Billing.effective_plan(account) == :air do
-        # Two independent allowances, each with its own threshold and counting window.
-        for metric <- [:remote_cache_hits, :runner_minutes], eligible?(account, metric) do
-          enqueue_metric(account, updated_at, metric)
-        end
+    if current_month?(updated_at) && Billing.effective_plan(account) == :air do
+      for metric <- [:remote_cache_hits, :runner_minutes], eligible?(account, metric) do
+        enqueue_metric(account, updated_at, metric)
       end
-    end)
+    end
+
+    {:ok, :ok}
   end
 
   def eligible?(account, :runner_minutes), do: not Trials.on_trial?(account)
@@ -45,12 +45,7 @@ defmodule Tuist.Billing.AirUsageNotifications do
   def period_start(_account, date, :runner_minutes), do: date |> Timex.beginning_of_month() |> DateTime.truncate(:second)
 
   def period_start(account, date, :remote_cache_hits) do
-    month_start = date |> Timex.beginning_of_month() |> DateTime.truncate(:second)
-
-    case account.free_tier_reset_at do
-      %DateTime{} = reset_at -> Enum.max_by([month_start, reset_at], &DateTime.to_unix/1)
-      nil -> month_start
-    end
+    account |> CommandEvents.usage_counted_from(date) |> DateTime.truncate(:second)
   end
 
   def threshold(nil, _limit), do: nil
@@ -101,16 +96,51 @@ defmodule Tuist.Billing.AirUsageNotifications do
         }
       end)
 
-    # The durable unique key survives Oban job pruning and overlapping refreshes.
-    {_count, inserted} =
+    Repo.transaction(fn ->
       Repo.insert_all(AirUsageNotification, notifications,
         on_conflict: :nothing,
-        conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold],
-        returning: [:id]
+        conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold]
       )
 
-    inserted
-    |> Enum.map(&AirUsageNotificationWorker.new(%{notification_id: &1.id}))
+      recipient_ids = Enum.map(notifications, & &1.user_id)
+
+      # Lock only pending notifications, so overlapping refreshes cannot enqueue
+      # duplicate jobs. Completed delivery, rather than row existence, consumes the slot.
+      pending_ids =
+        Repo.all(
+          from(n in AirUsageNotification,
+            where: n.account_id == ^account.id and n.user_id in ^recipient_ids,
+            where: n.metric == ^metric and n.period_start == ^period_start and n.threshold == ^threshold,
+            where: is_nil(n.delivered_at),
+            order_by: n.id,
+            lock: "FOR UPDATE",
+            select: n.id
+          )
+        )
+
+      enqueue_pending(pending_ids)
+    end)
+  end
+
+  defp enqueue_pending([]), do: :ok
+
+  defp enqueue_pending(notification_ids) do
+    string_ids = Enum.map(notification_ids, &to_string/1)
+    worker = Oban.Worker.to_string(AirUsageNotificationWorker)
+
+    active_ids =
+      from(j in Oban.Job,
+        where: j.worker == ^worker,
+        where: j.state not in ["completed", "cancelled", "discarded"],
+        where: fragment("?->>'notification_id'", j.args) in ^string_ids,
+        select: j.args
+      )
+      |> Repo.all()
+      |> MapSet.new(& &1["notification_id"])
+
+    notification_ids
+    |> Enum.reject(&MapSet.member?(active_ids, &1))
+    |> Enum.map(&AirUsageNotificationWorker.new(%{notification_id: &1}))
     |> Oban.insert_all()
   end
 end

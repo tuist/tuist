@@ -5,8 +5,6 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorker do
   """
   use Oban.Worker, queue: :default, max_attempts: 5
 
-  import Ecto.Query
-
   alias Tuist.Accounts
   alias Tuist.Accounts.UserNotifier
   alias Tuist.Billing
@@ -16,26 +14,40 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"notification_id" => id}}) do
-    case Repo.transaction(fn -> deliver(id) end) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+    notification = AirUsageNotification |> Repo.get(id) |> Repo.preload([:account, :user])
+
+    if notification && is_nil(notification.delivered_at) && relevant?(notification) do
+      {usage, limit} = AirUsageNotifications.usage(notification.account, notification.metric)
+
+      if AirUsageNotifications.threshold(usage, limit) == notification.threshold do
+        deliver(notification, usage, limit)
+      else
+        :ok
+      end
+    else
+      :ok
     end
   end
 
-  defp deliver(id) do
-    notification =
-      Repo.one(from(n in AirUsageNotification, where: n.id == ^id, lock: "FOR UPDATE", preload: [:account, :user]))
+  defp deliver(notification, usage, limit) do
+    case UserNotifier.deliver_air_usage_notification(notification.user, notification.account, %{
+           notification
+           | usage: usage,
+             limit: limit
+         }) do
+      {:ok, _email} ->
+        notification
+        |> Ecto.Changeset.change(
+          usage: usage,
+          limit: limit,
+          delivered_at: DateTime.truncate(DateTime.utc_now(), :second)
+        )
+        |> Repo.update!()
 
-    if notification && is_nil(notification.delivered_at) && relevant?(notification) do
-      case UserNotifier.deliver_air_usage_notification(notification.user, notification.account, notification) do
-        {:ok, _email} ->
-          notification
-          |> Ecto.Changeset.change(delivered_at: DateTime.truncate(DateTime.utc_now(), :second))
-          |> Repo.update!()
+        :ok
 
-        {:error, reason} ->
-          Repo.rollback(reason)
-      end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -46,11 +58,6 @@ defmodule Tuist.Billing.Workers.AirUsageNotificationWorker do
     Billing.effective_plan(account) == :air &&
       Accounts.owns_account_or_is_admin_to_account_organization?(notification.user, account) &&
       DateTime.compare(notification.period_start, period_start) == :eq &&
-      AirUsageNotifications.eligible?(account, notification.metric) && reached_threshold?(notification)
-  end
-
-  defp reached_threshold?(notification) do
-    {usage, limit} = AirUsageNotifications.usage(notification.account, notification.metric)
-    AirUsageNotifications.threshold(usage, limit) == notification.threshold
+      AirUsageNotifications.eligible?(account, notification.metric)
   end
 end

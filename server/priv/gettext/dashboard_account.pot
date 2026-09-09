@@ -2631,85 +2631,82 @@ msgstr ""
 msgid "The role members get when they join through automatic enrollment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:286
-#, elixir-autogen, elixir-format
-msgid "%{account_name} has reached %{threshold}% of its Air limit"
-msgstr ""
-
-#: lib/tuist/accounts/user_notifier.ex:296
+#: lib/tuist/accounts/user_notifier.ex:306
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} remote cache hits used"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:324
-#: lib/tuist/accounts/user_notifier.ex:343
+#: lib/tuist/accounts/user_notifier.ex:327
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:371
+#: lib/tuist/accounts/user_notifier.ex:398
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:322
-#: lib/tuist/accounts/user_notifier.ex:341
+#: lib/tuist/accounts/user_notifier.ex:324
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:380
+#: lib/tuist/accounts/user_notifier.ex:407
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:381
+#: lib/tuist/accounts/user_notifier.ex:408
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:325
-#: lib/tuist/accounts/user_notifier.ex:344
+#: lib/tuist/accounts/user_notifier.ex:330
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:370
+#: lib/tuist/accounts/user_notifier.ex:397
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:300
+#: lib/tuist/accounts/user_notifier.ex:318
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:281
-#, elixir-autogen, elixir-format
-msgid "%{account_name} has reached %{threshold}% of its Air runner limit"
-msgstr ""
-
-#: lib/tuist/accounts/user_notifier.ex:294
+#: lib/tuist/accounts/user_notifier.ex:304
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} baseline runner minutes used"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:351
+#: lib/tuist/accounts/user_notifier.ex:378
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:350
+#: lib/tuist/accounts/user_notifier.ex:377
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:361
+#: lib/tuist/accounts/user_notifier.ex:388
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:360
+#: lib/tuist/accounts/user_notifier.ex:387
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:296
+#, elixir-autogen, elixir-format
+msgid "%{account_name} has reached %{percentage}% of its Air limit"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:291
+#, elixir-autogen, elixir-format
+msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
 msgstr ""

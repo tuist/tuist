@@ -29,10 +29,10 @@ defmodule Tuist.Accounts.UserNotifier do
     end
   end
 
-  defp html_email(body, icon_url, title \\ "Email Confirmation") do
+  defp html_email(body, icon_url, title \\ "Email Confirmation", locale \\ "en") do
     """
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="#{locale |> String.replace("_", "-") |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -92,7 +92,7 @@ defmodule Tuist.Accounts.UserNotifier do
       <p style="font-size: 12px">
          This email was sent by Tuist. By using our services, you agree to our <a href="https://tuist.io/terms/"> terms of service</a>.
          <br/>
-         © Tuist GmbH #{Date.utc_today().year}. All rights reserved.
+         © Tuist GmbH 2024. All rights reserved.
       </p>
       </footer>
       </body>
@@ -268,24 +268,34 @@ defmodule Tuist.Accounts.UserNotifier do
   @doc """
   Builds an Air usage email for delivery or local preview.
   """
-  def air_usage_email(
-        user,
-        account,
-        %{threshold: threshold, usage: usage, limit: limit, period_start: period_start} = notification
-      ) do
+  def air_usage_email(user, account, notification) do
+    locale = Map.get(user, :preferred_locale) || "en"
+
+    Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+      build_air_usage_email(user, account, notification, locale)
+    end)
+  end
+
+  defp build_air_usage_email(
+         user,
+         account,
+         %{threshold: threshold, usage: usage, limit: limit, period_start: period_start} = notification,
+         locale
+       ) do
     runner? = Map.get(notification, :metric) == :runner_minutes
     {title, description} = air_usage_copy(runner?, threshold)
+    percentage = div(usage * 100, limit)
 
     subject =
       if runner? do
-        dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air runner limit",
+        dgettext("dashboard_account", "%{account_name} has reached %{percentage}% of its Air runner limit",
           account_name: account.name,
-          threshold: threshold
+          percentage: percentage
         )
       else
-        dgettext("dashboard_account", "%{account_name} has reached %{threshold}% of its Air limit",
+        dgettext("dashboard_account", "%{account_name} has reached %{percentage}% of its Air limit",
           account_name: account.name,
-          threshold: threshold
+          percentage: percentage
         )
       end
 
@@ -296,12 +306,28 @@ defmodule Tuist.Accounts.UserNotifier do
         dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
       end
 
-    reset_date = period_start |> Timex.shift(months: 1) |> Timex.beginning_of_month() |> Calendar.strftime("%B %-d, %Y")
+    date_format =
+      if locale in Timex.Gettext.__gettext__(:known_locales), do: "{Mfull} {D}, {YYYY}", else: "{YYYY}-{0M}-{0D}"
+
+    reset_date =
+      period_start
+      |> Timex.shift(months: 1)
+      |> Timex.beginning_of_month()
+      |> Timex.lformat!(date_format, locale)
+
     reset_label = dgettext("dashboard_account", "Your free allowance resets on %{date} (UTC).", date: reset_date)
-    billing_url = Environment.app_url(path: "/#{URI.encode_www_form(account.name)}/billing")
-    progress = min(div(usage * 100, limit), 100)
+    billing_url = Environment.app_url(path: "/#{account.name}/billing")
+    progress = min(percentage, 100)
     progress_color = if threshold == 100, do: "#D92D20", else: "#622ED4"
     account_name = account.name |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+    upgrade_label = dgettext("dashboard_account", "Review usage and upgrade")
+
+    pricing_label =
+      dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")
+
+    recipient_label =
+      dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")
 
     body =
       html_email(
@@ -311,7 +337,7 @@ defmodule Tuist.Accounts.UserNotifier do
           <h1>#{title}</h1>
           <p style="color: #555555;">#{description}</p>
           <div style="padding: 24px; margin: 28px 0; background-color: #F7F5FD; border: 1px solid #E9E3F5; border-radius: 12px;">
-            <p style="font-size: 36px; line-height: 44px; font-weight: 600; color: #{progress_color}; margin-bottom: 8px;">#{progress}%</p>
+            <p style="font-size: 36px; line-height: 44px; font-weight: 600; color: #{progress_color}; margin-bottom: 8px;">#{percentage}%</p>
             <p style="font-size: 14px; color: #333333; margin-bottom: 16px;">#{usage_label}</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="height: 8px; background-color: #E9E3F5; border-radius: 4px; overflow: hidden;">
               <tr><td width="#{progress}%" style="height: 8px; background-color: #{progress_color}; border-radius: 4px;"></td>#{if progress < 100, do: "<td></td>", else: ""}</tr>
@@ -319,14 +345,15 @@ defmodule Tuist.Accounts.UserNotifier do
             <p style="font-size: 13px; color: #666666; margin: 16px 0 0;">#{reset_label}</p>
           </div>
           <p style="padding: 8px 0;">
-            <a href="#{billing_url}" style="display: inline-block; padding: 12px 24px; background-color: #622ED4; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">#{dgettext("dashboard_account", "Review usage and upgrade")}</a>
+            <a href="#{billing_url}" style="display: inline-block; padding: 12px 24px; background-color: #622ED4; color: #FFFFFF; font-size: 16px; font-weight: 600; text-decoration: none; border-radius: 8px;">#{upgrade_label}</a>
           </p>
-          <p style="font-size: 14px; color: #555555;">#{dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")}</p>
-          <p style="font-size: 12px; line-height: 18px; color: #777777;">#{dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")}</p>
+          <p style="font-size: 14px; color: #555555;">#{pricing_label}</p>
+          <p style="font-size: 12px; line-height: 18px; color: #777777;">#{recipient_label}</p>
         </div>
         """,
         Environment.email_icon_url(),
-        title
+        title,
+        locale
       )
 
     user.email
@@ -334,14 +361,14 @@ defmodule Tuist.Accounts.UserNotifier do
     |> text_body("""
     #{title}
 
-    #{account.name}: #{usage_label} (#{progress}%).
+    #{account.name}: #{usage_label} (#{percentage}%).
     #{description}
     #{reset_label}
 
-    #{dgettext("dashboard_account", "Review usage and upgrade")}: #{billing_url}
+    #{upgrade_label}: #{billing_url}
 
-    #{dgettext("dashboard_account", "Pro includes the same free allowance, with usage-based pricing beyond it.")}
-    #{dgettext("dashboard_account", "You're receiving this email because you administer this Tuist account.")}
+    #{pricing_label}
+    #{recipient_label}
     """)
   end
 

@@ -29,6 +29,7 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
     now = DateTime.utc_now()
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
+    Repo.update_all(AirUsageNotification, set: [delivered_at: DateTime.truncate(now, :second)])
     Repo.delete_all(Oban.Job)
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     refute_enqueued(worker: AirUsageNotificationWorker)
@@ -38,6 +39,36 @@ defmodule Tuist.Billing.AirUsageNotificationsTest do
     assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
     assert Enum.sort(Enum.map(Repo.all(AirUsageNotification), & &1.threshold)) == [80, 100]
     assert length(all_enqueued(worker: AirUsageNotificationWorker)) == 1
+  end
+
+  test "requeues undelivered notifications after terminal jobs or pruning" do
+    for state <- ["completed", "cancelled", "discarded", :pruned] do
+      user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+      now = DateTime.utc_now()
+      {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
+      notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
+      jobs = from(j in Oban.Job, where: j.args == ^%{"notification_id" => notification.id})
+
+      if state == :pruned, do: Repo.delete_all(jobs), else: Repo.update_all(jobs, set: [state: state])
+
+      assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
+      assert_enqueued(worker: AirUsageNotificationWorker, args: %{notification_id: notification.id})
+      assert Repo.aggregate(from(n in AirUsageNotification, where: n.account_id == ^user.account.id), :count) == 1
+    end
+  end
+
+  test "does not enqueue a duplicate while delivery is active or awaiting retry" do
+    user = AccountsFixtures.user_fixture(current_month_remote_cache_hits_count: 160)
+    now = DateTime.utc_now()
+    {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
+    notification = Repo.get_by!(AirUsageNotification, account_id: user.account.id)
+    jobs = from(j in Oban.Job, where: j.args == ^%{"notification_id" => notification.id})
+
+    for state <- ["available", "scheduled", "executing", "retryable"] do
+      Repo.update_all(jobs, set: [state: state])
+      assert {:ok, _} = AirUsageNotifications.enqueue(user.account.id, now)
+      assert Repo.aggregate(jobs, :count) == 1
+    end
   end
 
   test "ignores nil and below-threshold usage and handles exact boundaries and overshoots" do
