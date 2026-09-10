@@ -1051,12 +1051,29 @@ held true at 304, 45 and 35 sample points for the three pods of the account
 carrying the heaviest remote-execution traffic, and was never true for any
 other pod. Perfect specificity, no tuning required.
 
-Counts in-place container restarts, so a rollout cannot trigger it: a
-replacement pod starts its counter at zero. Every restart observed on this
-fault reports `Error` with exit code 137 and never `OOMKilled`, because the
-container is killed by the kubelet after `Container kura failed liveness
-probe`, not by the cgroup out-of-memory killer. A rule keyed on `OOMKilled`
-would not have seen any of it.
+Counts in-place container restarts. A replacement pod's counter starts at
+zero, but startup failures **after replacement** can produce real restarts
+and fire this rule. The metric does not identify their cause. Match events
+by pod UID before attributing a restart to startup probes, liveness probes,
+OOM kills, or a process error.
+
+The original August fault was a runtime liveness failure (`Error`, exit 137).
+The eviction yielding, write-buffer sizing and blocking-pool fixes have since
+landed (#12553, #12587). On 2026-09-10, `kura-carousell-scw-fr-par-0` on 0.41.2
+instead exhausted its five-minute **startup** probe twice during orphan segment
+cleanup. Its last process exited 138 because preStop delivered SIGUSR1 before
+the signal handler was installed. A US replica showed the same startup fault.
+Do not use the historical write-buffer explanation as the diagnosis for every
+firing instance.
+
+New runtimes serve bootstrap health and metrics before opening the store and
+supervise cleanup by completed work, with readiness withheld until recovery
+succeeds. Check the startup recovery panels alongside write-buffer metrics.
+The live Grafana annotation is maintained separately; replace its historical
+root-cause assertion with: “This counts in-place container restarts. Inspect
+pod-UID-matched termination status and events to distinguish startup recovery,
+liveness, OOM and application failures. Check startup recovery progress and
+metadata write-buffer metrics; see the runbook for known failure signatures.”
 
 **Use the 6-hour window, not 1 hour.** The same expression over `[1h]` is
 equally specific but much less sensitive: on the same backtest it held at only
@@ -1070,6 +1087,44 @@ its peers log `membership changed: lost peers`, and when it returns every peer
 runs a catch-up backfill pass against it: passes applying 27,716 artifacts and
 545 MB were logged in the minutes after one restart. That write burst is itself
 a trigger for the next stall, so restarts cluster.
+
+### Kura startup recovery stalled
+
+```promql
+(
+  time() - kura_startup_recovery_last_progress_timestamp_seconds > 300
+  and on (cluster, pod) kura_startup_recovery_phase < 4
+  and on (cluster, pod) kura_startup_recovery_phase != 1
+)
+or
+(
+  time() - kura_startup_recovery_last_progress_timestamp_seconds > 900
+  and on (cluster, pod) kura_startup_recovery_phase == 1
+)
+```
+
+- Pending period: 0 minutes
+- Severity: warning
+- Proposed rule; it must be created in Grafana separately.
+- No Data: Normal (older binaries do not publish these metrics).
+- Summary: `Kura startup recovery stopped advancing on {{ $labels.pod }}`
+
+The timestamp advances only after an initialization phase completes or a
+cleanup page/batch finishes. It is not a scheduler heartbeat. Phase 1 is
+RocksDB opening/replay, with a separate 15-minute allowance; preparation,
+cleanup and configuration have a five-minute no-progress allowance. A long
+cleanup with advancing work is healthy even if total startup exceeds five
+minutes. A stuck cleanup must remain unready and eventually fail `/up`, so
+kubelet can recover it. The restart rule remains the durable signal after the
+process and its recovery metrics reset. Phase 4 means recovery completed;
+normal readiness may still be waiting on discovery/backfill. Phase 5 records
+startup failure before process exit; use the logs and restart alert for those
+short-lived failures. A requested SIGUSR1/SIGTERM/SIGINT shutdown during
+recovery instead logs `kura.startup.interrupted` at INFO and exits 0, retaining
+the last recovery phase rather than setting phase 5. A coincident real startup
+error still fails. Exit 0 alone does not prove a healthy rollout: preStop also
+runs for probe-triggered restarts, so correlate the shutdown with pod-UID-matched
+kubelet events to identify why termination was requested.
 
 ### Kura cache telemetry missing
 

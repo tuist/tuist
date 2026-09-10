@@ -191,7 +191,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     flop_params = %{
       filters: text_filters ++ dropdown_filters,
-      page: String.to_integer(params["tasks-page"] || "1"),
+      page: Query.bounded_page(params["tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
       order_directions: [String.to_atom(sort_order)]
@@ -227,7 +227,7 @@ defmodule TuistWeb.GradleBuildLive do
           %{field: :cacheable, op: :==, value: true},
           %{field: :outcome, op: :!=, value: "up_to_date"}
         ] ++ text_filters ++ dropdown_filters,
-      page: String.to_integer(params["cacheable-tasks-page"] || "1"),
+      page: Query.bounded_page(params["cacheable-tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
       order_directions: [String.to_atom(sort_order)]
