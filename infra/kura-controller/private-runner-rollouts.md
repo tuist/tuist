@@ -90,6 +90,30 @@ Moving the gateway's host changes DNS and requires clients to reconnect and
 re-resolve, exactly as in the public bare-metal regions. The configured fleet
 currently has one host; two process replicas do not provide host redundancy.
 
+## Resource sizing
+
+Runner caches use the same account disk sizing and plan memory/CPU profiles as
+public managed regions. New instances and cold returns start with the account's
+sized claim (or the plan default: 8Gi for Air/Pro, 16Gi for Enterprise). The
+storage-sizing worker includes runner-region occupancy and eviction telemetry
+in the existing account-wide decision, so a runner region can drive growth and
+must agree with the other measured regions before a shrink.
+
+The enrollment migration pins existing live runner rows to their historical
+50Gi claim before the new catalog runs. This prevents enrollment from silently
+shrinking warm caches. Existing claims change only through the measured sizing
+flow or an explicit account claim change. Enrollment alone will therefore not
+clear an existing disk-capacity wedge; the standard 30-day shrink confirmation
+still applies. Apply migrations before starting the updated server, and retain
+claim pins on rollback.
+
+Memory requests and limits follow the standard plan profiles. CPU requests stay
+measured by the controller; CPU limits follow the same plan profiles. The runner
+hosts do not advertise `tuist.dev/memory-ceiling-mib`, so they must not request
+that extended resource. Their memory floor remains a scheduler reservation;
+kernel MemoryQoS protection depends on the host configuration. The native disk
+reservation continues to count both replicas' full claims against the host.
+
 ## Migration order (no deployment performed by this change)
 
 1. Render and install the platform gateway, updated CRD, and controller with

@@ -535,6 +535,21 @@ defmodule Tuist.KuraTest do
       assert server.storage_claim_size == "8Gi"
     end
 
+    test "pins a new runner cache to the account's sized claim", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      assert :ok = PlacerClaims.put(account, "24Gi")
+
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 account: account,
+                 region: "scw-fr-par-runners",
+                 image_tag: "0.5.2"
+               })
+
+      assert server.storage_claim_size == "24Gi"
+    end
+
     test "ignores an account handed in under a mismatched id", %{account: account} do
       other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
       BillingFixtures.subscription_fixture(account_id: other.id, plan: :enterprise)

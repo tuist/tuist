@@ -471,7 +471,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                KubernetesController.manifest_revision() <> "+backfill"
     end
 
-    test "renders the backfill walker flag for the private runner-cache (co-located) region" do
+    test "renders runner sizing without requesting an unadvertised memory ceiling resource" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -482,16 +483,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       {:ok, region} = Regions.fetch("scw-fr-par-runners")
 
+      account = %Account{id: 1, name: "tuist"}
+      server = %Server{account: account, storage_claim_size: "50Gi"}
+
       manifest =
         KubernetesController.manifest(
           "kura-tuist-scw-fr-par-runners",
           "0.5.2",
-          %Account{id: 1, name: "tuist"},
+          account,
           region,
-          %Server{}
+          server
         )
 
-      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      spec = manifest["spec"]
+      assert spec["storageSize"] == "50Gi"
+      assert spec["memoryFloorMib"] == 1024
+      assert spec["memoryCeilingMib"] == 4096
+      assert spec["cpuCeilingMilli"] == 4000
+      refute Map.has_key?(spec, "memoryCeilingBinPacked")
+      assert spec["replicas"] == 2
+      assert spec["exposeNodePort"]
+
+      legacy_region = %{region | provisioner_config: Map.put(region.provisioner_config, :memory_governed, false)}
+      revision = KubernetesController.manifest_revision(server, region)
+      refute revision == KubernetesController.manifest_revision(server, legacy_region)
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_BACKFILL_ENABLED"] == "true"
     end
 
@@ -1963,7 +1981,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :env, fn -> :prod end)
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       region = Regions.get("scw-fr-par-runners")
-      manifest = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", account, region, %Server{})
       spec = manifest["spec"]
       assert spec["replicas"] == 2
       assert spec["private"]

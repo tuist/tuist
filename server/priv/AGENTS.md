@@ -31,3 +31,5 @@ This directory contains database migrations and other private assets.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- The runner Kura sizing enrollment migration pins live, previously unpinned `scw-fr-par-runners` rows to their historical 50Gi budget before the catalog enables measured sizing. Rollback retains those pins because later sizing may have changed them.
