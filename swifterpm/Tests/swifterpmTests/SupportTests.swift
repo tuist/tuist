@@ -20,7 +20,6 @@ struct SupportTests {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)
         #expect(Hashing.stable("abc") == expected)
-        #expect(Hashing.shortRevision("abcdef1234567890") == "abcdef123456")
     }
 
     @Test

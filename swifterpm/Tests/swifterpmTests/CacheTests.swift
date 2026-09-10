@@ -155,7 +155,7 @@ struct CacheTests {
                 checksum: "abcdef1234567890"
             ).path
 
-            #expect(sourcePath.contains("bad_identity/feature_path_with-control-abcdef12"))
+            #expect(sourcePath.contains("bad_identity/feature_path_with-control-abcdef1234567890"))
             #expect(registrySourcePath.contains("example.bad_package/1.2.3_beta-"))
             #expect(registryArchivePath.contains("-1.2.3_beta-"))
             #expect(registryArchivePath.hasSuffix("-abcdef1234567890.zip"))
@@ -164,6 +164,65 @@ struct CacheTests {
                 #expect(!path.contains("\n"))
                 #expect(!path.contains("//"))
             }
+        }
+    }
+
+    // A tag force-move between two commits that share their first 12 hex chars
+    // would otherwise map two distinct revisions to the same cache directory,
+    // and cachedSourceIsUsable would happily serve the stale Package.swift on
+    // every subsequent resolve.
+    @Test
+    func sourcePathsDoNotCollideOnMatching12CharRevisionPrefixes() async throws {
+        try await withTemporaryDirectory { root in
+            let cache = try await Cache(root: root)
+            let firstPin = ResolvedPin(
+                identity: "flow",
+                kind: "remoteSourceControl",
+                location: "https://github.com/example/flow.git",
+                state: ResolvedState(
+                    branch: nil,
+                    revision: "b6f9aac7a8d6000000000000000000000000aaaa",
+                    version: "0.2.0"
+                )
+            )
+            let secondPin = ResolvedPin(
+                identity: "flow",
+                kind: "remoteSourceControl",
+                location: "https://github.com/example/flow.git",
+                state: ResolvedState(
+                    branch: nil,
+                    revision: "b6f9aac7a8d6000000000000000000000000bbbb",
+                    version: "0.2.0"
+                )
+            )
+
+            let firstPath = try cache.sourcePath(pin: firstPin).path
+            let secondPath = try cache.sourcePath(pin: secondPin).path
+
+            #expect(firstPath != secondPath)
+            #expect(firstPath.hasSuffix("-b6f9aac7a8d6000000000000000000000000aaaa"))
+            #expect(secondPath.hasSuffix("-b6f9aac7a8d6000000000000000000000000bbbb"))
+        }
+    }
+
+    @Test
+    func archivePathsDoNotCollideOnMatching12CharRevisionPrefixes() async throws {
+        try await withTemporaryDirectory { root in
+            let cache = try await Cache(root: root)
+            let url = "https://github.com/example/flow.git"
+
+            let firstPath = cache.archivePath(
+                url: url,
+                revision: "aaaaaaaaaaaa0000000000000000000000000000"
+            ).path
+            let secondPath = cache.archivePath(
+                url: url,
+                revision: "aaaaaaaaaaaa1111111111111111111111111111"
+            ).path
+
+            #expect(firstPath != secondPath)
+            #expect(firstPath.hasSuffix("-aaaaaaaaaaaa0000000000000000000000000000.tar.gz"))
+            #expect(secondPath.hasSuffix("-aaaaaaaaaaaa1111111111111111111111111111.tar.gz"))
         }
     }
 }
