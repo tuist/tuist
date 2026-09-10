@@ -162,7 +162,11 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
               } />
             </:col>
             <:expanded_content :let={test_module}>
-              <ModuleCacheTab.subhashes_list target={test_module} project={@project} />
+              <ModuleCacheTab.subhashes_list
+                target={test_module}
+                project={@project}
+                show_test_destination
+              />
             </:expanded_content>
             <:empty_state>
               <.table_empty_state

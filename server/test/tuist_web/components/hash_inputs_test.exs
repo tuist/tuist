@@ -17,7 +17,10 @@ defmodule TuistWeb.Components.HashInputsTest do
     }
 
     render = fn destinations ->
-      render_component(&ModuleCacheTab.subhashes_list/1, target: %{target | hashed_destinations: destinations})
+      render_component(&ModuleCacheTab.subhashes_list/1,
+        target: %{target | hashed_destinations: destinations},
+        show_test_destination: true
+      )
     end
 
     broad = render.(["iPad", "iPhone", "mac", "macWithiPadDesign"])
@@ -26,6 +29,17 @@ defmodule TuistWeb.Components.HashInputsTest do
     assert narrow =~ "iPad, iPhone, macWithiPadDesign"
     refute narrow =~ "iPad, iPhone, mac, macWithiPadDesign"
     for value <- ["embedded", "foreign", "iPhone 16", "iOS-16"], do: assert(narrow =~ value)
+  end
+
+  test "only selective testing details expose the test destination" do
+    target = %XcodeTarget{test_device: "iPhone 16", test_runtime: "iOS-16"}
+    module_cache = render_component(&ModuleCacheTab.subhashes_list/1, target: target)
+    selective_testing = render_component(&ModuleCacheTab.subhashes_list/1, target: target, show_test_destination: true)
+
+    for value <- ["Test device", "Test runtime", "iPhone 16", "iOS-16"] do
+      refute module_cache =~ value
+      assert selective_testing =~ value
+    end
   end
 
   test "historical destinations are unavailable while recorded empty inputs are known" do

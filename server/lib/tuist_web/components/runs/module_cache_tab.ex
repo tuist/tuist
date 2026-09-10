@@ -293,6 +293,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
 
   attr :target, :map, required: true
   attr :project, :map, default: nil
+  attr :show_test_destination, :boolean, default: false
 
   def subhashes_list(assigns) do
     assigns = assign(assigns, :dependencies, Enum.sort(Map.get(assigns.target, :dependencies, [])))
@@ -339,7 +340,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
           {hash_input_value(Map.get(@target, :foreign_build_hash))}
         </span>
       </div>
-      <div data-part="subhash-item">
+      <div :if={@show_test_destination} data-part="subhash-item">
         <span data-part="subhash-label">
           {dgettext("dashboard_builds", "Test device")}:
         </span>
@@ -347,7 +348,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
           {hash_input_value(Map.get(@target, :test_device))}
         </span>
       </div>
-      <div data-part="subhash-item">
+      <div :if={@show_test_destination} data-part="subhash-item">
         <span data-part="subhash-label">
           {dgettext("dashboard_builds", "Test runtime")}:
         </span>
