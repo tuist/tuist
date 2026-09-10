@@ -2,8 +2,8 @@
 // cloudflare-operator. It runs in the management cluster and reconciles
 // CRDs under cloudflare.tuist.dev against the Cloudflare API so that
 // git is the source of truth for zone configuration (rate limiting
-// rules today; cache rules, WAF custom rules, AI Crawl Control, and
-// zone settings as follow-on CRDs).
+// rules, WAF custom rules, and bot management today; cache rules, AI
+// Crawl Control, and additional zone settings as follow-on CRDs).
 package main
 
 import (
@@ -109,6 +109,16 @@ func main() {
 		ResyncInterval: resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup CloudflareCustomRuleReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&controllers.CloudflareBotManagementReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		CF:             cf,
+		ResyncInterval: resyncInterval,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup CloudflareBotManagementReconciler")
 		os.Exit(1)
 	}
 
