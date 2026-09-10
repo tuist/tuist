@@ -22,6 +22,14 @@
  * Options (data attributes):
  *   data-cell, data-gap, data-radius: square size, spacing, corner radius
  *   data-cols, data-rows:             grid dimensions
+ *   data-flaky="purple":              render flaky cells purple-400 instead of
+ *                                     amber (the tests page hero, where the
+ *                                     grid is a backdrop and amber would pull
+ *                                     focus from the copy)
+ *   data-once:                        play the load → resolve story once and
+ *                                     hold the resolved frame, instead of
+ *                                     fading out and looping (and stop
+ *                                     ticking once it settles)
  */
 
 import { onThemeChange } from "../lib/theme.js";
@@ -110,6 +118,7 @@ export const TestGrid = {
     this.radius = Number(d.radius) || 2;
     this.cols = Number(d.cols) || 45;
     this.rows = Number(d.rows) || 12;
+    this.once = "once" in d;
 
     const host = this.canvas.parentElement;
     this.resolveColors = () => {
@@ -118,8 +127,13 @@ export const TestGrid = {
       this.cEmpty = resolveTokenColor(host, "--marketing-illustration-neutral-3");
       this.cSelBorder = resolveTokenColor(host, "--noora-purple-500");
       this.cSelFill = resolveFillColor(host, "--marketing-tint-purple");
-      this.cFlakyBorder = resolveTokenColor(host, "--noora-yellow-600");
-      this.cFlakyFill = resolveTokenColor(host, "--noora-yellow-500");
+      if (d.flaky === "purple") {
+        this.cFlakyBorder = resolveTokenColor(host, "--noora-purple-400");
+        this.cFlakyFill = resolveTokenColor(host, "--noora-purple-400");
+      } else {
+        this.cFlakyBorder = resolveTokenColor(host, "--noora-yellow-600");
+        this.cFlakyFill = resolveTokenColor(host, "--noora-yellow-500");
+      }
     };
     this.resolveColors();
     this.offThemeChange = onThemeChange(() => {
@@ -211,6 +225,10 @@ export const TestGrid = {
       if (now - this.lastDraw < DRAW_INTERVAL) return;
       this.lastDraw = now;
       this.render(now);
+      if (this.settled) {
+        cancelAnimationFrame(this.raf);
+        this.raf = null;
+      }
     };
     this.raf = requestAnimationFrame(tick);
   },
@@ -266,6 +284,13 @@ export const TestGrid = {
     if (this.forcedCt != null) return this.forcedCt;
     if (this.revealStart == null) return 0;
     const elapsed = now - this.revealStart;
+    // One-shot mode: freeze the clock just before the fade would begin, so
+    // the resolved colours hold forever. The frame is static from there on
+    // (shimmer and reveal are both saturated), so the tick loop can stop.
+    if (this.once) {
+      if (elapsed >= FADE_AT) this.settled = true;
+      return Math.min(elapsed, FADE_AT - 1);
+    }
     const index = Math.floor(elapsed / CYCLE_MS);
     if (index !== this.cycleIndex) {
       this.cycleIndex = index;
