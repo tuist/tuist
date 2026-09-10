@@ -162,6 +162,37 @@ defmodule Tuist.Oban.RuntimeConfig do
   """
   def met_auto_start?(mode), do: peer_eligible?(mode)
 
+  @doc """
+  The `Oban.Notifier` implementation to use for a pod mode.
+
+  The default `Oban.Notifiers.Postgres` keeps a persistent
+  `LISTEN`/`NOTIFY` connection open for cross-node signalling. On
+  `:swift_registry_sync` pods that connection has been observed to drop
+  into `connectivity_status=solitary` after multi-hour uptime, and the
+  producer supervisor does not always recover — jobs accumulate in the
+  `available` state until the pod is restarted. Those pods also do not
+  need cross-node notifications: peer election is already off
+  (`peer_eligible?(:swift_registry_sync) == false`), the web tier's
+  leader-only cron inserts jobs directly into `oban_jobs`, and every
+  consumer polls the same shared database.
+
+  `Oban.Notifiers.Isolated` skips the `LISTEN` connection entirely, so
+  there is no long-lived socket that can silently die and the stager
+  runs its poll loop unconditionally. Every other mode keeps the
+  Postgres notifier so `web` still receives NOTIFY-driven signals and
+  Oban Web / cross-node controls continue to work.
+
+  This is a defensive change: it does not by itself explain why a fresh
+  `swift_registry_sync` pod recovers when a stale one does not (a fresh
+  pod on the Postgres notifier also consumes jobs), and it is not a
+  substitute for the self-healing supervisor that ships alongside it in
+  `Tuist.Registry.Swift.QueueHealthCheck`. It reduces one confirmed
+  failure surface — the silent `LISTEN` drop — without touching the
+  tiers that have been running the Postgres notifier happily.
+  """
+  def oban_notifier(:swift_registry_sync), do: Oban.Notifiers.Isolated
+  def oban_notifier(_), do: Oban.Notifiers.Postgres
+
   # The archival sweep's cadence tracks the inactive window rather than being
   # fixed: a daily sweep against a one-day window would leave an instance
   # eligible for up to another day before anything looked at it. See

@@ -781,6 +781,13 @@ if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 
+# `swift_registry_sync` pods run `Oban.Notifiers.Isolated` instead of
+# the default Postgres notifier. See
+# `Tuist.Oban.RuntimeConfig.oban_notifier/1` for the reasoning; the
+# rule is a pure function so it is unit-tested alongside every other
+# mode-dispatch rule in `runtime_config.ex`.
+config :tuist, Oban, notifier: RuntimeConfig.oban_notifier(mode)
+
 # Oban stamps this onto `oban_jobs.attempted_by`, which is what makes per-Pod
 # throughput answerable: given the Pod a failure came from, the jobs it
 # completed over the same window say whether it was wedged or working.
