@@ -308,6 +308,22 @@ clickhouse:
     # Rollback: turn it off. Nothing has read from that server.
     shadowWrites:
       enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
