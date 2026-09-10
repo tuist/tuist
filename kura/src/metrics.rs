@@ -313,6 +313,7 @@ struct HotReadMetrics {
 struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
+    reapi_damped_writes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
 }
@@ -890,6 +891,10 @@ impl Metrics {
         let hot_write = Arc::new(HotWriteMetrics {
             reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_write_bytes: artifact_write_bytes.get_or_create_owned(&reapi_ok_labels),
+            reapi_damped_writes: artifact_writes.get_or_create_owned(&ArtifactOpLabels {
+                producer: "reapi".to_owned(),
+                result: "damped".to_owned(),
+            }),
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
@@ -2254,13 +2259,26 @@ impl Metrics {
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
-        if producer == ArtifactProducer::Reapi && result == "ok" {
-            self.hot_write.reapi_ok_writes.inc();
-            if bytes > 0 {
-                self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
-                self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+        if producer == ArtifactProducer::Reapi {
+            match result {
+                "ok" => {
+                    self.hot_write.reapi_ok_writes.inc();
+                    if bytes > 0 {
+                        self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
+                        self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+                    }
+                    return;
+                }
+                // A damped action-cache refresh shares the hot path of the
+                // write it declines to perform, so it gets the same pre-created
+                // counter rather than the label-allocating Family lookup. It
+                // stores nothing, so it carries no bytes and observes no size.
+                "damped" => {
+                    self.hot_write.reapi_damped_writes.inc();
+                    return;
+                }
+                _ => {}
             }
-            return;
         }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
@@ -3905,6 +3923,38 @@ mod tests {
         assert_eq!(
             std::mem::size_of::<Metrics>(),
             std::mem::size_of::<Arc<MetricsInner>>()
+        );
+    }
+
+    // A damped REAPI action-cache refresh shares the write path's cardinality
+    // and its request rate, so it gets a pre-created counter like the applied
+    // write rather than the label-allocating Family lookup, and it never
+    // reaches write_bytes or the size histogram.
+    #[test]
+    fn damped_reapi_writes_use_a_registered_counter_without_bytes() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"damped\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_bytes_total") && line.contains("damped")
+            }),
+            "a damped refresh stored nothing, so it books no throughput"
+        );
+        assert!(
+            rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_size_bytes_count")
+                    && line.contains("producer=\"reapi\"")
+                    && line.ends_with(" 0")
+            }),
+            "a damped refresh must not land in the stored-size distribution"
         );
     }
 
