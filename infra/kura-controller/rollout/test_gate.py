@@ -30,6 +30,8 @@ class PublicationGateTest(unittest.TestCase):
             self.assertTrue(gate.needs_preparation(config))
         with patch.object(gate, "kube", return_value=self.server):
             self.assertFalse(gate.needs_preparation(config))
+        with patch.object(gate, "kube", return_value=None):
+            self.assertTrue(gate.needs_preparation(config))
         with patch.object(gate, "kube", side_effect=RuntimeError("unavailable")):
             with self.assertRaises(RuntimeError):
                 gate.needs_preparation(config)
@@ -83,9 +85,9 @@ class PublicationGateTest(unittest.TestCase):
                 "external-dns.alpha.kubernetes.io/controller": "kura-controller"}},
                 "spec": {"rules": [{"host": host}]}} for name in ("kura-acme", "kura-acme-grpc")]},
             "statefulsets": {"items": [workload]},
-            "dnsendpoint": {"spec": {"endpoints": [{"dnsName": "*." + domain,
+            "dnsendpoints": {"items": [{"metadata": {"name": "kura-regional-eu-west-dns"}, "spec": {"endpoints": [{"dnsName": "*." + domain,
                 "recordType": "A", "targets": ["203.0.113.1", "203.0.113.2"]}, {
-                "dnsName": "*.peer." + domain, "recordType": "A", "targets": ["203.0.113.3"]}]}},
+                "dnsName": "*.peer." + domain, "recordType": "A", "targets": ["203.0.113.3"]}]}}]},
             "secret": {},
         }
         with patch.object(gate, "kube", side_effect=lambda ns, kind, name=None: resources[kind]), \
@@ -100,6 +102,11 @@ class PublicationGateTest(unittest.TestCase):
             workload["status"]["currentRevision"] = "new"
             peer.side_effect = OSError("peer still serves old certificate")
             with self.assertRaisesRegex(OSError, "old certificate"):
+                gate.check(config)
+            peer.side_effect = None
+            resources["dnsendpoints"]["items"].append({"metadata": {"name": "kura-acme-public-dns"},
+                "spec": {"endpoints": [{"dnsName": host, "recordType": "A", "targets": ["203.0.113.1"]}]}})
+            with self.assertRaisesRegex(RuntimeError, "individual regional DNS"):
                 gate.check(config)
 
 

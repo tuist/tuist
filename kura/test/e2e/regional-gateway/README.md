@@ -3,6 +3,14 @@
 See [the longer paired comparison](SUSTAINED_RESULTS.md) and
 [the original short-burst results](RESULTS.md).
 
+For a deployed staging ingress, the same client supports `-ca ''` to use system
+trust, `-token-file` to read a scoped credential from a private file, and
+`-account` to exercise account-scoped HTTP requests through the Gradle cache API.
+The fixture project is `bench` for both HTTP and gRPC. Capture stdout even when
+the client exits nonzero: its JSON contains the request errors. These checks
+measure the complete external path and must not be interpreted as the cost of
+the internal gateway hop.
+
 Compare a TLS gateway on the Kura backend's node with an identical gateway on
 another node. Both paths terminate TLS once and use the same production HTTP/2
 window settings. The load generator runs on a third node; `kubectl exec` starts

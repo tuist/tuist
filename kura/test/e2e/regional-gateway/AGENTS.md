@@ -12,6 +12,9 @@ See `README.md` for the placement controls, cleanup procedure, and limits.
 - The client can also verify a deployed staging ingress with `-ca ''` (system
   trust) and `-token-file` containing a scoped temporary cache credential. Keep
   tokens out of command-line arguments, output and committed artifacts.
+  Use `-account` for account-scoped HTTP requests through the Gradle cache API;
+  HTTP and gRPC fixtures both use the `bench` project. These external checks
+  validate serving behavior; their latency is not a gateway-hop benchmark.
 - Do not interpret cloud-worker overlay measurements as dedicated private-network
   capacity or extrapolate small-concurrency proxy memory to fleet-wide load.
 - Keep failed preliminary runs distinct from completed measurement sets.

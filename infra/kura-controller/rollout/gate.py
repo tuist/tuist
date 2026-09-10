@@ -14,15 +14,19 @@ import tempfile
 import time
 
 
-def kube(namespace, kind, name=None):
+def kube(namespace, kind, name=None, allow_missing=False):
     args = ["kubectl", "--request-timeout=15s", "-n", namespace, "get", kind]
     if os.environ.get("KURA_ROLLOUT_CONTEXT"):
         args += ["--context", os.environ["KURA_ROLLOUT_CONTEXT"]]
     if name:
         args.append(name)
+    if allow_missing:
+        args.append("--ignore-not-found")
     result = subprocess.run(args + ["-o", "json"], capture_output=True, text=True, timeout=20)
     if result.returncode:
         raise RuntimeError(f"cannot read {namespace}/{kind}/{name or '*'}")
+    if allow_missing and not result.stdout.strip():
+        return None
     return json.loads(result.stdout)
 
 
@@ -56,7 +60,8 @@ def plan(resources, namespace=None):
 def needs_preparation(config):
     if not config:
         return False
-    live = published_domains(kube(config["serverNamespace"], "deployment", config["serverName"]))
+    deployment = kube(config["serverNamespace"], "deployment", config["serverName"], allow_missing=True)
+    live = published_domains(deployment) if deployment else {}
     return any(live.get(r["region"]) != r["domain"] for r in config["regions"])
 
 
@@ -114,12 +119,16 @@ def check(config):
     instances = kube(namespace, "kurainstances")["items"]
     ingresses = {i["metadata"]["name"]: i for i in kube(namespace, "ingresses")["items"]}
     workloads = {s["metadata"]["name"]: s for s in kube(namespace, "statefulsets")["items"]}
+    endpoints = {e["metadata"]["name"]: e for e in kube(namespace, "dnsendpoints")["items"]}
+    regional_names = {f"kura-regional-{r['region']}-dns" for r in config["regions"]}
+    individual_hosts = {record["dnsName"] for name, endpoint in endpoints.items() if name not in regional_names
+                        for record in endpoint.get("spec", {}).get("endpoints", [])}
     tasks = []
     for region in config["regions"]:
         domain = region["domain"]
         if "*." + domain not in certificate["spec"]["dnsNames"]:
             raise RuntimeError(f"certificate does not include {domain}")
-        endpoint = kube(namespace, "dnsendpoint", f"kura-regional-{region['region']}-dns")
+        endpoint = endpoints.get(f"kura-regional-{region['region']}-dns", {})
         public = targets(endpoint, "*." + domain)
         peers = targets(endpoint, "*.peer." + domain)
         verify_dns("regional-rollout-probe." + domain, public)
@@ -141,6 +150,9 @@ def check(config):
                     status.get("currentRevision") != status["updateRevision"]):
                 raise RuntimeError(f"peer certificate rollout incomplete for {name}")
             host = spec["accountHandle"] + "." + domain
+            peer_host = spec["accountHandle"] + ".peer." + domain
+            if host in individual_hosts or peer_host in individual_hosts:
+                raise RuntimeError(f"individual regional DNS records still exist for {name}")
             for ingress_name in (name, name + "-grpc"):
                 ingress = ingresses.get(ingress_name, {})
                 if host not in [r["host"] for r in ingress.get("spec", {}).get("rules", [])]:
@@ -151,7 +163,6 @@ def check(config):
             for address in public:
                 tasks.append((https_probe, (host, address)))
             if spec.get("meshPublicPeerHost"):
-                peer_host = spec["accountHandle"] + ".peer." + domain
                 verify_dns(peer_host, peers)
                 secret = kube(namespace, "secret", spec.get("peerTLSSecretName") or name + "-peer-tls")
                 tasks.append((peer_probe, (peer_host, peers, secret)))

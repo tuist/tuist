@@ -87,10 +87,19 @@ server has not published that map, the workflow first upgrades the same release
 with publication disabled. It then verifies the current-generation shared
 Certificate is Ready, DNS matches the controller's desired address sets, every
 public account has both ingress aliases with individual DNS publication disabled,
-each public address serves the new hostname over verified TLS, and peer endpoints
+canonical account names have no individual DNSEndpoint records, each public
+address serves the new hostname over verified TLS, and peer endpoints
 serve the new SNI name with account-scoped mutual TLS. Only then does the final
 upgrade publish the new URLs. The normal canary → acceptance → production
 pipeline applies this gate independently to each environment.
+
+The peer probe reads an authenticated internal status response: a successful
+TLS 1.3 client handshake alone can precede rejection of the client certificate.
+All replicas must also have reached the current StatefulSet revision before
+publication, including a standby that is not currently selected by the peer
+Service. A missing server Deployment on a fresh installation starts preparation;
+other API failures stop the deployment. Preparation retains the regular
+sixty-minute Helm budget because it also runs the release's migration hooks.
 
 The gate fails closed on API errors, stale certificates, DNS disagreement or
 serving-path failures. Its ten-minute timeout does not override an ACME rate

@@ -688,7 +688,7 @@ jobs:
     # stuck deploy fails via helm's own clean path, not this ceiling.
     # Regional publication may first need a preparation upgrade and DNS/TLS
     # convergence. Keep room for that phase before the normal release budget.
-    timeout-minutes: 120
+    timeout-minutes: 170
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -972,15 +972,15 @@ jobs:
         # `--timeout 60m` is generous on purpose: a complex migration
         # (the pre-upgrade hook runs inside this budget) plus the
         # `--wait` rollout can genuinely take a while, and undershooting
-        # would kill a legitimately-slow deploy mid-migration. The 110m
-        # step budget also covers preparation (20m), readiness (10m), and the
+        # would kill a legitimately-slow deploy mid-migration. The 160m
+        # step budget also covers preparation (60m), readiness (10m), and the
         # in-process `--atomic` rollback. The job's `timeout-minutes`
         # ceiling sits above this (helm < step < job): that ordering is
         # what makes a stuck deploy hit helm's own timeout first (clean
         # rollback + failure diagnostics) instead of the job ceiling
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
-        timeout-minutes: 110
+        timeout-minutes: 160
         run: |
           set -euo pipefail
 
@@ -1309,7 +1309,7 @@ jobs:
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" \
               --set kuraController.regionalRouting.publishEndpoints=false \
-              --atomic --timeout 20m --wait
+              --atomic --timeout 60m --wait
           fi
           python3 infra/kura-controller/rollout/gate.py wait "$regional_plan" --timeout 600
 
