@@ -443,6 +443,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/tests.html.heex:49
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:311
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:58
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "Features"
 msgstr ""
@@ -514,6 +515,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:98
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:350
 #: lib/tuist_web/marketing/live/marketing_customers_live/new/customers.html.heex:103
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr ""
@@ -823,9 +825,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:598
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:132
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:142
-#: lib/tuist_web/marketing/live/marketing_previews_live.ex:37
-#: lib/tuist_web/marketing/live/marketing_previews_live.ex:42
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:49
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:54
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -1081,6 +1083,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1017
 #: lib/tuist_web/marketing/controllers/marketing_html/new/tests.html.heex:362
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:348
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "Supercharge your app development"
 msgstr ""
@@ -1126,6 +1129,7 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:356
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:35
 #: lib/tuist_web/marketing/live/marketing_customers_live/new/customers.html.heex:109
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:643
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
 msgstr ""
@@ -1893,13 +1897,13 @@ msgstr ""
 msgid "Change-based test selection"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:123
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:129
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:123
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:129
 #, elixir-autogen, elixir-format
 msgid "Click to run, no CLI needed"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:131
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
 msgstr ""
@@ -1925,7 +1929,8 @@ msgstr ""
 msgid "Faster CI feedback."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:91
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:9
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
 msgstr ""
@@ -1935,7 +1940,7 @@ msgstr ""
 msgid "Generate, build, and analyze — all automated"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:13
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Get feedback faster."
 msgstr ""
@@ -1976,8 +1981,9 @@ msgstr ""
 msgid "Let AI pinpoint the bottleneck"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:102
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:108
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:16
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:102
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Make code review hands-on"
 msgstr ""
@@ -2009,18 +2015,18 @@ msgstr ""
 msgid "Optimize your cache usage"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:142
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:149
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:142
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Organize builds for every audience"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:40
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Previews dashboard illustration"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.ex:30
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Previews · Tuist"
 msgstr ""
@@ -2035,7 +2041,8 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:52
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:29
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:362
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Read docs"
@@ -2051,7 +2058,7 @@ msgstr ""
 msgid "Reduce build times."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:152
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Route previews into custom-named tracks, so stakeholders always know exactly where to find the right build."
 msgstr ""
@@ -2092,7 +2099,7 @@ msgstr ""
 msgid "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:12
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:12
 #, elixir-autogen, elixir-format
 msgid "Share app previews instantly."
 msgstr ""
@@ -2127,7 +2134,7 @@ msgstr ""
 msgid "Tracks build durations at the module and file level across both local and CI environments."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:110
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
 msgstr ""
@@ -2137,8 +2144,8 @@ msgstr ""
 msgid "Tuist's MCP server and API expose your dependency graph and build data to AI coding agents"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:83
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:89
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:83
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "URL-centric collaboration"
 msgstr ""
@@ -2190,7 +2197,7 @@ msgstr ""
 msgid "Run only the tests that matter"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:163
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Share your app instantly with a link"
 msgstr ""
@@ -2295,8 +2302,8 @@ msgid "Run only the tests that matter by detecting changes since your last succe
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:365
-#: lib/tuist_web/marketing/live/marketing_previews_live.ex:23
-#: lib/tuist_web/marketing/live/marketing_previews_live.html.heex:17
+#: lib/tuist_web/marketing/live/marketing_previews_live.ex:35
+#: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
 msgstr ""
@@ -2755,6 +2762,7 @@ msgid "Share build artifacts across your team and CI, so no one waits on code th
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:600
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Share your app instantly via URL. No delays, just click and run on any device."
 msgstr ""
@@ -2881,6 +2889,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/tests.html.heex:361
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:93
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:347
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:634
 #, elixir-autogen, elixir-format
 msgid "What are you waiting for?"
 msgstr ""
@@ -3622,4 +3631,59 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/download.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "on simulators and real devices directly from your Mac."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "A preview for every version"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Every change, ready to try"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:468
+#, elixir-autogen, elixir-format
+msgid "Everything you need to share what you build"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:349
+#, elixir-autogen, elixir-format
+msgid "Explore the %{companion_apps} for macOS and iOS."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Group previews by branch, release, or team so stakeholders always find the build meant for them."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Keep everyone on the latest build"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Notify testers when a newer Preview is available, keeping everyone on the latest version for their track."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Share a build, not a setup"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Tuist automatically posts Preview links to pull requests, so reviewers can try changes instead of relying on code or images."
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Tuist companion apps"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_previews_live/new/previews.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Turn app builds into runnable previews for review, testing, and feedback before they ship."
 msgstr ""
