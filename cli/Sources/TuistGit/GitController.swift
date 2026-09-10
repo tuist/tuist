@@ -334,11 +334,7 @@ public struct GitController: GitControlling {
     }
 
     private func capture(command: String...) async throws -> String {
-        if environment.isVerbose {
-            return try await commandRunner.capture(arguments: command, environment: hardenedEnvironment())
-        } else {
-            return try await commandRunner.capture(arguments: command, environment: hardenedEnvironment())
-        }
+        try await commandRunner.capture(arguments: command, environment: hardenedEnvironment())
     }
 
     /// Environment overrides that keep every spawned `git` invocation
@@ -350,14 +346,17 @@ public struct GitController: GitControlling {
     /// multi-hour hang.
     ///
     /// `GIT_TERMINAL_PROMPT=0` disables the terminal prompt path.
-    /// `GIT_ASKPASS=/bin/false` forces any askpass helper to fail
-    /// immediately. `GIT_CONFIG_COUNT=1` plus the `KEY_0`/`VALUE_0`
+    /// `GIT_ASKPASS=/usr/bin/false` forces any askpass helper to fail
+    /// immediately (`/usr/bin/false` exists on both macOS and Linux, while
+    /// `/bin/false` is not guaranteed on macOS and would print a spurious
+    /// `fatal: cannot exec` line into stderr before the disabled-prompt
+    /// path took over). `GIT_CONFIG_COUNT=1` plus the `KEY_0`/`VALUE_0`
     /// pair overrides `log.showSignature` for the lifetime of the
     /// subprocess, which keeps `git log` from invoking `gpg`
     /// regardless of the repository's configuration.
     private static let hardenedEnvironmentOverrides: [String: String] = [
         "GIT_TERMINAL_PROMPT": "0",
-        "GIT_ASKPASS": "/bin/false",
+        "GIT_ASKPASS": "/usr/bin/false",
         "GIT_CONFIG_COUNT": "1",
         "GIT_CONFIG_KEY_0": "log.showSignature",
         "GIT_CONFIG_VALUE_0": "false",

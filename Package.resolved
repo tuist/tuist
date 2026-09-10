@@ -1,11 +1,10 @@
 {
-  "originHash" : "2835b9caf3e1fc9916c581b951c0380a9b2b4ae81413d57a485f888fbc22fa7a",
+  "originHash" : "6c53b25a03815d32d861b89b333d189ebee35899778f0d8b4f7e3d28542a1ae7",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/1024jp/GzipSwift",
       "state" : {
         "version" : "5.2.0"
       }
@@ -68,7 +67,6 @@
       "identity" : "apple.swift-collections",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-collections",
       "state" : {
         "version" : "1.2.1"
       }
@@ -95,7 +93,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types",
+      "originalLocation" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "version" : "1.8.0"
       }
@@ -104,7 +102,6 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
       "state" : {
         "version" : "1.13.2"
       }
@@ -113,7 +110,7 @@
       "identity" : "apple.swift-nio",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-nio.git",
+      "originalLocation" : "https://github.com/apple/swift-nio",
       "state" : {
         "version" : "2.102.0"
       }
@@ -176,7 +173,6 @@
       "identity" : "apple.swift-openapi-urlsession",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-openapi-urlsession",
       "state" : {
         "version" : "1.3.1"
       }
@@ -285,7 +281,6 @@
       "identity" : "grpc.grpc-swift-2",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/grpc/grpc-swift-2.git",
       "state" : {
         "version" : "2.4.3"
       }
@@ -344,7 +339,6 @@
       "identity" : "kolos65.Mockable",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/Kolos65/Mockable",
       "state" : {
         "version" : "0.6.4"
       }
@@ -353,7 +347,6 @@
       "identity" : "krzysztofzablocki.Difference",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/krzysztofzablocki/Difference.git",
       "state" : {
         "version" : "1.1.0"
       }
@@ -450,7 +443,6 @@
       "identity" : "p-x9.MachOKit",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/p-x9/MachOKit",
       "state" : {
         "version" : "0.52.2"
       }
@@ -504,7 +496,6 @@
       "identity" : "pointfreeco.swift-snapshot-testing",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/pointfreeco/swift-snapshot-testing",
       "state" : {
         "version" : "1.19.4"
       }
@@ -548,7 +539,6 @@
       "identity" : "stencilproject.Stencil",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/stencilproject/Stencil.git",
       "state" : {
         "version" : "0.15.1"
       }
@@ -574,7 +564,6 @@
       "identity" : "swiftGen.StencilSwiftKit",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/SwiftGen/StencilSwiftKit.git",
       "state" : {
         "version" : "2.10.1"
       }
@@ -616,7 +605,7 @@
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "version" : "603.0.2"
       }
@@ -693,7 +682,6 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/path",
       "state" : {
         "version" : "0.3.8"
       }
@@ -728,7 +716,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
-        "version" : "0.9.21"
+        "version" : "0.9.22"
       }
     }
   ],
