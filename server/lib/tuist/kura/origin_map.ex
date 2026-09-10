@@ -121,8 +121,10 @@ defmodule Tuist.Kura.OriginMap do
                        {"US", :us_east},
                        {"CA", :canada_east},
                        # Nuuk is 3301km from Vint Hill and Saint-Pierre 1964,
-                       # both nearer Beauharnois still, so they take the
-                       # Canadian preference rather than a European one.
+                       # both nearer Beauharnois still. ca-east is in the
+                       # catalog and not served, so these resolve to us-east
+                       # today exactly as CA does, and follow Montreal rather
+                       # than Virginia if it ever is.
                        {"GL", :canada_east},
                        {"PM", :canada_east},
                        # Midway, Wake and Johnston. Navassa is Caribbean rather
