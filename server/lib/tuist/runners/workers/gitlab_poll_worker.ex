@@ -3,7 +3,7 @@ defmodule Tuist.Runners.Workers.GitLabPollWorker do
   use Oban.Worker,
     queue: :default,
     max_attempts: 1,
-    unique: [period: :infinity, keys: [:connection_id], states: [:available, :scheduled, :executing]]
+    unique: [period: 120, keys: [:connection_id], states: [:available, :scheduled, :executing]]
 
   alias Tuist.Runners.GitLab
 

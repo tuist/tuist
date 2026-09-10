@@ -16,6 +16,8 @@ assignment upstream if persistence fails.
 - Queue at most five waiting assignments per connection, refresh their status,
   and fail them after ten minutes without a machine. A stopped machine fails
   through GitLab with `runner_system_failure`; never replay its job response.
+- Poll-worker uniqueness expires after two minutes so a server restart does
+  not block a connection until the global Oban rescue interval elapses.
 - Clear execution payloads on completion and after twelve hours. Retain only
   identity metadata for dashboard links and history. UI queries omit payloads.
 - Shared account cache volumes/signing grants are withheld until GitLab job
