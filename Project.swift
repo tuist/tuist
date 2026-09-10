@@ -180,16 +180,19 @@ func schemes() -> [Scheme] {
             ],
             runPostActionsOnFailure: true
         ),
-        // Serial, matching the dedicated TuistCacheEEAcceptanceTests scheme this replaced. Every
-        // acceptance case shells out to its own xcodebuild, so parallel execution fans compilers
-        // out well past the runner's six cores; tuist/tuist#12512 measured 78 concurrent
-        // swift-frontend processes starving tests into their time limits.
-        // -maximum-parallel-testing-workers does not help here: it bounds xctest worker processes,
-        // which are handed out per target, while the fan-out that matters is Swift Testing running
-        // cases in parallel inside one. Going wider needs a bigger host, not a higher cap.
+        // xcodebuild hands out one xctest worker per target, and Swift Testing parallelises the
+        // suites and cases inside each. Two targets therefore run at two workers, which is the
+        // ceiling TuistAcceptanceTests already runs at on the same fleet after the worker cap in
+        // cli.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
+        // oversubscription that cap exists to prevent, but it measured the whole 207-test suite at
+        // 16x concurrency; this plan is 14 tests and does not add a worker beyond that ceiling.
         testAction: .targets(
-            [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName))]
-                + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : []),
+            [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
+                + (
+                    Module.includeEE()
+                        ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"), parallelization: .enabled)]
+                        : []
+                ),
             postActions: [
                 inspectTestPostAction(target: TargetReference(stringLiteral: Module.serverAcceptanceTestsTargetName)),
             ],

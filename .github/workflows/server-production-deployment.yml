@@ -2178,11 +2178,16 @@ jobs:
       # TuistServerAcceptanceTests, which covers build ingestion. Ingestion had
       # no coverage here at all, which is how a change that killed 100% of it
       # promoted to production green on 2026-09-09.
+      #
+      # The worker cap matches cli.yml. It is not load-bearing while the plan
+      # holds two targets, since xcodebuild hands out one worker per target, but
+      # it keeps the ceiling where it is if a third target is ever added here.
       - name: Test
         env:
           TUIST_EE: 1
         run: |
           tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
+            -maximum-parallel-testing-workers 2 \
             -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
