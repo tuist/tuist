@@ -191,7 +191,7 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
-                  <.run_ran_by_badge_cell run={@invocation} />
+                  <.run_ran_by_badge_cell run={@invocation} ran_by_name={@invocation.account_handle} />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">
