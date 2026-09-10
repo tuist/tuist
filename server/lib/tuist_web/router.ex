@@ -74,6 +74,21 @@ defmodule TuistWeb.Router do
     ]
   end
 
+  # Preview pages can be embedded in iframes on other sites (a pull request
+  # description, a wiki, a design tool). Framing is governed by the content
+  # security policy's frame-ancestors, which :browser_app sets to 'self'; this
+  # pipeline re-issues the policy with it open, so it has to run after
+  # :browser_app. Session cookies are SameSite=Lax, so an embedded page renders
+  # signed out: only previews the visitor could open anyway show, and nothing
+  # in the frame acts with the visitor's session.
+  pipeline :embeddable do
+    plug :allow_embedding
+  end
+
+  def allow_embedding(conn, _opts) do
+    put_content_security_policy(conn, Keyword.put(csp_opts(conn), :frame_ancestors, "*"))
+  end
+
   pipeline :browser_app do
     plug :put_request_kind, "page_load"
     plug :accepts, ["html"]
@@ -1128,7 +1143,8 @@ defmodule TuistWeb.Router do
       :browser_app,
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
-      :analytics
+      :analytics,
+      :embeddable
     ]
 
     get "/download", PreviewController, :download_preview
