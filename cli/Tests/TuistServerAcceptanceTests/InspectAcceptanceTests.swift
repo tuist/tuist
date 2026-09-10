@@ -8,6 +8,7 @@ import TuistAcceptanceTesting
 import TuistCore
 import TuistLoggerTesting
 import TuistNooraTesting
+import TuistServer
 import TuistSupport
 import TuistTesting
 
@@ -41,6 +42,7 @@ struct InspectAcceptanceTests {
 
         // Then
         #expect(ui().contains("Build uploaded for processing"))
+        try await expectBuildIngested()
     }
 
     @Test(
@@ -90,6 +92,50 @@ struct InspectAcceptanceTests {
 
         // Then
         #expect(ui().contains("Build uploaded for processing"))
+    }
+
+    /// Waits for the server to finish ingesting the uploaded build.
+    ///
+    /// The upload returns as soon as the archive lands in object storage, and the activity log is
+    /// parsed and written afterwards on the processor fleet, so the command's success says nothing
+    /// about whether anything was ingested. A build only has targets once that parse completed.
+    ///
+    /// Until then the build is not queryable at all, so an error is one more "not yet" and only the
+    /// deadline fails the test. The last one is reported, so a poll that never had a chance of
+    /// succeeding does not read as a slow ingestion.
+    private func expectBuildIngested(
+        timeout: Duration = .seconds(240),
+        pollInterval: Duration = .seconds(5)
+    ) async throws {
+        let fullHandle = try #require(TuistTest.fixtureFullHandle)
+        let serverURL = try #require(TuistTest.fixtureServerURL)
+        let buildRunURL = try #require(await RunMetadataStorage.current.buildRunURL)
+        let buildId = buildRunURL.lastPathComponent
+        let listBuildTargetsService = ListBuildTargetsService()
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        var lastError: Error?
+
+        while ContinuousClock.now < deadline {
+            do {
+                let page = try await listBuildTargetsService.listBuildTargets(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    buildId: buildId,
+                    status: nil,
+                    page: nil,
+                    pageSize: 1
+                )
+                if !page.targets.isEmpty { return }
+                lastError = nil
+            } catch {
+                lastError = error
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+
+        Issue.record(
+            "Build \(buildId) was uploaded to \(serverURL.absoluteString) but \(fullHandle) reported no ingested targets within \(timeout). The upload path works and the processing path does not. Last error: \(lastError.map(String.init(describing:)) ?? "none")"
+        )
     }
 
     private func xcodeBuildArguments(
@@ -185,51 +231,5 @@ struct InspectAcceptanceTests {
         #expect(ui().contains("""
         ✔︎ Bundle analyzed
         """) == true)
-    }
-}
-
-struct LintAcceptanceTests {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_headers"), .withMockedDependencies())
-    func ios_app_with_headers() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InspectImplicitImportsCommand.self, ["--path", fixtureDirectory.pathString])
-        TuistTest.expectLogs(
-            "We did not find any dependency issues in your project (checked: implicit).",
-            at: .info,
-            <=
-        )
-    }
-
-    @Test(.disabled(), .withFixture("generated_ios_app_with_implicit_dependencies"), .withMockedDependencies())
-    func ios_app_with_implicit_dependencies() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let appDependencies: Set<String> = [
-            "ClassModule",
-            "EnumModule",
-            "FuncModule",
-            "LetModule",
-            "ProtocolModule",
-            "StructModule",
-            "TypeAliasModule",
-            "VarModule",
-        ]
-        await #expect(throws: InspectImportsServiceError.issuesFound(implicit: [
-            .init(target: "App", dependencies: appDependencies),
-            .init(target: "FrameworkA", dependencies: ["FrameworkB"]),
-        ])) {
-            try await TuistTest.run(InspectImplicitImportsCommand.self, ["--path", fixtureDirectory.pathString])
-        }
-    }
-
-    @Test(.disabled(), .withFixture("generated_framework_with_macros_and_tests"), .withMockedDependencies())
-    func framework_with_macros_redundant_imports() async throws {
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(InspectRedundantImportsCommand.self, ["--path", fixtureDirectory.pathString])
-        TuistTest.expectLogs(
-            "We did not find any dependency issues in your project (checked: redundant).",
-            at: .info,
-            <=
-        )
     }
 }
