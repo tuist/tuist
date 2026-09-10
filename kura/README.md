@@ -473,6 +473,12 @@ It also exposes analytics-specific runtime metrics for:
 
 ## Usage Metering
 
+Usage delivery, mesh heartbeats, and managed peer-view synchronization share a
+3-second connection budget (including DNS resolution) and a 5-second total
+request deadline. This leaves remote regions time to resolve Kubernetes service
+names before connecting. Managed nodes still wait for their first successful
+peer-view fetch before serving.
+
 When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL_PLANE_CLIENT_SECRET` are set, Kura records first-party usage rollups for public cache traffic and pushes them to:
 
 ```text

@@ -17,6 +17,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Use the FIFO admission turn and dedicated pressure-tier signal; preserve cancellation cleanup through blocking record writes and expose queue outcomes/depth. Keep occupied-slot and effective-capacity metrics aligned with admission.
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
 - Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
+  - `src/control_plane_http.rs` shares the mesh heartbeat/peer-sync and usage HTTP budgets: 3 seconds for connection setup including DNS, 5 seconds for the whole request. Remote regions must have time to resolve Kubernetes search domains before connecting; keep the initial peer-view serving gate intact.
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`

@@ -149,6 +149,13 @@ A node finds peers in three ways:
 2. **Control-plane dynamic membership** (`src/mesh_heartbeat.rs`): enrolled self-hosted nodes send a mesh heartbeat every ~60s (cadence server-advertised) whose response carries the current peer list; managed pods fetch the same view read-only when `KURA_MESH_PEERS_SYNC` is set, with serving gated on the first successful fetch (a pod booting blind would accept writes without enqueuing replication for peers it cannot see). Additions **and removals** propagate at heartbeat cadence with no restart; a failed heartbeat keeps the last-known view, so a degraded control plane can never shrink the mesh.
 3. **DNS-based discovery** via `KURA_DISCOVERY_DNS_NAME`, which resolves to the addresses of the other pods (typical when running as a Kubernetes `StatefulSet` behind a headless service).
 
+Mesh heartbeats, managed peer-view fetches, and usage delivery share the HTTP
+client budgets in `src/control_plane_http.rs`: 3 seconds for connection setup,
+including DNS, within a 5-second total request deadline. DNS search-domain
+lookups from remote regions can consume a one-second connect budget before TCP
+starts; retrying with the same insufficient budget would hold a new managed
+node behind the initial peer-view serving gate indefinitely.
+
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
 Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side. Nothing local is torn down for it and readiness is not clawed back: the writes missed while out of the mesh were never enqueued for the node (replication targets are computed at write time), and the backfill watermarks are durable, so the next pass re-walks from them and reconciles the gap in the background while the node keeps serving.

@@ -10,6 +10,7 @@ mod bandwidth;
 mod bazel_test_artifacts;
 mod config;
 mod constants;
+mod control_plane_http;
 mod enrollment;
 mod failpoints;
 mod file_cache;
