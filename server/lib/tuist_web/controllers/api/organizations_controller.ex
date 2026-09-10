@@ -100,8 +100,19 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def create(%{body_params: %{name: organization_name}} = conn, _params) do
     user = Authentication.current_user(conn)
-    existing_account = Accounts.get_account_by_handle(organization_name)
 
+    if is_nil(user) do
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{message: "You need to be authenticated as a user to create an organization."})
+    else
+      existing_account = Accounts.get_account_by_handle(organization_name)
+
+      create_with_user(conn, organization_name, user, existing_account)
+    end
+  end
+
+  defp create_with_user(conn, organization_name, user, existing_account) do
     cond do
       String.contains?(organization_name, ".") ->
         conn
