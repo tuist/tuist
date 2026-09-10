@@ -43,6 +43,27 @@ class PublicationGateTest(unittest.TestCase):
             self.assertFalse(gate.needs_preparation(config))
             kube.assert_not_called()
 
+    def test_preparation_preserves_published_regions_when_adding_another(self):
+        config = gate.plan([self.server, self.controller])
+        config["regions"].append({"region": "us-east", "domain": "us-east.example"})
+        with patch.object(gate, "kube", return_value=self.server):
+            self.assertTrue(gate.needs_preparation(config))
+            self.assertEqual(gate.preparation_values(config), {
+                "kuraController": {"regionalRouting": {
+                    "publishEndpoints": True, "publicationRegions": ["eu-west"]}}})
+        with patch.object(gate, "kube", return_value=None):
+            self.assertEqual(gate.preparation_values(config)["kuraController"]["regionalRouting"]["publicationRegions"], [])
+        config["regions"][0]["domain"] = "changed.example"
+        with patch.object(gate, "kube", return_value=self.server):
+            with self.assertRaisesRegex(ValueError, "already published"):
+                gate.preparation_values(config)
+
+    def test_plan_gates_only_the_requested_publication_subset(self):
+        self.regions.append({"region": "us-east", "domain": "us-east.example"})
+        self.controller["spec"]["template"]["spec"]["containers"][0]["args"][0] = "--regional-routing-config=" + json.dumps(self.regions)
+        config = gate.plan([self.server, self.controller])
+        self.assertEqual([r["region"] for r in config["regions"]], ["eu-west"])
+
     def test_mismatched_configuration_fails_closed(self):
         self.server["spec"]["template"]["spec"]["containers"][0]["env"][0]["value"] = '{"eu-west":"different.example"}'
         with self.assertRaises(ValueError):

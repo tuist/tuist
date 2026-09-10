@@ -1296,21 +1296,24 @@ jobs:
           fi
 
           # On first publication (or a newly added region), prepare the same
-          # release with legacy URL generation. Only DNS/TLS/route convergence
+          # release while retaining any already-published regions. Only DNS/TLS/route convergence
           # permits the final upgrade to publish regional URLs. Existing regional
           # aliases stay serving during preparation and rollback.
           regional_prepare_needed="$(python3 infra/kura-controller/rollout/gate.py needed "$regional_plan")"
           if [ "$regional_prepare_needed" = "true" ]; then
+            regional_prepare_values="$(mktemp)"
+            python3 infra/kura-controller/rollout/gate.py prepare-values "$regional_plan" > "$regional_prepare_values"
             helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace "$NAMESPACE" --create-namespace \
               "${helm_values_args[@]}" \
+              -f "$regional_prepare_values" \
               --set server.image.tag="$IMAGE_TAG" \
               --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" \
-              --set kuraController.regionalRouting.publishEndpoints=false \
               --atomic --timeout 60m --wait
+            rm -f "$regional_prepare_values"
           fi
           python3 infra/kura-controller/rollout/gate.py wait "$regional_plan" --timeout 600
 

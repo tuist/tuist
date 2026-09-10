@@ -10,13 +10,13 @@ changing the regional DNS answer.
 ## Configuration and ownership
 
 The Tuist chart's `kuraController.regionalRouting.regions` configures a region's
-DNS suffix and its existing ingress DaemonSet. The staging overlay prepares
-EU West first:
+DNS suffix and its existing ingress DaemonSet. The staging overlay requests
+publication for EU West; the managed workflow prepares and verifies it first:
 
 ```yaml
 kuraController:
   regionalRouting:
-    publishEndpoints: false
+    publishEndpoints: true
     regions:
       - region: eu-west
         domain: eu-west.staging.kura.tuist.dev
@@ -25,7 +25,7 @@ kuraController:
         ingressDaemonSet: platform-kura-eu-west-ingress-nginx-controller
 ```
 
-Use a different domain per environment. Production could use
+Use a different domain per environment. Production uses
 `eu-west.kura.tuist.dev`. The region identifier and ingress class must match the
 server's region catalog. Only host-network public regions are eligible; private
 runner caches and cloud LoadBalancer regions retain their existing behavior.
@@ -84,8 +84,12 @@ for both the regional wildcard and retained legacy records.
 `publishEndpoints: true` is requested. It derives the region map from the
 rendered controller and server Deployments and rejects a mismatch. If the live
 server has not published that map, the workflow first upgrades the same release
-with publication disabled. It then verifies the current-generation shared
-Certificate is Ready, DNS matches the controller's desired address sets, every
+with publication restricted to the regions already published (none on the first
+deployment). Adding a region therefore does not revert existing canonical
+accounts to legacy URLs or recreate their individual DNS records. The optional
+`publicationRegions` list expresses this subset; `null` publishes all configured
+regions. It then verifies the current-generation shared Certificate is Ready,
+DNS matches the controller's desired address sets, every
 public account has both ingress aliases with individual DNS publication disabled,
 canonical account names have no individual DNSEndpoint records, each public
 address serves the new hostname over verified TLS, and peer endpoints
@@ -95,6 +99,15 @@ pipeline applies this gate independently to each environment.
 
 The peer probe reads an authenticated internal status response: a successful
 TLS 1.3 client handshake alone can precede rejection of the client certificate.
+Public HTTPS probes run from the deployment runner. Peer probes run in one
+short-lived Job in the target cluster: runner egress policy allows public
+HTTP(S), but deliberately does not allow peer port 7443. The Job reaches the
+actual public peer addresses with the intended SNI, through the demultiplexer,
+and verifies the account certificate and authenticated response. It has no
+service-account token, runs without root or elevated capabilities, and uses a
+pinned Python image. Leaf credentials travel over exec stdin and private files
+on a memory volume, never in the Job manifest or command arguments. Cleanup
+deletes the Job; its deadline and TTL also bound lifetime after runner loss.
 All replicas must also have reached the current StatefulSet revision before
 publication, including a standby that is not currently selected by the peer
 Service. A missing server Deployment on a fresh installation starts preparation;
@@ -106,6 +119,9 @@ serving-path failures. Its ten-minute timeout does not override an ACME rate
 limit: an issuance failure leaves publication disabled and requires a subsequent
 deployment after issuance succeeds. Preparation may roll peer pods to load
 expanded certificates, so it is a serving change even while URLs remain legacy.
+The staging rehearsal exercised this failure path against an actual issuer
+rate limit. Wait until the issuer's stated retry time before requesting renewal;
+do not remove SANs or bypass certificate verification to make the gate pass.
 The deployment gate's health/TLS probes complement the authenticated HTTP/gRPC
 and failover validation below; they do not replace those tests.
 

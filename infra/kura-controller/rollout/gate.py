@@ -1,4 +1,4 @@
-"""Read-only publication gate for regional Kura endpoints; uses current kubecontext."""
+"""Publication gate for regional Kura endpoints; uses current kubecontext."""
 
 import argparse
 import base64
@@ -12,6 +12,8 @@ import ssl
 import subprocess
 import tempfile
 import time
+
+from peer_probe_job import PeerProbeJob
 
 
 def kube(namespace, kind, name=None, allow_missing=False):
@@ -50,6 +52,7 @@ def plan(resources, namespace=None):
     flags = dict(arg[2:].split("=", 1) for arg in controller["spec"]["template"]["spec"]["containers"][0]["args"] if arg.startswith("--") and "=" in arg)
     regions = json.loads(flags["regional-routing-config"])
     domains = published_domains(server)
+    regions = [r for r in regions if r["region"] in domains]
     if domains != {r["region"]: r["domain"] for r in regions}:
         raise ValueError("controller and server regional domains differ")
     return {"namespace": controller["metadata"]["namespace"], "regions": regions,
@@ -63,6 +66,16 @@ def needs_preparation(config):
     deployment = kube(config["serverNamespace"], "deployment", config["serverName"], allow_missing=True)
     live = published_domains(deployment) if deployment else {}
     return any(live.get(r["region"]) != r["domain"] for r in config["regions"])
+
+
+def preparation_values(config):
+    deployment = kube(config["serverNamespace"], "deployment", config["serverName"], allow_missing=True)
+    live = published_domains(deployment) if deployment else {}
+    desired = {r["region"]: r["domain"] for r in config["regions"]}
+    if any(desired.get(region) != domain for region, domain in live.items()):
+        raise ValueError("preparation cannot change or remove an already published regional domain")
+    return {"kuraController": {"regionalRouting": {
+        "publishEndpoints": True, "publicationRegions": sorted(live)}}}
 
 
 def targets(endpoint, hostname):
@@ -79,13 +92,17 @@ def verify_dns(hostname, expected):
 
 def https_probe(host, address):
     context = ssl.create_default_context()
-    with socket.create_connection((address, 443), timeout=5) as sock:
-        with context.wrap_socket(sock, server_hostname=host) as tls:
-            tls.sendall(f"GET /up HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
-            response = http.client.HTTPResponse(tls)
-            response.begin()
-            if response.status != 200:
-                raise RuntimeError(f"{host} via {address}: /up returned {response.status}")
+    context.set_alpn_protocols(["http/1.1"])
+    try:
+        with socket.create_connection((address, 443), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=host) as tls:
+                tls.sendall(f"GET /up HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
+                response = http.client.HTTPResponse(tls)
+                response.begin()
+                if response.status != 200:
+                    raise RuntimeError(f"{host} via {address}: /up returned {response.status}")
+    except (OSError, http.client.HTTPException) as error:
+        raise RuntimeError(f"{host} via {address}:443: public probe failed: {error}") from None
 
 
 def peer_probe(host, addresses, secret):
@@ -98,18 +115,22 @@ def peer_probe(host, addresses, secret):
             os.chmod(path, 0o600)
         context.load_cert_chain(str(Path(directory) / "tls.crt"), str(Path(directory) / "tls.key"))
         for address in addresses:
-            with socket.create_connection((address, 7443), timeout=5) as sock:
-                with context.wrap_socket(sock, server_hostname=host) as tls:
-                    # TLS 1.3 can report a rejected client certificate only on
-                    # the first read, after wrap_socket has already returned.
-                    tls.sendall(f"GET /_internal/status HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
-                    response = http.client.HTTPResponse(tls)
-                    response.begin()
-                    if response.status != 200:
-                        raise RuntimeError(f"{host} via {address}: peer status returned {response.status}")
+            try:
+                with socket.create_connection((address, 7443), timeout=5) as sock:
+                    with context.wrap_socket(sock, server_hostname=host) as tls:
+                        # TLS 1.3 can report a rejected client certificate only on
+                        # the first read, after wrap_socket has already returned.
+                        tls.sendall(f"GET /_internal/status HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
+                        response = http.client.HTTPResponse(tls)
+                        response.begin()
+                        if response.status != 200:
+                            raise RuntimeError(f"{host} via {address}: peer status returned {response.status}")
+            except (OSError, http.client.HTTPException) as error:
+                raise RuntimeError(f"{host} via {address}:7443: peer probe failed: {error}") from None
 
 
-def check(config):
+def check(config, peer_transport=None):
+    peer_transport = peer_transport or peer_probe
     namespace = config["namespace"]
     certificate = kube(namespace, "certificate", config["certificate"])
     if not any(c["type"] == "Ready" and c["status"] == "True" and
@@ -165,7 +186,7 @@ def check(config):
             if spec.get("meshPublicPeerHost"):
                 verify_dns(peer_host, peers)
                 secret = kube(namespace, "secret", spec.get("peerTLSSecretName") or name + "-peer-tls")
-                tasks.append((peer_probe, (peer_host, peers, secret)))
+                tasks.append((peer_transport, (peer_host, peers, secret)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(function, *args) for function, args in tasks]
         for future in futures:
@@ -175,7 +196,7 @@ def check(config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["plan", "needed", "wait"])
+    parser.add_argument("action", choices=["plan", "needed", "prepare-values", "wait"])
     parser.add_argument("file")
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--namespace", help="Helm server release namespace")
@@ -185,18 +206,22 @@ def main():
         print(json.dumps(plan(config, args.namespace)))
     elif args.action == "needed":
         print("true" if needs_preparation(config) else "false")
+    elif args.action == "prepare-values":
+        print(json.dumps(preparation_values(config)))
     elif config:
         deadline = time.monotonic() + args.timeout
-        while True:
-            try:
-                count = check(config)
-                print(f"Regional routing ready: {len(config['regions'])} regions, {count} serving-path probes")
-                return
-            except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
-                if time.monotonic() >= deadline:
-                    raise SystemExit(f"Regional publication blocked: {error}") from None
-                print(f"Waiting for regional routing: {error}", flush=True)
-                time.sleep(10)
+        with PeerProbeJob(config["namespace"]) as probe_job:
+            peer_transport = lambda host, addresses, secret: probe_job.probe(peer_probe, host, addresses, secret)
+            while True:
+                try:
+                    count = check(config, peer_transport)
+                    print(f"Regional routing ready: {len(config['regions'])} regions, {count} serving-path probes")
+                    return
+                except (RuntimeError, OSError, ValueError, KeyError, http.client.HTTPException, subprocess.TimeoutExpired) as error:
+                    if time.monotonic() >= deadline:
+                        raise SystemExit(f"Regional publication blocked: {error}") from None
+                    print(f"Waiting for regional routing: {error}", flush=True)
+                    time.sleep(10)
 
 
 if __name__ == "__main__":

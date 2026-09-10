@@ -215,6 +215,10 @@ kuraController:
   # Disabling publication keeps existing aliases serving for rollback.
   regionalRouting:
     publishEndpoints: false
+    # null publishes every configured region. The managed preparation step
+    # supplies only regions already published, preserving their canonical URLs
+    # while preparing new regions. An empty list publishes none.
+    publicationRegions: null
     regions: []
     # - region: ca-east
     #   domain: ca-east.staging.kura.tuist.dev
