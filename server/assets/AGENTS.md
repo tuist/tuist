@@ -40,3 +40,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 ## Related Context
 
 - Web layer: `server/lib/tuist_web/AGENTS.md`
+
+- Hash-input detail values wrap long values within the cache and selective-testing tables.
+
+- Direct dependency links wrap within expanded target rows in both cache tabs.

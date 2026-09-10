@@ -1051,12 +1051,29 @@ held true at 304, 45 and 35 sample points for the three pods of the account
 carrying the heaviest remote-execution traffic, and was never true for any
 other pod. Perfect specificity, no tuning required.
 
-Counts in-place container restarts, so a rollout cannot trigger it: a
-replacement pod starts its counter at zero. Every restart observed on this
-fault reports `Error` with exit code 137 and never `OOMKilled`, because the
-container is killed by the kubelet after `Container kura failed liveness
-probe`, not by the cgroup out-of-memory killer. A rule keyed on `OOMKilled`
-would not have seen any of it.
+Counts in-place container restarts. A replacement pod's counter starts at
+zero, but startup failures **after replacement** can produce real restarts
+and fire this rule. The metric does not identify their cause. Match events
+by pod UID before attributing a restart to startup probes, liveness probes,
+OOM kills, or a process error.
+
+The original August fault was a runtime liveness failure (`Error`, exit 137).
+The eviction yielding, write-buffer sizing and blocking-pool fixes have since
+landed (#12553, #12587). On 2026-09-10, `kura-carousell-scw-fr-par-0` on 0.41.2
+instead exhausted its five-minute **startup** probe twice during orphan segment
+cleanup. Its last process exited 138 because preStop delivered SIGUSR1 before
+the signal handler was installed. A US replica showed the same startup fault.
+Do not use the historical write-buffer explanation as the diagnosis for every
+firing instance.
+
+New runtimes serve bootstrap health and metrics before opening the store and
+supervise cleanup by completed work, with readiness withheld until recovery
+succeeds. Check the startup recovery panels alongside write-buffer metrics.
+The live Grafana annotation is maintained separately; replace its historical
+root-cause assertion with: “This counts in-place container restarts. Inspect
+pod-UID-matched termination status and events to distinguish startup recovery,
+liveness, OOM and application failures. Check startup recovery progress and
+metadata write-buffer metrics; see the runbook for known failure signatures.”
 
 **Use the 6-hour window, not 1 hour.** The same expression over `[1h]` is
 equally specific but much less sensitive: on the same backtest it held at only
@@ -1070,6 +1087,44 @@ its peers log `membership changed: lost peers`, and when it returns every peer
 runs a catch-up backfill pass against it: passes applying 27,716 artifacts and
 545 MB were logged in the minutes after one restart. That write burst is itself
 a trigger for the next stall, so restarts cluster.
+
+### Kura startup recovery stalled
+
+```promql
+(
+  time() - kura_startup_recovery_last_progress_timestamp_seconds > 300
+  and on (cluster, pod) kura_startup_recovery_phase < 4
+  and on (cluster, pod) kura_startup_recovery_phase != 1
+)
+or
+(
+  time() - kura_startup_recovery_last_progress_timestamp_seconds > 900
+  and on (cluster, pod) kura_startup_recovery_phase == 1
+)
+```
+
+- Pending period: 0 minutes
+- Severity: warning
+- Proposed rule; it must be created in Grafana separately.
+- No Data: Normal (older binaries do not publish these metrics).
+- Summary: `Kura startup recovery stopped advancing on {{ $labels.pod }}`
+
+The timestamp advances only after an initialization phase completes or a
+cleanup page/batch finishes. It is not a scheduler heartbeat. Phase 1 is
+RocksDB opening/replay, with a separate 15-minute allowance; preparation,
+cleanup and configuration have a five-minute no-progress allowance. A long
+cleanup with advancing work is healthy even if total startup exceeds five
+minutes. A stuck cleanup must remain unready and eventually fail `/up`, so
+kubelet can recover it. The restart rule remains the durable signal after the
+process and its recovery metrics reset. Phase 4 means recovery completed;
+normal readiness may still be waiting on discovery/backfill. Phase 5 records
+startup failure before process exit; use the logs and restart alert for those
+short-lived failures. A requested SIGUSR1/SIGTERM/SIGINT shutdown during
+recovery instead logs `kura.startup.interrupted` at INFO and exits 0, retaining
+the last recovery phase rather than setting phase 5. A coincident real startup
+error still fails. Exit 0 alone does not prove a healthy rollout: preStop also
+runs for probe-triggered restarts, so correlate the shutdown with pod-UID-matched
+kubelet events to identify why termination was requested.
 
 ### Kura cache telemetry missing
 
@@ -1252,10 +1307,10 @@ the region reads as the occupied nodes only. That is the same blind spot the
 pool-derived `kura:node_region` closes, and both halves are needed: the join
 puts the node in the region, the default gives it its capacity.
 
-Measured on 2026-09-03, per constraint, as `eu-central` / `us-east` /
+Measured on 2026-09-03, per constraint, as `eu-west` / `us-east` /
 `us-west`: ceiling 6 / 1 / 4, memory 20 / 8 / 10, disk 10 / 3 / 5, egress
 34 / 96 / 58. The ceiling binds first in every region that advertises one, and
-`us-east` is the region to watch. Most of `eu-central`'s ceiling room is a
+`us-east` is the region to watch. Most of `eu-west`'s ceiling room is a
 second node that carries no cache pod yet, which is the case the pool-derived
 join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
@@ -1460,7 +1515,8 @@ its proposals unattended every ten minutes, within a fleet-wide budget of five
 applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
-shed age needs five consecutive qualifying days before it grows the claim. A
+shed age grows the claim after two consecutive qualifying days when the ring
+cycled about once a day over them, and after five when it did not. A
 two-day rule therefore alerts on a control loop that is mid-confirmation and
 would keep alerting for days while it does its job. A rule at two days was
 deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
@@ -3459,9 +3515,9 @@ rather than silently. `region` and `cluster` both survive. Every
 `tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
 has to be one that collapses identical values rather than adding them.
 Measured on 2026-09-08 against a ground truth of two stuck instances in
-us-east and one in eu-central:
+us-east and one in eu-west:
 
-| query | us-east | eu-central |
+| query | us-east | eu-west |
 | --- | --- | --- |
 | `sum by (region)` | 10 | 5 |
 | `max by (region)` | 2 | 1 |
@@ -3758,7 +3814,7 @@ topk(5, sum by (cluster, account) (rate(kura_egress_tree_class_sent_bytes{cluste
 
 Measured over the 7 days to 2026-09-02 with a 30 minute rate, the highest
 sustained share of budget on any production box was about 0.15 (us-east) and
-about 0.07 (eu-central); the others sat near zero. Both tiers are quiet on
+about 0.07 (eu-west); the others sat near zero. Both tiers are quiet on
 creation by a wide margin.
 
 ### Kura account at its egress ceiling
@@ -4338,7 +4394,7 @@ and were cleared on 2026-08-19:
   with it. Their Postgres rows were already gone, and
   `reconcile_retired_region_servers` drives teardown from those rows, so
   the orphaned `KuraInstance` CRs were invisible to it permanently.
-- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
+- 3 belonging to `kgw-…-eu-west-controller`, left behind when the
   per-account Kura gateway was removed in
   [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
   CRDs, so the CRD and its CR outlived the controller that reconciled

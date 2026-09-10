@@ -22,7 +22,7 @@ msgstr ""
 msgid "$0.50"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:178
+#: lib/tuist_web/live/accept_invitation_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
@@ -32,8 +32,8 @@ msgstr ""
 msgid "%{month}/%{year}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:266
-#: lib/tuist_web/live/accept_invitation_live.ex:190
+#: lib/tuist/accounts/user_notifier.ex:358
+#: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr ""
@@ -105,7 +105,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:778
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:79
 #: lib/tuist_web/live/members_live.ex:179
 #: lib/tuist_web/live/members_live.ex:227
 #: lib/tuist_web/live/members_live.ex:475
@@ -151,12 +151,12 @@ msgstr ""
 msgid "Completely free for open source projects"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist/accounts/user_notifier.ex:278
 #, elixir-autogen, elixir-format
 msgid "Confirm your email"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:166
+#: lib/tuist/accounts/user_notifier.ex:274
 #, elixir-autogen, elixir-format
 msgid "Confirmation instructions"
 msgstr ""
@@ -167,7 +167,7 @@ msgstr ""
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:48
+#: lib/tuist_web/live/create_organization_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -209,7 +209,7 @@ msgstr ""
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:196
+#: lib/tuist_web/live/accept_invitation_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Decline"
 msgstr ""
@@ -315,7 +315,7 @@ msgstr ""
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:200
+#: lib/tuist/accounts/user_notifier.ex:296
 #, elixir-autogen, elixir-format
 msgid "Did you request to reset your password?"
 msgstr ""
@@ -417,28 +417,28 @@ msgstr ""
 msgid "Get started with no credit card required—try with no commitment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:263
+#: lib/tuist/accounts/user_notifier.ex:352
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:202
+#: lib/tuist/accounts/user_notifier.ex:298
 #, elixir-autogen, elixir-format
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:180
-#: lib/tuist/accounts/user_notifier.ex:210
+#: lib/tuist/accounts/user_notifier.ex:281
+#: lib/tuist/accounts/user_notifier.ex:308
 #, elixir-autogen, elixir-format
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:234
+#: lib/tuist_web/live/accept_invitation_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:257
+#: lib/tuist/accounts/user_notifier.ex:342
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -505,7 +505,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:798
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:66
+#: lib/tuist_web/live/create_organization_live.ex:61
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -668,12 +668,12 @@ msgstr ""
 msgid "Renaming your organization can have unintended side effects."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:196
+#: lib/tuist/accounts/user_notifier.ex:294
 #, elixir-autogen, elixir-format
 msgid "Reset password instructions"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:205
+#: lib/tuist/accounts/user_notifier.ex:302
 #, elixir-autogen, elixir-format
 msgid "Reset your password"
 msgstr ""
@@ -766,7 +766,7 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:172
+#: lib/tuist/accounts/user_notifier.ex:277
 #, elixir-autogen, elixir-format
 msgid "To start using Tuist, verify your email and you are good to go:"
 msgstr ""
@@ -784,8 +784,8 @@ msgstr ""
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:114
-#: lib/tuist_web/live/create_organization_live.ex:39
+#: lib/tuist_web/live/accept_invitation_live.ex:112
+#: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -921,27 +921,27 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:175
+#: lib/tuist_web/live/accept_invitation_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:178
+#: lib/tuist/accounts/user_notifier.ex:280
 #, elixir-autogen, elixir-format
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:208
+#: lib/tuist/accounts/user_notifier.ex:304
 #, elixir-autogen, elixir-format
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:261
+#: lib/tuist/accounts/user_notifier.ex:345
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:170
+#: lib/tuist/accounts/user_notifier.ex:276
 #, elixir-autogen, elixir-format
 msgid "You're Almost Set!"
 msgstr ""
@@ -1164,17 +1164,17 @@ msgstr ""
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:78
+#: lib/tuist_web/live/create_organization_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:50
+#: lib/tuist_web/live/create_organization_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:68
+#: lib/tuist_web/live/create_organization_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
@@ -1205,17 +1205,17 @@ msgstr ""
 msgid "OAuth2"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:206
+#: lib/tuist_web/live/accept_invitation_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:243
+#: lib/tuist_web/live/accept_invitation_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:203
+#: lib/tuist_web/live/accept_invitation_live.ex:198
 #, elixir-autogen, elixir-format
 msgid "Wrong account"
 msgstr ""
@@ -1260,7 +1260,7 @@ msgstr ""
 msgid "Created"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:262
+#: lib/tuist_web/live/accept_invitation_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
@@ -1298,12 +1298,12 @@ msgstr ""
 msgid "Generate token"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:126
+#: lib/tuist_web/live/accept_invitation_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:151
+#: lib/tuist_web/live/accept_invitation_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
 msgstr ""
@@ -1387,22 +1387,22 @@ msgstr ""
 msgid "Unnamed"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:141
+#: lib/tuist_web/live/accept_invitation_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:129
+#: lib/tuist_web/live/accept_invitation_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:154
+#: lib/tuist_web/live/accept_invitation_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:166
+#: lib/tuist_web/live/accept_invitation_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
 msgstr ""
@@ -1729,28 +1729,27 @@ msgstr ""
 msgid "Copy payload"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:302
+#: lib/tuist/accounts/user_notifier.ex:388
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:311
+#: lib/tuist/accounts/user_notifier.ex:403
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:305
+#: lib/tuist/accounts/user_notifier.ex:394
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:308
+#: lib/tuist/accounts/user_notifier.ex:400
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:292
-#: lib/tuist/accounts/user_notifier.ex:300
+#: lib/tuist/accounts/user_notifier.ex:380
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr ""
@@ -1930,7 +1929,7 @@ msgstr ""
 msgid "Expired"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:216
+#: lib/tuist_web/live/accept_invitation_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Invitation expired"
 msgstr ""
@@ -1940,7 +1939,7 @@ msgstr ""
 msgid "Resend invitation"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:225
+#: lib/tuist_web/live/accept_invitation_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "This invitation has expired. Please ask the inviter to resend it."
 msgstr ""
@@ -2631,84 +2630,120 @@ msgstr ""
 msgid "The role members get when they join through automatic enrollment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:363
+#: lib/tuist/accounts/user_notifier.ex:455
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} remote cache hits used"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:385
+#: lib/tuist/accounts/user_notifier.ex:477
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:462
+#: lib/tuist/accounts/user_notifier.ex:554
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:382
+#: lib/tuist/accounts/user_notifier.ex:474
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:471
+#: lib/tuist/accounts/user_notifier.ex:563
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:472
+#: lib/tuist/accounts/user_notifier.ex:564
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:388
+#: lib/tuist/accounts/user_notifier.ex:480
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:461
+#: lib/tuist/accounts/user_notifier.ex:553
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:375
+#: lib/tuist/accounts/user_notifier.ex:467
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:361
+#: lib/tuist/accounts/user_notifier.ex:453
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} baseline runner minutes used"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:442
+#: lib/tuist/accounts/user_notifier.ex:534
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:441
+#: lib/tuist/accounts/user_notifier.ex:533
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:452
+#: lib/tuist/accounts/user_notifier.ex:544
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:451
+#: lib/tuist/accounts/user_notifier.ex:543
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:353
+#: lib/tuist/accounts/user_notifier.ex:445
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:348
+#: lib/tuist/accounts/user_notifier.ex:440
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:228
+#, elixir-autogen, elixir-format
+msgid "All rights reserved."
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:581
+#, elixir-autogen, elixir-format
+msgid "Hi %{email}, you can change your email by clicking the button below:"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:586
+#, elixir-autogen, elixir-format
+msgid "If you didn't request this change, please ignore this email."
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:225
+#, elixir-autogen, elixir-format
+msgid "This email was sent by Tuist. By using our services, you agree to our"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:577
+#, elixir-autogen, elixir-format
+msgid "Update email instructions"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:579
+#: lib/tuist/accounts/user_notifier.ex:585
+#, elixir-autogen, elixir-format
+msgid "Update your email"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:226
+#, elixir-autogen, elixir-format
+msgid "terms of service"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:552

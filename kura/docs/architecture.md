@@ -209,6 +209,15 @@ The Xcode compilation-cache plugin negotiates these existing split/splice capabi
 
 Each PVC is owned by exactly one Kura process. On startup, `DataDirLock` (`src/runtime.rs`) takes an OS file lock on `.kura.writer.lock` inside `KURA_DATA_DIR`. If another process holds the lock, startup fails fast. Public readiness depends on the lock being held, so a node that loses the lock cannot serve traffic.
 
+Before opening RocksDB, `startup.rs` binds the public HTTP port with a bounded bootstrap server. It answers `/up` and `/metrics`, returns 503 for `/ready` and every cache request, and starts no peer listener or background writer. Store opening runs on the blocking pool while retaining the data-dir writer lock. Orphan segment cleanup must succeed before activation: errors fail startup instead of logging and continuing with unfinished recovery. After initialization the bootstrap connections close and the same bound socket transfers to the ordinary accelerated HTTP server. Existing discovery and backfill readiness gates still apply.
+
+Recovery health measures completed work. Opening RocksDB has a separate 15-minute bound because its replay is opaque; other preparation phases and orphan cleanup fail `/up` after five minutes without a phase transition, completed index page, or committed deletion batch. A long cleanup can run beyond five minutes while advancing. The probe handler itself never advances progress. Startup phase (`0` preparing, `1` opening store, `2` cleaning segments, `3` configuring, `4` complete, `5` failed), last progress timestamp, completed pages and committed batches are exported as `kura_startup_recovery_*`. Missing metrics on older versions must not be interpreted as stalled recovery.
+
+Eviction walks bounded index pages (at most 256 keys, with a 2 MiB page-byte target), releases the RocksDB iterator between pages, and reads candidates and commits batches on the blocking pool. The exclusive key continuation advances even when a row is retained; already committed deletions survive a restart and the new sweep starts over the remaining rows. Stale action-cache and recipe reverse rows obey the same batch budget as live referrers. Batches preserve dependency ordering: entries disappear before their blobs, and a segment file is unlinked only after metadata cleanup succeeds. A chunk-to-recipe reverse pointer is deleted in the same batch as its recipe, after any nested action-cache cascade commits, so an interrupted sweep can still discover every surviving recipe. Batch sizing is a target at record boundaries, not a way to split one record's integrity updates.
+
+SIGUSR1, SIGTERM and SIGINT handlers are registered before store recovery. A startup drain prevents activation and interrupts cleanup at a completed work boundary; an outstanding blocking write is awaited before relinquishing the writer lock. Interruption remains a distinct typed outcome through nested cleanup and logs `kura.startup.interrupted` at INFO before a successful process exit (code 0), without setting phase 5. Real startup errors still fail even if a drain is pending. In the serving phase the same signal task wakes replication drain waiters and preserves the ordinary shutdown budget.
+
+
 The Kubernetes layer reinforces this with `ReadWriteOncePod` PVC access by default; the app-level lock is the source of truth and works even when the CSI driver only supports `ReadWriteOnce`.
 
 ## Rollouts
@@ -267,3 +276,19 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 - For replication invariants see `src/replication/mod.rs` and `src/state.rs`; for the pull links and roles see `src/sync/` with `docs/replication-design.md` beside it; for catch-up pass scheduling and retry behavior see `src/backfill/lifecycle.rs`.
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.
 - For end-to-end behavior, the shellspec suite under `spec/e2e/` exercises the live stack.
+
+### Private runner caches
+
+Runner caches share the ordinary managed two-replica StatefulSet rollout. Both pods own independent local PVCs and continuously replicate through the account mesh. The standby catches up through initial backfill after restart and the normal persistent outbox thereafter. Replication is asynchronous: a healthy standby is intended to stay roughly current, not provide synchronous write acknowledgements.
+
+Mac runner VMs resolve a stable per-account HTTPS hostname to a runner-cache node's private-network IP. A regional ingress-nginx gateway uses the same HTTP/gRPC streaming routes, TLS and primary-pinned Service as public managed instances. A primary handover changes the Service selector, not the URL. Only the DNS address and client source allowlist differ. Gateways prefer the same host as the data; cross-host placement and evacuation use the ordinary managed path. A single-host fleet still has a host failure domain, and moving the gateway address requires DNS re-resolution.
+
+See [the migration and validation runbook](../../infra/kura-controller/private-runner-rollouts.md) for legacy NodePort compatibility and the limits of readiness during asynchronous replication.
+
+Gateway availability is independent of sibling ring membership: a Ready serving
+writer remains usable during a rolling restart. Shared primary selection prefers
+fully joined peers and uses a serving survivor if none are available. Private
+DNS retains a healthy published gateway across handoffs, and an explicit Cilium
+host/remote-node rule permits its cache-port hop across hosts. The endpoint's
+check time is separate from workload convergence and is preserved through server
+dispatch, so maintenance cannot expire a healthy entrance or renew stale status.

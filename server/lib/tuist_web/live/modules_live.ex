@@ -7,6 +7,7 @@ defmodule TuistWeb.ModulesLive do
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -78,7 +79,7 @@ defmodule TuistWeb.ModulesLive do
   end
 
   def handle_event("select_miss_reason", %{"type" => type}, %{assigns: assigns} = socket)
-      when type in ~w(all changed upstream cold) do
+      when type in ~w(all changed upstream cold evicted) do
     query_params = Query.put(assigns.uri.query, "miss-reason", type)
     path = "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/module-cache/modules"
 
@@ -135,7 +136,7 @@ defmodule TuistWeb.ModulesLive do
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
-      |> assign(:selected_miss_reason, params["miss-reason"] || "all")
+      |> assign(:selected_miss_reason, normalize_miss_reason(params["miss-reason"]))
 
     opts = analytics_opts(socket.assigns)
     default_branch = socket.assigns.selected_project.default_branch || "main"
@@ -195,24 +196,28 @@ defmodule TuistWeb.ModulesLive do
       misses: Enum.sum(timeseries.invalidations),
       changed: Enum.sum(miss_reasons.changed),
       upstream: Enum.sum(miss_reasons.upstream),
-      cold: Enum.sum(miss_reasons.cold)
+      cold: Enum.sum(miss_reasons.cold),
+      evicted: Enum.sum(miss_reasons.evicted)
     }
   end
 
   def miss_reason_value(totals, "changed"), do: totals.changed
   def miss_reason_value(totals, "upstream"), do: totals.upstream
   def miss_reason_value(totals, "cold"), do: totals.cold
+  def miss_reason_value(totals, "evicted"), do: totals.evicted
   def miss_reason_value(totals, _all), do: totals.misses
 
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
   def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
+  def miss_reason_title("evicted"), do: dgettext("dashboard_cache", "Evicted misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_color("changed"), do: "primary"
   def miss_reason_color("upstream"), do: "secondary"
   def miss_reason_color("cold"), do: "tertiary"
-  def miss_reason_color(_all), do: "destructive"
+  def miss_reason_color("evicted"), do: "destructive"
+  def miss_reason_color(_all), do: "amber"
 
   defp analytics_opts(%{
          selected_project: project,

@@ -1,0 +1,74 @@
+<%!-- Redesigned newsletter verify page (/newsletter/verify, behind
+:new_marketing_newsletter): the newsletter page's hero shell — title, copy
+and one action — over the same newspaper stack, in one of three states.
+Confirm: the link from the email landed, the button posts the token back.
+Subscribed: the address is on the list. Failed: the token was missing,
+invalid or older than two days. --%>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-newsletter-verify">
+    <header data-part="header">
+      <div data-part="copy">
+        <%= cond do %>
+          <% @error_message -> %>
+            <h1 data-part="title">{dgettext("marketing", "Newsletter Verification Failed")}</h1>
+            <p data-part="description">
+              {@error_message}
+              {dgettext(
+                "marketing",
+                "Open the confirmation link from the latest newsletter email, or subscribe again to receive a fresh link."
+              )}
+            </p>
+            <div data-part="actions">
+              <.button
+                href={TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")}
+                label={dgettext("marketing", "Subscribe again")}
+                variant="primary"
+              />
+            </div>
+          <% @subscription_confirmed -> %>
+            <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
+                email: @email
+              )}
+              {dgettext(
+                "marketing",
+                "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+              )}
+            </p>
+            <div data-part="actions">
+              <.button
+                href={TuistWeb.Marketing.MarketingHTML.localized_href("/")}
+                label={dgettext("marketing", "Back to home")}
+                variant="primary"
+              />
+            </div>
+          <% true -> %>
+            <h1 data-part="title">{dgettext("marketing", "Confirm Subscription")}</h1>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Please confirm that you want %{email} to receive Tuist Digest.",
+                email: @email
+              )}
+            </p>
+            <form data-part="actions" method="post" action={~p"/newsletter/verify"}>
+              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+              <input type="hidden" name="token" value={@verification_token} />
+              <.button
+                label={dgettext("marketing", "Confirm subscription")}
+                variant="primary"
+                type="submit"
+              />
+            </form>
+        <% end %>
+      </div>
+      <div data-part="illustration" aria-hidden="true">
+        <.newsletter_stack_new />
+        <div data-part="fade"></div>
+      </div>
+    </header>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

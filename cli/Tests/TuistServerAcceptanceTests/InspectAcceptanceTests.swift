@@ -1,0 +1,235 @@
+import Command
+import FileSystem
+import FileSystemTesting
+import Foundation
+import Path
+import Testing
+import TuistAcceptanceTesting
+import TuistCore
+import TuistLoggerTesting
+import TuistNooraTesting
+import TuistServer
+import TuistSupport
+import TuistTesting
+
+@testable import TuistInspectCommand
+@testable import TuistKit
+
+struct InspectAcceptanceTests {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func build() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: I build the app
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            xcodeBuildArguments(fixtureDirectory: fixtureDirectory, derivedDataPath: temporaryDirectory)
+        )
+
+        // When: I inspect the bundle
+        try await TuistTest.run(
+            InspectBuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("Build uploaded for processing"))
+        try await expectBuildIngested()
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func buildWhenTheLogStoreManifestIsEmpty() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When: The app is built outside of Tuist
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "xcodebuild", "build"]
+                + xcodeBuildArguments(fixtureDirectory: fixtureDirectory, derivedDataPath: temporaryDirectory)
+        ).pipedStream().awaitCompletion()
+
+        // When: Xcode leaves the activity log unregistered in the log store manifest
+        let logStoreManifestPath = temporaryDirectory.appending(components: "Logs", "Build", "LogStoreManifest.plist")
+        try await fileSystem.remove(logStoreManifestPath)
+        try await fileSystem.writeText(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>logFormatVersion</key>
+                <integer>12</integer>
+                <key>logs</key>
+                <dict/>
+            </dict>
+            </plist>
+            """,
+            at: logStoreManifestPath
+        )
+
+        // When: I inspect the bundle
+        try await TuistTest.run(
+            InspectBuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("Build uploaded for processing"))
+    }
+
+    /// Waits for the server to finish ingesting the uploaded build.
+    ///
+    /// The upload returns as soon as the archive lands in object storage, and the activity log is
+    /// parsed and written afterwards on the processor fleet, so the command's success says nothing
+    /// about whether anything was ingested. A build only has targets once that parse completed.
+    ///
+    /// Until then the build is not queryable at all, so an error is one more "not yet" and only the
+    /// deadline fails the test. The last one is reported, so a poll that never had a chance of
+    /// succeeding does not read as a slow ingestion.
+    private func expectBuildIngested(
+        timeout: Duration = .seconds(240),
+        pollInterval: Duration = .seconds(5)
+    ) async throws {
+        let fullHandle = try #require(TuistTest.fixtureFullHandle)
+        let serverURL = try #require(TuistTest.fixtureServerURL)
+        let buildRunURL = try #require(await RunMetadataStorage.current.buildRunURL)
+        let buildId = buildRunURL.lastPathComponent
+        let listBuildTargetsService = ListBuildTargetsService()
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        var lastError: Error?
+
+        while ContinuousClock.now < deadline {
+            do {
+                let page = try await listBuildTargetsService.listBuildTargets(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    buildId: buildId,
+                    status: nil,
+                    page: nil,
+                    pageSize: 1
+                )
+                if !page.targets.isEmpty { return }
+                lastError = nil
+            } catch {
+                lastError = error
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+
+        Issue.record(
+            "Build \(buildId) was uploaded to \(serverURL.absoluteString) but \(fullHandle) reported no ingested targets within \(timeout). The upload path works and the processing path does not. Last error: \(lastError.map(String.init(describing:)) ?? "none")"
+        )
+    }
+
+    private func xcodeBuildArguments(
+        fixtureDirectory: AbsolutePath,
+        derivedDataPath: AbsolutePath
+    ) -> [String] {
+        [
+            "-scheme", "App",
+            "-destination", "platform=macOS",
+            "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+            "-resultBundlePath", fixtureDirectory.appending(component: "result.xcresult").pathString,
+            "-derivedDataPath", derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+    }
+
+    @Test(
+        .disabled(),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func test() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // When: I build the app
+        let commandRunner = CommandRunner()
+        try await commandRunner.run(
+            arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "test",
+                "-scheme", "App",
+                "-destination", "platform=iOS Simulator,name=iPhone 17",
+                "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-derivedDataPath", temporaryDirectory.pathString,
+            ]
+        ).pipedStream().awaitCompletion()
+
+        // When: I inspect the test
+        try await TuistTest.run(
+            InspectTestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+        )
+
+        // Then
+        #expect(ui().contains("View the analyzed test at"))
+    }
+
+    @Test(
+        .disabled(),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixtureConnectedToCanary("xcode_project_with_inspect_build")
+    )
+    func bundle() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let arguments = [
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+            "-resultBundlePath", fixtureDirectory.appending(component: "result.xcresult").pathString,
+            "-derivedDataPath", temporaryDirectory.pathString,
+        ]
+
+        // When: I build the app
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            arguments
+        )
+
+        // When: I inspect the bundle
+        try await TuistTest.run(
+            InspectBundleCommand.self,
+            [
+                "--path",
+                fixtureDirectory.pathString,
+                temporaryDirectory.appending(components: "Build", "Products", "Debug-iphonesimulator", "App.app").pathString,
+            ]
+        )
+
+        // Then
+        #expect(ui().contains("""
+        ✔︎ Bundle analyzed
+        """) == true)
+    }
+}

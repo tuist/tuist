@@ -10,6 +10,7 @@ defmodule TuistWeb.DocsLive do
   alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.SocialCards
   alias TuistWeb.Marketing.StructuredMarkup
 
   @overview_headings [
@@ -58,6 +59,10 @@ defmodule TuistWeb.DocsLive do
      |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
      |> assign(:head_description, description)
+     # The landing page has a designed social card; the docs pages below
+     # it keep their rendered per-page cards.
+     |> assign(:head_image, SocialCards.image_url("docs"))
+     |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_markdown_path, Paths.markdown_root_path(locale))
      |> StructuredMarkup.put_structured_data([
        StructuredMarkup.get_documentation_structured_data("Docs", description, root_path),

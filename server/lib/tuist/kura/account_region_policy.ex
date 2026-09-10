@@ -24,7 +24,7 @@ defmodule Tuist.Kura.AccountRegionPolicy do
   #
   # Being assignable and being served are separate: this list decides what an
   # assignment may name, `Regions.available?/1` decides whether it resolves.
-  @service_regions ["us-east", "eu-central", "us-west", "ap-southeast", "sa-west", "eu-east", "us-central"]
+  @service_regions ["us-east", "eu-west", "us-west", "ap-southeast", "sa-west", "eu-east", "us-central"]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "kura_account_region_policies" do

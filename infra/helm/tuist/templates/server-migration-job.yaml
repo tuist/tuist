@@ -84,7 +84,7 @@ spec:
       # on its own if it can't reach them.
       initContainers:
         - name: wait-for-dependencies
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /bin/sh
@@ -111,7 +111,7 @@ spec:
       {{- end }}
       containers:
         - name: migrate
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist
@@ -152,13 +152,8 @@ spec:
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             {{- end }}
-            - name: TUIST_CLICKHOUSE_URL
-              value: {{ include "tuist.clickhouseUrl" . | quote }}
-            - name: TUIST_SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-secret-key-base
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
             {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}

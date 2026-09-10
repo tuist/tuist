@@ -12,6 +12,15 @@ defmodule TuistWeb.ModulesLiveTest do
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.ModulesLive
 
+  test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?miss-reason=unknown")
+
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-misses", "Misses")
+    assert has_element?(lv, "#widget-misses", "Cold: insufficient evidence")
+  end
+
   test "lists all modules with invalidations", %{
     conn: conn,
     organization: organization,
@@ -183,7 +192,7 @@ defmodule TuistWeb.ModulesLiveTest do
     # view and the markup is checked separately.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold) do
+    for reason <- ~w(all changed upstream cold evicted) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
@@ -192,13 +201,23 @@ defmodule TuistWeb.ModulesLiveTest do
 
     assert has_element?(lv, "#widget-misses", "Changed misses")
     assert has_element?(lv, "#widget-misses", "1")
+    assert has_element?(lv, "#widget-misses", "files, build settings")
     assert_patched(lv, base <> "?miss-reason=changed")
+
+    render_click(lv, "select_miss_reason", %{"type" => "evicted"})
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-misses", "Evicted misses")
+    assert has_element?(lv, "#widget-misses", "0")
+    assert has_element?(lv, "#widget-misses", "same cache endpoint")
+    refute has_element?(lv, "#widget-misses-tooltip", "Changed:")
+    assert_patched(lv, base <> "?miss-reason=evicted")
 
     render_click(lv, "select_miss_reason", %{"type" => "cold"})
     render_async(lv, 2000)
 
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
+    assert has_element?(lv, "#widget-misses", "No earlier comparison is available")
   end
 
   test "pages through the modules table", %{

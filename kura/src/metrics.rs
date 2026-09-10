@@ -232,6 +232,11 @@ pub struct MetricsInner {
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
+    startup_recovery_phase: Gauge,
+    startup_recovery_last_progress_timestamp_seconds: Gauge,
+    startup_recovery_completed_pages: Gauge,
+    startup_recovery_committed_batches: Gauge,
+
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
@@ -927,6 +932,11 @@ impl Metrics {
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
+        let startup_recovery_phase = Gauge::default();
+        let startup_recovery_last_progress_timestamp_seconds = Gauge::default();
+        let startup_recovery_completed_pages = Gauge::default();
+        let startup_recovery_committed_batches = Gauge::default();
+
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
@@ -1846,6 +1856,26 @@ impl Metrics {
             writer_lock_owned.clone(),
         );
         registry.register(
+            "kura_startup_recovery_phase",
+            "Startup recovery phase",
+            startup_recovery_phase.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_last_progress_timestamp_seconds",
+            "Unix timestamp of the last completed recovery work or phase transition",
+            startup_recovery_last_progress_timestamp_seconds.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_completed_pages",
+            "Completed startup recovery scan pages",
+            startup_recovery_completed_pages.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_committed_batches",
+            "Committed startup recovery deletion batches",
+            startup_recovery_committed_batches.clone(),
+        );
+        registry.register(
             "kura_writer_lock_acquire_failures_total",
             "Number of writer-lock acquisition failures detected during startup or tests",
             writer_lock_acquire_failures.clone(),
@@ -2078,6 +2108,11 @@ impl Metrics {
                 initial_discovery_completed,
                 writer_lock_owned,
                 writer_lock_acquire_failures,
+                startup_recovery_phase,
+                startup_recovery_last_progress_timestamp_seconds,
+                startup_recovery_completed_pages,
+                startup_recovery_committed_batches,
+
                 mmap_partial_page_exemptions,
                 promotion_queue_depth,
                 promotion_failures,
@@ -3474,6 +3509,23 @@ impl Metrics {
                 .rollout_snapshot
                 .peer_connection_failure_count
                 .load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn record_startup_phase(&self, phase: i64) {
+        self.startup_recovery_phase.set(phase);
+    }
+
+    pub fn record_startup_progress_timestamp(&self, timestamp: i64) {
+        self.startup_recovery_last_progress_timestamp_seconds
+            .set(timestamp);
+    }
+
+    pub fn record_startup_work(&self, committed: bool) {
+        if committed {
+            self.startup_recovery_committed_batches.inc();
+        } else {
+            self.startup_recovery_completed_pages.inc();
         }
     }
 

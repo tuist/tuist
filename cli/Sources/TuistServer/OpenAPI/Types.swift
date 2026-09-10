@@ -28479,6 +28479,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/deployment_target`.
                                         public var deployment_target: Swift.String?
+                                        /// Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/destinations`.
+                                        public var destinations: [Swift.String]?
+                                        /// Embedded product references hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/embedded_product_references`.
+                                        public var embedded_product_references: Swift.String?
                                         /// Entitlements hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/entitlements`.
@@ -28491,6 +28499,10 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/external`.
                                         public var external: Swift.String?
+                                        /// Foreign build hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/foreign_build`.
+                                        public var foreign_build: Swift.String?
                                         /// Headers hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/headers`.
@@ -28519,6 +28531,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/target_settings`.
                                         public var target_settings: Swift.String?
+                                        /// UI test device name. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/test_device`.
+                                        public var test_device: Swift.String?
+                                        /// UI test runtime identifier. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/test_runtime`.
+                                        public var test_runtime: Swift.String?
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
@@ -28529,9 +28549,12 @@ public enum Operations {
                                         ///   - core_data_models: Core data models hash
                                         ///   - dependencies: Dependencies hash
                                         ///   - deployment_target: Deployment target hash
+                                        ///   - destinations: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///   - embedded_product_references: Embedded product references hash. Empty means none; omitted means unavailable.
                                         ///   - entitlements: Entitlements hash
                                         ///   - environment: Environment hash
                                         ///   - external: External project hash
+                                        ///   - foreign_build: Foreign build hash. Empty means none; omitted means unavailable.
                                         ///   - headers: Headers hash
                                         ///   - info_plist: Info.plist hash
                                         ///   - project_settings: Project settings hash
@@ -28539,6 +28562,8 @@ public enum Operations {
                                         ///   - sources: Sources hash
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
+                                        ///   - test_device: UI test device name. Empty means none; omitted means unavailable.
+                                        ///   - test_runtime: UI test runtime identifier. Empty means none; omitted means unavailable.
                                         public init(
                                             additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
@@ -28547,16 +28572,21 @@ public enum Operations {
                                             core_data_models: Swift.String? = nil,
                                             dependencies: Swift.String? = nil,
                                             deployment_target: Swift.String? = nil,
+                                            destinations: [Swift.String]? = nil,
+                                            embedded_product_references: Swift.String? = nil,
                                             entitlements: Swift.String? = nil,
                                             environment: Swift.String? = nil,
                                             external: Swift.String? = nil,
+                                            foreign_build: Swift.String? = nil,
                                             headers: Swift.String? = nil,
                                             info_plist: Swift.String? = nil,
                                             project_settings: Swift.String? = nil,
                                             resources: Swift.String? = nil,
                                             sources: Swift.String? = nil,
                                             target_scripts: Swift.String? = nil,
-                                            target_settings: Swift.String? = nil
+                                            target_settings: Swift.String? = nil,
+                                            test_device: Swift.String? = nil,
+                                            test_runtime: Swift.String? = nil
                                         ) {
                                             self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
@@ -28565,9 +28595,12 @@ public enum Operations {
                                             self.core_data_models = core_data_models
                                             self.dependencies = dependencies
                                             self.deployment_target = deployment_target
+                                            self.destinations = destinations
+                                            self.embedded_product_references = embedded_product_references
                                             self.entitlements = entitlements
                                             self.environment = environment
                                             self.external = external
+                                            self.foreign_build = foreign_build
                                             self.headers = headers
                                             self.info_plist = info_plist
                                             self.project_settings = project_settings
@@ -28575,6 +28608,8 @@ public enum Operations {
                                             self.sources = sources
                                             self.target_scripts = target_scripts
                                             self.target_settings = target_settings
+                                            self.test_device = test_device
+                                            self.test_runtime = test_runtime
                                         }
                                         public enum CodingKeys: String, CodingKey {
                                             case additional_hashing_inputs
@@ -28584,9 +28619,12 @@ public enum Operations {
                                             case core_data_models
                                             case dependencies
                                             case deployment_target
+                                            case destinations
+                                            case embedded_product_references
                                             case entitlements
                                             case environment
                                             case external
+                                            case foreign_build
                                             case headers
                                             case info_plist
                                             case project_settings
@@ -28594,6 +28632,8 @@ public enum Operations {
                                             case sources
                                             case target_scripts
                                             case target_settings
+                                            case test_device
+                                            case test_runtime
                                         }
                                     }
                                     /// Individual component hashes that make up the final hash
@@ -28746,6 +28786,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/deployment_target`.
                                         public var deployment_target: Swift.String?
+                                        /// Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/destinations`.
+                                        public var destinations: [Swift.String]?
+                                        /// Embedded product references hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/embedded_product_references`.
+                                        public var embedded_product_references: Swift.String?
                                         /// Entitlements hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/entitlements`.
@@ -28758,6 +28806,10 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/external`.
                                         public var external: Swift.String?
+                                        /// Foreign build hash. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/foreign_build`.
+                                        public var foreign_build: Swift.String?
                                         /// Headers hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/headers`.
@@ -28786,6 +28838,14 @@ public enum Operations {
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/target_settings`.
                                         public var target_settings: Swift.String?
+                                        /// UI test device name. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/test_device`.
+                                        public var test_device: Swift.String?
+                                        /// UI test runtime identifier. Empty means none; omitted means unavailable.
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/test_runtime`.
+                                        public var test_runtime: Swift.String?
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
@@ -28796,9 +28856,12 @@ public enum Operations {
                                         ///   - core_data_models: Core data models hash
                                         ///   - dependencies: Dependencies hash
                                         ///   - deployment_target: Deployment target hash
+                                        ///   - destinations: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                        ///   - embedded_product_references: Embedded product references hash. Empty means none; omitted means unavailable.
                                         ///   - entitlements: Entitlements hash
                                         ///   - environment: Environment hash
                                         ///   - external: External project hash
+                                        ///   - foreign_build: Foreign build hash. Empty means none; omitted means unavailable.
                                         ///   - headers: Headers hash
                                         ///   - info_plist: Info.plist hash
                                         ///   - project_settings: Project settings hash
@@ -28806,6 +28869,8 @@ public enum Operations {
                                         ///   - sources: Sources hash
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
+                                        ///   - test_device: UI test device name. Empty means none; omitted means unavailable.
+                                        ///   - test_runtime: UI test runtime identifier. Empty means none; omitted means unavailable.
                                         public init(
                                             additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
@@ -28814,16 +28879,21 @@ public enum Operations {
                                             core_data_models: Swift.String? = nil,
                                             dependencies: Swift.String? = nil,
                                             deployment_target: Swift.String? = nil,
+                                            destinations: [Swift.String]? = nil,
+                                            embedded_product_references: Swift.String? = nil,
                                             entitlements: Swift.String? = nil,
                                             environment: Swift.String? = nil,
                                             external: Swift.String? = nil,
+                                            foreign_build: Swift.String? = nil,
                                             headers: Swift.String? = nil,
                                             info_plist: Swift.String? = nil,
                                             project_settings: Swift.String? = nil,
                                             resources: Swift.String? = nil,
                                             sources: Swift.String? = nil,
                                             target_scripts: Swift.String? = nil,
-                                            target_settings: Swift.String? = nil
+                                            target_settings: Swift.String? = nil,
+                                            test_device: Swift.String? = nil,
+                                            test_runtime: Swift.String? = nil
                                         ) {
                                             self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
@@ -28832,9 +28902,12 @@ public enum Operations {
                                             self.core_data_models = core_data_models
                                             self.dependencies = dependencies
                                             self.deployment_target = deployment_target
+                                            self.destinations = destinations
+                                            self.embedded_product_references = embedded_product_references
                                             self.entitlements = entitlements
                                             self.environment = environment
                                             self.external = external
+                                            self.foreign_build = foreign_build
                                             self.headers = headers
                                             self.info_plist = info_plist
                                             self.project_settings = project_settings
@@ -28842,6 +28915,8 @@ public enum Operations {
                                             self.sources = sources
                                             self.target_scripts = target_scripts
                                             self.target_settings = target_settings
+                                            self.test_device = test_device
+                                            self.test_runtime = test_runtime
                                         }
                                         public enum CodingKeys: String, CodingKey {
                                             case additional_hashing_inputs
@@ -28851,9 +28926,12 @@ public enum Operations {
                                             case core_data_models
                                             case dependencies
                                             case deployment_target
+                                            case destinations
+                                            case embedded_product_references
                                             case entitlements
                                             case environment
                                             case external
+                                            case foreign_build
                                             case headers
                                             case info_plist
                                             case project_settings
@@ -28861,6 +28939,8 @@ public enum Operations {
                                             case sources
                                             case target_scripts
                                             case target_settings
+                                            case test_device
+                                            case test_runtime
                                         }
                                     }
                                     /// Individual component hashes that make up the final hash
@@ -63984,6 +64064,10 @@ public enum Operations {
                         public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload`.
                         public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Additional strings included in the hash, in their original order.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/additional_strings`.
+                            public var additional_strings: [Swift.String]?
                             /// The bundle identifier.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/bundle_id`.
@@ -64004,6 +64088,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/cache_status`.
                             public var cache_status: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.cache_statusPayload?
+                            /// Sorted raw destinations used to compute the hash. Null means unavailable; an empty array means none.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/hashed_destinations`.
+                            public var hashed_destinations: [Swift.String]?
                             /// The target name.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/name`.
@@ -64016,7 +64104,7 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/product_name`.
                             public var product_name: Swift.String?
-                            /// Non-nil hash components.
+                            /// Individual hash components. Unavailable components are omitted; an empty new component means none.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/subhashes`.
                             public struct subhashesPayload: Codable, Hashable, Sendable {
@@ -64036,45 +64124,69 @@ public enum Operations {
                                     try encoder.encodeAdditionalProperties(additionalProperties)
                                 }
                             }
-                            /// Non-nil hash components.
+                            /// Individual hash components. Unavailable components are omitted; an empty new component means none.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/subhashes`.
                             public var subhashes: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.subhashesPayload?
+                            /// UI test device name. Null means unavailable; empty means none.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/test_device`.
+                            public var test_device: Swift.String?
+                            /// UI test runtime identifier. Null means unavailable; empty means none.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targetsPayload/test_runtime`.
+                            public var test_runtime: Swift.String?
                             /// Creates a new `targetsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - additional_strings: Additional strings included in the hash, in their original order.
                             ///   - bundle_id: The bundle identifier.
                             ///   - cache_hash: The cache hash.
                             ///   - cache_status: The cache status.
+                            ///   - hashed_destinations: Sorted raw destinations used to compute the hash. Null means unavailable; an empty array means none.
                             ///   - name: The target name.
                             ///   - product: The product type.
                             ///   - product_name: The product name.
-                            ///   - subhashes: Non-nil hash components.
+                            ///   - subhashes: Individual hash components. Unavailable components are omitted; an empty new component means none.
+                            ///   - test_device: UI test device name. Null means unavailable; empty means none.
+                            ///   - test_runtime: UI test runtime identifier. Null means unavailable; empty means none.
                             public init(
+                                additional_strings: [Swift.String]? = nil,
                                 bundle_id: Swift.String? = nil,
                                 cache_hash: Swift.String? = nil,
                                 cache_status: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.cache_statusPayload? = nil,
+                                hashed_destinations: [Swift.String]? = nil,
                                 name: Swift.String,
                                 product: Swift.String? = nil,
                                 product_name: Swift.String? = nil,
-                                subhashes: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.subhashesPayload? = nil
+                                subhashes: Operations.listModuleCacheTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.subhashesPayload? = nil,
+                                test_device: Swift.String? = nil,
+                                test_runtime: Swift.String? = nil
                             ) {
+                                self.additional_strings = additional_strings
                                 self.bundle_id = bundle_id
                                 self.cache_hash = cache_hash
                                 self.cache_status = cache_status
+                                self.hashed_destinations = hashed_destinations
                                 self.name = name
                                 self.product = product
                                 self.product_name = product_name
                                 self.subhashes = subhashes
+                                self.test_device = test_device
+                                self.test_runtime = test_runtime
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case additional_strings
                                 case bundle_id
                                 case cache_hash
                                 case cache_status
+                                case hashed_destinations
                                 case name
                                 case product
                                 case product_name
                                 case subhashes
+                                case test_device
+                                case test_runtime
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/GET/responses/200/content/json/targets`.

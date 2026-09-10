@@ -103,6 +103,9 @@ mise x shellspec@0.28.1 -- shellspec
 
 Runtime configuration is summarized in the table under [Runtime Model And Limits](#-runtime-model-and-limits). Kura now derives sensible defaults for the main FD, memory, and metadata-store budgets at startup when you do not set them explicitly.
 
+During startup, `/up` and `/metrics` are available while the store recovers, but `/ready` and cache requests return 503 until recovery completes. Cleanup can exceed five minutes as long as bounded scan pages or deletion batches keep completing. Five minutes without recovery progress makes `/up` fail; opaque RocksDB opening has a separate 15-minute limit. `kura_startup_recovery_*` metrics expose the phase and completed work. Store cleanup failures stop startup, and shutdown signals are handled before recovery begins. A requested shutdown during recovery logs `kura.startup.interrupted` at INFO and exits successfully (code 0), without marking the recovery phase as failed.
+
+
 ## 🗺️ Project Areas
 
 Kura is easier to read by subsystem than by tutorial step. The sections below group the project by the main areas you operate or extend.
@@ -360,12 +363,12 @@ A minimal direct-binary deployment still looks like:
 KURA_PORT=4000 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
-KURA_REGION=eu-central \
+KURA_REGION=eu-west \
 KURA_TMP_DIR=/var/cache/kura/tmp \
 KURA_DATA_DIR=/var/cache/kura \
 KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \
-KURA_OTEL_SERVICE_NAME=kura-eu-central \
+KURA_OTEL_SERVICE_NAME=kura-eu-west \
 KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
@@ -423,7 +426,7 @@ Both values come from deployment configuration alone: resolution is a pure funct
 
 1. `KURA_NODE_COUNTRY` env var (2-letter ISO 3166-1 code), set from the datacenter the node runs in.
 2. The country prefix of `KURA_NODE_SUBDIVISION`, when only the subdivision is configured (`US-CA` -> `US`).
-3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-central` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
+3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-west` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
 
 Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-CA`) and nothing else. Neither attribute has a runtime discovery path, so an unconfigured node simply does not stamp it — `geo.region.iso_code` whenever the subdivision is unset, and `geo.country.iso_code` when all three country steps come up empty.
 

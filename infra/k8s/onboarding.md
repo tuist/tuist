@@ -350,7 +350,7 @@ encoded = IO.binread(:stdio, :eof) |> String.trim()
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("valid through #{expiration_date}")
 else
   :error -> raise "air-gapped license is not valid Base64"
@@ -393,7 +393,7 @@ encoded = IO.binread(:stdio, :eof)
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("stored license valid through #{expiration_date}")
 else
   :error -> raise "stored air-gapped license is not valid Base64"

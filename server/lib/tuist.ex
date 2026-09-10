@@ -14,6 +14,7 @@ defmodule Tuist do
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
       Marketing.Blog,
+      Marketing.Blog.CoverArtwork,
       Marketing.Content,
       Marketing.Pages,
       Docs,
@@ -27,12 +28,14 @@ defmodule Tuist do
       CLIVersions,
       Docs.Sidebar,
       Marketing.Changelog,
-      Marketing.Changelog.OgImage,
       Marketing.OgImages,
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
+      Marketing.Customers.CoverArtwork,
+      # App Store release lookups for the marketing download page.
+      AppStore,
       Marketing.Stats,
       OpenGraphImageTemplates,
       OpenGraphImages,
@@ -188,6 +191,7 @@ defmodule Tuist do
       ClickHouseRepo,
       ClickHouseFlop,
       ClickHouseTimeSeries,
+      Telemetry.QueryErrorContext,
       OpsClickHouseRepo,
       Markdown,
       Cldr,
