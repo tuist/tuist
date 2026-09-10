@@ -12447,6 +12447,20 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
+                                        destinations:
+                                          description: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        embedded_product_references:
+                                          description: Embedded product references hash. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         entitlements:
                                           description: Entitlements hash
                                           type: string
@@ -12459,6 +12473,11 @@ paths:
                                           x-validate:
                                         external:
                                           description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        foreign_build:
+                                          description: Foreign build hash. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -12494,6 +12513,16 @@ paths:
                                           x-validate:
                                         target_settings:
                                           description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_device:
+                                          description: UI test device name. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_runtime:
+                                          description: UI test runtime identifier. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -12634,6 +12663,20 @@ paths:
                                           type: string
                                           x-struct:
                                           x-validate:
+                                        destinations:
+                                          description: Sorted raw destinations used to compute this hash. Omitted when unavailable.
+                                          items:
+                                            type: string
+                                            x-struct:
+                                            x-validate:
+                                          type: array
+                                          x-struct:
+                                          x-validate:
+                                        embedded_product_references:
+                                          description: Embedded product references hash. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
                                         entitlements:
                                           description: Entitlements hash
                                           type: string
@@ -12646,6 +12689,11 @@ paths:
                                           x-validate:
                                         external:
                                           description: External project hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        foreign_build:
+                                          description: Foreign build hash. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -12681,6 +12729,16 @@ paths:
                                           x-validate:
                                         target_settings:
                                           description: Target settings hash
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_device:
+                                          description: UI test device name. Empty means none; omitted means unavailable.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        test_runtime:
+                                          description: UI test runtime identifier. Empty means none; omitted means unavailable.
                                           type: string
                                           x-struct:
                                           x-validate:
@@ -24064,6 +24122,15 @@ paths:
                   targets:
                     items:
                       properties:
+                        additional_strings:
+                          description: Additional strings included in the hash, in their original order.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         bundle_id:
                           description: The bundle identifier.
                           nullable: true
@@ -24084,6 +24151,16 @@ paths:
                             - remote
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        hashed_destinations:
+                          description: Sorted raw destinations used to compute the hash. Null means unavailable; an empty array means none.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          nullable: true
+                          type: array
                           x-struct:
                           x-validate:
                         name:
@@ -24108,8 +24185,20 @@ paths:
                             type: string
                             x-struct:
                             x-validate:
-                          description: Non-nil hash components.
+                          description: Individual hash components. Unavailable components are omitted; an empty new component means none.
                           type: object
+                          x-struct:
+                          x-validate:
+                        test_device:
+                          description: UI test device name. Null means unavailable; empty means none.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_runtime:
+                          description: UI test runtime identifier. Null means unavailable; empty means none.
+                          nullable: true
+                          type: string
                           x-struct:
                           x-validate:
                       required:

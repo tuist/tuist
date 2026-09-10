@@ -516,6 +516,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         build_duration: 1000,
                         subhashes: %{
                           sources: "abc123sources",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "embedded-hash",
+                          foreign_build: "foreign-hash",
+                          test_device: "",
+                          test_runtime: "",
                           resources: "def456resources",
                           dependencies: "ghi789dependencies",
                           environment: "jkl012environment",
@@ -586,6 +591,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target_a.additional_hashing_inputs_hash == "vwx234additionalinputs"
       assert target_a.additional_strings == ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
       assert target_a.external_hash == ""
+      assert target_a.hashed_destinations == ["iPhone"]
+      assert target_a.embedded_product_references_hash == "embedded-hash"
+      assert target_a.foreign_build_hash == "foreign-hash"
+      assert target_a.test_device == ""
+      assert target_a.test_runtime == ""
 
       # Verify ExternalTarget metadata
       assert external_target.product == "static_library"
@@ -641,6 +651,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
                         hit: "miss",
                         subhashes: %{
                           sources: "tests-sources-hash",
+                          destinations: ["iPhone"],
+                          embedded_product_references: "",
+                          foreign_build: "foreign-hash",
+                          test_device: "",
+                          test_runtime: "",
                           dependencies: "tests-deps-hash",
                           environment: "tests-env-hash",
                           project_settings: "tests-project-settings",
@@ -676,6 +691,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target.environment_hash == "tests-env-hash"
       assert target.project_settings_hash == "tests-project-settings"
       assert target.additional_hashing_inputs_hash == "tests-additional-inputs-hash"
+      assert target.hashed_destinations == ["iPhone"]
+      assert target.embedded_product_references_hash == ""
+      assert target.foreign_build_hash == "foreign-hash"
+      assert target.test_device == ""
+      assert target.test_runtime == ""
     end
 
     test "returns command event URL with runs route when build_run_id is not provided", %{
