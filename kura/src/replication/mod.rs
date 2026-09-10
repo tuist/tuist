@@ -37,6 +37,8 @@ use crate::{
     utils::{replication_target_label, url_encode},
 };
 
+use crate::sync::roles::PeerView;
+
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
 // How much of a staged peer body may accumulate in the page cache before the
@@ -48,6 +50,17 @@ struct PeerStatusPayload {
     region: String,
     tenant_id: String,
     node_url: String,
+    /// Additive (design §2.4, §5.2): an older peer reports neither and is
+    /// treated as serving and not pulling.
+    #[serde(default)]
+    traffic_state: Option<String>,
+    #[serde(default)]
+    pulling: Option<bool>,
+    /// The node URLs of the peer's own membership view (design §11.2). A
+    /// peer that reports none is treated as not knowing this node, which
+    /// errs toward a duplicate push rather than a silent gap.
+    #[serde(default)]
+    peers: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -88,6 +101,7 @@ pub async fn enqueue_replication_for_artifact(
                 inline: manifest.inline,
                 branch: manifest.branch.clone(),
                 trunk: None,
+                origin_region: None,
             },
         }) {
             warn!("failed to enqueue artifact replication for {peer}: {error}");
@@ -138,6 +152,7 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
+        let mut views: Vec<PeerView> = Vec::new();
         let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
@@ -181,6 +196,24 @@ async fn membership_task_loop(state: SharedState) {
                                 continue;
                             }
                             members.insert(payload.region.clone());
+                            let traffic_state = payload.traffic_state.as_deref();
+                            let knows_me = payload.peers.as_ref().is_some_and(|peers| {
+                                peers.iter().any(|url| {
+                                    is_self_or_own_gateway(
+                                        url,
+                                        &state.config.node_url,
+                                        state.config.peer_gateway_url.as_deref(),
+                                    )
+                                })
+                            });
+                            views.push(PeerView {
+                                url: payload.node_url.clone(),
+                                region: payload.region.clone(),
+                                serving: traffic_state.is_none_or(|s| s == "serving"),
+                                draining: traffic_state == Some("draining"),
+                                pulling: payload.pulling.unwrap_or(false),
+                                knows_me,
+                            });
                             peer_nodes.insert(payload.node_url, payload.region);
                         }
                         Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
@@ -208,6 +241,9 @@ async fn membership_task_loop(state: SharedState) {
             .cloned()
             .collect();
         state.note_discovered_only_peers(discovered_only).await;
+        views.sort_by(|a, b| a.url.cmp(&b.url));
+        views.dedup_by(|a, b| a.url == b.url);
+        state.apply_peer_views(views);
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
             .await;
@@ -215,6 +251,7 @@ async fn membership_task_loop(state: SharedState) {
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
         state.backfill.evaluate(&state, &membership_update);
+        state.sync.evaluate(&state);
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;
     }
@@ -303,6 +340,7 @@ pub(crate) async fn stream_response_to_temp(
     response: reqwest::Response,
     path: &Path,
     staging_limit: u64,
+    bandwidth_shaped: bool,
 ) -> Result<(), String> {
     let parent = path
         .parent()
@@ -324,7 +362,8 @@ pub(crate) async fn stream_response_to_temp(
                     "peer body response exceeded reserved {staging_limit} bytes"
                 ));
             }
-            if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            if bandwidth_shaped && let Some(limiter) = state.replication_bandwidth_limiter.as_ref()
+            {
                 limiter.acquire(chunk.len()).await;
             }
             destination
@@ -531,6 +570,7 @@ async fn replicate_batch(
             version_ms,
             branch,
             trunk,
+            origin_region,
             ..
         } = &message.operation
         else {
@@ -556,6 +596,7 @@ async fn replicate_batch(
             version_ms: *version_ms,
             branch: branch.clone(),
             trunk: trunk.clone(),
+            origin_region: origin_region.clone(),
         };
         let meta_bytes = serde_json::to_vec(&meta)
             .map_err(|error| format!("failed to encode replication batch meta: {error}"))?;
@@ -1146,6 +1187,7 @@ async fn replicate_message(
             inline,
             branch,
             trunk,
+            origin_region,
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
@@ -1197,6 +1239,10 @@ async fn replicate_message(
             if let Some(trunk) = trunk {
                 url.push_str("&trunk=");
                 url.push_str(&url_encode(trunk));
+            }
+            if let Some(origin_region) = origin_region {
+                url.push_str("&origin_region=");
+                url.push_str(&url_encode(origin_region));
             }
             let url = url;
             let size = manifest.size;
@@ -1571,7 +1617,7 @@ mod tests {
             .expect("peer body request should succeed");
         let path = ctx.state.config.tmp_dir.join("backfill").join("overrun");
 
-        let error = stream_response_to_temp(&ctx.state, response, &path, reserved)
+        let error = stream_response_to_temp(&ctx.state, response, &path, reserved, true)
             .await
             .expect_err("a body larger than the reservation must be rejected");
         assert!(
@@ -1791,6 +1837,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2156,6 +2203,7 @@ mod tests {
                         inline: false,
                         branch: None,
                         trunk: None,
+                        origin_region: None,
                     },
                 })
                 .expect("upsert should enqueue");
@@ -2223,6 +2271,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2297,6 +2346,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2392,6 +2442,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("outbox message should enqueue");
@@ -2507,6 +2558,7 @@ mod tests {
                 inline: false,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         };
         let outcome = replicate_message(&ctx.state, &message)
@@ -2559,6 +2611,7 @@ mod tests {
                 inline: manifest.inline,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         };
 

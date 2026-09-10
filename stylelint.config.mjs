@@ -47,6 +47,9 @@ const runtimeProperties = {
     "--runner-vnc-width": "",
     "--runner-vnc-height": "",
     "--runner-vnc-aspect-ratio": "",
+    // Measured by BuildTimeline.js and its draggable inspector at runtime.
+    "--timeline-inspector-width": "",
+    "--timeline-viewport-height": "",
     // Set inline by the Gradle build timeline on each configuration operation.
     "--configuration-operation-start": "",
     "--configuration-operation-duration": "",
@@ -87,7 +90,10 @@ export default {
       files: ["noora/css/**/*.css"],
       rules: {
         ...sharedRules,
-        "csstools/value-no-unknown-custom-properties": [true, { importFrom: [...nooraTokens, runtimeProperties] }],
+        "csstools/value-no-unknown-custom-properties": [
+          true,
+          { importFrom: [...nooraTokens, runtimeProperties] },
+        ],
       },
     },
     {

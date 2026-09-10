@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.Workers.PlacementWorker do
   @moduledoc """
   Converges the placement proposal set, and applies proposals within a
-  fleet-wide daily budget.
+  fleet-wide daily budget per proposal kind.
 
   Hourly. Every threshold it reads is a span of whole days, so the cadence
   changes nothing about when a region is added or left; what it changes is how
@@ -9,9 +9,9 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
   handful of set-based queries whatever the account count, so an hour costs
   little and a day would mean deciding from evidence that has moved on.
 
-  The budget starts at zero, so the sweep proposes and an operator applies.
-  That is the supervised phase the rollout asks for, and raising the budget is
-  what graduates placement to automatic — a configuration change rather than a
+  Every budget starts at zero, so the sweep proposes and an operator applies.
+  That is the supervised phase the rollout asks for, and raising a budget is
+  what graduates one kind to automatic — a configuration change rather than a
   code path, so the two phases cannot diverge.
   """
 
@@ -24,7 +24,6 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
       states: :incomplete
     ]
 
-  alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.PlacementProposals
 
@@ -40,20 +39,28 @@ defmodule Tuist.Kura.Workers.PlacementWorker do
   # A rate over a trailing day rather than a per-pass count, so changing the
   # cadence cannot multiply how much the fleet moves. Operator applies do not
   # spend it: the budget guards what happens unattended.
+  #
+  # Each kind draws on its own budget, so a fleet-wide count cannot be spent by
+  # whichever kind happens to sit oldest in the backlog. Two accounts waiting
+  # to expand must not be able to hold back the account that is being served
+  # from the wrong continent, and neither must be able to spend the allowance
+  # that decides how fast warm caches are given up.
   defp apply_within_budget do
     spent =
       DateTime.utc_now()
       |> DateTime.add(-86_400, :second)
       |> PlacementProposals.automatic_applies_since()
 
-    case Environment.kura_placement_automatic_applies_per_day() - spent do
-      budget when budget > 0 ->
-        budget
-        |> PlacementProposals.open_proposals()
-        |> Enum.each(&Kura.apply_placement_proposal(&1, "automatic"))
+    Enum.each(PlacementProposals.automatic_apply_budgets(), fn {kind, allowed} ->
+      case allowed - Map.fetch!(spent, kind) do
+        budget when budget > 0 ->
+          kind
+          |> PlacementProposals.open_proposals(budget)
+          |> Enum.each(&Kura.apply_placement_proposal(&1, "automatic"))
 
-      _exhausted ->
-        :ok
-    end
+        _exhausted ->
+          :ok
+      end
+    end)
   end
 end

@@ -3,8 +3,9 @@ defmodule Tuist.Processor.BuildProcessor do
   Parses xcactivitylog build archives.
 
   The server's `ProcessBuildWorker` Oban job is the only caller: it downloads
-  the archive from S3 into a temp file, hands the path to `process_build/2`,
-  writes the returned structured data to the DB, and deletes the temp file.
+  the archive from S3 into a temp file, hands the path to `process_build/3`,
+  consumes structured data through a callback while temporary files exist, and
+  deletes the archive afterward. Step logs stream from a JSONL sidecar.
 
   On processor-mode pods (`TUIST_MODE=processor`) this runs as the Oban
   worker body — the CPU-heavy parse work is scheduled onto dedicated replicas
@@ -12,14 +13,16 @@ defmodule Tuist.Processor.BuildProcessor do
   same BEAM as the rest of the server.
   """
 
+  alias Tuist.Processor.XCActivityLogParser
+
   @apple_reference_date_offset 978_307_200
 
-  def process_build(build_zip_path, xcode_cache_upload_enabled) do
+  def process_build(build_zip_path, xcode_cache_upload_enabled, consume) do
     temp_dir = make_temp_dir()
 
     try do
       :telemetry.span([:tuist, :processor, :build], %{}, fn ->
-        result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
+        result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled, consume)
         status = if match?({:ok, _}, result), do: :ok, else: :error
         {result, %{status: status}}
       end)
@@ -28,48 +31,42 @@ defmodule Tuist.Processor.BuildProcessor do
     end
   end
 
-  defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled) do
-    {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
+  defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled, consume) do
+    with {:ok, _} <- :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+      process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume)
+    end
+  end
+
+  defp process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume) do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
 
-    with {:ok, parsed_data} <-
-           parse_build(
-             xcactivitylog_path,
-             cas_analytics_db_path,
-             legacy_cas_metadata_path,
-             xcode_cache_upload_enabled
-           ) do
-      machine_metrics =
-        read_machine_metrics(
-          Path.join(temp_dir, "machine_metrics.jsonl"),
-          parsed_data["time_started_recording"],
-          parsed_data["time_stopped_recording"]
-        )
+    XCActivityLogParser.parse(
+      xcactivitylog_path,
+      cas_analytics_db_path,
+      legacy_cas_metadata_path,
+      xcode_cache_upload_enabled,
+      fn parsed_data ->
+        machine_metrics =
+          read_machine_metrics(
+            Path.join(temp_dir, "machine_metrics.jsonl"),
+            parsed_data["time_started_recording"],
+            parsed_data["time_stopped_recording"]
+          )
 
-      parsed_data =
-        parsed_data
-        |> Map.drop(["time_started_recording", "time_stopped_recording"])
-        |> Map.put("machine_metrics", machine_metrics)
+        :telemetry.span([:tuist, :processor, :build, :ingest], %{}, fn ->
+          result =
+            parsed_data
+            |> Map.drop(["time_started_recording", "time_stopped_recording"])
+            |> Map.put("machine_metrics", machine_metrics)
+            |> consume.()
 
-      {:ok, parsed_data}
-    end
-  end
-
-  defp parse_build(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, xcode_cache_upload_enabled) do
-    :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
-      result =
-        Tuist.Processor.XCActivityLogParser.parse(
-          xcactivitylog_path,
-          cas_analytics_db_path,
-          legacy_cas_metadata_path,
-          xcode_cache_upload_enabled
-        )
-
-      status = if match?({:ok, _}, result), do: :ok, else: :error
-      {result, %{status: status}}
-    end)
+          status = if match?({:ok, _}, result), do: :ok, else: :error
+          {result, %{status: status}}
+        end)
+      end
+    )
   end
 
   defp make_temp_dir do
@@ -102,6 +99,7 @@ defmodule Tuist.Processor.BuildProcessor do
         ts = sample["timestamp"]
         ts >= start_unix and ts <= end_unix
       end)
+      |> Stream.map(&Map.put(&1, "offset_ms", (&1["timestamp"] - start_unix) * 1000))
       |> Enum.to_list()
     else
       []

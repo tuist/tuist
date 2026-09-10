@@ -18,6 +18,37 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "kura_placement_automatic_applies_per_day/1" do
+    test "reads nothing when the budget is unset or blank" do
+      assert Environment.kura_placement_automatic_applies_per_day(%{}) == %{}
+
+      assert Environment.kura_placement_automatic_applies_per_day(%{
+               "TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => ""
+             }) == %{}
+    end
+
+    test "reads a count per kind" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=2, correct=2 ,relocate=1"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) ==
+               %{"expand" => 2, "correct" => 2, "relocate" => 1}
+    end
+
+    test "reads nothing from a bare number" do
+      # A kind has to be named to run unattended, so a value written for a
+      # fleet-wide count cannot silently enable the kind it was not weighed for.
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "5"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) == %{}
+    end
+
+    test "drops an unreadable pair without losing the readable ones" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=2,correct=two,retire=-1"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) == %{"expand" => 2}
+    end
+  end
+
   describe "codebase search" do
     test "normalizes a configured service address" do
       environment = %{"TUIST_CODEBASE_SEARCH_URL" => " http://codebase-search/ "}

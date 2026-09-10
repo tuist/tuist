@@ -106,6 +106,11 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     assert has_element?(lv, "h1", "my-android-app")
     assert has_element?(lv, "span", "nightly")
+    assert has_element?(lv, "[data-part='build-details']", "Build Details")
+    assert has_element?(lv, "[data-part='build-details-section']", "Passed")
+    assert has_element?(lv, "[data-part='build-details-section']", "Built by")
+    assert has_element?(lv, "[data-part='build-details-section']", "Build duration")
+    assert has_element?(lv, "[data-part='build-details-section']", "Built at")
     assert has_element?(lv, "td", "team")
     assert has_element?(lv, "td", "android")
     assert has_element?(lv, "td", ":app:compileKotlin")

@@ -239,6 +239,9 @@ data:
       </prometheus>
     </clickhouse>
 {{- if $m.persistence.localVolume.enabled }}
+{{- if not $m.persistence.localVolume.nodeName }}
+{{- fail "clickhouse.managed.persistence.localVolume.nodeName is required: without it the volume binds on the pool label, and on a pool with more than one node the ClickHouse pod can be scheduled onto a host that does not hold the data." }}
+{{- end }}
 ---
 {{- /*
 A `local` PersistentVolume rather than the local-path provisioner the Kura
@@ -249,11 +252,17 @@ retention. A static volume also fails visibly. If the node is gone the claim
 stays Pending, instead of a provisioner quietly carving a directory somewhere
 else.
 
-Node affinity binds on the pool label rather than a node name, so replacing
-the box does not need a manifest edit. The data does not survive that
-replacement: reinstalling a Robot host wipes `/data`, and the replica refills
-from its peer. On a single-replica staging there is no peer, so a node
-replacement means re-running the schema bootstrap and backfill.
+Node affinity binds on a single node's `kubernetes.io/hostname`, not on the
+pool label. The pool label was safe only while a pool held one node; with two,
+one volume whose affinity admits both lets the scheduler place the pod on the
+node that does not hold the data, and ClickHouse starts on an empty directory
+under a replica identity Keeper already knows.
+
+The data does not survive replacing the box: reinstalling a Robot host wipes
+`/data`, and the replica refills from its peer. On a single-replica
+environment there is no peer, so a node replacement means re-running the
+schema bootstrap and backfill, and updating `persistence.localVolume.nodeName`
+in the same change.
 */}}
 apiVersion: v1
 kind: PersistentVolume
@@ -288,10 +297,10 @@ spec:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - key: node.cluster.x-k8s.io/pool
+            - key: kubernetes.io/hostname
               operator: In
               values:
-                - {{ $m.nodePool }}
+                - {{ $m.persistence.localVolume.nodeName }}
 ---
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -564,7 +573,22 @@ spec:
         # ConfigMap edit sits on disk unread until something else restarts
         # the pod. ClickHouse reloads some of these itself, but not the
         # profile settings that gate the replicated-engine guard.
-        checksum/config: {{ printf "%s|%s" ($m | toYaml) $password | sha256sum | trunc 32 }}
+        #
+        # `migration` and `shadowWrites` are omitted because neither reaches
+        # this server's configuration. `migration` selects a step and its
+        # cutoff, and `shadowWrites` is read by the application's env. Hashing
+        # them restarted the database on every step of the very migration they
+        # describe, which is not a theoretical cost: enabling dual writes
+        # rolled the pod out from under the mirror and lost four writes to a
+        # terminal error, and arming the backfill rolled it again five seconds
+        # after the backfill Job started, so the copy died on `connection
+        # refused` before reading a single row.
+        #
+        # Everything else stays hashed, including `backup`, which does reach
+        # the ConfigMap through the disk declaration. The rule is that a value
+        # is omitted only when it configures the client or the rollout rather
+        # than the server.
+        checksum/config: {{ printf "%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}

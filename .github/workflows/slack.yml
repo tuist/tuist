@@ -28,7 +28,6 @@ defaults:
     working-directory: slack
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_CEILING_PATHS: ${{ github.workspace }}
 
@@ -48,9 +47,8 @@ jobs:
             slack/deps
             slack/_build
           key: slack-mix-${{ hashFiles('slack/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: slack
@@ -75,9 +73,8 @@ jobs:
             slack/deps
             slack/_build
           key: slack-mix-${{ hashFiles('slack/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: slack
@@ -102,9 +99,8 @@ jobs:
             slack/deps
             slack/_build
           key: slack-mix-${{ hashFiles('slack/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: slack
@@ -129,9 +125,8 @@ jobs:
             slack/deps
             slack/_build
           key: slack-mix-${{ hashFiles('slack/mix.lock') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: slack

@@ -271,9 +271,19 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. | `build_run_id` |
 | `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_steps` | List recorded build steps with timings and outcomes, without log text. | `build_run_id` |
+| `get_xcode_build_step` | Get one recorded build step, including its log and truncation flag. | `build_run_id`, `step_id` |
 | `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |
 | `list_xcode_build_cache_tasks` | List cacheable tasks (cache hits/misses) for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_cas_outputs` | List [content-addressable storage](https://en.wikipedia.org/wiki/Content-addressable_storage) outputs for a specific Xcode build run. | `build_run_id` |
+
+`list_xcode_build_steps` returns pages of 20 steps by default (maximum 100 via `page_size`), with `page` and `pagination_metadata` for navigation. Use `search` to match titles, projects, or targets, or filter exact `project`, `target`, `category` (for example, `swiftCompilation`), and `status` (`success` or `failure`). Sort by `duration_ms` for slowest first (the default) or `start_ms` for chronological order. Step IDs break ties and are returned as decimal strings to preserve their full 64-bit precision. IDs are scoped to a build and should not be matched across builds.
+
+Optional `start_ms` and `end_ms` select steps overlapping a time range in milliseconds from build start; the end is exclusive. Both tools accept a build UUID or dashboard URL as `build_run_id`. Pass the returned step `id` unchanged as `step_id` to retrieve its log. Logs retain up to 64 KiB per step, with `log_truncated` indicating omitted output.
+
+Steps are collected by default when Xcode builds are processed. Recorded step data is retained for 90 days. The list response includes `availability`: `available` when recorded steps exist, even if filters match none; `processing` when the build is still processing and has no steps yet; or `unavailable` when steps were not recorded or have expired.
+
+The same operations are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps` and `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`, with the same filters and pagination. Both require read access to the build's project.
 
 #### Gradle builds
 

@@ -75,7 +75,7 @@ struct SetupCacheCommandServiceTests {
 
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
-            .willReturn()
+            .willReturn(nil)
 
         given(launchAgentService)
             .teardownLaunchAgent(label: .any, plistFileName: .any)
@@ -84,6 +84,11 @@ struct SetupCacheCommandServiceTests {
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
             .willReturn(true)
+
+        // A daemon serving the socket under a process this setup did not displace.
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
@@ -702,6 +707,43 @@ struct SetupCacheCommandServiceTests {
                 timeout: .value(.zero)
             )
             .called(2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_restartsTheAgentWhenTheSocketIsAnsweredByTheDisplacedDaemon() async throws {
+        // Given: the socket answers on the first check, but from the very process
+        // this setup displaced. On the socket alone that is indistinguishable from
+        // a healthy new daemon, and setup used to report success for it moments
+        // before the process exited leaving nothing bootstrapped.
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        launchAgentService.reset()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .willReturn()
+        var identityChecks = 0
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .value("tuist.cas-proxy"))
+            .willProduce { _ in
+                identityChecks += 1
+                return identityChecks == 1 ? 4242 : 5555
+            }
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the restart the socket check alone would have skipped.
+        verify(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

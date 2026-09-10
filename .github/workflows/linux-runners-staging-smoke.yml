@@ -24,6 +24,23 @@ name: Linux Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      gradle_cache:
+        description: Run only the Gradle container cache check
+        type: boolean
+        default: false
+      runner_label:
+        description: Runner profile for the Gradle cache check
+        type: string
+        default: tuist-staging-linux
+      server_url:
+        description: Tuist server for the runner profile and project
+        type: string
+        default: https://staging.tuist.dev
+      project:
+        description: Existing Gradle project authorized for this repository's OIDC token
+        type: string
+        default: tuist/tuist
 
 # Smoke runs a public curl + a few uname-style assertions; never
 # reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
@@ -31,6 +48,7 @@ permissions: {}
 
 jobs:
   smoke:
+    if: ${{ !inputs.gradle_cache }}
     # Single-label form. `tuist-staging-linux` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the runner
@@ -90,6 +108,7 @@ jobs:
   # empty and only shows up here — the `smoke` job above keeps
   # passing either way.
   container-smoke:
+    if: ${{ !inputs.gradle_cache }}
     runs-on: tuist-staging-linux
     timeout-minutes: 15
     # The only job here that reads repo state: `actions/checkout`
@@ -141,3 +160,50 @@ jobs:
         run: |
           set -euo pipefail
           test "${SMOKE_VALUE:-}" = "ok" || { echo "ERROR: GITHUB_ENV did not round-trip"; exit 1; }
+
+  gradle-cache:
+    if: ${{ inputs.gradle_cache }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 15
+    container:
+      image: eclipse-temurin:21-jdk-jammy
+    defaults:
+      run:
+        shell: bash
+    env:
+      TUIST_URL: ${{ inputs.server_url }}
+      SMOKE_PROJECT: ${{ inputs.project }}
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      MISE_GITHUB_ATTESTATIONS: 0
+      MISE_LOCKED: 1
+    steps:
+      - name: Verify runner endpoint reaches the job container
+        run: |
+          set -euo pipefail
+          : "${TUIST_CACHE_ENDPOINT:?Runner cache endpoint was not forwarded to the container}"
+          curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+            "${TUIST_CACHE_ENDPOINT%/}/up"
+
+      - name: Install git for the fixture repository
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends git
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: tuist
+          cache: "false"
+          working_directory: .
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Verify a remote upload followed by a remote hit
+        run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gradle-container-cache-logs
+          path: ${{ runner.temp }}/gradle-cache-smoke/*.log
+          if-no-files-found: ignore

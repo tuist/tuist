@@ -395,7 +395,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 0
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 0, relocate: 0, expand: 0, retire: 0}
     end
 
     test "counts an automatic apply" do
@@ -409,7 +409,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 1
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 1, relocate: 0, expand: 0, retire: 0}
     end
   end
 

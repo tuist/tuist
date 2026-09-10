@@ -348,6 +348,109 @@ defmodule Tuist.Kura.Regions do
       # locates the node as precisely as the pair can. Stating a district would
       # be the guess this field exists to avoid (see `node_location/1`).
       country: "SG"
+    },
+    # South America West (Santiago / Vultr) on Vultr bare metal: the
+    # `kura-sa-west` node pool, local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as the OVH
+    # regions. The id matches the legacy cache fleet's `cache-sa-west.tuist.dev`
+    # endpoint, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH or Scaleway because neither sells in South America:
+    # OVH's own datacenter availability API lists bhs, ca-east-tor-a,
+    # eu-west-par-*, fra, gra, hil, lon, rbx, sbg, sgp, syd, waw and ynm, and
+    # Scaleway and Hetzner have no presence there either.
+    #
+    # Nothing DERIVES here, exactly as with us-west and ap-southeast:
+    # `accounts.region` is `all | europe | usa`, none of which resolves to South
+    # America. An account reaches it through an explicit
+    # `AccountPolicies.assign_service_region/4`, through a customer picking it in
+    # account settings via `selectable/0`, or through a placement proposal.
+    %{
+      id: "sa-west",
+      display_name: "South America West",
+      cluster_id: "sa-west-1",
+      ingress_class_name: "kura-sa-west",
+      node_pool: "kura-sa-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box. Unlike the OVH and Dedibox regions,
+      # which buy unmetered public bandwidth, this plan meters a 10 TB/month
+      # quota; the box's NIC links at 25 Gbit/s, so the quota rather than the
+      # link is what binds. 500 Mbps is the same conservative burst ceiling
+      # ap-southeast and ca-east carry, and it is provisional until the region
+      # serves enough traffic to measure. South America moved ~150 GiB a month on
+      # the legacy lane, so the quota has roughly 68x headroom at today's volume.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr Santiago, Chile. Región Metropolitana de Santiago, where the
+      # datacenter sits.
+      country: "CL",
+      subdivision: "CL-RM"
+    },
+    # EU East (Warsaw / OVHcloud WAW) on OVH bare metal: the `kura-eu-east` node
+    # pool (an `ovhFleets` entry), local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as us-east
+    # and us-west.
+    #
+    # Serves the east of the OriginMap's europe split: the Baltics, the Nordics,
+    # and everything east of Germany. eu-central is in Paris, so those origins
+    # read across the continent today, Vilnius being 400km from Warsaw and 1600
+    # from Paris.
+    #
+    # OVH rather than Vultr, unlike sa-west: OVH sells in Warsaw, so the region
+    # reuses the OVHDedicatedMachine kind, its prep tooling and its unmetered
+    # bandwidth instead of adding a metered provider where an unmetered one is
+    # available.
+    %{
+      id: "eu-east",
+      display_name: "EU East",
+      cluster_id: "eu-east-1",
+      ingress_class_name: "kura-eu-east",
+      node_pool: "kura-eu-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC), the
+      # same shape us-east and us-west carry on the same range.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500,
+      # OVHcloud WAW, Warsaw, Masovian Voivodeship.
+      country: "PL",
+      subdivision: "PL-MZ"
+    },
+    # US Central (Chicago / Vultr ORD) on Vultr bare metal: the `kura-us-central`
+    # node pool (a `vultrFleets` entry), local-NVMe storage, and a hostNetwork
+    # regional gateway bound to the box's public IP. The id matches the legacy
+    # cache fleet's `cache-us-central.tuist.dev` endpoint, which was also in
+    # Chicago, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH because no provider in the fleet sells bare metal in
+    # the US interior: OVH's datacenter availability API lists vin and hil in the
+    # United States, Hetzner sells Ashburn and Hillsboro, and Dedibox is EU-only.
+    # Chicago is where the interior's CI runs, and neither Vint Hill nor
+    # Hillsboro reaches it well.
+    %{
+      id: "us-central",
+      display_name: "US Central",
+      cluster_id: "us-central-1",
+      ingress_class_name: "kura-us-central",
+      node_pool: "kura-us-central",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Same metered plan as sa-west: a 10 TB/month egress quota rather than the
+      # unmetered bandwidth the OVH and Dedibox regions buy, so the quota rather
+      # than the link binds. Vultr pools the quota account-wide, so sa-west's
+      # unused allowance covers a burst here. 500 Mbps matches sa-west and is
+      # provisional until the region serves enough to measure.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr ORD, Chicago, Illinois.
+      country: "US",
+      subdivision: "US-IL"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -479,6 +582,13 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff the region's instances join the controller-managed per-account peer
+  mesh (replicate with the account's other nodes under one per-account CA).
+  """
+  def mesh?(%__MODULE__{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  def mesh?(_), do: false
 
   @doc """
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.

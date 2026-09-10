@@ -39,6 +39,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign_free_tier(account)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -49,6 +50,14 @@ defmodule TuistWeb.OpsAccountLive do
          |> put_flash(:error, dgettext("dashboard", "Account not found."))
          |> push_navigate(to: ~p"/ops/accounts")}
     end
+  end
+
+  defp assign_free_tier(socket, account) do
+    socket
+    |> assign(:free_tier_hits, account.current_month_remote_cache_hits_count || 0)
+    |> assign(:free_tier_limit, Billing.get_payment_thresholds()[:remote_cache_hits])
+    |> assign(:free_tier_reset_at, account.free_tier_reset_at)
+    |> assign(:cache_access_blocked, Billing.cache_access_blocked?(account))
   end
 
   defp preload_billing(account) do
@@ -113,6 +122,35 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, reason} ->
         {:noreply,
          put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("reset_free_tier", _params, socket) do
+    case Billing.reset_free_tier(socket.assigns.account) do
+      {:ok, account} ->
+        account = preload_billing(account)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign_free_tier(account)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not reset the free tier: %{reason}", reason: inspect(reason))
+         )}
     end
   end
 
@@ -481,6 +519,9 @@ defmodule TuistWeb.OpsAccountLive do
 
   def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
   def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
+
+  def free_tier_reset_label(nil), do: dgettext("dashboard", "Never")
+  def free_tier_reset_label(%DateTime{} = reset_at), do: Timex.format!(reset_at, "{Mfull} {D}, {YYYY} {h24}:{m} UTC")
 
   defp runner_concurrency_form(account) do
     account
@@ -924,6 +965,28 @@ defmodule TuistWeb.OpsAccountLive do
       rate: evidence["runs_per_day"],
       days: evidence["window_days"]
     )
+  end
+
+  defp placement_proposal_summary(%{kind: :relocate} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account from %{from} to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :correct} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account off its first region, %{from}, to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :expand} = proposal) do
+    dgettext("dashboard", "Placement proposes also serving this account from %{to}.", to: proposal.to_region)
+  end
+
+  defp placement_proposal_summary(%{kind: :retire} = proposal) do
+    dgettext("dashboard", "Placement proposes giving up %{from} for this account.", from: proposal.from_region)
   end
 
   # What the apply actually did, rather than "saved". Nothing moves at the

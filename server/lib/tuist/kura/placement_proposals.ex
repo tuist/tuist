@@ -13,6 +13,7 @@ defmodule Tuist.Kura.PlacementProposals do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Subscription
+  alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Kura.OriginRollup
@@ -70,12 +71,32 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  Open proposals, oldest first, capped at `limit`. What automatic mode drains;
-  the cap bounds how much placement may move in one pass.
+  How many proposals of each kind the sweep may apply on its own in a day,
+  with every kind present.
+
+  A kind the configuration does not name stays at zero, so a bare number turns
+  nothing on: every kind has to be named to run unattended, and one that has to
+  be named cannot be enabled by a value written for the others.
   """
-  def open_proposals(limit) do
+  def automatic_apply_budgets do
+    configured = Environment.kura_placement_automatic_applies_per_day()
+
+    Map.new(PlacementProposal.kinds(), &{&1, Map.get(configured, to_string(&1), 0)})
+  end
+
+  @doc """
+  Open proposals of one kind, oldest first, capped at `limit`. What automatic
+  mode drains; the cap bounds how much placement may move in one pass.
+
+  Oldest first, so a backlog is drained in the order it accumulated and no
+  proposal can be starved by a steady arrival of newer ones. Age is not
+  staleness here: the sweep rewrites an open proposal's evidence every pass
+  its verdict still holds, so the oldest proposal is reasoned from the same
+  hour's rollups as the newest.
+  """
+  def open_proposals(kind, limit) do
     PlacementProposal
-    |> where([proposal], proposal.status == :open)
+    |> where([proposal], proposal.status == :open and proposal.kind == ^kind)
     |> order_by([proposal], asc: proposal.inserted_at)
     |> limit(^limit)
     |> Repo.all()
@@ -104,14 +125,21 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  How many proposals the sweep applied on its own since `datetime`. Operator
-  applies are excluded: the budget guards what happens unattended.
+  How many proposals of each kind the sweep applied on its own since
+  `datetime`, as a count per kind with every kind present. Operator applies
+  are excluded: the budget guards what happens unattended.
   """
   def automatic_applies_since(%DateTime{} = datetime) do
-    PlacementProposal
-    |> where([proposal], proposal.status == :applied and proposal.resolved_by == "automatic")
-    |> where([proposal], proposal.resolved_at >= ^datetime)
-    |> Repo.aggregate(:count)
+    spent =
+      PlacementProposal
+      |> where([proposal], proposal.status == :applied and proposal.resolved_by == "automatic")
+      |> where([proposal], proposal.resolved_at >= ^datetime)
+      |> group_by([proposal], proposal.kind)
+      |> select([proposal], {proposal.kind, count(proposal.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    Map.merge(Map.new(PlacementProposal.kinds(), &{&1, 0}), spent)
   end
 
   def dismiss(%PlacementProposal{} = proposal, resolved_by) do

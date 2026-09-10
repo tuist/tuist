@@ -21,7 +21,7 @@
     --kubeconfig          provisioned kubeconfig path
     --host-cpu            advertised CPU
     --host-memory-mb      advertised memory
-    --max-pods            concurrent VMs allowed on this host
+    --max-pods            advertised Pod ceiling, NOT the VM limit
 
   KeepAlive=true → launchd restarts the agent on crash. RunAtLoad=true →
   starts on every boot. ThrottleInterval keeps tight crash loops from

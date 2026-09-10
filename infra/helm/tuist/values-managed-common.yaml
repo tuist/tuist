@@ -37,11 +37,17 @@ kuraController:
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
-  # chart. The controller uses it for the per-Kura public HTTPS and gRPC
-  # certificates consumed by the regional Kura ingress layer.
+  # chart. The controller uses it for the shared wildcard below, and for the
+  # per-instance certificate of any instance that wildcard does not cover.
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  publicWildcardCertificate:
+    enabled: true
+    dnsNames:
+      - "*.kura.tuist.dev"
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+  analytics:
+    enabled: true
   sharedSecrets:
     kuraIntrospection:
       enabled: true
@@ -432,6 +438,17 @@ postgresql:
     password: ""
   cnpg:
     enabled: true
+    pooler:
+      parameters:
+        # Production's five consumer pools normally use 50 clients. Leave room for
+        # overlapping rollouts while retaining default_pool_size=20 per
+        # database/user on the Postgres side.
+        max_client_conn: "200"
+        # A lost Tart VM can leave the Tailscale proxy's pooler socket
+        # open for hours. Reap clients with no protocol traffic; healthy
+        # Postgrex pools send Sync pings every second. This timeout does
+        # not interrupt a client linked to an active backend transaction.
+        client_idle_timeout: "300"
     backup:
       # Per-env bucket name lives in the env overlay's destinationPath.
       endpointURL: https://t3.storage.dev

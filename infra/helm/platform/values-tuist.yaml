@@ -165,3 +165,89 @@ kura-ap-southeast-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+# South America West (Santiago, Vultr). Same host-network shape as the other
+# bare-metal regions: the region's gateway binds the box's public IP, and Vultr
+# has no cloud LoadBalancer to put in front of it.
+kura-sa-west-ingress-nginx:
+  enabled: true
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-sa-west
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
+# EU East (Warsaw, OVHcloud). Same host-network shape as the other bare-metal
+# regions: the region's gateway binds the box's public IP, and OVH has no cloud
+# LoadBalancer to put in front of it.
+#
+# Disabled until the box is prepped and adopted. Enabling a region whose pool has
+# no node leaves its Ingresses unclaimed.
+kura-eu-east-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-eu-east
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
+# US Central (Chicago, Vultr). Same host-network shape as sa-west, which runs on
+# the same provider and plan.
+#
+# Disabled until the box is prepped and adopted. Enabling a region whose pool has
+# no node leaves its Ingresses unclaimed.
+kura-us-central-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-central
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
+
+# The gateways above are host-network, so a region with more than one box needs
+# this to let a gateway reach Kura pods on the other boxes. Without it those
+# requests are dropped by the per-instance NetworkPolicy and answer 504.
+kuraGatewayNetworkPolicy:
+  enabled: true

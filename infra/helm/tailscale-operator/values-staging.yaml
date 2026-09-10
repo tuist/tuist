@@ -69,6 +69,14 @@ macminiEgress:
   proxyGroup:
     tags:
       - "tag:tuist-k8s-staging"
+    # Staging hosts the BER1 prototype, a Mac mini in a rack we own. It has no
+    # tailnet identity until bootstrap installs one, so the operator's first
+    # dial goes to its LAN address through a subnet router, and these proxies
+    # have to install that route to forward to it. Verified on 2026-09-09: with
+    # this off the proxy saw the advertised 192.168.0.41/32 but answered
+    # `no matching peer`, and the egress Service resolved while every
+    # connection to it hung.
+    acceptRoutes: true
   # Per-machine Services are created dynamically by the CAPI
   # provider's ScalewayAppleSiliconMachine reconciler — see
   # macosFleet.tailscaleEgress in the main tuist chart's

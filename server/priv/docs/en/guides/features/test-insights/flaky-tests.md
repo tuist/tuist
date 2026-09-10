@@ -35,3 +35,5 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
         linkText="Gradle flaky tests"
         link="/guides/features/test-insights/flaky-tests/gradle"/>
 </HomeCards>
+
+For Bazel projects, see <.localized_link href="/guides/features/test-insights/flaky-tests/bazel">Bazel flaky tests and quarantine</.localized_link>.

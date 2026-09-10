@@ -386,6 +386,49 @@ defmodule Tuist.Kura.PlacementTest do
       assert evidence["signal"] == "demand_below_floor"
     end
 
+    test "will not judge a window it has no history for" do
+      # The floor is a whole window's worth of runs. Measured against ten days
+      # of history it is ten times too generous, so a region running a real 30
+      # builds a day reads as abandoned. At a full window the same region is
+      # six times over the floor and is never a candidate.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          rollups: daily("US-VA", 10, 100) ++ daily("FR", 10, 30)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "retires once the history reaches the window it measures" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
+        )
+
+      assert {:retire, "eu-central", _evidence} = Placement.evaluate(context)
+    end
+
+    test "holds a new account's regions to the same rule as the fleet's" do
+      # Not a rollout guard. An account onboarded a fortnight ago has a
+      # fortnight of history however long attribution has been running, and its
+      # regions cannot be judged on a quarter it was not present for.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-central"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 2)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
     test "never retires the primary, however quiet its region has gone" do
       # Retirement reclaims a spare region; it does not take an account's cache
       # away. An account quiet everywhere keeps the one instance it has.

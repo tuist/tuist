@@ -302,3 +302,16 @@ spec:
                     sampledAt:
                       type: string
                       format: date-time
+                peerRoles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      nodeURL:
+                        type: string
+                      gateway:
+                        type: boolean
+                      primary:
+                        type: boolean
+                      node:
+                        type: string

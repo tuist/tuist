@@ -438,23 +438,44 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  How many placement proposals the sweep may apply on its own in a day.
+  The placement apply budgets an operator has written, as counts keyed by the
+  name of the proposal kind they were written for.
 
-  Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,
+  Empty unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a kind,
   so placement proposes and an operator applies until someone decides
   otherwise. A placement transition costs a region's worth of cache refill,
   which is why this starts stopped where claim sizing does not.
-  """
-  def kura_placement_automatic_applies_per_day do
-    case System.get_env("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY") do
-      value when value in [nil, ""] ->
-        0
 
-      value ->
-        case Integer.parse(value) do
-          {count, _rest} when count >= 0 -> count
-          _ -> 0
-        end
+  Per kind because the kinds do not cost the same thing. An `expand` opens a
+  region and leaves every cache the account already has where it is; the
+  others give a region up, and what they spend is the refill of whatever was
+  warm in it. One budget over both would make the number chosen for how fast
+  the fleet may abandon caches also decide how fast it may grow, and would
+  leave no way to run the additive kind while a kind whose evidence is not yet
+  trustworthy stays supervised.
+
+  The format is `kind=count` pairs, such as `expand=2,correct=2,relocate=1`.
+  Which names are real kinds is
+  `Tuist.Kura.PlacementProposals.automatic_apply_budgets/0`'s to decide. What
+  is settled here is only that an unreadable pair is dropped rather than
+  failing the boot: a typo in one entry must not be able to take the server
+  down, and the direction it fails in is the one that applies nothing.
+  """
+  def kura_placement_automatic_applies_per_day(environment \\ System.get_env()) when is_map(environment) do
+    environment
+    |> Map.get("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY")
+    |> to_string()
+    |> String.split(",", trim: true)
+    |> Enum.reduce(%{}, &put_placement_budget/2)
+  end
+
+  defp put_placement_budget(pair, budgets) do
+    with [name, count] <- String.split(pair, "=", parts: 2),
+         {count, ""} <- count |> String.trim() |> Integer.parse(),
+         true <- count >= 0 do
+      Map.put(budgets, String.trim(name), count)
+    else
+      _ -> budgets
     end
   end
 
