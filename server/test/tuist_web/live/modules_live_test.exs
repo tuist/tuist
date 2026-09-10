@@ -208,8 +208,6 @@ defmodule TuistWeb.ModulesLiveTest do
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
     assert has_element?(lv, "#widget-misses", "No earlier comparison is available")
-
-    assert has_element?(lv, ~s(a[href$="/en/docs/guides/features/cache/module-cache#analytics"]), "Cache analytics guide")
   end
 
   test "pages through the modules table", %{

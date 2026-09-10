@@ -110,14 +110,6 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <:actions>
-      <.button
-        href={Tuist.Environment.app_url(route_type: :marketing, path: "/en/docs/guides/features/cache/module-cache") <> "#analytics"}
-        label={dgettext("dashboard_cache", "Cache analytics guide")}
-        variant="secondary"
-        size="small"
-      />
-    </:actions>
     <div :if={!@module.failed} data-part="widgets">
       <.widget
         loading={!@module.ok?}

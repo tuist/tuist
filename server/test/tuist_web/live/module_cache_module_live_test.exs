@@ -299,7 +299,6 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
            )
 
     assert has_element?(lv, "#module-build-history-table", "The cached artifact was most likely evicted")
-    assert has_element?(lv, ~s(a[href$="/en/docs/guides/features/cache/module-cache#analytics"]), "Cache analytics guide")
   end
 
   test "the analytics widgets read the same way as the modules page", %{

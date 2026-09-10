@@ -1288,12 +1288,6 @@ msgstr ""
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
 msgstr ""
 
-#: lib/tuist_web/live/modules_live.html.heex:95
-#: lib/tuist_web/live/module_cache_module_live.html.heex:116
-#, elixir-autogen, elixir-format
-msgid "Cache analytics guide"
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:8
 #, elixir-autogen, elixir-format
 msgid "The module's reported inputs changed, such as its files, build settings, configuration, or compiler version."
