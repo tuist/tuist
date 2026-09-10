@@ -61,6 +61,25 @@
             path: String?,
             derivedDataPath: String? = nil
         ) async throws {
+            // Inside a build this command runs as a scheme post-action, where a non-zero exit
+            // status fails the build it is reporting on. Build insights are not worth that, so
+            // failures are reported as a warning instead.
+            guard Environment.current.workspacePath != nil else {
+                try await inspect(path: path, derivedDataPath: derivedDataPath)
+                return
+            }
+            do {
+                try await inspect(path: path, derivedDataPath: derivedDataPath)
+            } catch {
+                Logger.current
+                    .warning("warning: build insights were not uploaded. \(error.localizedDescription)")
+            }
+        }
+
+        private func inspect(
+            path: String?,
+            derivedDataPath: String?
+        ) async throws {
             let referenceDate = dateService.now()
             guard let executablePath = Bundle.main.executablePath else {
                 throw InspectBuildCommandServiceError.executablePathMissing

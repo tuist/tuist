@@ -15,7 +15,7 @@ func inspectBuildPostAction(target: TargetReference) -> ExecutionAction {
         scriptText: """
         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-        tuist inspect build
+        tuist inspect build || echo "warning: tuist inspect build failed, build insights were not uploaded"
         """,
         target: target
     )
@@ -27,7 +27,7 @@ func inspectTestPostAction(target: TargetReference) -> ExecutionAction {
         scriptText: """
         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
 
-        tuist inspect test
+        tuist inspect test || echo "warning: tuist inspect test failed, test insights were not uploaded"
         """,
         target: target
     )

@@ -70,6 +70,37 @@
             resultBundlePath: String? = nil,
             mode: TestProcessingMode? = nil
         ) async throws {
+            // Inside a build this command runs as a scheme post-action, where a non-zero exit
+            // status fails the test action it is reporting on. Test insights are not worth that,
+            // so failures are reported as a warning instead.
+            guard Environment.current.workspacePath != nil else {
+                try await inspect(
+                    path: path,
+                    derivedDataPath: derivedDataPath,
+                    resultBundlePath: resultBundlePath,
+                    mode: mode
+                )
+                return
+            }
+            do {
+                try await inspect(
+                    path: path,
+                    derivedDataPath: derivedDataPath,
+                    resultBundlePath: resultBundlePath,
+                    mode: mode
+                )
+            } catch {
+                Logger.current
+                    .warning("warning: test insights were not uploaded. \(error.localizedDescription)")
+            }
+        }
+
+        private func inspect(
+            path: String?,
+            derivedDataPath: String?,
+            resultBundlePath: String?,
+            mode: TestProcessingMode?
+        ) async throws {
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
             {

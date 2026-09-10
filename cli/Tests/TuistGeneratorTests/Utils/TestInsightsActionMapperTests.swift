@@ -62,7 +62,7 @@ struct TestInsightsActionMapperTests {
             postActions: [
                 ExecutionAction(
                     title: "Push test insights",
-                    scriptText: "/mise/tuist inspect test",
+                    scriptText: "/mise/tuist inspect test || echo \"warning: tuist inspect test failed, test insights were not uploaded\"",
                     target: target,
                     shellPath: nil
                 ),
@@ -71,5 +71,26 @@ struct TestInsightsActionMapperTests {
         #expect(
             got == expectedTestAction
         )
+    }
+
+    @Test(.withMockedEnvironment()) func map_generates_a_script_that_cannot_fail_the_test_action() async throws {
+        // Given
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.currentExecutablePathStub = "/nonexistent/tuist"
+
+        let testAction: TestAction = .test()
+
+        // When
+        let got = try await subject.map(
+            testAction,
+            target: nil,
+            testInsightsDisabled: false
+        )
+
+        // Then
+        let scriptText = try #require(got?.postActions.first?.scriptText)
+        let result = try runThroughShell(scriptText)
+        #expect(result.exitCode == 0)
+        #expect(result.standardOutput.contains("warning: tuist inspect test failed"))
     }
 }

@@ -26,10 +26,14 @@ struct BuildInsightsActionMapper: BuildInsightsActionMapping {
               let currentExecutablePath = Environment.current.currentExecutablePath() else { return buildAction }
 
         var buildAction = buildAction
+        let warning = "warning: tuist inspect build failed, build insights were not uploaded"
+        // A post-action that exits with a non-zero status fails the build.
+        let scriptText = "\(currentExecutablePath.pathString) inspect build || echo \"\(warning)\""
+
         buildAction.postActions.append(
             ExecutionAction(
                 title: "Push build insights",
-                scriptText: "\(currentExecutablePath.pathString) inspect build",
+                scriptText: scriptText,
                 target: target,
                 shellPath: nil
             )

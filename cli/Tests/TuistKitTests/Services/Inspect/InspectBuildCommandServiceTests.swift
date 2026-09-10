@@ -8,6 +8,8 @@ import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistLoader
+import TuistLoggerTesting
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -157,6 +159,44 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
+    @Test(.withMockedEnvironment(), .withMockedLogger())
+    func does_not_fail_the_build_when_running_as_a_post_action() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables = [:]
+        mockedEnvironment.workspacePath = "/tmp/path"
+
+        given(backgroundProcessRunner)
+            .runInBackground(.any, environment: .any)
+            .willThrow(TestError("Failed spawning the background process"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(
+            Logger.testingLogHandler.collected[.warning, default: []]
+                .contains { $0.contains("build insights were not uploaded") }
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func fails_when_not_running_as_a_post_action() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables = [:]
+        mockedEnvironment.workspacePath = nil
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willThrow(TestError("Could not locate the project"))
+
+        // When / Then
+        await #expect(throws: TestError.self) {
+            try await subject.run(path: nil)
+        }
+    }
+
     @Test(.withMockedEnvironment())
     func when_should_not_wait() async throws {
         // Given
@@ -288,7 +328,7 @@ struct InspectBuildCommandServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.workspacePath = nil
 
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
@@ -309,6 +349,37 @@ struct InspectBuildCommandServiceTests {
         ) {
             try await subject.run(path: nil)
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger())
+    func when_no_logs_exist_and_running_as_a_post_action() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(nil)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        #expect(
+            Logger.testingLogHandler.collected[.warning, default: []]
+                .contains { $0.contains("build insights were not uploaded") }
+        )
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

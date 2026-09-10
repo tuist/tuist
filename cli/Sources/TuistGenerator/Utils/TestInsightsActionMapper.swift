@@ -25,10 +25,14 @@ struct TestInsightsActionMapper: TestInsightsActionMapping {
               !testInsightsDisabled,
               let currentExecutablePath = Environment.current.currentExecutablePath() else { return testAction }
 
+        let warning = "warning: tuist inspect test failed, test insights were not uploaded"
+        // A post-action that exits with a non-zero status fails the build.
+        let scriptText = "\(currentExecutablePath.pathString) inspect test || echo \"\(warning)\""
+
         testAction.postActions.append(
             ExecutionAction(
                 title: "Push test insights",
-                scriptText: "\(currentExecutablePath.pathString) inspect test",
+                scriptText: scriptText,
                 target: target,
                 shellPath: nil
             )
