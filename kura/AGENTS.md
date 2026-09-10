@@ -38,6 +38,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
+- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so

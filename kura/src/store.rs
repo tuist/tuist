@@ -1152,6 +1152,7 @@ impl PersistArtifactOutcome {
 struct EvictionCommitLog {
     threads: Vec<std::thread::ThreadId>,
     chunk_bytes: Vec<usize>,
+    before_commit: Option<Arc<dyn Fn() + Send + Sync>>,
     after_commit: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
@@ -4549,6 +4550,17 @@ impl Store {
                     .expect("eviction commit log lock should not be poisoned");
                 commits.threads.push(std::thread::current().id());
                 commits.chunk_bytes.push(chunk_bytes);
+            }
+            #[cfg(test)]
+            {
+                let hook = commits
+                    .lock()
+                    .expect("eviction commit log poisoned")
+                    .before_commit
+                    .clone();
+                if let Some(hook) = hook {
+                    hook();
+                }
             }
             let result = db.write(batch);
             #[cfg(test)]
@@ -15940,10 +15952,9 @@ mod tests {
         // cache keeps serving rows the store no longer has, which is the
         // `CAS error: missing object` class #12152 closed.
         //
-        // The cancellation point is exact rather than timed: the future is
-        // polled by hand until a commit closure has recorded itself, then
-        // dropped on the spot, so the drop always lands with a commit in
-        // flight instead of wherever a timeout happened to fall.
+        // Hold the blocking commit immediately before db.write, cancel its
+        // waiter, then release the write. Synchronization makes the ordering
+        // independent of disk speed and blocking-pool scheduling on CI.
         let (_temp_dir, _config, mut store) = temp_store();
         store.eviction_batch_budget_bytes = 1;
         let store = Arc::new(store);
@@ -15987,58 +15998,60 @@ mod tests {
                 .expect("blob should exist");
         }
 
-        let mut eviction = Box::pin(store.evict_segment(&segment_id));
-        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-        let mut committed = false;
-        for _ in 0..10_000 {
-            if std::pin::Pin::new(&mut eviction)
-                .poll(&mut context)
-                .is_ready()
-            {
-                break;
-            }
-            if !store
-                .eviction_commits
-                .lock()
-                .expect("eviction commit log lock should not be poisoned")
-                .chunk_bytes
-                .is_empty()
-            {
-                committed = true;
-                break;
-            }
-            tokio::task::yield_now().await;
+        let commit_started = Arc::new(tokio::sync::Notify::new());
+        let commit_finished = Arc::new(tokio::sync::Notify::new());
+        let (release_commit, wait_for_release) = std::sync::mpsc::channel();
+        {
+            let mut commits = store.eviction_commits.lock().unwrap();
+            let started = commit_started.clone();
+            let wait_for_release = std::sync::Mutex::new(wait_for_release);
+            commits.before_commit = Some(Arc::new(move || {
+                started.notify_one();
+                wait_for_release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(60))
+                    .expect("test must release the paused eviction commit");
+            }));
+            let finished = commit_finished.clone();
+            commits.after_commit = Some(Arc::new(move || finished.notify_one()));
         }
+        let mut eviction = Box::pin(store.evict_segment(&segment_id));
+        tokio::time::timeout(Duration::from_secs(60), async {
+            tokio::select! {
+                biased;
+                _ = commit_started.notified() => {},
+                result = &mut eviction => panic!("eviction finished before its first commit: {result:?}"),
+            }
+        })
+        .await
+        .expect("eviction must reach its first blocking commit");
         drop(eviction);
         assert!(
-            committed,
-            "no chunk was committed before the drop, so this asserts nothing"
-        );
-
-        // The detached commit is still finishing on its blocking thread.
-        let mut evicted = Vec::new();
-        for _ in 0..10_000 {
-            evicted = artifact_ids
+            artifact_ids
                 .iter()
-                .filter(|artifact_id| {
-                    store
-                        .manifest_from_db(artifact_id)
-                        .expect("failed to read manifest")
-                        .is_none()
-                })
-                .cloned()
-                .collect();
-            if !evicted.is_empty() {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+                .all(|id| store.manifest_from_db(id).unwrap().is_some()),
+            "the commit must remain paused until its async waiter is dropped"
+        );
+        release_commit.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(60), commit_finished.notified())
+            .await
+            .expect("the detached commit must finish after its waiter is dropped");
+
+        let evicted: Vec<_> = artifact_ids
+            .iter()
+            .filter(|artifact_id| {
+                store
+                    .manifest_from_db(artifact_id)
+                    .expect("failed to read manifest")
+                    .is_none()
+            })
+            .collect();
         assert!(
             !evicted.is_empty(),
             "the detached commit never landed, so this asserts nothing"
         );
 
-        // Peek rather than `manifest()`, which would repopulate what it reads.
         // Peek rather than `manifest()`, which would repopulate what it reads.
         let cache = store
             .manifest_cache
