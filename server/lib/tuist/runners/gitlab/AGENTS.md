@@ -20,6 +20,9 @@ assignment upstream if persistence fails.
   not block a connection until the global Oban rescue interval elapses.
 - Clear execution payloads on completion and after twelve hours. Retain only
   identity metadata for dashboard links and history. UI queries omit payloads.
+- Parse GitLab's per-line UTC timestamp, hexadecimal stream ID and continuation
+  flag before section markers. Keep ANSI colors for the shared log renderer,
+  but remove erase-line controls used around section boundaries.
 - Shared account cache volumes/signing grants are withheld until GitLab job
   trust can be established independently of overridable CI variables.
 - `infra/linux-runner-image/gitlab-runner/` embeds the upstream shell executor
