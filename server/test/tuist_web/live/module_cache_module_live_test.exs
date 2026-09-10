@@ -259,7 +259,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     refute has_element?(lv, "#module-build-history-table")
   end
 
-  test "unavailable misses link to the earlier remote hit", %{conn: conn, organization: organization, project: project} do
+  test "unavailable misses show their reason and explanation", %{conn: conn, organization: organization, project: project} do
     stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
 
     observe = fn at, hit ->
@@ -283,7 +283,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
       event
     end
 
-    earlier = observe.(~N[2024-01-29 10:00:00], :remote)
+    observe.(~N[2024-01-29 10:00:00], :remote)
     observe.(~N[2024-01-30 10:00:00], :miss)
     base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
     {:ok, lv, _html} = live(conn, base <> "?miss-reason=unavailable&builds-reason=unavailable")
@@ -291,12 +291,6 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     assert has_element?(lv, "#widget-why-it-misses", "Unavailable misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
     assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Unavailable")
-
-    assert has_element?(
-             lv,
-             ~s([data-part="previous-remote-hit"][href="/#{organization.account.name}/#{project.name}/runs/#{earlier.id}"]),
-             "Earlier remote hit"
-           )
 
     assert has_element?(lv, "#module-build-history-table", "The cached artifact was most likely evicted")
   end

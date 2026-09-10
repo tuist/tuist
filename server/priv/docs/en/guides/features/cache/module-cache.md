@@ -145,7 +145,7 @@ The **Misses** dropdown selects a count and explanation for one reason. The char
 | **Changed** | The module's own compared inputs changed. These include file hashes, build settings, the resolved configuration, and the compiler identifier. A source edit is only one possible cause. |
 | **Upstream** | The module's own compared inputs stayed the same, but its dependency or external-package hash changed. The module's source files can be untouched. |
 | **Cold** | There is no earlier module observation to compare with, or the reported inputs do not explain the miss and there is no qualifying evidence of earlier remote availability. Cold does not prove that the module was never cached. |
-| **Unavailable** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. The **Earlier remote hit** link opens the run used as evidence. |
+| **Unavailable** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. |
 
 The cached artifact was most likely evicted. Unavailable establishes prior remote availability, but does not confirm eviction: access problems or a failed download can also produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
 
@@ -177,7 +177,7 @@ The **Modules** count describes the latest commit on the default branch; hit and
 2. **Investigate Changed misses.** Open the relevant runs and compare their full keys and reported inputs. Align warming and consuming jobs on the intended Xcode/compiler version, configuration, and target destinations. Warm again after intentional changes. If volatile generated files or environment-dependent settings invalidate otherwise stable modules, investigate those inputs. Keep inputs that affect binary compatibility in the hash.
 3. **Follow Upstream misses to the changed dependency.** Inspect its history to find the direct change. Warming the resulting keys can restore reuse. If a frequently changing implementation invalidates many expensive dependents, consider smaller modules or stable interfaces as described under [Efficiency](#efficiency).
 4. **Check warming coverage for Cold misses.** Verify that warming selects the required modules, uses the consuming job's configuration and environment, and successfully uploads the artifacts. Check the full keys used by the actual CI jobs. If warming and consumption request different keys, inspect the hashing inputs before assuming the cache was evicted. Repeated misses with no earlier successful upload are possible even when the module's sources have not changed.
-5. **Use the evidence for Unavailable misses.** Follow **Earlier remote hit**, confirm the key and endpoint, then inspect the consuming run's cache warnings and the warming job's upload outcome. Check retention or eviction when applicable. Rewarm the required artifacts and verify a subsequent hit. If they still miss, share the two run links and relevant logs with support.
+5. **Use the evidence for Unavailable misses.** Confirm the consuming run's key and endpoint, then inspect the consuming run's cache warnings and the warming job's upload outcome. Check retention or eviction when applicable. Rewarm the required artifacts and verify a subsequent hit. If they still miss, share the relevant run links and logs with support.
 
 For a hash comparison, run this in each relevant environment, using the configuration you intend to warm and consume:
 

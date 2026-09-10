@@ -3,7 +3,7 @@
 This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
-- Module cache miss widgets, charts, filters, and history share four reasons: Changed, Upstream, Cold, and Unavailable. Unavailable history rows link to the earlier remote-hit report used as evidence; classification belongs in Builds.Analytics.
+- Module cache miss widgets, charts, filters, and history share four reasons: Changed, Upstream, Cold, and Unavailable. History rows show a reason badge and tooltip; classification and prior remote-hit evidence belong in Builds.Analytics.
 - Xcode machine metrics with recorded build-relative offsets appear as shared-clock tracks in Timeline; legacy metrics without an offset retain the Machine Metrics tab. Samples travel in a small hook reply independently of the step metadata download.
 - Render LiveView pages and handle UI events.
 - The Xcode build detail loads only the selected tab's breakdown/cache queries. The Timeline hook downloads all step metadata from the authorized `timeline.json` HTTP endpoint (compressed by Bandit), while a small hook reply delivers machine metrics immediately. Step metadata never enters LiveView assigns or HTML. Keep metrics interactive above the step skeleton while metadata loads; abort downloads on navigation and reload on build completion. Keyboard navigation and step logs use cancellable async tasks scoped to the current build. Zoom, pan and search use the full metadata locally, with the full build duration initially visible. Older builds may have no timeline data.

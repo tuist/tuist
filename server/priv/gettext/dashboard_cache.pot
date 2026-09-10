@@ -1262,11 +1262,6 @@ msgstr ""
 msgid "and %{count} more"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.html.heex:565
-#, elixir-autogen, elixir-format
-msgid "Earlier remote hit"
-msgstr ""
-
 #: lib/tuist_web/live/modules_live.ex:213
 #: lib/tuist_web/live/module_cache_module_live.ex:315
 #, elixir-autogen, elixir-format

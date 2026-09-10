@@ -555,15 +555,6 @@
                 </div>
               </:trigger>
             </.tooltip>
-            <.link
-              :if={build.reason == "unavailable"}
-              navigate={
-                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{build.previous_remote_hit_id}"
-              }
-              data-part="previous-remote-hit"
-            >
-              {dgettext("dashboard_cache", "Earlier remote hit")}
-            </.link>
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Branch")}>
             <.text_cell
