@@ -8,7 +8,7 @@
             <section data-part="hero">
               <span data-part="edge-glow" aria-hidden="true"></span>
               <header data-part="title">
-                <h1>
+                <h1 id="hero-title">
                   <span data-part="line">{dgettext("marketing", "Your platform team,")}</span>
                   <span data-part="line">{dgettext("marketing", "as a service")}</span>
                 </h1>
@@ -23,7 +23,7 @@
                 </p>
               </div>
 
-              <nav data-part="actions" aria-label="Primary actions">
+              <div data-part="actions" role="group" aria-labelledby="hero-title">
                 <.button
                   href={~p"/users/register"}
                   label={dgettext("marketing", "Get started")}
@@ -35,7 +35,7 @@
                   variant="secondary"
                   label={dgettext("marketing", "Talk to us")}
                 ></.button>
-              </nav>
+              </div>
             </section>
           </div>
         </div>
@@ -1015,7 +1015,7 @@
     <section data-part="cta" aria-labelledby="cta-title">
       <span data-part="eyebrow">{dgettext("marketing", "What are you waiting for?")}</span>
       <h2 id="cta-title">{dgettext("marketing", "Supercharge your app development")}</h2>
-      <nav data-part="actions" aria-label="Primary actions">
+      <div data-part="actions" role="group" aria-labelledby="cta-title">
         <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
         <.button
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
@@ -1024,7 +1024,7 @@
           variant="secondary"
           label={dgettext("marketing", "Talk to us")}
         />
-      </nav>
+      </div>
     </section>
 
     <div data-part="features-divider" aria-hidden="true">

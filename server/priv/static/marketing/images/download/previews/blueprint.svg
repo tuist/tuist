@@ -1,0 +1,37 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="35.6979" height="35.6979" viewBox="0 0 35.6979 35.6979" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="App Icon">
+<g clip-path="url(#clip0_476_125244)">
+<rect width="35.6979" height="35.6979" rx="7.78661" fill="#F9FAFA"/>
+<rect width="35.6979" height="35.6979" rx="7.78661" fill="url(#paint0_linear_476_125244)" fill-opacity="0.2"/>
+<line id="Line 5" x1="2.10841" y1="35.6979" x2="2.10841" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 6" x1="33.3441" y1="35.6979" x2="33.3441" stroke="#848F9A" stroke-width="0.245423"/>
+<g id="Frame 16736">
+<line id="Line 9" x1="10.4402" y1="35.6979" x2="10.4402" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 7" x1="17.8773" y1="35.6979" x2="17.8773" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 8" x1="25.3144" y1="35.6979" x2="25.3144" stroke="#848F9A" stroke-width="0.245423"/>
+</g>
+<line id="Line 13" x1="0.151031" y1="2.10841" x2="35.849" y2="2.10841" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 15" x1="0.0642603" y1="35.6112" x2="35.7622" y2="-0.0867736" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 16" x1="0.237801" y1="-0.0867703" x2="35.9357" y2="35.6112" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 14" x1="0.151031" y1="33.3441" x2="35.849" y2="33.3441" stroke="#848F9A" stroke-width="0.245423"/>
+<g id="Frame 16735">
+<line id="Line 11" y1="10.4402" x2="35.6979" y2="10.4402" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 10" y1="17.8773" x2="35.6979" y2="17.8773" stroke="#848F9A" stroke-width="0.245423"/>
+<line id="Line 12" y1="25.3144" x2="35.6979" y2="25.3144" stroke="#848F9A" stroke-width="0.245423"/>
+</g>
+<circle id="Ellipse 1" cx="17.849" cy="17.849" r="7.31436" stroke="#848F9A" stroke-width="0.245423"/>
+<circle id="Ellipse 2" cx="18" cy="18" r="10.2892" stroke="#848F9A" stroke-width="0.245423"/>
+<circle id="Ellipse 3" cx="18" cy="18" r="15.4951" stroke="#848F9A" stroke-width="0.245423"/>
+<rect id="Rectangle 1" x="0.122712" y="0.122712" width="35.4525" height="35.4525" rx="7.6639" stroke="#848F9A" stroke-width="0.245423"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_476_125244" x1="17.849" y1="0" x2="17.849" y2="35.6979" gradientUnits="userSpaceOnUse">
+<stop stop-opacity="0"/>
+<stop offset="1" stop-opacity="0.5"/>
+</linearGradient>
+<clipPath id="clip0_476_125244">
+<rect width="35.6979" height="35.6979" rx="7.78661" fill="white"/>
+</clipPath>
+</defs>
+</svg>
