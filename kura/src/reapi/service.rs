@@ -336,7 +336,21 @@ impl ReapiService {
         namespace_id: &str,
     ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
         self.state.analytics.as_ref()?;
-        reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id)
+        let context =
+            reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id);
+        if context.is_none() {
+            // Analytics is configured but this request carries no usable Bazel
+            // RequestMetadata, so every cache observation on it is discarded.
+            // Counting the discard keeps it apart from "no traffic at all":
+            // without this, a fleet serving cache hits and a fleet dropping
+            // every one of them both report zero reapi_cache events.
+            self.state.metrics.record_analytics_event(
+                "reapi_cache",
+                "skipped_no_bazel_metadata",
+                1,
+            );
+        }
+        context
     }
 
     fn record_reapi_cache_event_with_context(
@@ -4984,6 +4998,35 @@ mod tests {
         assert_eq!(
             reapi_request_metadata(request.metadata()).client_kind,
             "other"
+        );
+    }
+
+    #[test]
+    fn drops_cache_analytics_context_without_bazel_metadata() {
+        // Both of these discard every cache observation on the request. The
+        // service counts the discard (reapi_cache/skipped_no_bazel_metadata)
+        // so it is distinguishable from a node serving no cache traffic.
+        let bare = Request::new(());
+        assert!(
+            reapi_cache_event_context(bare.metadata(), "ios", "fallback").is_none(),
+            "a request without RequestMetadata carries no cache attribution"
+        );
+
+        let mut other = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "xcode-compilation-cache".into(),
+                tool_version: "1.0.0".into(),
+            }),
+            ..Default::default()
+        };
+        other.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        assert!(
+            reapi_cache_event_context(other.metadata(), "ios", "fallback").is_none(),
+            "a non-Bazel client carries no cache attribution"
         );
     }
 
