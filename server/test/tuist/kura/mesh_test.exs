@@ -149,13 +149,13 @@ defmodule Tuist.Kura.MeshTest do
         "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
       }
 
-      stub(Kura, :server_regions_for_account, fn _ -> ["eu-central"] end)
+      stub(Kura, :server_regions_for_account, fn _ -> ["eu-west"] end)
       stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
       {:ok, enrollment} =
         Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
 
-      expected = "https://peer.#{String.downcase(account.name)}-eu-central-1.kura.tuist.dev:7443"
+      expected = "https://peer.#{String.downcase(account.name)}-eu-west-1.kura.tuist.dev:7443"
       assert expected in enrollment.peers
       # Split out for the node's static seed: platform-stable managed
       # endpoints only, so volatile self-hosted membership stays dynamic.
@@ -318,7 +318,7 @@ defmodule Tuist.Kura.MeshTest do
 
       eu =
         KuraFixtures.active_server_fixture(account,
-          region: "eu-central",
+          region: "eu-west",
           peer_roles: [
             %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
             %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
@@ -333,17 +333,17 @@ defmodule Tuist.Kura.MeshTest do
       reject(&Client.get_kura_instance/3)
 
       assert Mesh.peer_roles(account) == [
-               %{url: "https://kura-eu-0.peer:7443", region: "eu-central", gateway: false},
-               %{url: "https://kura-eu-1.peer:7443", region: "eu-central", gateway: true},
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-west", gateway: false},
+               %{url: "https://kura-eu-1.peer:7443", region: "eu-west", gateway: true},
                %{url: "https://kura-us-0.peer:7443", region: "us-east", gateway: true}
              ]
 
-      assert eu.region == "eu-central"
+      assert eu.region == "eu-west"
     end
 
     test "publishes nothing for an instance whose controller has not published roles yet" do
       account = AccountsFixtures.organization_fixture().account
-      KuraFixtures.active_server_fixture(account, region: "eu-central")
+      KuraFixtures.active_server_fixture(account, region: "eu-west")
 
       assert Mesh.peer_roles(account) == []
     end
@@ -352,12 +352,12 @@ defmodule Tuist.Kura.MeshTest do
       account = AccountsFixtures.organization_fixture().account
 
       KuraFixtures.active_server_fixture(account,
-        region: "eu-central",
+        region: "eu-west",
         peer_roles: [%{"gateway" => true}, %{"url" => "", "gateway" => true}, %{"url" => "https://kura-eu-0.peer:7443"}]
       )
 
       assert Mesh.peer_roles(account) == [
-               %{url: "https://kura-eu-0.peer:7443", region: "eu-central", gateway: false}
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-west", gateway: false}
              ]
     end
 

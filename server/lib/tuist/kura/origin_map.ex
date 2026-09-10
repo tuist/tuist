@@ -17,22 +17,22 @@ defmodule Tuist.Kura.OriginMap do
 
   # Bumped when an entry moves. Recorded on decisions rather than compared
   # against anything: it dates a verdict, it does not gate one.
-  @version 2
+  @version 3
 
   # Nearest first, and every list names every candidate region. An origin
   # always has an answer, so a region being unserved or unfunded narrows the
   # choice instead of leaving the account unplaced.
   @zone_preferences %{
-    us_east: ["us-east", "ca-east", "us-central", "us-west", "eu-central", "eu-east", "sa-west", "ap-southeast"],
-    us_central: ["us-central", "us-east", "ca-east", "us-west", "eu-central", "eu-east", "sa-west", "ap-southeast"],
-    us_west: ["us-west", "us-central", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-central", "eu-east"],
-    canada_east: ["ca-east", "us-east", "us-central", "us-west", "eu-central", "eu-east", "sa-west", "ap-southeast"],
-    europe: ["eu-central", "eu-east", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
-    europe_east: ["eu-east", "eu-central", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
-    apac: ["ap-southeast", "us-west", "us-central", "us-east", "eu-central", "eu-east", "ca-east", "sa-west"],
-    south_america: ["sa-west", "us-east", "us-central", "ca-east", "us-west", "eu-central", "eu-east", "ap-southeast"],
+    us_east: ["us-east", "ca-east", "us-central", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    us_central: ["us-central", "us-east", "ca-east", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    us_west: ["us-west", "us-central", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-west", "eu-east"],
+    canada_east: ["ca-east", "us-east", "us-central", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    europe: ["eu-west", "eu-east", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
+    europe_east: ["eu-east", "eu-west", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
+    apac: ["ap-southeast", "us-west", "us-central", "us-east", "eu-west", "eu-east", "ca-east", "sa-west"],
+    south_america: ["sa-west", "us-east", "us-central", "ca-east", "us-west", "eu-west", "eu-east", "ap-southeast"],
     africa_middle_east: [
-      "eu-central",
+      "eu-west",
       "eu-east",
       "us-east",
       "ca-east",

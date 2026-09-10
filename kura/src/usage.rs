@@ -886,14 +886,14 @@ mod tests {
         let event = eviction_event(
             "acme",
             "node-1.kura.local",
-            "eu-central",
+            "eu-west",
             capacity_eviction("segment-1"),
         );
 
         assert_eq!(event.event_id, "evict:node-1.kura.local:segment-1");
         assert_eq!(event.tenant_id, "acme");
         assert_eq!(event.node_id, "node-1.kura.local");
-        assert_eq!(event.region, "eu-central");
+        assert_eq!(event.region, "eu-west");
         assert_eq!(event.segment_id, "segment-1");
         assert_eq!(event.reason, "capacity");
         assert_eq!(event.evicted_at_unix_ms, 90_000);

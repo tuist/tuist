@@ -19,10 +19,10 @@ dependencies:
     repository: https://kubernetes.github.io/ingress-nginx
     condition: ingress-nginx.enabled
   - name: ingress-nginx
-    alias: kura-eu-central-ingress-nginx
+    alias: kura-eu-west-ingress-nginx
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
-    condition: kura-eu-central-ingress-nginx.enabled
+    condition: kura-eu-west-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-ca-east-ingress-nginx
     version: 4.11.3

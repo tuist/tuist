@@ -741,7 +741,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     account = Accounts.get_account_from_user(user)
 
     {:ok, source} =
-      %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+      %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-move-source"}
       |> Server.create_changeset()
       |> Repo.insert()
 
@@ -749,7 +749,7 @@ defmodule Tuist.Kura.ReconcilerTest do
       source
       |> Server.status_changeset(%{
         status: :active,
-        url: "https://acme-eu-central-1.kura.tuist.dev",
+        url: "https://acme-eu-west-1.kura.tuist.dev",
         current_image_tag: "0.5.2"
       })
       |> Repo.update()
@@ -996,7 +996,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     server =
       server
-      |> Ecto.Changeset.change(region: "eu-central", peer_roles: Keyword.get(opts, :peer_roles, []))
+      |> Ecto.Changeset.change(region: "eu-west", peer_roles: Keyword.get(opts, :peer_roles, []))
       |> Repo.update!()
 
     stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)

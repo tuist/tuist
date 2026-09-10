@@ -110,8 +110,8 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `eu-central` is the public region, now on the Dedibox bare-metal
-      # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
+      # `eu-west` is the public region, now on the Dedibox bare-metal
+      # `kura-dedibox` pool (the eu-west cutover). `scw-fr-par-runners` is the
       # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
       # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
       # the Macs' cache traffic never crosses the WAN. Linux runners have no
@@ -121,7 +121,7 @@ server:
       # `ca-east` (Canada East / OVHcloud BHS) is
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
-      value: eu-central,scw-fr-par-runners,ca-east
+      value: eu-west,scw-fr-par-runners,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -604,7 +604,7 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
@@ -635,7 +635,7 @@ ovhFleet:
   # pre-orders + installs the box and names it with the adoptDisplayNamePrefix;
   # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
   # /dedicated/server/*/reinstall (the release path reinstalls a released box).
-  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-central
+  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-west
   # Dedibox path is the validated twin.
   enabled: true
   replicas: 1

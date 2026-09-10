@@ -1762,6 +1762,7 @@
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
     <.selective_testing_tab
+      project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
       selective_testing_page={@selective_testing_page}
@@ -1778,6 +1779,7 @@
 
   <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>
     <.module_cache_tab
+      project={@selected_project}
       binary_cache_analytics={@binary_cache_analytics}
       binary_cache_filter={@binary_cache_filter}
       binary_cache_page={@binary_cache_page}

@@ -25,7 +25,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
   @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
-  @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
+  # The public host, ingress class and region label are not in the suffixes
+  # below, so a change to any of them moves the base.
+  @manifest_revision "2026-09-09-eu-west-region-rename-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x

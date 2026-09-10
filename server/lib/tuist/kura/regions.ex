@@ -6,10 +6,14 @@ defmodule Tuist.Kura.Regions do
 
   A region carries:
 
-    * `id` — stable opaque identifier (`"eu-central"`, `"us-east"`,
+    * `id` — stable opaque identifier (`"eu-west"`, `"us-east"`,
       `"us-west"`, `"local-controller"`).
-      Stored on `kura_servers.region`. Never renamed once published
-      because URLs and `account_cache_endpoints` reference it.
+      Stored on `kura_servers.region`. Renaming one is a migration rather
+      than an edit, because URLs and every region-keyed row reference it:
+      `eu-west` was `eu-central` until 2026-09-09, and the rename rewrote
+      every row, moved every public hostname with the cluster id, and left
+      `provisioner_node_ref` alone so the instances kept their names and
+      their volumes.
     * `display_name` — the customer-facing region label.
     * `provisioner` — the `Tuist.Kura.Provisioner` implementation that
       actually provisions, rolls, and destroys Kura servers here. The
@@ -50,7 +54,7 @@ defmodule Tuist.Kura.Regions do
   # `*.kura.tuist.dev` Cloudflare zone. `{env_suffix}` is filled at runtime
   # (see `managed_region_host_suffix/0`): empty in production and
   # `-staging`/`-canary` elsewhere, so non-production deployments mint
-  # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
+  # distinct hostnames (e.g. `acme-eu-west-1-staging.kura.tuist.dev`).
   @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
   # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
   # ingress routes the gRPC service path prefixes to the gRPC backend and
@@ -196,7 +200,7 @@ defmodule Tuist.Kura.Regions do
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
     # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
     # has no Hetzner LB), and two bounded-size replicas — the same bare-metal
-    # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
+    # shape as eu-west (Dedibox) and ca-east (OVH BHS). The region
     # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
     # the former Hetzner backing, so the cutover is invisible to customers. Only
     # production serves these regions (TUIST_KURA_AVAILABLE_REGIONS), so the
@@ -239,22 +243,27 @@ defmodule Tuist.Kura.Regions do
       country: "US",
       subdivision: "US-OR"
     },
-    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
+    # EU West (Paris) runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
     # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
     # and two bounded-size replicas so a rolling deploy fails the cache Service
     # over to the warm standby instead of dropping traffic while the primary pod
     # restarts. Both replicas of an account stay co-located on its box (controller
     # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
-    # cache regenerates / backfills from cross-region peers). The region
-    # id, cluster_id,
-    # ingress class, and public hostnames are unchanged from the former Hetzner
-    # ccx13 backing, so the cutover is invisible to the customer.
+    # cache regenerates / backfills from cross-region peers).
+    #
+    # Named `eu-central` until 2026-09-09, after the Hetzner Falkenstein pool it
+    # started on; the Dedibox cutover moved it to Paris and kept the name. The
+    # rename rewrote the id on every row and changed the cluster id, so every
+    # account's public hostname moved with it. `provisioner_node_ref` was left
+    # alone: it is an opaque handle on the KuraInstance and its volumes, so each
+    # instance kept its name and its data, and takes the new name when placement
+    # next moves it.
     %{
-      id: "eu-central",
-      display_name: "EU Central",
-      cluster_id: "eu-central-1",
-      ingress_class_name: "kura-eu-central",
+      id: "eu-west",
+      display_name: "EU West",
+      cluster_id: "eu-west-1",
+      ingress_class_name: "kura-eu-west",
       node_pool: "kura-dedibox",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
@@ -264,16 +273,15 @@ defmodule Tuist.Kura.Regions do
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
       egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500,
-      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both
-      # sit in the Paris region, so the region's location is the same
-      # everywhere despite the id reading `eu-central`.
+      # Scaleway Dedibox DC5 in production and staging, DC2 in canary; both sit
+      # in the Paris region.
       country: "FR",
       subdivision: "FR-IDF"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
-    # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
+    # Hetzner LB) — the same bare-metal shape as eu-west on Dedibox. The
     # provider (OVH) is an implementation detail behind the geographic id. Gated
     # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
     # is validated; production serves us-east/us-west on their own OVH fleets).
@@ -395,7 +403,7 @@ defmodule Tuist.Kura.Regions do
     # and us-west.
     #
     # Serves the east of the OriginMap's europe split: the Baltics, the Nordics,
-    # and everything east of Germany. eu-central is in Paris, so those origins
+    # and everything east of Germany. eu-west is in Paris, so those origins
     # read across the continent today, Vilnius being 400km from Warsaw and 1600
     # from Paris.
     #
@@ -1014,7 +1022,7 @@ defmodule Tuist.Kura.Regions do
   # Environment suffix woven into managed-region public hostnames so the
   # ingress hosts, external-dns Cloudflare records, and cert-manager
   # certificates of staging/canary never collide with production. The
-  # managed regions (e.g. `eu-central`) are exposed in every environment
+  # managed regions (e.g. `eu-west`) are exposed in every environment
   # and share a `cluster_id`, so without a per-environment suffix all three
   # would mint the identical hostname and fight over the same DNS record.
   defp managed_region_host_suffix do
