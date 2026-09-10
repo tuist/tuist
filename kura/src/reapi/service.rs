@@ -336,7 +336,21 @@ impl ReapiService {
         namespace_id: &str,
     ) -> Option<Arc<ReapiCacheAnalyticsContext>> {
         self.state.analytics.as_ref()?;
-        reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id)
+        let context =
+            reapi_cache_event_context(metadata, namespace_id, &self.state.config.tenant_id);
+        if context.is_none() {
+            // Analytics is configured but this request carries no usable Bazel
+            // RequestMetadata, so every cache observation on it is discarded.
+            // Counting the discard keeps it apart from "no traffic at all":
+            // without this, a fleet serving cache hits and a fleet dropping
+            // every one of them both report zero reapi_cache events.
+            self.state.metrics.record_analytics_event(
+                "reapi_cache",
+                "skipped_no_bazel_metadata",
+                1,
+            );
+        }
+        context
     }
 
     fn record_reapi_cache_event_with_context(
@@ -354,9 +368,9 @@ impl ReapiService {
             outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
             size: observation.size,
-            duration_ms: observation
+            duration_us: observation
                 .duration
-                .as_millis()
+                .as_micros()
                 .try_into()
                 .unwrap_or(u64::MAX),
             observed_at_ms: SystemTime::now()
@@ -4988,6 +5002,35 @@ mod tests {
     }
 
     #[test]
+    fn drops_cache_analytics_context_without_bazel_metadata() {
+        // Both of these discard every cache observation on the request. The
+        // service counts the discard (reapi_cache/skipped_no_bazel_metadata)
+        // so it is distinguishable from a node serving no cache traffic.
+        let bare = Request::new(());
+        assert!(
+            reapi_cache_event_context(bare.metadata(), "ios", "fallback").is_none(),
+            "a request without RequestMetadata carries no cache attribution"
+        );
+
+        let mut other = Request::new(());
+        let metadata = reapi::RequestMetadata {
+            tool_details: Some(reapi::ToolDetails {
+                tool_name: "xcode-compilation-cache".into(),
+                tool_version: "1.0.0".into(),
+            }),
+            ..Default::default()
+        };
+        other.metadata_mut().insert_bin(
+            REAPI_REQUEST_METADATA_HEADER,
+            tonic::metadata::MetadataValue::from_bytes(&metadata.encode_to_vec()),
+        );
+        assert!(
+            reapi_cache_event_context(other.metadata(), "ios", "fallback").is_none(),
+            "a non-Bazel client carries no cache attribution"
+        );
+    }
+
+    #[test]
     fn cache_analytics_events_share_batch_request_context() {
         let mut request = Request::new(());
         request.metadata_mut().insert(
@@ -5018,7 +5061,7 @@ mod tests {
             outcome: "hit",
             action_digest: "digest-a".into(),
             size: 1,
-            duration_ms: 2,
+            duration_us: 2_000,
             observed_at_ms: 3,
         };
         let second = ReapiCacheAnalyticsEvent {
@@ -5027,7 +5070,7 @@ mod tests {
             outcome: "miss",
             action_digest: "digest-b".into(),
             size: 0,
-            duration_ms: 4,
+            duration_us: 4_000,
             observed_at_ms: 5,
         };
 
@@ -5087,7 +5130,7 @@ mod tests {
                         outcome: "hit",
                         action_digest: digest.to_owned(),
                         size: 4_096,
-                        duration_ms: 1,
+                        duration_us: 1_000,
                         observed_at_ms: 1,
                     });
                 }

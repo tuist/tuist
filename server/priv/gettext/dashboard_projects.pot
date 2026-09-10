@@ -2518,16 +2518,6 @@ msgstr ""
 msgid "Total invocations"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:420
-#, elixir-autogen, elixir-format
-msgid "Total size of data downloaded from the remote cache."
-msgstr ""
-
-#: lib/tuist_web/live/bazel_invocation_live.ex:428
-#, elixir-autogen, elixir-format
-msgid "Total size of data uploaded to the remote cache."
-msgstr ""
-
 #: lib/tuist_web/live/bazel_cache_live.ex:305
 #, elixir-autogen, elixir-format
 msgid "Transferred remote-cache bytes divided by measured request time. Requests without a measured duration are excluded."
@@ -2660,4 +2650,24 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:803
 #, elixir-autogen, elixir-format
 msgid "Skips the entire target, including healthy tests."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:386
+#, elixir-autogen, elixir-format
+msgid "Content downloaded"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:398
+#, elixir-autogen, elixir-format
+msgid "Content uploaded"
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:388
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
+msgstr ""
+
+#: lib/tuist_web/live/bazel_invocation_live.ex:400
+#, elixir-autogen, elixir-format
+msgid "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
 msgstr ""

@@ -428,7 +428,10 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "#bazel-invocation-cache-action-hits", "1")
     assert has_element?(live_view, "#bazel-invocation-cache-action-misses", "0")
     assert has_element?(live_view, "#bazel-invocation-cache-hit-rate", "100.0%")
-    assert has_element?(live_view, "#bazel-invocation-cache-downloads", "6.1 KB")
+    # The fixture records a 2048-byte action-cache hit and a 4096-byte CAS hit.
+    # Only the latter is a build output, so the tile reports 4.1 KB rather than
+    # the 6.1 KB blended total, which counted ActionResult metadata as content.
+    assert has_element?(live_view, "#bazel-invocation-cache-downloads", "4.1 KB")
     assert has_element?(live_view, "#bazel-invocation-cache-uploads", "0 B")
     assert has_element?(live_view, "[data-part='cache-views']", "Cacheable Actions")
     assert has_element?(live_view, "[data-part='cache-views']", "Content Objects")
