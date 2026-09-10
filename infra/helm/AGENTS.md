@@ -25,6 +25,11 @@ This node covers Helm assets under `infra/helm/`.
 - Kura metrics use `instance=<namespace>/<pod>` at the metrics destination so
   pod IP changes do not multiply series. Preserve the cluster label and the
   unready scrape's `ready="false"` label when changing either scrape path.
+- Managed Kura analytics are enabled by `kuraController.analytics.enabled`.
+  `tuist/templates/kura-analytics-external-secret.yaml` sends the server's
+  internal address and existing webhook signing key to the shared runtime
+  Secret. Keep its key source and trimming aligned with the server config.
+  Receiving Bazel build events alone does not enable analytics delivery.
 
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`

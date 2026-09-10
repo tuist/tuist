@@ -3044,6 +3044,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   floor rather than loss. If that proves to be steady state on an instance,
   raise the floor or move those two kinds to a rate-based tier; do not raise
   the bar for the HTTP kinds, which are loss.
+  - `reapi_materialization` on the batch-read path now waits up to a second for
+    the pool before it sheds, so a shed there means the pool stayed full for a
+    whole second rather than that it was full at one instant. The wait shows
+    up as
+    `kura_memory_actions_total{action="response_materialization_admission_wait"}`,
+    which rises long before any shed does and is the earlier signal that an
+    instance's floor is too small for its read concurrency. Sheds without a
+    matching rise in that counter come from the other materialization sites,
+    which stay try-only: they are reached holding admission from another path,
+    so waiting there would be hold-and-wait on the pool they are waiting for.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
     Write decoding borrows the ceiling headroom above the floor-derived budget
     while pressure is normal, so a shed means the pod exhausted its floor *and*

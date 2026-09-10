@@ -352,7 +352,7 @@ defmodule Tuist.Kura do
   def managed_cache_endpoint_urls(%Account{id: account_id}, origin) do
     Server
     |> where([s], s.account_id == ^account_id and s.status == :active)
-    |> where([s], s.region in ^public_region_ids())
+    |> where([s], s.region not in ^private_catalog_region_ids())
     |> select([s], %{url: s.url, region: s.region})
     |> Repo.all()
     |> order_by_origin(origin)
@@ -370,12 +370,15 @@ defmodule Tuist.Kura do
 
   # The CLI cannot reach a private region: its URL is in-cluster Service DNS,
   # and runner builds get it through `runner_cache_endpoint_url/2` instead.
-  # Read from `all/0` rather than `available/0` so an instance in a region that
-  # has been dropped from the environment's catalog keeps serving the account
-  # until teardown actually removes it.
-  defp public_region_ids do
+  # Excluding what is known to be private, rather than including what is known
+  # to be public, is what keeps an instance serving through a region rename: a
+  # deploy rolls pods one at a time, so for its length the rows name a region
+  # the old code has never heard of, and that instance is still the account's
+  # cache. The same reading keeps an instance in a region dropped from the
+  # environment's catalog serving until teardown actually removes it.
+  defp private_catalog_region_ids do
     Regions.all()
-    |> Enum.reject(&Regions.private?/1)
+    |> Enum.filter(&Regions.private?/1)
     |> Enum.map(& &1.id)
   end
 
@@ -1379,7 +1382,7 @@ defmodule Tuist.Kura do
   defp managed_cli_endpoint_servers(%Account{id: account_id}) do
     Server
     |> where([s], s.account_id == ^account_id and s.status == :active)
-    |> where([s], s.region in ^public_region_ids())
+    |> where([s], s.region not in ^private_catalog_region_ids())
     |> order_by(asc: :region)
     |> Repo.all()
   end

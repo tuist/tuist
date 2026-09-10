@@ -222,8 +222,6 @@ defmodule Tuist.Builds do
     Timeline.load(build_run_id, opts)
   end
 
-  def build_timeline_target_count(build_run_id), do: Timeline.target_count(build_run_id)
-
   def neighbor_build_step(build_run_id, event_id, direction, opts),
     do: Timeline.neighbor(build_run_id, event_id, direction, opts)
 

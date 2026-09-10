@@ -245,6 +245,12 @@ impl ReapiService {
         }
     }
 
+    /// Try-only, deliberately. Every caller reaches here holding admission from
+    /// another path -- the action-result handler holds its materialization
+    /// budget, the write handlers their gRPC decode reservation -- and all of it
+    /// draws on the same transient pool. Waiting for that pool while holding
+    /// part of it is hold-and-wait. `AtomicMaterializationBudget::reserve` is
+    /// the shape that can wait: one acquisition, taken before anything is held.
     fn retain_unary_response_materialization<T: Message>(
         &self,
         response: &mut Response<T>,
@@ -1816,57 +1822,59 @@ impl ContentAddressableStorage for ReapiService {
         // large read-heavy clients (measured ~4ms per blob serialized). The
         // budget claim is a lock-free atomic subtraction; per-blob failure
         // semantics are unchanged and response order matches request order.
-        let budget = AtomicMaterializationBudget::new(&self.state);
         let digests = message.digests;
-        let read_results: Vec<(
-            reapi::batch_read_blobs_response::Response,
-            Duration,
-            Option<crate::memory::MemoryPermit>,
-        )> = futures_util::stream::iter(digests.into_iter().map(|digest| {
-            let budget = &budget;
-            async move {
-                let analytics_started_at = Instant::now();
-                let (response, response_memory) =
-                    match batch_read_one_atomic(&self.state, namespace_id, &digest, budget).await {
-                        Ok(Some((data, response_memory))) => (
-                            reapi::batch_read_blobs_response::Response {
+        // Reserve the whole batch's response memory once, before any blob is
+        // read, waiting for a momentarily full pool. The client's digests carry
+        // the sizes, so the request can be admitted as a unit; claiming per blob
+        // while blobs read concurrently would mean waiting for the pool while
+        // already holding part of it.
+        let mut budget = AtomicMaterializationBudget::reserve(
+            &self.state,
+            digests
+                .iter()
+                .map(|digest| u64::try_from(digest.size_bytes).unwrap_or(0))
+                .fold(0_u64, |total, size| total.saturating_add(size)),
+        )
+        .await?;
+        let budget_ref = &budget;
+        let read_results: Vec<(reapi::batch_read_blobs_response::Response, Duration)> =
+            futures_util::stream::iter(digests.into_iter().map(|digest| {
+                let budget = budget_ref;
+                async move {
+                    let analytics_started_at = Instant::now();
+                    let response =
+                        match batch_read_one_atomic(&self.state, namespace_id, &digest, budget)
+                            .await
+                        {
+                            Ok(Some(data)) => reapi::batch_read_blobs_response::Response {
                                 digest: Some(digest),
                                 data,
                                 compressor: 0,
                                 status: Some(rpc_status(0, "")),
                             },
-                            response_memory,
-                        ),
-                        Ok(None) => (
-                            reapi::batch_read_blobs_response::Response {
+                            Ok(None) => reapi::batch_read_blobs_response::Response {
                                 digest: Some(digest),
                                 data: Vec::new(),
                                 compressor: 0,
                                 status: Some(rpc_status(5, "blob not found")),
                             },
-                            None,
-                        ),
-                        Err(status) => (
-                            reapi::batch_read_blobs_response::Response {
+                            Err(status) => reapi::batch_read_blobs_response::Response {
                                 digest: Some(digest),
                                 data: Vec::new(),
                                 compressor: 0,
                                 status: Some(rpc_status_from_grpc_status(&status)),
                             },
-                            None,
-                        ),
-                    };
+                        };
 
-                (response, analytics_started_at.elapsed(), response_memory)
-            }
-        }))
-        .buffered(16)
-        .collect()
-        .await;
+                    (response, analytics_started_at.elapsed())
+                }
+            }))
+            .buffered(16)
+            .collect()
+            .await;
         let mut responses = Vec::with_capacity(read_results.len());
-        let mut response_memory_permits = Vec::new();
 
-        for (response, duration, response_memory) in read_results {
+        for (response, duration) in read_results {
             let outcome = response
                 .status
                 .as_ref()
@@ -1890,9 +1898,6 @@ impl ContentAddressableStorage for ReapiService {
             }
 
             responses.push(response);
-            if let Some(response_memory) = response_memory {
-                response_memory_permits.push(response_memory);
-            }
         }
         // Sum the bytes served so the whole batch books a single download usage
         // request, matching how ByteStream/HTTP count one request per call. A
@@ -1915,10 +1920,10 @@ impl ContentAddressableStorage for ReapiService {
         });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
-        let response_memory = (!response_memory_permits.is_empty()).then(|| {
-            crate::memory::ResponseTransportGuard::from_materialization_permits(
-                response_memory_permits,
-            )
+        // The single up-front reservation rides with the response, so the bytes
+        // stay admitted for as long as the client is reading them.
+        let response_memory = budget.take_permit().map(|permit| {
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit])
         });
         if let Some(response_memory) = response_memory {
             response.extensions_mut().insert(response_memory);
@@ -2759,7 +2764,7 @@ async fn batch_read_one_atomic(
     namespace_id: &str,
     digest: &reapi::Digest,
     budget: &AtomicMaterializationBudget<'_>,
-) -> Result<Option<(Vec<u8>, Option<crate::memory::MemoryPermit>)>, Status> {
+) -> Result<Option<Vec<u8>>, Status> {
     let key = blob_key(&digest_key(digest)?);
     let manifest = state
         .store
@@ -2781,15 +2786,15 @@ async fn batch_read_one_atomic(
                 .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
             return Ok(None);
         };
-        let response_memory = budget.claim(recipe.blob_size(), "CAS response materialization")?;
+        budget.claim(recipe.blob_size(), "CAS response materialization")?;
         let bytes = read_composite_bytes(state, namespace_id, &recipe).await?;
         state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
-        return Ok(Some((bytes, response_memory)));
+        return Ok(Some(bytes));
     }
     let manifest = manifest.expect("checked above");
-    let response_memory = budget.claim(manifest.size, "CAS response materialization")?;
+    budget.claim(manifest.size, "CAS response materialization")?;
     let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
@@ -2807,7 +2812,7 @@ async fn batch_read_one_atomic(
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
-    Ok(Some((bytes, response_memory)))
+    Ok(Some(bytes))
 }
 
 async fn maybe_read_cas_bytes(
@@ -3170,9 +3175,19 @@ struct MaterializationBudget<'a> {
     held_permits: Vec<crate::memory::MemoryPermit>,
 }
 
+/// One request's response-materialization budget, reserved up front.
+///
+/// The reservation is taken once, for the whole batch, and drawn down by
+/// arithmetic. Claiming per blob against the memory controller would mean
+/// waiting for the pool while already holding part of it, and a batch reads its
+/// blobs concurrently, so that is hold-and-wait between the blobs of one request
+/// as well as between requests. One acquisition per request removes it.
 struct AtomicMaterializationBudget<'a> {
     state: &'a SharedState,
     remaining_bytes: AtomicUsize,
+    /// Covers every claim below. Handed to the response so the bytes stay
+    /// reserved for as long as the client is reading them.
+    permit: Option<crate::memory::MemoryPermit>,
 }
 
 struct MaterializedSnapshot {
@@ -3240,18 +3255,49 @@ fn snapshot_encode_peak_bytes(content_bytes: usize) -> usize {
 }
 
 impl<'a> AtomicMaterializationBudget<'a> {
-    fn new(state: &'a SharedState) -> Self {
-        Self {
+    /// Reserves what the request asked for, bounded by the per-request budget,
+    /// waiting for a momentarily full pool rather than shedding against it.
+    ///
+    /// `wanted_bytes` comes from the client's own digests, so a batch whose
+    /// blobs are missing reserves for bytes it never serves. That over-reserve
+    /// is bounded by the per-request budget and released with the response; the
+    /// alternative is to learn each size only after a store lookup, which is
+    /// what forced the per-blob claims this replaces.
+    async fn reserve(state: &'a SharedState, wanted_bytes: u64) -> Result<Self, Status> {
+        let budget_bytes = state.memory.reapi_response_budget_bytes();
+        let reserved_bytes = usize::try_from(wanted_bytes)
+            .unwrap_or(usize::MAX)
+            .min(budget_bytes);
+        let permit = state
+            .memory
+            .reserve_response_materialization(reserved_bytes)
+            .await
+            .map_err(|()| {
+                state
+                    .metrics
+                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                state
+                    .metrics
+                    .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+                Status::resource_exhausted(
+                    "batch read response was rejected because the REAPI response materialization pool did not free in time",
+                )
+            })?;
+        Ok(Self {
             state,
-            remaining_bytes: AtomicUsize::new(state.memory.reapi_response_budget_bytes()),
-        }
+            remaining_bytes: AtomicUsize::new(reserved_bytes),
+            permit,
+        })
     }
 
-    fn claim(
-        &self,
-        size_bytes: u64,
-        label: &str,
-    ) -> Result<Option<crate::memory::MemoryPermit>, Status> {
+    fn take_permit(&mut self) -> Option<crate::memory::MemoryPermit> {
+        self.permit.take()
+    }
+
+    /// Draws one response down from the reservation. Pure arithmetic: the memory
+    /// was admitted in `reserve`, so this never touches the controller and never
+    /// waits while holding part of the pool.
+    fn claim(&self, size_bytes: u64, label: &str) -> Result<(), Status> {
         let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
             self.reject(format!(
                 "{label} exceeds the maximum addressable REAPI materialization size"
@@ -3263,27 +3309,20 @@ impl<'a> AtomicMaterializationBudget<'a> {
                 "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
             )));
         }
-        let reservation =
-            self.remaining_bytes
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |remaining| {
-                    remaining.checked_sub(requested_bytes)
-                });
-        let Err(remaining_bytes) = reservation else {
-            return self
-                .state
-                .memory
-                .try_acquire_response_materialization(requested_bytes)
-                .map_err(|_| {
-                    self.remaining_bytes
-                        .fetch_add(requested_bytes, Ordering::Release);
-                    self.reject(format!(
-                        "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
-                    ))
-                });
-        };
-        Err(self.reject(format!(
-            "{label} needs {requested_bytes} bytes but only {remaining_bytes} bytes remain in the REAPI materialization budget"
-        )))
+        // A blob larger than its declared digest, or one the request never
+        // declared, lands here: the reservation was sized from what the client
+        // asked for, so anything beyond it is refused rather than served out of
+        // memory nobody admitted.
+        self.remaining_bytes
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |remaining| {
+                remaining.checked_sub(requested_bytes)
+            })
+            .map(|_| ())
+            .map_err(|remaining_bytes| {
+                self.reject(format!(
+                    "{label} needs {requested_bytes} bytes but only {remaining_bytes} bytes remain in the REAPI materialization budget"
+                ))
+            })
     }
 
     fn reject(&self, message: String) -> Status {
@@ -8491,7 +8530,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn concurrent_cas_batch_reads_respect_the_shared_transient_budget() {
+    async fn a_third_concurrent_batch_read_waits_for_the_budget_instead_of_shedding() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 64 * 1024 * 1024;
             config.memory_hard_limit_bytes = 96 * 1024 * 1024;
@@ -8532,35 +8571,38 @@ mod tests {
             FailpointAction::Sleep(Duration::from_millis(250)),
         );
 
-        let first = tokio::spawn({
-            let digest = digest.clone();
-            async move {
-                first_service
-                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
-                        instance_name: DEFAULT_INSTANCE_NAME.into(),
-                        digests: vec![digest],
-                        digest_function: reapi::digest_function::Value::Sha256 as i32,
-                        ..Default::default()
-                    }))
-                    .await
-            }
-        });
-        let second = tokio::spawn({
-            let digest = digest.clone();
-            async move {
-                second_service
-                    .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
-                        instance_name: DEFAULT_INSTANCE_NAME.into(),
-                        digests: vec![digest],
-                        digest_function: reapi::digest_function::Value::Sha256 as i32,
-                        ..Default::default()
-                    }))
-                    .await
-            }
-        });
+        // Each holder drops its response inside the task, which is where the
+        // reservation is released -- the permit rides the response, so a task
+        // that parks a `Response` in its JoinHandle would hold the pool for the
+        // whole test rather than for the read.
+        let read_and_release = |service: ReapiService, digest: reapi::Digest| async move {
+            let response = service
+                .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    digests: vec![digest],
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                    ..Default::default()
+                }))
+                .await
+                .expect("concurrent read should succeed");
+            let served = response.get_ref().responses[0].data.len();
+            let code = response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .map(|status| status.code);
+            (code, served)
+        };
+        let first = tokio::spawn(read_and_release(first_service, digest.clone()));
+        let second = tokio::spawn(read_and_release(second_service, digest.clone()));
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
+        // The pool is full and the two holders release in ~250ms. Before, this
+        // third read was answered RESOURCE_EXHAUSTED on the spot and the blob
+        // became a cache miss the client refetched. It now waits out the
+        // contention and serves, which is what the pool being *momentarily* full
+        // should cost: latency, not a miss.
+        let waited_from = Instant::now();
         let third = third_service
             .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
                 instance_name: DEFAULT_INSTANCE_NAME.into(),
@@ -8569,7 +8611,8 @@ mod tests {
                 ..Default::default()
             }))
             .await
-            .expect("third request should get a per-digest response");
+            .expect("third request should be served after waiting");
+        let waited = waited_from.elapsed();
 
         context
             .state
@@ -8582,22 +8625,18 @@ mod tests {
                 .status
                 .as_ref()
                 .map(|status| status.code),
-            Some(tonic::Code::ResourceExhausted as i32)
+            Some(0)
+        );
+        assert_eq!(third.get_ref().responses[0].data, bytes);
+        assert!(
+            waited >= Duration::from_millis(100),
+            "the third read should have queued behind the holders, waited {waited:?}"
         );
 
         for handle in [first, second] {
-            let response = handle
-                .await
-                .expect("concurrent read task should join")
-                .expect("concurrent read should succeed");
-            assert_eq!(
-                response.get_ref().responses[0]
-                    .status
-                    .as_ref()
-                    .map(|status| status.code),
-                Some(0)
-            );
-            assert_eq!(response.get_ref().responses[0].data, bytes);
+            let (code, served) = handle.await.expect("concurrent read task should join");
+            assert_eq!(code, Some(0));
+            assert_eq!(served, bytes.len());
         }
     }
 
