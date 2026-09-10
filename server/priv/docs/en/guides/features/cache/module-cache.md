@@ -161,16 +161,6 @@ For example:
 
 Reasons describe observations; they are not permanent labels attached to a key. For example, the first miss after a compiler upgrade can be Changed, while a later miss for that new key can be Cold if it was never observed as available remotely.
 
-### What the comparison can tell you {#analytics-comparison}
-
-Changed and Upstream compare the same module and product on the same branch, within the selected date range and environment. The previous observation may be a hit or a miss. Changing these filters can change the available comparison history.
-
-Evicted checks the available 30-day history ending at the selected end date. It can use evidence from another branch or from a local run when inspecting CI, because those runs can share the same remote cache. It requires the same project, full nonempty key, and nonempty recorded endpoint. The earlier remote-hit report must predate both the CLI-reported command start and the server receipt time minus the command duration. This is conservative when either clock puts the start earlier, but clock skew combined with delayed reporting can still affect classification; it does not establish the time of an eviction. Future date selections use the current time as the end of the evidence window.
-
-The CLI does not report every input used to construct the final key. Matching inputs in the dashboard therefore do not prove that the full keys match, and do not rule out a hashing or reporting bug. Optional inputs are compared only when reported on both observations. Older observations may lack these fingerprints, including configuration/compiler inputs and effective destinations. An artifact successfully uploaded and then evicted before any recorded remote hit can still appear Cold: the CLI knows which target uploads succeeded, but that per-target outcome is not yet reported for this classification.
-
-The **Modules** count describes the latest commit on the default branch; hit and miss totals cover the selected date range and environment. Counts represent reported command observations, not unique artifacts or commits. Older CLI versions can report a build's cache results again when test-only shards restore its metadata, inflating counts for any reason, including Cold and Evicted. Update the CLI in both the build and consuming test jobs; existing reports are not rewritten.
-
 ### Improving the cache hit rate {#improving-cache-hit-rate}
 
 1. **Choose a consistent baseline.** Start with CI and a representative date range. Sort modules by misses, then consider their hit rates, dependents, and build cost. Fixing a frequently missed, expensive dependency can save more time than improving the hit rate of a tiny module. Compare the same environment and similar workloads after making a change.
