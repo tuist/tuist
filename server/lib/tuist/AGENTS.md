@@ -69,3 +69,5 @@ This directory contains the core business logic and domain modules for the serve
 - Data export requirements: `server/data-export.md`
 
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
+
+- Module-cache miss classification compares reported direct inputs, including the additional cache-key strings, before dependency hashes. Missing additional-input telemetry must not count as a direct change.

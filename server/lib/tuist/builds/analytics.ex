@@ -2318,15 +2318,17 @@ defmodule Tuist.Builds.Analytics do
       product,
       count() AS appearances,
       countIf(hit = 'miss') AS misses,
-      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
+      countIf(hit = 'miss' AND rn > 1 AND (own != prev_own OR #{additional_strings_changed()})) AS changed,
       countIf(
-        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
+        hit = 'miss' AND rn > 1 AND own = prev_own AND NOT (#{additional_strings_changed()})
+        AND (deps != prev_deps OR ext != prev_ext)
       ) AS upstream
     FROM (
       SELECT
-        day, name, product, hit, own, deps, ext,
+        day, name, product, hit, own, additional, deps, ext,
         row_number() OVER w AS rn,
         lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(additional, 1) OVER w AS prev_additional,
         lagInFrame(deps, 1) OVER w AS prev_deps,
         lagInFrame(ext, 1) OVER w AS prev_ext
       FROM (
@@ -2338,6 +2340,7 @@ defmodule Tuist.Builds.Analytics do
           xt.product AS product,
           xt.binary_cache_hit AS hit,
           xt.own_hash AS own,
+          xt.additional_strings_hash AS additional,
           cityHash64(xt.dependencies_hash) AS deps,
           cityHash64(xt.external_hash) AS ext
         FROM xcode_targets_by_project AS xt
@@ -2369,6 +2372,10 @@ defmodule Tuist.Builds.Analytics do
         upstream: upstream
       }
     end)
+  end
+
+  defp additional_strings_changed do
+    "coalesce(additional != prev_additional, false)"
   end
 
   @doc """
@@ -2657,15 +2664,16 @@ defmodule Tuist.Builds.Analytics do
         multiIf(
           hit != 'miss', 'hit',
           rn = 1, 'cold',
-          own != prev_own, 'changed',
+          own != prev_own OR #{additional_strings_changed()}, 'changed',
           deps != prev_deps OR ext != prev_ext, 'upstream',
           'cold'
         ) AS reason
       FROM (
         SELECT
-          id, scheme, ran_at, branch, commit_sha, hit, own, deps, ext,
+          id, scheme, ran_at, branch, commit_sha, hit, own, additional, deps, ext,
           row_number() OVER w AS rn,
           lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(additional, 1) OVER w AS prev_additional,
           lagInFrame(deps, 1) OVER w AS prev_deps,
           lagInFrame(ext, 1) OVER w AS prev_ext
         FROM (
@@ -2678,6 +2686,7 @@ defmodule Tuist.Builds.Analytics do
             xt.binary_cache_hit AS hit,
             xt.product AS product,
             xt.own_hash AS own,
+            xt.additional_strings_hash AS additional,
             cityHash64(xt.dependencies_hash) AS deps,
             cityHash64(xt.external_hash) AS ext
           FROM xcode_targets_by_project AS xt

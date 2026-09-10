@@ -86,6 +86,36 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
         "C" => "upstream"
       })
     end
+
+    test "#{view}: the precise compiler input changes even when the reported Swift version does not", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1, swift_version: "6.0")
+      insert_chain(warmed, :remote, "v1", compiler: "6.0.0.9")
+
+      upgraded = observation(project, 2, swift_version: "6.0")
+      insert_chain(upgraded, :miss, "v2", compiler: "6.0.0.10")
+
+      assert_reasons(@view, opts, upgraded, %{"A" => "changed", "B" => "changed", "C" => "changed"})
+    end
+
+    for missing <- [:earlier, :later] do
+      @missing missing
+      test "#{view}: missing #{@missing} compiler inputs do not imply a direct change", %{
+        project: project,
+        opts: opts
+      } do
+        inputs = ["Debug", "6.0.0.9", "7"]
+        warmed = observation(project, 1)
+        insert_chain(warmed, :remote, "v1", additional_strings: if(@missing == :earlier, do: [], else: inputs))
+
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v2", additional_strings: if(@missing == :later, do: [], else: inputs))
+
+        assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "upstream", "C" => "upstream"})
+      end
+    end
   end
 
   defp observation(project, day, attrs \\ []) do
@@ -116,10 +146,8 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     compiler = Keyword.get(attrs, :compiler, "5.10.0.13")
 
     for {name, dependencies, dependency_hash, sources, settings} <- [
-          {"A", [], "no-dependencies", Keyword.get(attrs, :a_sources, "a-sources-v1"),
-           "a-settings"},
-          {"B", ["A"], "dependencies-of-A-#{revision}", "b-sources",
-           Keyword.get(attrs, :b_settings, "b-settings")},
+          {"A", [], "no-dependencies", Keyword.get(attrs, :a_sources, "a-sources-v1"), "a-settings"},
+          {"B", ["A"], "dependencies-of-A-#{revision}", "b-sources", Keyword.get(attrs, :b_settings, "b-settings")},
           {"C", ["B"], "dependencies-of-B-#{revision}", "c-sources", "c-settings"}
         ] do
       XcodeFixtures.xcode_target_fixture(
@@ -132,7 +160,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
         target_settings_hash: settings,
         dependencies: dependencies,
         dependencies_hash: dependency_hash,
-        additional_strings: ["Debug", compiler, "7"]
+        additional_strings: Keyword.get(attrs, :additional_strings, ["Debug", compiler, "7"])
       )
     end
   end

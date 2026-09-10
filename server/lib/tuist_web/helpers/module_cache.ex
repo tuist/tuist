@@ -9,7 +9,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
   def reason_description("changed") do
     dgettext(
       "dashboard_cache",
-      "Changed: the module's own compared inputs changed, such as sources, resources, or build settings. This does not necessarily mean its source code was edited."
+      "Changed: the module's own compared inputs changed, such as sources, resources, build settings, build configuration, or compiler version. This does not necessarily mean its source code was edited."
     )
   end
 

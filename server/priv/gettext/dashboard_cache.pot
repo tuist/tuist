@@ -1267,11 +1267,6 @@ msgstr ""
 msgid "Changed means the module's own compared inputs changed. Upstream means its dependency or external package hash changed. Cold means there is no earlier observation, or the compared inputs did not explain the miss."
 msgstr ""
 
-#: lib/tuist_web/helpers/module_cache.ex:10
-#, elixir-autogen, elixir-format
-msgid "Changed: the module's own compared inputs changed, such as sources, resources, or build settings. This does not necessarily mean its source code was edited."
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:24
 #, elixir-autogen, elixir-format
 msgid "Cold: there is no earlier observation to compare with, or the compared inputs did not explain the miss. This can include repeated misses for the same cache key; it does not mean the module was never cached."
@@ -1285,4 +1280,9 @@ msgstr ""
 #: lib/tuist_web/helpers/module_cache.ex:42
 #, elixir-autogen, elixir-format
 msgid "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations. Older CLI versions may report an earlier build's cache results again from test shards."
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:10
+#, elixir-autogen, elixir-format
+msgid "Changed: the module's own compared inputs changed, such as sources, resources, build settings, build configuration, or compiler version. This does not necessarily mean its source code was edited."
 msgstr ""
