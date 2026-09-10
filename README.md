@@ -1,6 +1,12 @@
 <div align="center">
   <div>
-    <a href="https://tuist.dev" target="_blank"><img src="assets/header.png" alt="header"/></a>
+    <a href="https://tuist.dev" target="_blank">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/header-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="assets/header-light.png">
+        <img src="assets/header-light.png" alt="header"/>
+      </picture>
+    </a>
   </div>
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
