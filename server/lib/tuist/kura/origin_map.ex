@@ -17,7 +17,7 @@ defmodule Tuist.Kura.OriginMap do
 
   # Bumped when an entry moves. Recorded on decisions rather than compared
   # against anything: it dates a verdict, it does not gate one.
-  @version 3
+  @version 4
 
   # Nearest first, and every list names every candidate region. An origin
   # always has an answer, so a region being unserved or unfunded narrows the
@@ -49,8 +49,8 @@ defmodule Tuist.Kura.OriginMap do
   @default_zone :us_east
 
   @europe ~w[
-    AD AL AT AX BA BE CH CY DE ES FO FR GB GG GI GR HR IE IM IS IT JE LI LU MC
-    ME MK MT NL PT RS SI SJ SM VA XK
+    AD AT AX BE CH DE ES FO FR GB GG GI IE IM IS IT JE LI LU MC MT NL PT SI
+    SJ SM VA
   ]
 
   # Nearer Warsaw than Paris, by enough that the routes follow the geography.
@@ -58,12 +58,16 @@ defmodule Tuist.Kura.OriginMap do
   # against 1030, Vilnius 400 against 1600, so the Nordics sit here with the
   # Baltics rather than with western Europe.
   #
-  # The boundary stops short of the Balkans, Greece and Cyprus. They are also
-  # nearer Warsaw on a straight line, but their transit is provisioned westward
-  # and the traffic behind them is small, so they stay on the Paris routes until
-  # eu-east has a record. Widening this list is one edit and re-reads history.
+  # The Balkans, Greece and Cyprus sit here on the same test: Belgrade is 829km
+  # from Warsaw against 1445 from Paris, Zagreb 802 against 1080, Athens 1598
+  # against 2096, Nicosia 2133 against 2950.
+  #
+  # Slovenia stays west. Ljubljana is 833km from Warsaw against 964 from Paris,
+  # a margin narrower than anything else here and too narrow to take the
+  # straight line for the route.
   @europe_east ~w[
-    BG BY CZ DK EE FI HU LT LV MD NO PL RO RU SE SK UA
+    AL BA BG BY CY CZ DK EE FI GR HR HU LT LV MD ME MK NO PL RO RS RU SE SK
+    UA XK
   ]
 
   @africa_middle_east ~w[
