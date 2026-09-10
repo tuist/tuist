@@ -651,47 +651,50 @@ defmodule Tuist.ReapiCache do
 
   def invocation_summaries(_project_id, [], _options), do: %{}
 
-  def invocation_summaries(project_id, invocation_ids, options) do
-    rows =
-      ClickHouseRepo.all(
-        from(event in cache_event_ingest_query(project_id, options),
-          where: event.invocation_id in ^invocation_ids,
-          group_by: event.invocation_id,
-          select: %{
-            invocation_id: event.invocation_id,
-            hits:
-              coalesce(
-                sum(fragment("if(? = 'action_cache' AND ? = 'hit', 1, 0)", event.operation, event.outcome)),
-                0
-              ),
-            misses:
-              coalesce(
-                sum(fragment("if(? = 'action_cache' AND ? = 'miss', 1, 0)", event.operation, event.outcome)),
-                0
-              ),
-            download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
-            upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0),
-            content_download_bytes:
-              coalesce(
-                sum(fragment("if(? = 'cas' AND ? = 'hit', ?, 0)", event.operation, event.outcome, event.size)),
-                0
-              ),
-            content_upload_bytes:
-              coalesce(
-                sum(fragment("if(? = 'cas' AND ? = 'write', ?, 0)", event.operation, event.outcome, event.size)),
-                0
-              )
-          }
-        )
-      )
+  def invocation_summaries(project_id, invocation_ids, _options) do
+    # Reads the pre-aggregated view rather than the raw events. A single
+    # invocation can record tens of thousands of cache events, so rendering a
+    # page of invocations previously scanned hundreds of thousands of rows to
+    # produce a handful of sums. The invocation ids already constrain the
+    # result, so no environment or date predicate is needed here.
+    query = """
+    SELECT
+      invocation_id,
+      sumMerge(action_hits_state),
+      sumMerge(action_misses_state),
+      sumMerge(download_bytes_state),
+      sumMerge(upload_bytes_state),
+      sumMerge(content_download_bytes_state),
+      sumMerge(content_upload_bytes_state)
+    FROM reapi_cache_invocation_summaries
+    WHERE project_id = {project_id:Int64} AND invocation_id IN {invocation_ids:Array(String)}
+    GROUP BY invocation_id
+    """
 
-    Map.new(rows, fn row ->
-      lookups = row.hits + row.misses
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project_id, invocation_ids: invocation_ids})
 
-      {row.invocation_id,
-       row
-       |> Map.delete(:invocation_id)
-       |> Map.put(:hit_rate, if(lookups == 0, do: nil, else: Float.round(row.hits / lookups * 100, 1)))}
+    Map.new(rows, fn [
+                       invocation_id,
+                       hits,
+                       misses,
+                       download_bytes,
+                       upload_bytes,
+                       content_download_bytes,
+                       content_upload_bytes
+                     ] ->
+      lookups = hits + misses
+
+      {invocation_id,
+       %{
+         hits: hits,
+         misses: misses,
+         download_bytes: download_bytes,
+         upload_bytes: upload_bytes,
+         content_download_bytes: content_download_bytes,
+         content_upload_bytes: content_upload_bytes,
+         hit_rate: if(lookups == 0, do: nil, else: Float.round(hits / lookups * 100, 1))
+       }}
     end)
   end
 
