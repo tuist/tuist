@@ -84,7 +84,7 @@ spec:
       # on its own if it can't reach them.
       initContainers:
         - name: wait-for-dependencies
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /bin/sh
@@ -111,7 +111,7 @@ spec:
       {{- end }}
       containers:
         - name: migrate
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist
