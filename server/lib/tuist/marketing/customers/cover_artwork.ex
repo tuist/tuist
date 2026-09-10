@@ -13,7 +13,7 @@ defmodule Tuist.Marketing.Customers.CoverArtwork do
 
     * `svg(basename, :page)` — the card artwork on the marketing site.
       Dots carry `data-fill` attributes so the theme-following CSS rules
-      (see marketing_new.css) repaint them per scheme, with light-mode hex
+      (see marketing.css) repaint them per scheme, with light-mode hex
       fallbacks baked in so a copied SVG still renders on its own.
     * `svg(basename, :og)` — the dark variant behind the Open Graph image,
       with the dark-scheme token values baked in because no stylesheet

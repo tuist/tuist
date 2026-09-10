@@ -11,7 +11,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
     test "renders the blog with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
 
     test "keeps the most recent post in the grid", %{conn: conn} do

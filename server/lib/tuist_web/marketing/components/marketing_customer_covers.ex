@@ -7,7 +7,7 @@ defmodule TuistWeb.Marketing.MarketingCustomerCovers do
   `Tuist.Marketing.Customers.CoverArtwork`, generated from a logo file at
   `priv/marketing/customers/logos/<basename>.svg` — the same source that
   feeds the case study's Open Graph image. Dots carry data-fill attributes
-  (theme-following CSS fills, see marketing_new.css) and logos use
+  (theme-following CSS fills, see marketing.css) and logos use
   currentColor for their neutral parts, so one SVG serves both themes.
   """
   use TuistWeb, :html

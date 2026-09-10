@@ -67,7 +67,7 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
                "404"
 
       assert html |> Floki.find("#marketing-navbar") |> List.first()
-      assert html |> Floki.find("link[href='/marketing/assets/bundle-new.css']") |> List.first()
+      assert html |> Floki.find("link[href='/marketing/assets/bundle.css']") |> List.first()
       assert html |> Floki.find("title:fl-contains('Page not found · Tuist')") |> List.first()
       assert html |> Floki.find("link[rel='canonical'][href$='/does-not-exist']") |> List.first()
     end

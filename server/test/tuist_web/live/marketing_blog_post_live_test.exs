@@ -17,7 +17,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
     test "renders the post with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
       assert html =~ "Build Smart Before You Build Fast"
     end
 

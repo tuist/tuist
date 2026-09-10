@@ -5,7 +5,7 @@ defmodule TuistWeb.Marketing.MarketingFrameworkLogos do
 
   The SVGs' grey shades are expressed as `data-fill="neutral-N"` attributes,
   resolved to the marketing illustration neutral ramp by CSS rules in
-  `marketing_new.css` (a CSS indirection rather than `fill="var(--…)"`,
+  `marketing.css` (a CSS indirection rather than `fill="var(--…)"`,
   which Firefox does not resolve in SVG presentation attributes). The ramp
   flips with the color scheme, so the logos follow the theme.
 
