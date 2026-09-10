@@ -510,6 +510,15 @@ server:
     shardBundles: ""
   skipEmailConfirmation: true
   secretKeyBase: ""
+  # Name of an existing Kubernetes Secret backing TUIST_SECRET_KEY_BASE (the
+  # Phoenix session/signing key). When set, the chart routes the env var
+  # through a secretKeyRef against this Secret instead of rendering
+  # `server-secret-key-base` into its own app-secrets Secret. Use with a
+  # Vault-synced Secret, sealed-secrets, or any other out-of-band source.
+  # Mutually exclusive with `server.secretKeyBase`. Override
+  # `secretKeyBaseExistingSecretKey` to match the key in your Secret.
+  secretKeyBaseExistingSecret: ""
+  secretKeyBaseExistingSecretKey: server-secret-key-base
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
   # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
   # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
@@ -3320,6 +3329,15 @@ clickhouse:
     # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
     # a dedicated health-check URL instead.
     pingUrl: ""
+    # Name of an existing Kubernetes Secret whose `existingSecretKey` field
+    # holds the full TUIST_CLICKHOUSE_URL (including any embedded
+    # credentials). When set, the chart wires TUIST_CLICKHOUSE_URL through a
+    # secretKeyRef instead of rendering the URL as a literal env value, so
+    # credentials never enter the manifest. Use with a Vault-synced Secret,
+    # a sealed Secret, or any other out-of-band source. Mutually exclusive
+    # with `clickhouse.external.url`.
+    existingSecret: ""
+    existingSecretKey: clickhouse-url
   embedded:
     image:
       repository: clickhouse/clickhouse-server

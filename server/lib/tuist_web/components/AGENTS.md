@@ -3,6 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
 - Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
 - Pass the build source to the shared timeline. Bazel uses a full-width CPU chart above memory and network; Xcode and Gradle retain the four-chart grid.
 - Render source-specific legend labels: Bazel has File preparation, Fetching and Analysis/setup; Gradle has Testing, Packaging, Configuration and Artifact transforms. Their legend buttons expose the selected group via `aria-pressed`, with filtering handled locally by the hook. Xcode keeps its passive legend.

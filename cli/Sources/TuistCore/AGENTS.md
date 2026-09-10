@@ -13,6 +13,7 @@ This module contains core domain abstractions and shared models used across the 
 ## Invariants
 - Analytics types are Codable and designed for transport to the server.
 - Models encode run metadata (command args, environment, git info, cache endpoints).
+- Restoring a test-products snapshot retains the graph, selective-testing state, and build link, but must not replay the original build's binary cache lookups as activity in each test shard.
 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`

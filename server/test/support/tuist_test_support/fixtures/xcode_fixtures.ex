@@ -198,6 +198,7 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
           selective_testing_hash: selective_testing_hash,
           selective_testing_hit: selective_testing_hit,
           product: Keyword.get(opts, :product, ""),
+          additional_strings: Keyword.get(opts, :additional_strings, []),
           dependencies: Keyword.get(opts, :dependencies, []),
           inserted_at: inserted_at
         })
