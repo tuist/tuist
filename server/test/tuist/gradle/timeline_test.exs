@@ -55,6 +55,10 @@ defmodule Tuist.Gradle.TimelineTest do
     ])
 
     timeline = Timeline.load(build)
+    bootstrap = Timeline.bootstrap(build)
+    assert bootstrap.machine_metrics == timeline.machine_metrics
+    assert bootstrap.time_origin == timeline.time_origin
+    refute Map.has_key?(bootstrap, :events)
     assert timeline.total_count == 104
     assert timeline.duration == 5000
     assert timeline.time_origin == "build_start"
@@ -83,6 +87,22 @@ defmodule Tuist.Gradle.TimelineTest do
     assert Enum.map(timeline.machine_metrics, & &1.offset_ms) == [-1000.0, 500.0, 1000.0]
     assert timeline.duration == 1000
     refute Timeline.normalize(build, [], [], [], [metric(origin - 1)]).has_metrics
+  end
+
+  test "legacy metric bootstrap uses the operation origin without loading step metadata" do
+    id =
+      GradleFixtures.build_fixture(
+        tasks: [task(":compile", "executed", @start)],
+        machine_metrics: [metric(DateTime.to_unix(@start, :microsecond) / 1_000_000 + 1)]
+      )
+
+    {:ok, build} = Gradle.get_build(id)
+    bootstrap = Timeline.bootstrap(build)
+    assert bootstrap.time_origin == "first_recorded_timestamp"
+    assert bootstrap.machine_metrics == Timeline.load(build).machine_metrics
+    assert [%{offset_ms: offset}] = bootstrap.machine_metrics
+    assert_in_delta offset, 1000, 0.001
+    refute Map.has_key?(bootstrap, :events)
   end
 
   test "legacy reports use the earliest recording, including setup before the first task" do

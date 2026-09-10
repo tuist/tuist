@@ -11,6 +11,14 @@ defmodule Tuist.Bazel.Timeline do
     Profile.load(invocation) || retained_summary(invocation)
   end
 
+  def bootstrap(invocation) do
+    Map.drop(Profile.load(invocation, include_steps: false) || retained_summary(invocation), [
+      :events,
+      :total_count,
+      :target_count
+    ])
+  end
+
   defp retained_summary(invocation) do
     events =
       invocation

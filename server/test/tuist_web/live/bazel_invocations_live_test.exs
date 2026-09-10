@@ -42,7 +42,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
-  test "timeline shows retained coverage and delivers metadata through the shared hook", %{
+  test "timeline shows retained coverage and downloads metadata separately from the shared hook", %{
     conn: conn,
     project: project,
     organization: organization
@@ -55,6 +55,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
     render_async(lv)
     assert has_element?(lv, "#build-timeline[data-source=bazel]")
+    assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
     assert has_element?(lv, "[data-part=legend] button[data-kind=resource][aria-pressed=false]", "File preparation")
     assert has_element?(lv, "[data-part=legend] button[data-kind=fetch]", "Fetching")
     assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Analysis/setup")

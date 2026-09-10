@@ -18,9 +18,9 @@ defmodule TuistWeb.BazelInvocationLive do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
+  alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.RecordedBuildTimeline
   alias TuistWeb.Utilities.Query
 
   @cache_page_size 20
@@ -94,11 +94,10 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:available_filters, available_filters)
      |> assign(:cache_sort_by, cache_sort_by)
      |> assign(:cache_sort_order, cache_sort_order)
-     |> RecordedBuildTimeline.assign_timeline(selected_tab, invocation)}
+     |> BuildTimelineLoader.assign_timeline(selected_tab, invocation)}
   end
 
-  def handle_event("load-timeline", params, socket),
-    do: RecordedBuildTimeline.handle_event("load-timeline", params, socket)
+  def handle_event("load-timeline", params, socket), do: BuildTimelineLoader.handle_event("load-timeline", params, socket)
 
   def handle_event("load-timeline-log", %{"event_id" => id, "request_id" => request}, socket)
       when is_binary(id) and byte_size(id) <= 128 and is_integer(request) and request >= 0 do
@@ -192,11 +191,14 @@ defmodule TuistWeb.BazelInvocationLive do
         />
       </.tab_menu_horizontal>
       <section :if={@selected_tab == "timeline"}>
-        <.recorded_build_timeline
+        <.build_timeline_section
           timeline={@timeline}
           duration={@invocation.duration_ms}
           version={@timeline_version}
           source="bazel"
+          url={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
+          }
         />
       </section>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">

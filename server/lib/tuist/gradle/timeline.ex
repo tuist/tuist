@@ -40,6 +40,15 @@ defmodule Tuist.Gradle.Timeline do
     normalize(build, tasks, configuration, transforms, metrics)
   end
 
+  def bootstrap(build) do
+    metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
+    origin = timestamp(build.started_at) || recorded_origin(build)
+
+    build
+    |> normalize([], [], [], metrics, origin)
+    |> Map.drop([:events, :total_count, :target_count])
+  end
+
   def step_query(build) do
     origin = timestamp(build.started_at) || recorded_origin(build)
 
@@ -129,7 +138,7 @@ defmodule Tuist.Gradle.Timeline do
     )
   end
 
-  def normalize(build, tasks, configuration, transforms, metrics) do
+  def normalize(build, tasks, configuration, transforms, metrics, origin \\ nil) do
     operations =
       Enum.map(tasks, &operation(&1, "task", &1.task_path, &1.build_path, &1.task_path, &1.task_type, &1.outcome)) ++
         Enum.map(
@@ -153,7 +162,7 @@ defmodule Tuist.Gradle.Timeline do
       Enum.flat_map(operations, fn op -> if op.timestamp, do: [op.timestamp], else: [] end) ++
         Enum.map(metrics, &(&1.timestamp * 1000))
 
-    origin = timestamp(build.started_at) || Enum.min(recorded_times, fn -> 0 end)
+    origin = origin || timestamp(build.started_at) || Enum.min(recorded_times, fn -> 0 end)
 
     events =
       operations

@@ -207,7 +207,13 @@ defmodule Tuist.Bazel.ProfileTest do
     assert :ok = Profile.ingest(project, "build-1", gzip)
     assert :ok = Profile.ingest(project, "build-1", gzip)
     invocation = %Invocation{project_id: project.id, invocation_id: "build-1"}
-    assert %{total_count: 1, coverage: "trace_profile"} = Timeline.load(invocation)
+    assert %{total_count: 1, coverage: "trace_profile"} = timeline = Timeline.load(invocation)
+    bootstrap = Timeline.bootstrap(invocation)
+    assert bootstrap.coverage == "trace_profile"
+    assert bootstrap.duration == timeline.duration
+    assert bootstrap.machine_metrics == timeline.machine_metrics
+    refute Map.has_key?(bootstrap, :events)
+    refute Map.has_key?(bootstrap, :total_count)
     assert nil == Profile.load(%{invocation | project_id: project.id + 1})
   end
 

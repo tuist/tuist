@@ -41,7 +41,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 
-- The shared timeline also renders Gradle and Bazel payloads. These sources retain the combined metadata/metrics hook reply; only Xcode supplies a separate HTTP metadata URL. Opaque string operation IDs sort deterministically; these sources navigate filtered metadata locally; log requests are enabled only when the payload advertises recorded logs. Gradle categories and outcomes retain their source meaning; Bazel unknown outcomes must not appear as successful.
+- Xcode, Gradle and Bazel share the same abortable HTTP step download and separate metric bootstrap reply. No full step payload travels over LiveView. Opaque string operation IDs sort deterministically; Gradle/Bazel navigate filtered metadata locally. Apply log availability from the completed metadata response, since Bazel action enrichment happens there. Gradle categories and outcomes retain their source meaning; Bazel unknown outcomes must not appear as successful.
 
 - Timeline metrics accept a real sample with a negative offset as the preceding neighbor for the zero boundary. Clip the plotted segment to the viewport and preserve gap detection; never backdate or extrapolate a first reading.
 

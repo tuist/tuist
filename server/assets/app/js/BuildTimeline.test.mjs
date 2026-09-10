@@ -481,16 +481,22 @@ test("receiving steps preserves a range selected on metrics while loading", () =
   assert.equal(view.part("empty").hidden, false);
 });
 
-test("recorded timelines reuse the hook payload without an Xcode metadata download", async (t) => {
-  t.mock.method(globalThis, "fetch", () => assert.fail("Recorded sources must not fetch an absent URL"));
-  const view = loadingFixture();
-  delete view.el.dataset.url;
-  const timeline = { events: [{ event_id: "task:1" }], duration: 100, local_navigation: true };
-  view.pushEvent = async () => ({ timeline });
-  await view.mounted();
-  assert.equal(view.metricPayload, timeline);
-  assert.equal(view.receivedSteps, timeline);
-});
+for (const source of ["xcode", "gradle", "bazel"]) {
+  test(`${source} downloads steps independently of the metric bootstrap`, async (t) => {
+    const metadata = { events: [{ event_id: "task:1" }], duration: 100 };
+    const view = loadingFixture();
+    view.el.dataset.source = source;
+    t.mock.method(globalThis, "fetch", async (url, options) => {
+      assert.equal(url, view.el.dataset.url);
+      assert.equal(options.credentials, "same-origin");
+      assert.equal(options.signal, view.abort.signal);
+      return { ok: true, json: async () => metadata };
+    });
+    await view.mounted();
+    assert.equal(view.metricPayload.events, undefined);
+    assert.equal(view.receivedSteps, metadata);
+  });
+}
 
 test("receiving recorded steps retains source categories and hides unknown target counts", () => {
   const view = fixture();
@@ -502,7 +508,11 @@ test("receiving recorded steps retains source categories and hides unknown targe
     duration: 100,
     total_count: 1,
     target_count: null,
+    local_navigation: true,
+    logs_available: true,
   });
+  assert.equal(view.localNavigation, true);
+  assert.equal(view.logsAvailable, true);
   assert.equal(view.allEvents[0].kind, "package");
   assert.equal(view.part("target-count").hidden, true);
 });

@@ -21,3 +21,5 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - Keep the nearest real machine sample before the build origin when there are samples during the build. Its negative offset brackets the first displayed interval without inventing a reading at zero. Samples entirely before the build provide no timeline coverage.
 
 - Step API/MCP queries normalize the three operation tables through a ClickHouse union with database filtering, ordering and pagination; detail lookups do not load the full timeline or machine samples. Legacy origins are computed from scalar minimum timestamps. The dashboard still loads all operations for the interactive timeline.
+
+- Timeline metric bootstrapping queries samples separately from step metadata. For legacy builds, scalar timestamp minima keep bootstrap and downloaded operations on exactly the same origin without loading all operations into LiveView.

@@ -11,7 +11,9 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :duration, :integer, required: true
   attr :source, :string, required: true
 
-  def recorded_build_timeline(assigns) do
+  attr :url, :string, required: true
+
+  def build_timeline_section(assigns) do
     ~H"""
     <.async_result :let={timeline} assign={@timeline}>
       <:loading>
@@ -44,12 +46,12 @@ defmodule TuistWeb.Components.BuildTimeline do
           "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
         )}
       </p>
-      <.build_timeline duration={@duration} version={@version} source={@source} />
+      <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
     </.async_result>
     """
   end
 
-  attr :url, :string, default: nil
+  attr :url, :string, required: true
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
   attr :source, :string, default: "xcode"

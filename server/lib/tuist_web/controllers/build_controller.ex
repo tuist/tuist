@@ -2,27 +2,44 @@ defmodule TuistWeb.BuildController do
   use TuistWeb, :controller
 
   alias Tuist.Authorization
+  alias Tuist.Bazel
   alias Tuist.Builds
+  alias Tuist.Gradle
   alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
-  def timeline(conn, %{"account_handle" => account, "project_handle" => project_name, "build_run_id" => build_id}) do
+  def timeline(conn, %{"account_handle" => account, "project_handle" => project_name} = params) do
     user = Authentication.current_user(conn)
 
     with {:ok, project} <- Projects.get_project_by_slug("#{account}/#{project_name}", preload: [:account]),
          :ok <- Authorization.authorize(:build_read, user, project),
-         {:ok, build} <- Builds.get_build(build_id, project_id: project.id),
+         {:ok, build} <- timeline_build(project, params),
          true <- build.project_id == project.id do
       # Bandit negotiates HTTP compression; never cache this authenticated response.
       conn
       |> put_resp_header("cache-control", "private, no-store")
-      |> json(Builds.build_timeline(build.id, duration: build.duration))
+      |> json(timeline_metadata(build))
     else
       _ -> raise NotFoundError, dgettext("errors", "Build not found")
     end
   end
+
+  defp timeline_build(%{build_system: :gradle} = project, %{"build_run_id" => id}),
+    do: Gradle.get_build(id, project_id: project.id)
+
+  defp timeline_build(%{build_system: :bazel} = project, %{"invocation_id" => id}),
+    do: Bazel.get_invocation(project.id, id, include_cache_summary: false)
+
+  defp timeline_build(%{build_system: :xcode} = project, %{"build_run_id" => id}),
+    do: Builds.get_build(id, project_id: project.id)
+
+  defp timeline_build(_project, _params), do: {:error, :not_found}
+
+  defp timeline_metadata(%Builds.Build{} = build), do: Builds.build_timeline(build.id, duration: build.duration)
+  defp timeline_metadata(%Gradle.Build{} = build), do: build |> Gradle.Timeline.load() |> Map.delete(:machine_metrics)
+  defp timeline_metadata(%Bazel.Invocation{} = build), do: build |> Bazel.Timeline.load() |> Map.delete(:machine_metrics)
 
   def download(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "build_run_id" => build_id}) do
     user = Authentication.current_user(conn)

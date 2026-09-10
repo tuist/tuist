@@ -14,8 +14,8 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
+  alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
-  alias TuistWeb.RecordedBuildTimeline
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -101,7 +101,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:selected_tab, selected_tab)
     |> assign(:uri, uri)
     |> assign_tab_data(selected_tab, params)
-    |> RecordedBuildTimeline.assign_timeline(selected_tab, socket.assigns.build)
+    |> BuildTimelineLoader.assign_timeline(selected_tab, socket.assigns.build)
   end
 
   defp build_run_path(socket) do

@@ -43,6 +43,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     render_async(lv)
     assert has_element?(lv, "#build-timeline")
     assert has_element?(lv, "#build-timeline[data-source=gradle]")
+    assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
     assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Configuration")
     assert has_element?(lv, "[data-part=legend] button[data-kind=transform]", "Artifact transforms")
     assert has_element?(lv, "[data-part=legend] button[data-kind=package]", "Packaging")

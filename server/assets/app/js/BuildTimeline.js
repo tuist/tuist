@@ -35,23 +35,21 @@ export default {
     this.part("step-count").hidden = true;
     this.part("target-count").hidden = true;
     // Start the compressed metadata download independently of the small metric bootstrap.
-    const steps = this.el.dataset.url
-      ? fetch(this.el.dataset.url, { credentials: "same-origin", signal, redirect: "error" })
-          .then((response) => {
-            if (!response.ok) throw new Error("Timeline unavailable");
-            return response.json();
-          })
-          .then(
-            (timeline) => ({ timeline }),
-            (error) => ({ error }),
-          )
-      : null;
+    const steps = fetch(this.el.dataset.url, { credentials: "same-origin", signal, redirect: "error" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Timeline unavailable");
+        return response.json();
+      })
+      .then(
+        (timeline) => ({ timeline }),
+        (error) => ({ error }),
+      );
     return this.pushEvent("load-timeline", { version: Number(this.payload) })
       .then(async ({ timeline }) => {
         if (signal.aborted) return;
         if (!timeline) throw new Error("Timeline unavailable");
         this.initialize(timeline);
-        const result = steps ? await steps : { timeline };
+        const result = await steps;
         if (signal.aborted) return;
         if (result.error) {
           this.part("payload-loading").hidden = true;
@@ -71,6 +69,8 @@ export default {
   },
 
   receiveSteps(timeline) {
+    if (timeline.local_navigation != null) this.localNavigation = timeline.local_navigation;
+    if (timeline.logs_available != null) this.logsAvailable = timeline.logs_available;
     this.allEvents = normalizeEvents(timeline.events || [], this.source);
     const wasFullBuild = this.range.start === 0 && this.range.span === this.duration;
     this.duration = Math.max(this.duration, timeline.duration);

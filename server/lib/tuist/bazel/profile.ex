@@ -59,10 +59,11 @@ defmodule Tuist.Bazel.Profile do
     end
   end
 
-  def load(%{project_id: nil}), do: nil
-  def load(%{invocation_id: nil}), do: nil
+  def load(invocation, opts \\ [])
+  def load(%{project_id: nil}, _opts), do: nil
+  def load(%{invocation_id: nil}, _opts), do: nil
 
-  def load(invocation) do
+  def load(invocation, opts) do
     payload =
       ClickHouseRepo.one(
         from(p in __MODULE__,
@@ -84,15 +85,18 @@ defmodule Tuist.Bazel.Profile do
           end
         )
 
-      timeline =
-        if timeline[:steps_version],
-          do: Map.put(timeline, :events, ProfileSteps.events(invocation, timeline.steps_version)),
-          else: timeline
+      timeline = timeline |> with_metric_intervals() |> with_cpu_percentage(invocation.custom_values)
 
-      timeline
-      |> with_metric_intervals()
-      |> with_cpu_percentage(invocation.custom_values)
-      |> Action.enrich(invocation)
+      if Keyword.get(opts, :include_steps, true) do
+        timeline =
+          if timeline[:steps_version],
+            do: Map.put(timeline, :events, ProfileSteps.events(invocation, timeline.steps_version)),
+            else: timeline
+
+        Action.enrich(timeline, invocation)
+      else
+        Map.drop(timeline, [:events, :total_count, :target_count])
+      end
     end
   end
 

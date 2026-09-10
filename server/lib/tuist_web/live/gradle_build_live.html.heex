@@ -90,11 +90,14 @@
     />
   </.tab_menu_horizontal>
   <section :if={@selected_tab == "timeline"}>
-    <.recorded_build_timeline
+    <.build_timeline_section
       timeline={@timeline}
       duration={@build.duration_ms}
       version={@timeline_version}
       source="gradle"
+      url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/timeline.json"
+      }
     />
   </section>
   <%= if @selected_tab == "overview" do %>
