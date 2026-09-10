@@ -193,10 +193,20 @@ defmodule Tuist.Processor.XCResultProcessor do
   # rule and a `grep` can both key on unambiguously. The elapsed seconds it
   # replaces are a compile-time constant in the NIF, not information.
   defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
-      :parse_timeout
-    else
-      {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
+    cond do
+      String.starts_with?(message, "xcresult parsing timed out") ->
+        :parse_timeout
+
+      String.contains?(message, "0 bytes") or String.contains?(message, "<empty>") ->
+        # xcresulttool returned no output — the bundle was empty or corrupt
+        # before xcodebuild could write anything useful into it. There is no
+        # point retrying: the uploaded archive will not change between attempts.
+        # Return :bundle_invalid so ProcessXcresultWorker cancels the job
+        # immediately and marks the run failed_processing.
+        :bundle_invalid
+
+      true ->
+        {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
     end
   end
 
