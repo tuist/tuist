@@ -125,6 +125,11 @@ func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	if in.RolloutHealth != nil {
 		out.RolloutHealth = in.RolloutHealth.DeepCopy()
 	}
+	if in.PeerRoles != nil {
+		in, out := &in.PeerRoles, &out.PeerRoles
+		*out = make([]KuraInstancePeerRole, len(*in))
+		copy(*out, *in)
+	}
 	if in.CPUAutosize != nil {
 		out.CPUAutosize = in.CPUAutosize.DeepCopy()
 	}
@@ -174,6 +179,19 @@ func (in *KuraInstanceRolloutHealth) DeepCopy() *KuraInstanceRolloutHealth {
 		return nil
 	}
 	out := new(KuraInstanceRolloutHealth)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraInstancePeerRole) DeepCopyInto(out *KuraInstancePeerRole) {
+	*out = *in
+}
+
+func (in *KuraInstancePeerRole) DeepCopy() *KuraInstancePeerRole {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraInstancePeerRole)
 	in.DeepCopyInto(out)
 	return out
 }

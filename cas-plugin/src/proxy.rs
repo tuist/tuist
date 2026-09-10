@@ -18,8 +18,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PRUNE,
-    OP_PUBLISH, OP_RESOLVE,
+    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PREPARE_ACTION,
+    OP_PRUNE, OP_PUBLISH, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -55,7 +55,7 @@ const MAX_PENDING_OBJECTS: usize = 1_000_000;
 /// remote makes none; a badly degraded one makes at most one per resolved key,
 /// so this is sized to hold a whole warm build's worth and still be a cap.
 const MAX_WITHHELD_ROOTS: usize = 100_000;
-/// How deep a withheld root's repair may chase other withheld roots before it
+/// How deep demand repair may chase references or withheld roots before it
 /// gives up and withholds. Value graphs are shallow, and a chain this long means
 /// something pathological rather than a graph, so the cap is a stack backstop
 /// rather than a tuning knob.
@@ -354,7 +354,10 @@ const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
 
 /// A cached resolve outcome for a key.
 enum Resolution {
-    /// A value digest, kept indefinitely (content-addressed, always valid).
+    /// Lookup metadata cannot suppress a replacement upload after a failed
+    /// restore. Its bytes must still be prepared before a compiler hit.
+    Candidate(Vec<u8>),
+    /// A completed publication, which can suppress a duplicate spool record.
     Hit(Vec<u8>),
     /// A miss, with the time it was cached so it can expire (see NEGATIVE_TTL).
     Miss(Instant),
@@ -420,7 +423,7 @@ fn fast_path(
     let value = {
         let map = resolved.lock().unwrap();
         match map.get(key) {
-            Some(Resolution::Hit(value)) => value.clone(),
+            Some(Resolution::Hit(value) | Resolution::Candidate(value)) => value.clone(),
             Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => return FastPath::Miss,
             _ => return FastPath::Resolve,
         }
@@ -522,7 +525,8 @@ pub struct PathState {
     // Sharded: this set is checked once per manifest entry (~1.9M times per
     // warm build) from every connection thread.
     known_local: [Mutex<HashSet<Vec<u8>>>; 32],
-    publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
+    // Pin the representation with the digest across capability changes.
+    publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>, bool)>>,
     // Millis since Proxy.epoch of the last request that touched this path, for
     // idle reclamation. Bumped once per resolve/publish (per action key, not per
     // node), so the maintenance loop can free caches of projects nobody builds.
@@ -539,27 +543,10 @@ pub struct PathState {
     // anything dropped is reconstructible from the instance snapshot in
     // `fetch_object`.
     pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
-    // Value-graph roots `materialize_manifest` refused to store because a node
-    // in their closure did not land, mapped to the digests that were missing.
-    //
-    // Withholding the root stops the MATERIALIZER publishing a root over a hole,
-    // but `fetch_object` is a second door into the same store: the compiler was
-    // already handed the value id, its demand load asks for the root, and the
-    // withheld instruction still carries the bytes, so the root goes in
-    // standalone and the hole is now permanent (the next build's root probe
-    // passes and the association is recorded, and nothing can retract it). This
-    // map is what lets that door recognise a root it must not put back on its
-    // own.
-    //
-    // Recorded WITHOUT the `committable` gate the known-local marks take. The
-    // record only ever withholds, never permits, so a stale one costs a repair
-    // attempt and never a wrong answer.
-    //
-    // It is never dropped on its own. `invalidate` retains it beside
-    // `pending_objects`, and `enforce_withheld_bound` drops each root's
-    // instruction with its record: a withhold forgotten while the instruction
-    // that produces the root survives is not a smaller version of this bug, it
-    // IS this bug.
+    // Manifest roots mapped to descendants that may still need materialization.
+    // Registered before the resolve hit is exposed, then narrowed after failed
+    // materialization. Retained across invalidation for batched demand repair.
+    // Decoded-reference checks also protect writes when this map is absent.
     withheld_roots: Mutex<HashMap<Vec<u8>, Vec<Vec<u8>>>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
@@ -899,49 +886,16 @@ impl PathState {
         // instructions, valid for any incarnation of the store — after a wipe
         // they let demand loads refill exactly what is asked for.
         //
-        // `withheld_roots` is KEPT for exactly the same reason, and the symmetry
-        // is the whole point: it must be at least as durable as the instruction
-        // that makes the hazard possible. Clearing it here while retaining the
-        // root's instruction is precisely the state this guard exists to
-        // prevent, since the next demand load would find something that produces
-        // the root and nothing saying it must not. Its digests are content
-        // addresses like the instructions', and its claim is about what the
-        // REMOTE could not produce, not about any incarnation of the local
-        // store, so a wipe does not make it stale. A record whose nodes are in
-        // fact present costs one repair pass that short-circuits on
-        // `load_present` and then drops itself.
+        // Keep the manifest's repair list beside its content-addressed fetch
+        // instructions. A later demand fetch batches the missing descendants.
     }
 
-    /// Bounds `withheld_roots`, dropping each root's fetch INSTRUCTION with it.
-    ///
-    /// A withhold may never be forgotten on its own. Forgetting one while the
-    /// root's instruction survives is the pre-fix bug rather than a smaller
-    /// version of it: the next demand load finds something that produces the
-    /// root and nothing saying it must not. Dropping both leaves a demand load
-    /// with nothing to produce it from, which is the conservative answer and the
-    /// one the caller can recover from with a resolve.
-    ///
-    /// Split out from `enforce_cache_bounds` so the pairing is testable without
-    /// a registered path or a maintenance tick.
+    /// Bound manifest repair metadata and drop each evicted root's instruction
+    /// with it. Snapshot fallback can reconstruct instructions later; decoded
+    /// references must still be checked before storing those nodes.
     fn enforce_withheld_bound(&self, cap: usize) {
-        // ONE critical section on `withheld_roots`, held across the instruction
-        // removal. Snapshotting the keys, releasing the lock to clean
-        // `pending_objects`, then re-locking to clear left a window in which a
-        // withhold recorded by a materializer worker was dropped by the clear
-        // (it was not in the snapshot, so its instruction was never removed),
-        // which is precisely the "record forgotten while the instruction
-        // survives" state this function exists to avoid. The regime that fills
-        // this map is the same regime the materializer pool writes to it hardest,
-        // so the trigger and the window coincide rather than being independent.
-        //
-        // `take` rather than `clear` for the same reason: the map must never be
-        // observable half-emptied, and an insert that arrives mid-operation
-        // blocks and then lands in the fresh map with its instruction intact.
-        //
-        // Lock order is `withheld_roots` then `pending_objects`, and nothing
-        // takes them the other way round: the recording site in
-        // `materialize_manifest` holds only `withheld_roots`, and `prefetch_owed`
-        // and the instruction sites hold only `pending_objects`. Keep it that way.
+        // Registration takes these locks in the same order, while also holding
+        // `resolved`. Keep eviction atomic with respect to that registration.
         let mut withheld = self.withheld_roots.lock().unwrap();
         if withheld.len() <= cap {
             return;
@@ -1073,11 +1027,30 @@ impl PathState {
         Ok(reclaimed_bytes(&self.cas_path, &before))
     }
 
-    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
-    /// same call the consumer will make, bypassing the known-local cache. Used
-    /// both by `is_local` (which memoizes a positive result) and to guard a
-    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
-    /// Only as authoritative as the handle is current -- see `reopen_cas`.
+    /// Validate the complete local graph while keeping all ids on one handle.
+    fn graph_present(&self, digest: &[u8]) -> bool {
+        let guard = self.cas.read().unwrap();
+        let Some(cas) = *guard else { return false };
+        unsafe {
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error = std::ptr::null_mut();
+            let failed = (self.up.llcas_cas_get_objectid)(
+                cas,
+                llcas_digest_t {
+                    data: digest.as_ptr(),
+                    size: digest.len(),
+                },
+                &mut id,
+                &mut error,
+            );
+            if !error.is_null() {
+                (self.up.llcas_string_dispose)(error);
+            }
+            !failed && crate::local_graph_is_available(self.up, cas, id)
+        }
+    }
+
+    /// A cheap root-only presence probe for manifest filtering and resolve.
     fn load_present(&self, digest: &[u8]) -> bool {
         // Held across the probe: a concurrent `reopen_cas` must not dispose the
         // handle between the objectid lookup and the containment check.
@@ -1151,6 +1124,115 @@ struct ViewRefresh {
 /// suppress the later trunk hit for it, for the proxy's lifetime, and that hit is
 /// the only thing that reclaims the entry into the trunk view.
 type RefreshKey = (String, Vec<u8>, Option<String>, Option<String>);
+
+/// Shares blob bytes between concurrent materializers and manifest repairs.
+/// Entries live only for the network request, not as another persistent cache.
+#[derive(Default)]
+struct SharedBlobReads {
+    pending: Mutex<HashMap<(usize, String), Arc<SharedBlobRead>>>,
+}
+
+#[derive(Default)]
+struct SharedBlobRead {
+    result: Mutex<Option<Result<Option<Vec<u8>>, String>>>,
+    ready: Condvar,
+}
+
+struct SharedBlobReadOwner<'a> {
+    reads: &'a SharedBlobReads,
+    remote: usize,
+    owned: Vec<(reapi::Digest, Arc<SharedBlobRead>)>,
+}
+
+impl Drop for SharedBlobReadOwner<'_> {
+    fn drop(&mut self) {
+        let mut pending = self.reads.pending.lock().unwrap();
+        for (digest, read) in &self.owned {
+            let mut result = read.result.lock().unwrap();
+            if result.is_none() {
+                *result = Some(Err("blob fetch interrupted".into()));
+            }
+            read.ready.notify_all();
+            pending.remove(&(self.remote, digest.hash.clone()));
+        }
+    }
+}
+
+impl SharedBlobReads {
+    fn read(
+        &self,
+        remote: usize,
+        digests: &[reapi::Digest],
+        mut fetch: impl FnMut(&[reapi::Digest]) -> Result<HashMap<String, Vec<u8>>, String>,
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        let mut blobs = HashMap::new();
+        // The transport releases each completed working batch. This outer
+        // sharing layer must do the same, or it strands readers behind later
+        // batches even though their transport reads have already completed.
+        for batch in reapi::chunk_digests(digests) {
+            blobs.extend(self.read_batch(remote, batch, &mut fetch)?);
+        }
+        Ok(blobs)
+    }
+
+    fn read_batch(
+        &self,
+        remote: usize,
+        digests: &[reapi::Digest],
+        fetch: impl FnOnce(&[reapi::Digest]) -> Result<HashMap<String, Vec<u8>>, String>,
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        let mut owner = SharedBlobReadOwner {
+            reads: self,
+            remote,
+            owned: Vec::new(),
+        };
+        let mut wanted = Vec::with_capacity(digests.len());
+        {
+            let mut pending = self.pending.lock().unwrap();
+            for digest in digests {
+                let read = pending
+                    .entry((remote, digest.hash.clone()))
+                    .or_insert_with(|| {
+                        let read = Arc::new(SharedBlobRead::default());
+                        owner.owned.push((digest.clone(), read.clone()));
+                        read
+                    })
+                    .clone();
+                wanted.push((digest.hash.clone(), read));
+            }
+        }
+        if !owner.owned.is_empty() {
+            let owned: Vec<_> = owner
+                .owned
+                .iter()
+                .map(|(digest, _)| digest.clone())
+                .collect();
+            let fetched = fetch(&owned);
+            for (digest, read) in &owner.owned {
+                *read.result.lock().unwrap() = Some(match &fetched {
+                    Ok(blobs) => Ok(blobs.get(&digest.hash).cloned()),
+                    Err(message) => Err(message.clone()),
+                });
+                read.ready.notify_all();
+            }
+        }
+        // Complete our own reads before waiting on other batches: overlapping
+        // batches can each own nodes the other needs. Drop also wakes followers
+        // on unwinding, so a caught worker panic cannot strand compiler workers.
+        drop(owner);
+        let mut blobs = HashMap::new();
+        for (hash, read) in wanted {
+            let mut result = read.result.lock().unwrap();
+            while result.is_none() {
+                result = read.ready.wait(result).unwrap();
+            }
+            if let Some(bytes) = result.as_ref().unwrap().as_ref().map_err(Clone::clone)? {
+                blobs.insert(hash, bytes.clone());
+            }
+        }
+        Ok(blobs)
+    }
+}
 
 /// Result of a coalesced demand fetch, taken by exactly one waiter.
 enum DemandResult {
@@ -1394,6 +1476,7 @@ pub struct Proxy {
     // snapshot regardless and their loads self-heal per object.
     prematerializer: Prefetcher,
     materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
+    blob_reads: SharedBlobReads,
     job_counter: AtomicU64,
     // instance -> action-cache snapshot lifecycle. Kicked off in the
     // background on an instance's first resolve; while it is in flight (or
@@ -1462,6 +1545,7 @@ impl Proxy {
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
+            blob_reads: SharedBlobReads::default(),
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             busy_logged_at: Mutex::new(None),
@@ -1531,6 +1615,9 @@ impl Proxy {
             },
             self.tokens.clone(),
         );
+        if let Some(parent) = self.registry_path.as_deref().and_then(Path::parent) {
+            remote.enable_chunk_cache(parent.join("download-chunks-v1"), instance);
+        }
 
         self.remotes
             .lock()
@@ -1772,10 +1859,9 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
-        // A value that is not on disk but has registered fetch instructions is
-        // as good as present: the materializer is filling it in and demand
-        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
-        // (a duplicate action lookup on the engine thread).
+        // Registered fetch instructions let us return the same candidate
+        // without another action lookup. The plugin still checks readiness
+        // before turning it into a compiler hit.
         match fast_path(
             &state.resolved,
             key,
@@ -1814,7 +1900,7 @@ impl Proxy {
                 // Verify presence before serving; on absence fall through and
                 // resolve it ourselves.
                 let peeked = match state.resolved.lock().unwrap().get(key) {
-                    Some(Resolution::Hit(value)) => Some(value.clone()),
+                    Some(Resolution::Hit(value) | Resolution::Candidate(value)) => Some(value.clone()),
                     // A fresh miss answers without a round-trip; a stale one
                     // falls through to re-resolve so a key published later
                     // (by another machine) can still land.
@@ -1905,12 +1991,10 @@ impl Proxy {
         self.commit_and_materialize(remote, state, key, manifest, observed)
     }
 
-    /// Answers a resolve from a known manifest: commit the Hit, register every
-    /// node's fetch instructions, then materialize — in the background for a
-    /// the background — the caller is the build engine's serial task-setup
-    /// thread, where every millisecond spent here is a millisecond no other
-    /// task gets scheduled. Shared by the action-lookup path and the snapshot
-    /// path.
+    /// Registers the complete graph before returning a remote candidate. Local
+    /// task-setup probes never wait for downloads; the plugin's global query
+    /// prepares the guarded root before advertising a compiler hit. Both the
+    /// per-key lookup and snapshot path use this same registration order.
     fn commit_and_materialize(
         &self,
         remote: &Arc<Remote>,
@@ -1920,26 +2004,24 @@ impl Proxy {
         observed: u64,
     ) -> Result<Option<Vec<u8>>, String> {
         let value = manifest[0].llcas_digest.clone();
-        // Commit BEFORE materialization; only if no wipe/prune advanced the
-        // generation while the answer was being produced.
-        let committed = {
-            let mut resolved = state.resolved.lock().unwrap();
-            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
-                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
-                true
-            } else {
-                false
-            }
-        };
-        if !committed {
-            return Ok(None);
-        }
-        // Register fetch instructions for every graph node BEFORE answering, so
-        // a consumer can never observe a served Hit without a way to produce
-        // its objects: a demand load that runs ahead of the materializer
-        // fetches per object through OP_FETCH_OBJECT using these.
+        // Register the complete graph atomically before exposing a candidate.
+        // Global queries may prepare it immediately; local-only probes must
+        // still return a miss until the full graph is available locally.
         {
+            let mut resolved = state.resolved.lock().unwrap();
+            if !committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                return Ok(None);
+            }
+            let mut withheld = state.withheld_roots.lock().unwrap();
             let mut pending = state.pending_objects.lock().unwrap();
+            withheld.insert(
+                value.clone(),
+                manifest
+                    .iter()
+                    .skip(1)
+                    .map(|entry| entry.llcas_digest.clone())
+                    .collect(),
+            );
             for entry in &manifest {
                 pending
                     .entry(entry.llcas_digest.clone())
@@ -1948,6 +2030,7 @@ impl Proxy {
                         contents: entry.contents.clone(),
                     });
             }
+            resolved.insert(key.to_vec(), Resolution::Candidate(value.clone()));
         }
         self.enqueue_materialize(state, remote, manifest, observed);
         Ok(Some(value))
@@ -2023,7 +2106,11 @@ impl Proxy {
                         .filter(|entry| !is_root(entry))
                         .map(|entry| entry.llcas_digest.clone())
                         .collect();
-                    state.withheld_roots.lock().unwrap().insert(root.clone(), owed);
+                    state
+                        .withheld_roots
+                        .lock()
+                        .unwrap()
+                        .insert(root.clone(), owed);
                 }
             }
             // Blobs the server inlined into the GetActionResult response (see
@@ -2043,7 +2130,7 @@ impl Proxy {
             let contents = if digests.is_empty() {
                 HashMap::new()
             } else {
-                remote.batch_read_after_action_result(&digests)?
+                self.read_materialization_blobs(remote, &digests)?
             };
             let fetch_elapsed = phase.elapsed();
             state
@@ -2072,35 +2159,16 @@ impl Proxy {
                 .map(|entry| entry.blob.size_bytes)
                 .sum::<i64>()
                 .max(1);
-            // The value ROOT goes in LAST, and only if every other node landed.
-            //
-            // Skipping a node below is a DESIGNED outcome (an incomplete graph on
-            // the server, a writer still uploading), so "root present, child
-            // absent" is reachable in normal operation rather than only after a
-            // prune. That shape is invisible to a reader: the get path probes the
-            // ROOT and nothing deeper, because verifying a closure there means a
-            // load per node on the serial task-setup thread. Storing the root
-            // first therefore published a graph we already knew was incomplete.
-            //
-            // Ordering it last stops THIS writer publishing a root over a hole.
-            // That is not enough on its own, because `fetch_object` is a second
-            // door into the same store: the compiler already holds the value id,
-            // its demand load asks for the root, and a withheld root keeps its
-            // instruction WITH the inlined bytes, so the load used to put the
-            // root back standalone and the hole became permanent. The withheld
-            // root is therefore RECORDED below, against the nodes that did not
-            // land, and `fetch_object` declines it until they do. Naming those
-            // nodes is what keeps the check off the transitive walk the
-            // root-only probe exists to avoid: the demand path repairs exactly
-            // what this pass was owed, not the graph.
-            //
-            // Repair is per object and on demand: every skipped node keeps its
-            // fetch instructions, and the load that needs one fetches it. The
-            // graph is not re-materialized on the next build, because the
-            // `resolved` fast path counts a value with registered instructions as
-            // present and serves the cached Hit. Latency, not a safety hole.
-            let mut ordered: Vec<&ManifestEntry> =
-                missing.iter().copied().filter(|entry| !is_root(entry)).collect();
+            // Visit leaves before parents, deferring nodes whose references
+            // have not landed yet. Manifest order is root-first traversal order,
+            // not a topological order (shared descendants can occur anywhere).
+            // This protects intermediate nodes that are also other actions' roots.
+            let mut ordered: Vec<&ManifestEntry> = missing
+                .iter()
+                .rev()
+                .copied()
+                .filter(|entry| !is_root(entry))
+                .collect();
             ordered.extend(missing.iter().copied().filter(|entry| is_root(entry)));
             let mut root_stored = false;
             // The OTHER nodes only. A root that fails on its own is not evidence
@@ -2110,8 +2178,7 @@ impl Proxy {
             // Kept as digests rather than a count because `fetch_object` needs
             // to know WHICH nodes were missing: a demand load of a withheld root
             // can only be answered once those exact nodes are present, and
-            // re-deriving them there would mean the transitive walk the root-only
-            // probe exists to avoid.
+            // retaining the list also lets that repair batch its remote reads.
             let mut skipped_digests: Vec<Vec<u8>> = Vec::new();
 
             let skip = |digest: &[u8], is_root: bool, skipped: &mut Vec<Vec<u8>>| {
@@ -2119,96 +2186,111 @@ impl Proxy {
                     skipped.push(digest.to_vec());
                 }
             };
-            for entry in ordered {
-                let entry_is_root = is_root(entry);
-                if entry_is_root && !skipped_digests.is_empty() {
-                    continue;
-                }
-                let (blob, inlined) = match &entry.contents {
-                    Some(bytes) => (bytes, true),
-                    None => match contents.get(&entry.blob.hash) {
-                        Some(bytes) => (bytes, false),
-                        // Incomplete graph on the server (the writer may still
-                        // be uploading): skip the node, keeping its fetch
-                        // instructions registered so the demand load that
-                        // needs it retries — and surfaces the failure —
-                        // per object.
-                        None => {
-                            skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
-                            continue;
-                        }
-                    },
-                };
-                let phase = Instant::now();
-                let Some(frame) = reapi::decompress_frame(blob) else {
-                    skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
-                    continue;
-                };
-                let Some(node) = reapi::decode_frame(&frame) else {
-                    skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
-                    continue;
-                };
-                let codec_elapsed = phase.elapsed();
-                state
-                    .ms_decode
-                    .fetch_add(codec_elapsed.as_millis() as u64, Ordering::Relaxed);
-                if let Some(analytics) = &self.analytics {
-                    let compressed = entry.blob.size_bytes;
-                    let transfer = if inlined {
-                        0.0
-                    } else {
-                        crate::analytics::millis(fetch_elapsed)
-                            * (compressed as f64 / total_compressed as f64)
+            while !ordered.is_empty() {
+                let count = ordered.len();
+                let mut deferred = Vec::new();
+                for entry in ordered {
+                    let entry_is_root = is_root(entry);
+                    if entry_is_root && !skipped_digests.is_empty() {
+                        continue;
+                    }
+                    let (blob, inlined) = match &entry.contents {
+                        Some(bytes) => (bytes, true),
+                        None => match contents.get(&entry.blob.hash) {
+                            Some(bytes) => (bytes, false),
+                            // Incomplete graph on the server (the writer may still
+                            // be uploading): skip the node, keeping its fetch
+                            // instructions registered so the demand load that
+                            // needs it retries — and surfaces the failure —
+                            // per object.
+                            None => {
+                                skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
+                                continue;
+                            }
+                        },
                     };
-                    let codec = crate::analytics::millis(codec_elapsed);
-                    // This node's own transfer. Keyed by the node, not by a hex
-                    // of its digest: the checksum the server joins on is the
-                    // separate digest this node's PARENT carries next to its
-                    // casID, which the root of this graph records below.
-                    analytics.record_cas_output(
-                        &entry.llcas_digest,
-                        frame.len() as i64,
-                        compressed,
-                        transfer + codec,
-                        transfer,
-                        codec,
-                    );
-                    // The (casID -> checksum) references this node makes, for the
-                    // nodes table the server maps build-log node ids through.
-                    for (cas_id, hex) in crate::analytics::parse_cas_references(&node.data) {
-                        analytics.record_node(&cas_id, &hex);
+                    let phase = Instant::now();
+                    let Some(frame) = reapi::decompress_frame(blob) else {
+                        skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
+                        continue;
+                    };
+                    let Some(node) = reapi::decode_frame(&frame) else {
+                        skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
+                        continue;
+                    };
+                    let codec_elapsed = phase.elapsed();
+                    if node.refs.iter().any(|child| !state.graph_present(child)) {
+                        deferred.push(entry);
+                        continue;
+                    }
+                    state
+                        .ms_decode
+                        .fetch_add(codec_elapsed.as_millis() as u64, Ordering::Relaxed);
+                    if let Some(analytics) = &self.analytics {
+                        let compressed = entry.blob.size_bytes;
+                        let transfer = if inlined {
+                            0.0
+                        } else {
+                            crate::analytics::millis(fetch_elapsed)
+                                * (compressed as f64 / total_compressed as f64)
+                        };
+                        let codec = crate::analytics::millis(codec_elapsed);
+                        // This node's own transfer. Keyed by the node, not by a hex
+                        // of its digest: the checksum the server joins on is the
+                        // separate digest this node's PARENT carries next to its
+                        // casID, which the root of this graph records below.
+                        analytics.record_cas_output(
+                            &entry.llcas_digest,
+                            frame.len() as i64,
+                            compressed,
+                            transfer + codec,
+                            transfer,
+                            codec,
+                        );
+                        // The (casID -> checksum) references this node makes, for the
+                        // nodes table the server maps build-log node ids through.
+                        for (cas_id, hex) in crate::analytics::parse_cas_references(&node.data) {
+                            analytics.record_node(&cas_id, &hex);
+                        }
+                    }
+                    let phase = Instant::now();
+                    unsafe { store_node(state, &node)? };
+                    root_stored |= entry_is_root;
+                    state
+                        .ms_store
+                        .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    // Mark local only while still on this generation, checked under
+                    // the shard lock: a wipe/prune that clears the shards after this
+                    // must not leave the freshly-fetched digest behind as a mark for
+                    // a store it did not write. (invalidate bumps the counter before
+                    // clearing, so a stale insert either loses the race or is cleared.)
+                    {
+                        let mut shard = state.shard(&entry.llcas_digest).lock().unwrap();
+                        if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                            shard.insert(entry.llcas_digest.clone());
+                        }
+                    }
+                    if inlined {
+                        state.stats_blobs_inlined.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
+                    }
+                    if let Some(instruction) = state
+                        .pending_objects
+                        .lock()
+                        .unwrap()
+                        .get_mut(&entry.llcas_digest)
+                    {
+                        instruction.contents = None;
                     }
                 }
-                let phase = Instant::now();
-                unsafe { store_node(state, &node)? };
-                root_stored |= entry_is_root;
-                state
-                    .ms_store
-                    .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
-                // Mark local only while still on this generation, checked under
-                // the shard lock: a wipe/prune that clears the shards after this
-                // must not leave the freshly-fetched digest behind as a mark for
-                // a store it did not write. (invalidate bumps the counter before
-                // clearing, so a stale insert either loses the race or is cleared.)
-                {
-                    let mut shard = state.shard(&entry.llcas_digest).lock().unwrap();
-                    if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
-                        shard.insert(entry.llcas_digest.clone());
+                if deferred.len() == count {
+                    for entry in deferred {
+                        skip(&entry.llcas_digest, is_root(entry), &mut skipped_digests);
                     }
+                    break;
                 }
-                if inlined {
-                    state.stats_blobs_inlined.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
-                }
-                if let Some(instruction) = state
-                    .pending_objects
-                    .lock()
-                    .unwrap()
-                    .get_mut(&entry.llcas_digest)
-                {
-                    instruction.contents = None;
-                }
+                ordered = deferred;
             }
             // Reported once, AFTER the pass, in three distinct shapes. Deciding
             // it at the root's turn in the loop saw only the first: nothing runs
@@ -2239,7 +2321,9 @@ impl Proxy {
                 }
             }
             if skipped > 0 || (root_pending && !root_stored) {
-                state.stats_incomplete_closures.fetch_add(1, Ordering::Relaxed);
+                state
+                    .stats_incomplete_closures
+                    .fetch_add(1, Ordering::Relaxed);
                 let root_hex = root_digest
                     .as_deref()
                     .map(crate::analytics::hex_upper)
@@ -2248,9 +2332,8 @@ impl Proxy {
                     // The one this crate cannot withhold its way out of: the root
                     // was stored by an earlier pass or a demand load, so it is
                     // present over a closure this pass just failed to complete.
-                    // The read guard's probe passes and the association gets
-                    // recorded, which is why it is counted rather than treated as
-                    // a non-event.
+                    // The local-hit closure check rejects this old state, but
+                    // count it so existing damaged stores remain observable.
                     crate::log_line(&format!(
                         "incomplete closure, root already local: root={} skipped={} of {}",
                         root_hex,
@@ -2275,6 +2358,15 @@ impl Proxy {
                         missing.len()
                     ));
                 }
+            }
+        }
+        if let Some(root) = manifest.first() {
+            if state.graph_present(&root.llcas_digest) {
+                state
+                    .withheld_roots
+                    .lock()
+                    .unwrap()
+                    .remove(&root.llcas_digest);
             }
         }
         Ok(())
@@ -2321,6 +2413,19 @@ impl Proxy {
         }
     }
 
+    fn read_materialization_blobs(
+        &self,
+        remote: &Remote,
+        digests: &[reapi::Digest],
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        // The Remote stays alive for every caller and identifies both endpoint
+        // and instance. Requests to different remotes must never share results.
+        self.blob_reads
+            .read(remote as *const Remote as usize, digests, |owned| {
+                remote.batch_read_after_action_result(owned)
+            })
+    }
+
     /// The demand-fetch coalescer for an instance, created on first use.
     fn coalescer_for(&self, instance: &str) -> Arc<DemandCoalescer> {
         let mut coalescers = self.demand_coalescers.lock().unwrap();
@@ -2356,7 +2461,9 @@ impl Proxy {
                     Some(PendingFetch { blob, contents }) => {
                         Some((blob.clone(), contents.is_some()))
                     }
-                    None => publish.get(child).map(|(blob, _refs)| (blob.clone(), false)),
+                    None => publish
+                        .get(child)
+                        .map(|(blob, _refs, _chunked)| (blob.clone(), false)),
                 },
             )
         };
@@ -2368,7 +2475,7 @@ impl Proxy {
         };
         let remote = self.remote_for(&instance);
         let digests: Vec<reapi::Digest> = wanted.iter().map(|(_, blob)| blob.clone()).collect();
-        let Ok(contents) = remote.batch_read(&digests) else {
+        let Ok(contents) = self.read_materialization_blobs(&remote, &digests) else {
             return;
         };
         let mut pending = state.pending_objects.lock().unwrap();
@@ -2433,8 +2540,8 @@ impl Proxy {
         self.fetch_object_inner(state, cas_path, declared_instance, digest, &mut repairing)
     }
 
-    /// The body of `fetch_object`. `repairing` is the stack of withheld roots
-    /// whose repair is in progress, which both breaks cycles and bounds depth.
+    /// `repairing` tracks both manifest repairs and decoded-reference traversal,
+    /// breaking cycles and bounding recursion even without a manifest guard.
     fn fetch_object_inner(
         &self,
         state: &'static PathState,
@@ -2443,32 +2550,14 @@ impl Proxy {
         digest: &[u8],
         repairing: &mut Vec<Vec<u8>>,
     ) -> Result<bool, String> {
-        if state.load_present(digest) {
+        if state.graph_present(digest) {
             return Ok(true);
         }
-        // A root the materializer withheld must not be put back on its own.
-        //
-        // Withholding it there was the whole point: the closure had a hole, and
-        // storing the root anyway makes that hole permanent, because the next
-        // build's root probe passes, the association is recorded, and the ABI
-        // has no way to retract it. Answering this call is the second door into
-        // the same store, and before this guard it walked straight through.
-        //
-        // Try the hole first. The missing nodes kept their fetch instructions,
-        // so this is the per-object repair the materializer's comment promises,
-        // narrowed to the exact nodes that did not land rather than a transitive
-        // walk: if the remote can produce them now (a writer that has since
-        // finished uploading, a blob declined under momentary memory pressure)
-        // the closure is whole and the root is safe to store. If it still
-        // cannot, decline, and the build fails naming the ROOT rather than
-        // storing it and failing on an interior node on this and every later
-        // build of that key.
-        // The guard applies at EVERY level, not just the one the compiler asked
-        // for. A digest is an interior node of one value graph and the root of
-        // another whenever two actions share an output, so repairing one root
-        // can walk into a second root that is itself withheld. Producing that
-        // one unguarded would store it over its OWN hole and poison an
-        // association this fetch was never about.
+        // Repair the manifest's owed nodes as a batch before decoding the root.
+        // A root may also be another graph's intermediate node, so apply this
+        // at every recursion level. The decoded-reference check below remains
+        // necessary when a completed/evicted guard or a proxy restart leaves
+        // only the per-object instruction.
         let owed = state.withheld_roots.lock().unwrap().get(digest).cloned();
         if let Some(owed) = owed {
             // Content addressing makes the object graph acyclic, but this stack
@@ -2550,7 +2639,7 @@ impl Proxy {
                 .lock()
                 .unwrap()
                 .get(digest)
-                .map(|(blob, _refs)| PendingFetch {
+                .map(|(blob, _refs, _chunked)| PendingFetch {
                     blob: blob.clone(),
                     contents: None,
                 })
@@ -2587,6 +2676,28 @@ impl Proxy {
         let Some(node) = reapi::decode_frame(&frame) else {
             return Ok(false);
         };
+        // Instructions outlive the manifest's withhold (and proxy restarts can
+        // reconstruct just one instruction from the snapshot). References in
+        // the node itself are therefore the durable write-side safety check.
+        if repairing.iter().any(|root| root == digest) || repairing.len() >= MAX_REPAIR_DEPTH {
+            return Ok(false);
+        }
+        repairing.push(digest.to_vec());
+        self.prefetch_owed(state, cas_path, declared_instance, &node.refs);
+        let mut complete = true;
+        for child in &node.refs {
+            if !matches!(
+                self.fetch_object_inner(state, cas_path, declared_instance, child, repairing),
+                Ok(true)
+            ) {
+                complete = false;
+                break;
+            }
+        }
+        repairing.pop();
+        if !complete {
+            return Ok(false);
+        }
         unsafe { store_node(state, &node)? };
         // Retain the digest-only instruction — including one the snapshot
         // fallback just reconstructed — so the next prune of this object is
@@ -2812,12 +2923,11 @@ impl Proxy {
             remove_record(&record_path);
             return;
         };
-        // The client re-puts replayed results at the end of its job, so a warm
-        // build spools thousands of records whose (key, value) this proxy
-        // resolved FROM the remote minutes earlier. `publish` would discover
-        // that with a get_action round trip per record; the resolved map
-        // already knows, so drop those records here for free. A Hit with a
-        // DIFFERENT value (a genuine local recompute) still publishes.
+        // Only a completed publication can suppress another matching record.
+        // A remote Candidate may have failed to restore, in which case this
+        // record repairs the missing remote bytes after a safe recompile.
+        // Revalidate candidates in `publish`; lookup metadata alone is not
+        // enough to discard the only durable replacement upload.
         //
         // But `resolved` remembers the value, not the tag it carries remotely,
         // and a trunk build's re-put is the reclaim path: the entry it matches
@@ -2899,7 +3009,7 @@ impl Proxy {
                 return Ok(());
             }
         }
-        let (entries, blobs) = walk_closure(state, &record.value_digest)?;
+        let (entries, blobs) = walk_closure(state, &record.value_digest, remote)?;
         let missing =
             remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
@@ -2910,13 +3020,15 @@ impl Proxy {
         // (llcas_digest, uncompressed size, compressed size, node data) per
         // uploaded node, recorded once the batch transfer time is known.
         let mut upload_meta: Vec<(Vec<u8>, i64, i64, Vec<u8>)> = Vec::new();
-        for (entry, blob) in entries.iter().zip(blobs) {
+        for (entry, (blob, chunked)) in entries.iter().zip(blobs) {
             if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
                 continue;
             }
             let bytes = match blob {
                 Some(bytes) => bytes,
-                None => encode_node_blob_accounted(state, &entry.llcas_digest)?.0,
+                None => {
+                    encode_node_blob_accounted(state, &entry.llcas_digest, remote, Some(chunked))?.0
+                }
             };
             if self.analytics.is_some() {
                 let (size, data) = reapi::decompress_frame(&bytes)
@@ -3975,6 +4087,11 @@ impl Proxy {
                 state.stats_publish_shed.load(Ordering::Relaxed),
             ));
         }
+        drop(paths);
+        for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
+            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
+                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
+        }
         parts.join(" | ")
     }
 
@@ -4103,7 +4220,7 @@ impl Proxy {
                     None => write_response(&mut stream, STATUS_MISS, &[]),
                 }
             }
-            OP_FETCH_OBJECT => {
+            OP_FETCH_OBJECT | OP_PREPARE_ACTION => {
                 // Bind the path when the request is routable: a proxy that
                 // restarted under a persistent local action cache must still
                 // produce pruned objects (fetch_object reconstructs the
@@ -4131,6 +4248,13 @@ impl Proxy {
                     None => Ok(None),
                 };
                 let outcome = state.and_then(|state| match state {
+                    Some(state)
+                        if request.op == OP_PREPARE_ACTION
+                            && !state.load_present(&request.payload)
+                            && !state.withheld_roots.lock().unwrap().contains_key(&request.payload) =>
+                    {
+                        Ok(false)
+                    }
                     Some(state) => self.fetch_object(
                         state,
                         &request.cas_path,
@@ -4406,6 +4530,11 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
             }
             return Err("objectid".into());
         }
+        // Re-check on the handle that will perform the store: the proxy may
+        // have rebound the path since its caller decided this node was ready.
+        if !crate::local_graph_is_available(state.up, cas, id) {
+            return Err("incomplete reference graph".into());
+        }
         ref_ids.push(id);
     }
     let data = llcas_data_t {
@@ -4449,7 +4578,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
 /// proportion: 100x a number this size is still small against one RPC, and a
 /// publication makes four. A walk cost is not a candidate explanation for a
 /// `write_duration` regression measured in hundreds of milliseconds.
-/// `encode_node_blob` with the local-cost accounting attached. Every llcas read
+/// Node loading and compression with local-cost accounting. Every llcas read
 /// a publication makes goes through here, because a publication makes them from
 /// TWO places and the counters are worth nothing if they only see one: the walk
 /// below reads each node it has not memoized, and the upload leg reads again for
@@ -4461,31 +4590,45 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
 fn encode_node_blob_accounted(
     state: &'static PathState,
     digest: &[u8],
-) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    remote: &Remote,
+    chunked: Option<bool>,
+) -> Result<(Vec<u8>, Vec<Vec<u8>>, bool), String> {
     let started = Instant::now();
-    let loaded = unsafe { encode_node_blob(state, digest) };
+    let loaded = unsafe { read_node_frame(state, digest) };
     state
         .us_publish_local
         .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
     state
         .stats_publish_nodes_loaded
         .fetch_add(1, Ordering::Relaxed);
-    loaded
+    let (frame, ref_digests) = loaded?;
+    // Negotiation is network work, and must not inflate the local-store timer.
+    let chunked = chunked.unwrap_or_else(|| remote.uses_chunked_compression(frame.len()));
+    let started = Instant::now();
+    let (blob, chunked) = reapi::compress_frame_for_transfer(&frame, chunked);
+    state
+        .us_publish_local
+        .fetch_add(started.elapsed().as_micros() as u64, Ordering::Relaxed);
+    if blob.is_empty() {
+        return Err("failed to compress node".into());
+    }
+    Ok((blob, ref_digests, chunked))
 }
 
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
-) -> Result<(Vec<ManifestEntry>, Vec<Option<Vec<u8>>>), String> {
+    remote: &Remote,
+) -> Result<(Vec<ManifestEntry>, Vec<(Option<Vec<u8>>, bool)>), String> {
     let mut entries: Vec<ManifestEntry> = Vec::new();
-    let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
+    let mut blobs: Vec<(Option<Vec<u8>>, bool)> = Vec::new();
     let mut visited = HashSet::new();
     let mut pending = VecDeque::from([root.to_vec()]);
     while let Some(digest) = pending.pop_front() {
         if !visited.insert(digest.clone()) {
             continue;
         }
-        if let Some((blob_digest, children)) =
+        if let Some((blob_digest, children, chunked)) =
             state.publish_cache.lock().unwrap().get(&digest).cloned()
         {
             entries.push(ManifestEntry {
@@ -4493,36 +4636,37 @@ fn walk_closure(
                 blob: blob_digest,
                 contents: None,
             });
-            blobs.push(None);
+            blobs.push((None, chunked));
             pending.extend(children);
             continue;
         }
-        let (blob, children) = encode_node_blob_accounted(state, &digest)?;
+        let (blob, children, chunked) = encode_node_blob_accounted(state, &digest, remote, None)?;
         let blob_digest = reapi::blob_digest(&blob);
-        state
-            .publish_cache
-            .lock()
-            .unwrap()
-            .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+        state.publish_cache.lock().unwrap().insert(
+            digest.clone(),
+            (blob_digest.clone(), children.clone(), chunked),
+        );
         entries.push(ManifestEntry {
             llcas_digest: digest,
             blob: blob_digest,
             contents: None,
         });
-        blobs.push(Some(blob));
+        blobs.push((Some(blob), chunked));
         pending.extend(children);
     }
     Ok((entries, blobs))
 }
 
-unsafe fn encode_node_blob(
+unsafe fn read_node_frame(
     state: &PathState,
     digest: &[u8],
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
     // Held for the whole decode: the loaded object and every id/digest borrowed
     // out of it below belong to this handle, so a wipe must not dispose it here.
     let cas_guard = state.cas.read().unwrap();
-    let Some(cas) = *cas_guard else { return Err("cas store is out of service".into()) };
+    let Some(cas) = *cas_guard else {
+        return Err("cas store is out of service".into());
+    };
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
@@ -4554,8 +4698,8 @@ unsafe fn encode_node_blob(
         let digest = (state.up.llcas_objectid_get_digest)(cas, child);
         ref_digests.push(std::slice::from_raw_parts(digest.data, digest.size).to_vec());
     }
-    let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
-    Ok((blob, ref_digests))
+    let frame = reapi::encode_frame(&ref_digests, node_data);
+    Ok((frame, ref_digests))
 }
 
 #[cfg(test)]
@@ -5332,6 +5476,200 @@ mod tests {
     }
 
     #[test]
+    fn materialization_sharing_releases_completed_working_batches() {
+        let reads = SharedBlobReads::default();
+        let first = reapi::Digest { hash: "first".into(), size_bytes: 3 << 20 };
+        let later = reapi::Digest { hash: "later".into(), size_bytes: 30 << 20 };
+        let (started, later_started) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+
+        std::thread::scope(|scope| {
+            let reads = &reads;
+            let first = &first;
+            let later = &later;
+            let background = scope.spawn(move || {
+                reads.read(1, &[first.clone(), later.clone()], |wanted| {
+                    assert_eq!(wanted.len(), 1, "each working batch owns only its reads");
+                    if wanted[0].hash == later.hash {
+                        started.send(()).unwrap();
+                        released.recv_timeout(Duration::from_secs(10)).unwrap();
+                    }
+                    Ok(HashMap::from([(wanted[0].hash.clone(), b"verified".to_vec())]))
+                })
+            });
+            later_started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (finished, result) = std::sync::mpsc::channel();
+            let demand = scope.spawn(move || {
+                finished.send(reads.read(1, std::slice::from_ref(first), |_| {
+                    Ok(HashMap::from([(first.hash.clone(), b"verified".to_vec())]))
+                })).unwrap();
+            });
+            let completed = result.recv_timeout(Duration::from_secs(3));
+            release.send(()).unwrap();
+            demand.join().unwrap();
+            assert_eq!(background.join().unwrap().unwrap().len(), 2);
+            assert_eq!(completed.expect("first output waited for later batch").unwrap()[&first.hash], b"verified");
+        });
+        assert!(reads.pending.lock().unwrap().is_empty());
+    }
+
+    fn wait_for_shared_reader(reads: &SharedBlobReads, remote: usize, hash: &str) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let joined = reads
+                .pending
+                .lock()
+                .unwrap()
+                .get(&(remote, hash.to_string()))
+                .is_some_and(|read| Arc::strong_count(read) >= 4);
+            if joined {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "follower did not join the in-flight read"
+            );
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn overlapping_materialization_reads_share_bytes_but_not_remote_instances() {
+        let reads = Arc::new(SharedBlobReads::default());
+        let a = reapi::blob_digest(b"a");
+        let b = reapi::blob_digest(b"b");
+        let c = reapi::blob_digest(b"c");
+        let (started, owner_started) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let owner = {
+            let reads = reads.clone();
+            let a = a.clone();
+            let b = b.clone();
+            std::thread::spawn(move || {
+                reads.read(1, &[a.clone(), b.clone()], |wanted| {
+                    assert_eq!(wanted.len(), 2);
+                    started.send(()).unwrap();
+                    released.recv().unwrap();
+                    Ok(HashMap::from([
+                        (a.hash.clone(), b"a".to_vec()),
+                        (b.hash.clone(), b"b".to_vec()),
+                    ]))
+                })
+            })
+        };
+        owner_started.recv_timeout(Duration::from_secs(5)).unwrap();
+        let follower = {
+            let reads = reads.clone();
+            let b = b.clone();
+            let c = c.clone();
+            std::thread::spawn(move || {
+                reads.read(1, &[b, c.clone()], |wanted| {
+                    assert_eq!(wanted.len(), 1);
+                    assert_eq!(
+                        wanted[0].hash, c.hash,
+                        "only the unclaimed blob goes on the wire"
+                    );
+                    Ok(HashMap::from([(c.hash.clone(), b"c".to_vec())]))
+                })
+            })
+        };
+        wait_for_shared_reader(&reads, 1, &b.hash);
+        let other_remote = reads
+            .read(2, &[b.clone()], |wanted| {
+                assert_eq!(wanted.len(), 1);
+                Ok(HashMap::from([(
+                    b.hash.clone(),
+                    b"separate remote".to_vec(),
+                )]))
+            })
+            .unwrap();
+        assert_eq!(other_remote[&b.hash], b"separate remote");
+        release.send(()).unwrap();
+        assert_eq!(owner.join().unwrap().unwrap()[&a.hash], b"a");
+        let result = follower.join().unwrap().unwrap();
+        assert_eq!(result[&b.hash], b"b");
+        assert_eq!(result[&c.hash], b"c");
+        assert!(reads.pending.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn failed_or_panicking_shared_reads_wake_followers_and_allow_retry() {
+        for panic in [false, true] {
+            let reads = Arc::new(SharedBlobReads::default());
+            let digest = reapi::blob_digest(b"retry");
+            let (started, owner_started) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let owner = {
+                let reads = reads.clone();
+                let digest = digest.clone();
+                std::thread::spawn(move || {
+                    std::panic::catch_unwind(|| {
+                        reads.read(1, &[digest], |_| {
+                            started.send(()).unwrap();
+                            released.recv().unwrap();
+                            if panic {
+                                panic!("injected fetch panic");
+                            }
+                            Err("injected transport error".into())
+                        })
+                    })
+                })
+            };
+            owner_started.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (finished, result) = std::sync::mpsc::channel();
+            let follower = {
+                let reads = reads.clone();
+                let digest = digest.clone();
+                std::thread::spawn(move || {
+                    finished
+                        .send(reads.read(1, &[digest], |_| panic!("must join owner")))
+                        .unwrap()
+                })
+            };
+            wait_for_shared_reader(&reads, 1, &digest.hash);
+            release.send(()).unwrap();
+            assert!(result
+                .recv_timeout(Duration::from_secs(5))
+                .unwrap()
+                .is_err());
+            follower.join().unwrap();
+            let owner_result = owner.join().unwrap();
+            if panic {
+                assert!(owner_result.is_err());
+            } else {
+                assert!(owner_result.unwrap().is_err());
+            }
+            assert!(reads.pending.lock().unwrap().is_empty());
+            let retried = reads
+                .read(1, &[digest.clone()], |_| {
+                    Ok(HashMap::from([(digest.hash.clone(), b"retry".to_vec())]))
+                })
+                .unwrap();
+            assert_eq!(retried[&digest.hash], b"retry");
+        }
+    }
+
+    #[test]
+    fn missing_shared_blobs_remain_missing_and_are_not_cached() {
+        let reads = SharedBlobReads::default();
+        let digest = reapi::blob_digest(b"later");
+        assert!(reads
+            .read(1, &[digest.clone()], |_| Ok(HashMap::new()))
+            .unwrap()
+            .is_empty());
+        assert!(reads.pending.lock().unwrap().is_empty());
+        assert_eq!(
+            reads
+                .read(1, &[digest.clone()], |_| Ok(HashMap::from([(
+                    digest.hash.clone(),
+                    b"later".to_vec()
+                )])))
+                .unwrap()[&digest.hash],
+            b"later"
+        );
+    }
+
+    #[test]
     fn demand_coalescer_routes_concurrent_fetches_correctly() {
         use std::sync::atomic::AtomicUsize;
 
@@ -5787,25 +6125,49 @@ mod tests {
 
     // Stores a childless object and returns its digest.
     fn store_probe_object(state: &PathState, payload: &[u8]) -> Vec<u8> {
+        store_probe_object_with_refs(state, payload, &[])
+    }
+
+    fn store_probe_object_with_refs(
+        state: &PathState,
+        payload: &[u8],
+        refs: &[Vec<u8>],
+    ) -> Vec<u8> {
         unsafe {
-            let cas = state.cas.read().unwrap().unwrap();
+            let cas_guard = state.cas.read().unwrap();
+            let cas = cas_guard.expect("probe CAS must be open");
+            let refs: Vec<_> = refs
+                .iter()
+                .map(|digest| {
+                    let mut id = llcas_objectid_t { opaque: 0 };
+                    let mut error = std::ptr::null_mut();
+                    let failed = (state.up.llcas_cas_get_objectid)(
+                        cas,
+                        llcas_digest_t { data: digest.as_ptr(), size: digest.len() },
+                        &mut id,
+                        &mut error,
+                    );
+                    let detail = take_error(state.up, error);
+                    assert!(!failed, "get_objectid must succeed: {detail:?}");
+                    id
+                })
+                .collect();
             let data = llcas_data_t {
                 data: payload.as_ptr() as *const std::ffi::c_void,
                 size: payload.len(),
             };
             let mut id = llcas_objectid_t { opaque: 0 };
             let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-            assert!(
-                !(state.up.llcas_cas_store_object)(
-                    cas,
-                    data,
-                    std::ptr::null(),
-                    0,
-                    &mut id,
-                    &mut error
-                ),
-                "store must succeed"
+            let failed = (state.up.llcas_cas_store_object)(
+                cas,
+                data,
+                if refs.is_empty() { std::ptr::null() } else { refs.as_ptr() },
+                refs.len(),
+                &mut id,
+                &mut error,
             );
+            let detail = take_error(state.up, error);
+            assert!(!failed, "store must succeed: {detail:?}");
             let digest = (state.up.llcas_objectid_get_digest)(cas, id);
             std::slice::from_raw_parts(digest.data, digest.size).to_vec()
         }
@@ -6454,6 +6816,231 @@ mod tests {
         }
     }
 
+    /// Closes the scheduling window between returning a resolve hit and
+    /// starting its materializer. The graph and digests come from Apple's CAS;
+    /// only the worker schedule and a failed child decode are injected. Both
+    /// snapshot hits and per-key hits enter `commit_and_materialize` here.
+    #[test]
+    fn demand_loads_never_persist_an_incomplete_graph() {
+        let source_dir = TempCasDir::new("demand-race-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"demand-race-child");
+        let root = store_probe_object_with_refs(source, b"demand-race-root", &[child.clone()]);
+        let encoding_remote = test_proxy().remote_for("tuist/demand-race-source");
+        let (mut manifest, blobs) = walk_closure(source, &root, &encoding_remote).expect("complete source graph");
+        assert_eq!(manifest.len(), 2);
+        assert_eq!(manifest[0].llcas_digest, root, "manifest starts with the root");
+        assert_eq!(manifest[1].llcas_digest, child, "fault injection targets the child");
+        for (entry, (blob, _)) in manifest.iter_mut().zip(blobs) {
+            entry.contents = Some(blob.expect("fresh publisher cache"));
+        }
+
+        for (label, demand_first, child_available) in [
+            ("demand-first-incomplete", true, false),
+            ("materializer-first-incomplete", false, false),
+            ("demand-first-complete", true, true),
+        ] {
+            let dir = TempCasDir::new(label);
+            let proxy = test_proxy();
+            let state = proxy.path_state(&dir.path()).expect("fresh reader CAS");
+            let remote = proxy.remote_for("tuist/demand-race");
+            let mut manifest = manifest.clone();
+            if !child_available {
+                manifest[1].contents = Some(b"not a frame".to_vec());
+            }
+
+            // Capture the real queued job instead of racing the OS scheduler.
+            // The production materializer runs below, at the chosen point.
+            let (scheduled, jobs) = std::sync::mpsc::channel();
+            proxy.materializer.configure(1, move |item| {
+                scheduled.send(item).expect("test is waiting for the job");
+            });
+            let resolved = proxy
+                .commit_and_materialize(&remote, state, b"demand-race-key", manifest, 0)
+                .expect("resolve");
+            let job = jobs.recv_timeout(Duration::from_secs(5)).expect("queued materialization");
+            proxy.materializer.drain_stop_timeout(Duration::from_secs(5));
+            assert_eq!(resolved, Some(root.clone()));
+            assert!(!state.load_present(&root), "{label}: starts empty");
+
+            if !demand_first {
+                proxy.materialize_job(&job);
+            }
+            let produced = proxy
+                .fetch_object(state, &dir.path(), "", &root)
+                .expect("demand load");
+            if demand_first {
+                proxy.materialize_job(&job);
+            }
+
+            let root_present = child_available;
+            assert_eq!(produced, root_present, "{label}: demand result");
+            assert_eq!(state.load_present(&root), root_present, "{label}: root");
+            assert_eq!(state.load_present(&child), child_available, "{label}: child");
+            assert_eq!(
+                state.stats_incomplete_closures.load(Ordering::Relaxed),
+                u64::from(!child_available),
+                "{label}: materializer observes the incomplete graph"
+            );
+            let withheld = state.withheld_roots.lock().unwrap().get(&root).cloned();
+            assert_eq!(
+                withheld,
+                (!child_available).then(|| vec![child.clone()]),
+                "{label}: both incomplete cases record the missing child"
+            );
+            let refusals_per_fetch = u64::from(!child_available);
+            assert_eq!(
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+                refusals_per_fetch,
+                "{label}: both schedules reach the refusal guard"
+            );
+            let second_fetch = proxy.fetch_object(state, &dir.path(), "", &root);
+            assert_eq!(
+                second_fetch,
+                Ok(root_present),
+                "{label}: repeated demand loads preserve the closure invariant"
+            );
+            assert_eq!(
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+                2 * refusals_per_fetch,
+                "{label}: both schedules keep refusing the incomplete root"
+            );
+
+            // reopen_cas opens the replacement before disposing the old handle.
+            // Loading through it bypasses proxy bookkeeping, as a compiler's
+            // local load does, so a withheld_roots entry cannot hide this root.
+            state.reopen_cas().expect("reopen persisted reader CAS");
+            let reopened_root = unsafe { read_node_frame(state, &root) };
+            assert_eq!(reopened_root.is_ok(), root_present, "{label}: direct root load");
+            if let Ok((_, refs)) = reopened_root {
+                assert_eq!(refs, vec![child.clone()], "{label}: real child reference");
+            }
+            assert_eq!(
+                unsafe { read_node_frame(state, &child) }.is_ok(),
+                child_available,
+                "{label}: replay can load the child only in the healthy control"
+            );
+            println!(
+                "{label}: demand={produced}, persisted root={root_present}, \
+                 child={child_available}, withheld={}, second_fetch={second_fetch:?}, refusals={}",
+                withheld.is_some(),
+                state.stats_withheld_roots_refused.load(Ordering::Relaxed),
+            );
+        }
+    }
+
+    #[test]
+    fn demand_repair_checks_descendants_without_a_manifest_guard() {
+        let source_dir = TempCasDir::new("unguarded-source");
+        let source = path_state_for(&source_dir.path());
+        let leaf = store_probe_object(source, b"unguarded-leaf");
+        let middle = store_probe_object_with_refs(source, b"unguarded-middle", &[leaf.clone()]);
+        let root = store_probe_object_with_refs(source, b"unguarded-root", &[middle.clone()]);
+        let encoding_remote = test_proxy().remote_for("tuist/unguarded-source");
+        let (mut manifest, blobs) = walk_closure(source, &root, &encoding_remote).unwrap();
+        for (entry, (blob, _)) in manifest.iter_mut().zip(blobs) {
+            entry.contents = Some(blob.unwrap());
+        }
+        for old_root_present in [false, true] {
+            let dir = TempCasDir::new(if old_root_present {
+                "unguarded-existing"
+            } else {
+                "unguarded-empty"
+            });
+            let state = path_state_for(&dir.path());
+            let proxy = test_proxy();
+            if old_root_present {
+                store_probe_object_with_refs(state, b"unguarded-middle", &[leaf.clone()]);
+                store_probe_object_with_refs(state, b"unguarded-root", &[middle.clone()]);
+            }
+            let mut broken = manifest.clone();
+            broken
+                .iter_mut()
+                .find(|entry| entry.llcas_digest == leaf)
+                .unwrap()
+                .contents = Some(b"bad frame".to_vec());
+            register_instructions(state, &broken);
+            assert!(state.withheld_roots.lock().unwrap().is_empty());
+            assert!(!proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+            assert!(!state.graph_present(&root));
+            assert_eq!(state.load_present(&root), old_root_present);
+            assert_eq!(state.load_present(&middle), old_root_present);
+
+            // A later successful blob fetch must repair both an absent graph
+            // and an old, physically present root that the proxy cannot delete.
+            // Inject the later successful response for the previously bad blob.
+            state.pending_objects.lock().unwrap().remove(&leaf);
+            register_instructions(state, &manifest);
+            assert!(proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+            state.reopen_cas().unwrap();
+            assert!(state.graph_present(&root));
+        }
+    }
+
+    #[test]
+    fn materialization_orders_shared_descendants_before_every_parent() {
+        let source_dir = TempCasDir::new("shared-source");
+        let source = path_state_for(&source_dir.path());
+        let leaf = store_probe_object(source, b"shared-leaf");
+        let left = store_probe_object_with_refs(source, b"shared-left", &[leaf.clone()]);
+        let right =
+            store_probe_object_with_refs(source, b"shared-right", &[left.clone(), leaf.clone()]);
+        let root = store_probe_object_with_refs(source, b"shared-root", &[left.clone(), right.clone()]);
+        let encoding_remote = test_proxy().remote_for("tuist/shared-source");
+        let (mut manifest, blobs) = walk_closure(source, &root, &encoding_remote).unwrap();
+        for (entry, (blob, _)) in manifest.iter_mut().zip(blobs) {
+            entry.contents = Some(blob.unwrap());
+        }
+        // Both orders are legal: only the first entry must be the root.
+        for reverse in [false, true] {
+            let dir = TempCasDir::new(if reverse {
+                "shared-reverse"
+            } else {
+                "shared-forward"
+            });
+            let state = path_state_for(&dir.path());
+            let proxy = test_proxy();
+            let remote = proxy.remote_for("tuist/shared");
+            let mut ordered = manifest.clone();
+            if reverse {
+                ordered[1..].reverse();
+            }
+            let mut broken = ordered.clone();
+            broken
+                .iter_mut()
+                .find(|entry| entry.llcas_digest == leaf)
+                .unwrap()
+                .contents = Some(b"bad frame".to_vec());
+            register_instructions(state, &broken);
+            proxy
+                .materialize_manifest(&remote, state, &broken, 0)
+                .unwrap();
+            for digest in [&root, &left, &right, &leaf] {
+                assert!(
+                    !state.load_present(digest),
+                    "no parent may become loadable over a hole"
+                );
+            }
+            register_instructions(state, &ordered);
+            proxy
+                .materialize_manifest(&remote, state, &ordered, 0)
+                .unwrap();
+            assert!(state.graph_present(&root));
+            assert!(!state.withheld_roots.lock().unwrap().contains_key(&root));
+            // A fully local resolve still registers a guard before the queued
+            // job runs; an all-local pass must retire it too.
+            state
+                .withheld_roots
+                .lock()
+                .unwrap()
+                .insert(root.clone(), vec![leaf.clone()]);
+            proxy
+                .materialize_manifest(&remote, state, &ordered, 0)
+                .unwrap();
+            assert!(!state.withheld_roots.lock().unwrap().contains_key(&root));
+        }
+    }
+
     /// A root and a child whose bytes are not a frame, which is one of the ways
     /// a node is skipped.
     fn incomplete_manifest(root: &[u8], child: &[u8], child_bytes: Vec<u8>) -> Vec<ManifestEntry> {
@@ -6519,6 +7106,60 @@ mod tests {
             state.stats_withheld_roots_refused.load(Ordering::Relaxed),
             1
         );
+    }
+
+    #[test]
+    fn a_resolve_withholds_its_root_before_the_materializer_starts() {
+        let dir = TempCasDir::new("resolve-before-materializer");
+        let state = path_state_for(&dir.path());
+        let seed_dir = TempCasDir::new("resolve-root-seed");
+        let seed = path_state_for(&seed_dir.path());
+        let root = store_probe_object(seed, b"root");
+        let child = store_probe_object(seed, b"child");
+        let proxy = test_proxy();
+        proxy.materializer.drain_stop_timeout(Duration::ZERO);
+        let remote = proxy.remote_for("tuist/resolve-before-materializer");
+        let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
+
+        assert_eq!(proxy.commit_and_materialize(&remote, state, b"key", manifest, 0).unwrap(), Some(root.clone()));
+        assert_eq!(state.withheld_roots.lock().unwrap().get(&root), Some(&vec![child]));
+        assert!(!proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+        assert!(!state.load_present(&root), "the demand path must not store a partial graph's root");
+
+        let reopened = path_state_for(&dir.path());
+        assert!(reopened.withheld_roots.lock().unwrap().is_empty());
+        assert!(!reopened.load_present(&root), "a fresh process must not find a persistent partial root");
+    }
+
+    #[test]
+    fn snapshot_candidates_install_the_same_closure_guard() {
+        use sha2::{Digest, Sha256};
+        let dir = TempCasDir::new("snapshot-candidate-guard");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        proxy.materializer.drain_stop_timeout(Duration::ZERO);
+        let remote = proxy.remote_for("tuist/snapshot-candidate-guard");
+        let root = vec![0x31];
+        let child = vec![0x32];
+        let key = b"snapshot-candidate";
+        let hash: [u8; 32] = Sha256::digest(key).into();
+        let snapshot = Snapshot {
+            nodes: vec![
+                (root.clone(), reapi::blob_digest(b"root")),
+                (child.clone(), reapi::blob_digest(b"child")),
+            ],
+            node_index: HashMap::new(),
+            keys: HashMap::from([(hash, vec![0, 1])]),
+            key_order: vec![hash],
+            watermark: 0,
+        };
+        for _ in 0..2 {
+            assert_eq!(proxy.resolve(&remote, "tuist/snapshot-candidate-guard", state, key, Some(&snapshot)).unwrap(), Some(root.clone()));
+            assert_eq!(state.withheld_roots.lock().unwrap().get(&root), Some(&vec![child.clone()]));
+            assert!(!state.load_present(&root));
+        }
+        assert_eq!(state.stats_snapshot_hits.load(Ordering::Relaxed), 1);
+        assert_eq!(state.stats_remote_hits.load(Ordering::Relaxed), 0);
     }
 
     /// The other half, or the guard would turn a recoverable graph into a
@@ -7006,4 +7647,6 @@ mod tests {
             "and the probe behind it must now read the live store"
         );
     }
+    include!("proxy_cold_replay_benchmark.rs");
+
 }

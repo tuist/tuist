@@ -807,6 +807,204 @@ defmodule Tuist.Kura.ReconcilerTest do
     end
   end
 
+  describe "provisioning stalls" do
+    setup do
+      # A host that resolves but whose endpoint never answers: exactly the
+      # shape of an instance whose certificate was never issued, so the
+      # workload is up and the ingress serves something the probe rejects.
+      stub(Provisioner, :public_url, fn _account, _server -> "https://localhost:4100" end)
+      stub(Req, :get, fn _url, _opts -> {:error, :econnrefused} end)
+      :ok
+    end
+
+    test "keeps waiting while the attempt is younger than the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "marks the server failed once the attempt runs past the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, url: nil} = Repo.get!(Server, server.id)
+
+      # The deployment stays open on purpose: the fast path keeps probing every
+      # tick, so the instance activates by itself when its endpoint comes up.
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "activates a stalled server once its endpoint starts serving" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      assert %Server{status: :failed} = Repo.get!(Server, server.id)
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %Req.Response{status: 200}} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :active, url: "https://localhost:4100"} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "leaves a stalled server failed without re-reporting it every tick" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      failed = Repo.get!(Server, server.id)
+      assert failed.status == :failed
+
+      # Only the first crossing reports; afterwards the row is already recorded
+      # and is left untouched, so a stall does not rewrite the row once a
+      # minute for as long as it lasts.
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, updated_at: updated_at} = Repo.get!(Server, server.id)
+      assert updated_at == failed.updated_at
+    end
+  end
+
+  defp backdate_deployment(deployment, seconds) do
+    deployment
+    |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(), -seconds, :second))
+    |> Repo.update!()
+  end
+
+  describe "peer-role observation" do
+    test "observes independent regions concurrently" do
+      first_server = mesh_server()
+      second_server = mesh_server()
+      test_process = self()
+
+      expect(Provisioner, :peer_roles, 2, fn %Server{id: id} ->
+        send(test_process, {:peer_roles_started, self()})
+
+        receive do
+          :continue_peer_roles -> {:ok, [%{url: "https://#{id}.peer:7443", gateway: true}]}
+        end
+      end)
+
+      reconcile = Task.async(fn -> Reconciler.reconcile() end)
+      assert_receive {:peer_roles_started, first}, 1_000
+      assert_receive {:peer_roles_started, second}, 1_000
+      send(first, :continue_peer_roles)
+      send(second, :continue_peer_roles)
+
+      assert Task.await(reconcile) == :ok
+
+      for server <- [first_server, second_server] do
+        assert Repo.get!(Server, server.id).peer_roles == [
+                 %{"url" => "https://#{server.id}.peer:7443", "gateway" => true}
+               ]
+      end
+    end
+
+    test "records the roles the controller publishes for a mesh server" do
+      server = mesh_server()
+
+      expect(Provisioner, :peer_roles, fn %Server{id: id} ->
+        assert id == server.id
+
+        {:ok,
+         [
+           %{url: "https://kura-eu-0.peer:7443", gateway: false, primary: true},
+           %{url: "https://kura-eu-1.peer:7443", gateway: true, primary: false}
+         ]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [
+               %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+               %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+             ]
+    end
+
+    test "clears roles the controller no longer publishes" do
+      server = mesh_server(peer_roles: [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}])
+
+      expect(Provisioner, :peer_roles, fn %Server{} -> {:ok, []} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == []
+    end
+
+    test "keeps the last known roles when the region's cluster cannot be read" do
+      stored = [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
+      server = mesh_server(peer_roles: stored)
+
+      expect(Provisioner, :peer_roles, fn %Server{} -> {:error, :timeout} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == stored
+    end
+
+    test "drops a published role that names no URL" do
+      server = mesh_server()
+
+      expect(Provisioner, :peer_roles, fn %Server{} ->
+        {:ok, [%{url: "", gateway: true, primary: false}, %{url: "https://kura-eu-0.peer:7443", gateway: true}]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
+    end
+
+    test "does not read roles for a region with no peer mesh" do
+      {_account, server, deployment} = create_server()
+      {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+      mark_deployment_succeeded(deployment)
+
+      stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+      stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+      reject(&Provisioner.peer_roles/1)
+
+      assert :ok = Reconciler.reconcile()
+    end
+  end
+
+  # A converged, mesh-region server on the observation path: the projection
+  # loop is the only thing that reaches it, which is where roles are refreshed.
+  defp mesh_server(opts \\ []) do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    server =
+      server
+      |> Ecto.Changeset.change(region: "eu-central", peer_roles: Keyword.get(opts, :peer_roles, []))
+      |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    server
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)

@@ -70,7 +70,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, pod, node).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,7 +122,7 @@ func TestPublicDNSEndpointSkippedOnLoadBalancerRegion(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, pod, node).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -151,7 +151,7 @@ func TestPublicDNSEndpointDeletedWhenNoBox(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
-	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -159,5 +159,90 @@ func TestPublicDNSEndpointDeletedWhenNoBox(t *testing.T) {
 	got.SetGroupVersionKind(dnsEndpointGVK)
 	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected the stale public DNSEndpoint to be deleted, got %v", err)
+	}
+}
+
+// An account's replicas are only preferentially co-located, so they can straddle
+// two boxes of a multi-box region. The public Service pins the primary, so the
+// customer record has to name the primary's box: naming the other one sends
+// every request across boxes, where the per-instance NetworkPolicy drops it and
+// the gateway answers 504. Regression for a split account whose record named the
+// box holding the non-primary replica.
+func TestPublicDNSEndpointFollowsPrimaryWhenReplicasSplitBoxes(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	instance := hostNetworkPublicInstance("kura-acme", "us-east", "acme-us-east.kura.tuist.dev")
+
+	labels := map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": "kura-acme"}
+	podOn := func(name, node string) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura", Labels: labels},
+			Spec:       corev1.PodSpec{NodeName: node},
+		}
+	}
+	nodeWith := func(name, ip string) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Status:     corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: ip}}},
+		}
+	}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		instance,
+		podOn("kura-acme-0", "box-1"),
+		podOn("kura-acme-1", "box-2"),
+		nodeWith("box-1", "203.0.113.50"),
+		nodeWith("box-2", "203.0.113.51"),
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	// The primary is the replica on box-2, not the first pod by name.
+	if err := reconciler.reconcilePublicDNSEndpoint(ctx, instance, "kura-acme-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-public-dns", Namespace: "kura"}, endpoint); err != nil {
+		t.Fatal(err)
+	}
+	endpoints, _, _ := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if len(endpoints) != 1 {
+		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
+	}
+	targets := endpoints[0].(map[string]interface{})["targets"].([]interface{})
+	if len(targets) != 1 || targets[0] != "203.0.113.51" {
+		t.Fatalf("expected the primary's box IP (203.0.113.51) as the DNS target, got %v", targets)
+	}
+}
+
+// Without a primary to follow the target still has to be stable: returning
+// whichever pod the API server listed first let a split account's record flip
+// between boxes on every reconcile, which is churn external-dns republishes.
+func TestInstanceNodeIPIsStableWithoutAPreferredPod(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	instance := hostNetworkPublicInstance("kura-acme", "us-east", "acme-us-east.kura.tuist.dev")
+	labels := map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": "kura-acme"}
+	// Listed out of name order on purpose: the answer must not depend on it.
+	c := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(
+		instance,
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-acme-1", Namespace: "kura", Labels: labels}, Spec: corev1.PodSpec{NodeName: "box-2"}},
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "kura-acme-0", Namespace: "kura", Labels: labels}, Spec: corev1.PodSpec{NodeName: "box-1"}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-1"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.50"}}}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "box-2"}, Status: corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.51"}}}},
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	for i := 0; i < 3; i++ {
+		ip, err := reconciler.instanceNodeIP(ctx, instance, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ip != "203.0.113.50" {
+			t.Fatalf("expected the lowest-named pod's box (203.0.113.50) every time, got %v on pass %d", ip, i)
+		}
 	}
 }

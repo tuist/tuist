@@ -301,6 +301,22 @@ defmodule TuistWeb.API.BuildsController do
              cacheable_tasks_count: %Schema{type: :integer, description: "Total cacheable tasks."},
              cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
              cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
+             cas_output_download_count: %Schema{
+               type: :integer,
+               description: "Number of content-addressable storage outputs downloaded by the build."
+             },
+             cas_output_upload_count: %Schema{
+               type: :integer,
+               description: "Number of content-addressable storage outputs uploaded by the build."
+             },
+             cas_output_download_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of content-addressable storage outputs downloaded by the build."
+             },
+             cas_output_upload_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of content-addressable storage outputs uploaded by the build."
+             },
              inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
              url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
              custom_metadata: %Schema{
@@ -320,6 +336,10 @@ defmodule TuistWeb.API.BuildsController do
              :cacheable_tasks_count,
              :cacheable_task_local_hits_count,
              :cacheable_task_remote_hits_count,
+             :cas_output_download_count,
+             :cas_output_upload_count,
+             :cas_output_download_bytes,
+             :cas_output_upload_bytes,
              :inserted_at,
              :url
            ]
@@ -339,6 +359,8 @@ defmodule TuistWeb.API.BuildsController do
 
       {:ok, build} ->
         if build.project_id == selected_project.id do
+          cas_output_metrics = Builds.cas_output_metrics(build.id)
+
           json(conn, %{
             id: build.id,
             duration: build.duration,
@@ -356,6 +378,10 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_tasks_count: build.cacheable_tasks_count,
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
+            cas_output_download_count: cas_output_metrics.download_count,
+            cas_output_upload_count: cas_output_metrics.upload_count,
+            cas_output_download_bytes: cas_output_metrics.download_bytes,
+            cas_output_upload_bytes: cas_output_metrics.upload_bytes,
             inserted_at: build.inserted_at,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{

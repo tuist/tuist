@@ -1661,6 +1661,26 @@ defmodule Tuist.KuraTest do
       assert Kura.managed_cache_endpoint_urls(account) == []
     end
 
+    test "keeps offering an active instance whose region the catalog no longer names" do
+      # A deploy that renames a region rolls pods one at a time, so for its
+      # length the rows name a region the old code has never heard of. The
+      # instance is still serving; only the regions known to be private are
+      # excluded, because a private URL is the one thing the CLI cannot use.
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      url = "https://#{account.name}-atlantis-1.kura.tuist.dev"
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: url,
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      assert Kura.managed_cache_endpoint_urls(account) == [url]
+    end
+
     test "excludes private regions, which the CLI cannot reach" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)

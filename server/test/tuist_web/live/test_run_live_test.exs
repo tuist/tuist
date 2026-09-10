@@ -14,6 +14,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
@@ -39,6 +40,106 @@ defmodule TuistWeb.TestRunLiveTest do
     # Then
     # The h1 shows the scheme name or "Unknown" if no scheme
     assert has_element?(lv, "h1")
+  end
+
+  test "shows the stress gate's verdict and the candidate that disagreed", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tuist.Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testAppliesDiscount",
+                test_suite_name: "CheckoutTests",
+                status: "success",
+                duration: 10,
+                repetitions: [
+                  %{repetition_number: 1, name: "Stress 1", status: "success", duration: 4, source: "stress"},
+                  %{repetition_number: 2, name: "Stress 2", status: "failure", duration: 5, source: "stress"}
+                ]
+              }
+            ]
+          }
+        ],
+        stress_new_tests: %{
+          mode: "report",
+          outcome: "disagreed",
+          new_count: 1,
+          stressed_count: 1,
+          excluded_count: 0,
+          known_count: 40,
+          test_cases: [
+            %{
+              name: "testAppliesDiscount",
+              suite_name: "CheckoutTests",
+              module_name: "AppTests",
+              repetitions: 10,
+              failed_repetitions: 2,
+              outcome: "disagreed",
+              is_quarantined: false,
+              repetition_results: [
+                %{repetition_number: 1, status: "success", duration: 4},
+                %{
+                  repetition_number: 2,
+                  status: "failure",
+                  duration: 5,
+                  failure: %{
+                    message: "Bool.random()",
+                    issue_type: "assertion_failure",
+                    line_number: 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # A test that disagreed with itself is flaky, not failed.
+    assert has_element?(lv, "#widget-flaky-test-cases", "1")
+    assert has_element?(lv, "#widget-failed-test-cases", "0")
+
+    # The candidate is badged where the reader already reads the test cases.
+    assert has_element?(lv, "#test-cases-table", "2 of 10 repetitions failed")
+
+    # And the finding sits with the run's flaky tests, expandable to its repetitions.
+    # The finding needs no surface of its own: reruns that disagreed make the test case
+    # run flaky, so it appears with the run's flaky tests like any other.
+    assert has_element?(lv, "[data-part='flaky-runs-card']", "testAppliesDiscount")
+
+    # It is not presented as one of the run's failures.
+    refute has_element?(lv, "[data-part='failures-overview-card']")
+  end
+
+  test "does not show the stress gate for a run that did not carry it", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='flaky-runs-card']")
   end
 
   test "surfaces linked runner CI context when test run came from a Tuist runner job", %{
@@ -214,6 +315,24 @@ defmodule TuistWeb.TestRunLiveTest do
 
     # Then
     assert has_element?(lv, "#test-suites-table")
+  end
+
+  test "hides framework test suites for Bazel projects", %{
+    conn: conn,
+    organization: organization
+  } do
+    bazel_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: bazel_project.id, build_system: "bazel")
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{bazel_project.name}/tests/test-runs/#{test_run.id}?test-tab=test-suites"
+      )
+
+    refute has_element?(lv, "#test-suites-table")
+    assert has_element?(lv, "#test-cases-table")
+    refute has_element?(lv, "[data-part='test-suites-card']")
   end
 
   test "renders the test modules table when the sort order query param is invalid", %{

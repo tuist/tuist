@@ -17,7 +17,8 @@ defmodule TuistTestSupport.Fixtures.KuraFixtures do
       status: :active,
       url: Keyword.get(opts, :url, "https://#{account.name}-#{region}-1.kura.tuist.dev"),
       current_image_tag: Keyword.get(opts, :image_tag, "0.5.2"),
-      provisioner_node_ref: "kura-#{account.id}-#{region}"
+      provisioner_node_ref: "kura-#{account.id}-#{region}",
+      peer_roles: Keyword.get(opts, :peer_roles, [])
     })
   end
 end

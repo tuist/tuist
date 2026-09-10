@@ -29,8 +29,10 @@ does not expose a second Build Event Service listener.
 
 - `bazel_invocations` stores completed commands received from Kura.
 - `bazel_invocations` also stores bounded build metrics, retained action spans,
-  and critical-path summaries. Kura keeps no more than 32 action spans or 32
-  critical-path actions for one in-flight invocation.
+  critical-path summaries, and up to 20 custom build-metadata pairs. Kura keeps
+  no more than 32 action spans or 32 critical-path actions for one in-flight
+  invocation, and custom metadata keys and values are limited to 50 and 500
+  bytes respectively.
 - `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
   Build Event Protocol progress output and conventional test logs in
   ClickHouse.
@@ -40,5 +42,13 @@ does not expose a second Build Event Service listener.
   days.
 - Test cases and failure details derived from JUnit reports use the shared
   `test_runs` data model and retain the Bazel invocation identifier.
+- Order reports by run, shard, and attempt before aggregating retries. Preserve
+  numbered repetitions and failure diagnostics even when a retry passes. Resolve
+  final status per run and shard so a later passing run cannot hide a different
+  run's terminal failure. Shared flakiness detection and automations consume
+  these repetitions and the invocation's commit and environment context.
+- Reported class names distinguish equal method names in different classes;
+  fall back to the enclosing suite name when `classname` is absent. Keep this
+  identity convention aligned with the local Bazel muted-failure reader.
 - Update `server/data-export.md` and the public retention guide whenever a
   retained field, table, or retention period changes.

@@ -24,6 +24,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       %{floor_mbps: region_floor, burst_mbps: Regions.egress_burst_mbps(region)}
     end)
 
+    # The account's replication-pull flag is read the same way; the tests that
+    # exercise the flip state their own answer.
+    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _account -> false end)
+
     :ok
   end
 
@@ -338,7 +342,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "cpuCeilingMilli")
     end
 
-    test "arms the peer-view sync only for a self-hosting-capable account in a mesh region" do
+    test "arms the peer-view sync for every account in a mesh region, entitled to self-host or not" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -347,8 +351,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
-      # The self-hosting-capable account can enroll a self-hosted peer, so its
-      # pods sync the dynamic peer view and arm Kura's peer-view boot gate.
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
 
       entitled =
@@ -363,9 +365,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       entitled_env = Map.new(entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
 
-      # An account that cannot self-host has a fully static roster, so it must
-      # not sync or arm the gate — it would otherwise block its own readiness on
-      # a peer view it can never populate.
+      # The peer view carries the replication roles beside the self-hosted
+      # peers, and a managed pod needs the roles whether or not its account
+      # can ever enroll a self-hosted peer.
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
 
       non_entitled =
@@ -378,7 +380,69 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+      assert non_entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
+    end
+
+    test "renders the replication-pull flag into the spec only for an account whose flag is on" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      account = %Account{id: 1, name: "tuist"}
+      region = eu_region(%{mesh: true})
+
+      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
+      pulling = KubernetesController.manifest("kura-tuist-eu-central-1", "0.5.2", account, region, %Server{})
+      pulling_env = Map.new(pulling["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      assert pulling_env["KURA_REPLICATION_PULL"] == "true"
+
+      # Rendered as env, never as a CRD field: an undeclared field fails every
+      # rollout bump until the CRD is upgraded.
+      refute Enum.any?(pulling["spec"], fn {key, _} -> String.contains?(String.downcase(key), "pull") end)
+
+      # The env has to move the revision or the reconciler would never apply
+      # it; the marker is present only when on so the rest of the fleet stays
+      # byte-identical.
+      assert pulling["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision() <> "+pull+backfill"
+
+      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
+      pushing = KubernetesController.manifest("kura-tuist-eu-central-1", "0.5.2", account, region, %Server{})
+      pushing_env = Map.new(pushing["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(pushing_env, "KURA_REPLICATION_PULL")
+
+      assert pushing["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision() <> "+backfill"
+    end
+
+    test "leaves an instance outside a mesh region alone when the account's pull flag is on" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _ -> true end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(),
+          %Server{}
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      refute Map.has_key?(env, "KURA_REPLICATION_PULL")
+
+      # No peer to pull from, so nothing to roll the instance for.
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision() <> "+backfill"
     end
 
     test "renders the backfill walker flag for every account, with a matching revision" do
@@ -526,7 +590,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(unmeshed["spec"], "mesh")
     end
 
-    test "arms peer-view sync only for a self-hosting-capable account in a mesh region" do
+    test "injects self-hosted peers only for a self-hosting-capable account, syncing the view for both" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -554,6 +618,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
       assert entitled["spec"]["meshExternalPeers"] == external_peers
 
+      # The entitlement still gates whose self-hosted peers reach the pods —
+      # the roster can never diverge from who may actually join — but the
+      # view itself is synced regardless, for the roles it carries.
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
 
       non_entitled =
@@ -567,7 +634,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+      assert non_entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
       refute Map.has_key?(non_entitled["spec"], "meshExternalPeers")
     end
 
@@ -1496,7 +1563,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute String.contains?(unpacked, "+binpack")
     end
 
-    test "crosses a revision boundary on the entitlement so a plan upgrade re-applies" do
+    test "keeps one revision across the entitlement now that every mesh instance syncs the view" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -1504,8 +1571,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end)
 
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      # A non-self-hosting account can never enroll a self-hosted peer, so the
-      # only thing separating the two revisions is the sync marker.
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
       region = eu_region(%{mesh: true})
@@ -1517,12 +1582,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
       entitled = KubernetesController.manifest_revision(%Server{account: account}, region)
 
-      # The upgrade crosses a revision boundary, so the reconciler re-applies
-      # and arms the peer-view gate instead of leaving the instance ungated.
-      refute non_entitled == entitled
-      # The entitled revision stays byte-identical to the base plus the
-      # unconditional backfill marker, so instances already running with sync
-      # on are not rolled by this change.
+      # Both render the same env, so both carry the base revision plus the
+      # unconditional backfill marker: the entitled instances (already synced)
+      # are not rolled, and the non-entitled ones shed their old `+nosync`
+      # marker exactly once, crossing onto the view.
+      assert non_entitled == entitled
       assert entitled == KubernetesController.manifest_revision() <> "+backfill"
 
       # The rendered manifest stamps the same revision the reconciler computes,
@@ -1541,6 +1605,41 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
     end
 
+    test "crosses a revision boundary on the replication-pull flag so the flip re-applies" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+
+      region = eu_region(%{mesh: true})
+      account = %Account{id: 1, name: "tuist"}
+
+      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
+      pushing = KubernetesController.manifest_revision(%Server{account: account}, region)
+
+      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
+      pulling = KubernetesController.manifest_revision(%Server{account: account}, region)
+
+      refute pushing == pulling
+      assert pushing == KubernetesController.manifest_revision() <> "+backfill"
+      assert pulling == KubernetesController.manifest_revision() <> "+pull+backfill"
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          region,
+          %Server{}
+        )
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == pulling
+    end
+
     test "does not load self-hosted peers without the entitlement" do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       stub(Tuist.Billing, :effective_plan, fn _ -> :air end)
@@ -1552,7 +1651,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true})
         )
 
-      assert revision == KubernetesController.manifest_revision() <> "+nosync+backfill"
+      assert revision == KubernetesController.manifest_revision() <> "+backfill"
     end
   end
 
@@ -1970,6 +2069,87 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "propagates gateway client errors" do
       expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:error, :timeout} end)
       assert KubernetesController.external_endpoint("instance", Regions.get("scw-fr-par-runners")) == {:error, :timeout}
+    end
+  end
+
+  describe "peer_roles/2" do
+    test "reads the controller-published roles off the instance status" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
+        {:ok,
+         %{
+           "status" => %{
+             "peerRoles" => [
+               %{
+                 "nodeURL" => "https://kura-tuist-scw-fr-par-0.kura-tuist-scw-fr-par-peer.kura.svc.cluster.local:7443",
+                 "gateway" => true,
+                 "primary" => true
+               },
+               %{
+                 "nodeURL" => "https://kura-tuist-scw-fr-par-1.kura-tuist-scw-fr-par-peer.kura.svc.cluster.local:7443",
+                 "gateway" => false,
+                 "primary" => false
+               }
+             ]
+           }
+         }}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:ok,
+                [
+                  %{
+                    url: "https://kura-tuist-scw-fr-par-0.kura-tuist-scw-fr-par-peer.kura.svc.cluster.local:7443",
+                    gateway: true,
+                    primary: true
+                  },
+                  %{
+                    url: "https://kura-tuist-scw-fr-par-1.kura-tuist-scw-fr-par-peer.kura.svc.cluster.local:7443",
+                    gateway: false,
+                    primary: false
+                  }
+                ]}
+    end
+
+    test "drops an entry without a node URL and reads a missing flag as false" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
+        {:ok, %{"status" => %{"peerRoles" => [%{"gateway" => true}, %{"nodeURL" => "https://kura-0.peer:7443"}]}}}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:ok, [%{url: "https://kura-0.peer:7443", gateway: false, primary: false}]}
+    end
+
+    test "is empty until the controller has published roles" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
+        {:ok, %{"status" => %{"phase" => "Ready"}}}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, []}
+    end
+
+    test "bounds the read so one unreachable regional apiserver cannot hold the reconciler tick" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert Keyword.fetch!(opts, :timeout) == 3_000
+        {:ok, %{"status" => %{"peerRoles" => []}}}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, []}
+    end
+
+    test "propagates client errors" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", opts ->
+        assert opts[:timeout] == 3_000
+
+        {:error, :timeout}
+      end)
+
+      assert KubernetesController.peer_roles("kura-tuist-scw-fr-par", scaleway_region()) == {:error, :timeout}
     end
   end
 

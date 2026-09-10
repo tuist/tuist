@@ -96,6 +96,21 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.build_system == "bazel" && @run.bazel_invocation_id != ""}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name: test_run_label(@selected_project, @run.scheme)
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button
@@ -389,7 +404,10 @@
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
             description={
-              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
+              )
             }
             value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
@@ -1108,6 +1126,7 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@show_test_suites}
         label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
@@ -1210,6 +1229,17 @@
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :for={
+                      candidate <-
+                        [stress_candidate_for(@stress_candidates_by_identity, test_case)]
+                        |> Enum.reject(&is_nil/1)
+                    }
+                    label={stress_badge_label(candidate)}
+                    color={stress_badge_color(candidate)}
                     style="light-fill"
                     size="large"
                   />

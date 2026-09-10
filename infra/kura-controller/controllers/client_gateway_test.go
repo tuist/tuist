@@ -108,7 +108,7 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 			now := metav1.Now()
 			primary.DeletionTimestamp = &now
 			status := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 1, BackfillInitialCycle: backfillCycleComplete}
-			selected, err := r.selectPrimaryPod(ctx, instance, []corev1.Pod{primary, standby}, map[string]runtimeStatus{standby.Name: status})
+			selected, _, err := r.selectPrimaryPod(ctx, instance, []corev1.Pod{primary, standby}, map[string]runtimeStatus{standby.Name: status})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -131,6 +131,46 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPrivateGatewayKeepsItsCertificateWithSharedPublicTLS(t *testing.T) {
+	ctx := context.Background()
+	instance := sharedWildcardTLSTestInstance()
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "runner.private.example.com"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	scheme := meshTestScheme(t)
+	r := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, wildcard).Build(),
+		Scheme: scheme, GRPCClusterIssuer: "letsencrypt", PublicTLSSecretName: wildcard.Name,
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if ingress.Spec.TLS[0].SecretName != publicTLSSecretName(instance) || ingress.Spec.TLS[0].Hosts[0] != instance.Spec.PrivateHost {
+		t.Fatalf("private gateway must use its own hostname and certificate: %v", ingress.Spec.TLS)
+	}
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
+		t.Fatal(err)
+	}
+	hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
+	if len(hosts) != 1 || hosts[0] != instance.Spec.PrivateHost {
+		t.Fatalf("private certificate must cover privateHost: %v", hosts)
 	}
 }
 
@@ -196,7 +236,7 @@ func TestPrivateGatewayPublicationReadiness(t *testing.T) {
 	if err := r.Update(ctx, cert); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance, instance.Name+"-0"); err != nil {
 		t.Fatal(err)
 	}
 	endpoint := &unstructured.Unstructured{}
@@ -222,10 +262,10 @@ func TestPrivateGatewayPublicationReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("")
-	if got, err := r.instanceNodeAddress(ctx, instance, true); err != nil || got != "" {
+	if got, err := r.privateGatewayTarget(ctx, instance); err != nil || got != "" {
 		t.Fatalf("private DNS: %q %v", got, err)
 	}
-	if got, err := r.instanceNodeIP(ctx, instance); err != nil || got != "203.0.113.2" {
+	if got, err := r.instanceNodeIP(ctx, instance, ""); err != nil || got != "203.0.113.2" {
 		t.Fatalf("public peer DNS must stay public: %q %v", got, err)
 	}
 	instance.Spec.PublicHost = "leftover.example.com"
@@ -359,7 +399,7 @@ func TestPrivateGatewayTargetIsStickyAndSkipsOrphanedGateway(t *testing.T) {
 	if err != nil || target != "172.16.0.3" {
 		t.Fatalf("initial target must prefer selected primary's node: %q %v", target, err)
 	}
-	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance, instance.Name+"-0"); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.reconcileService(ctx, instance, pod.Name); err != nil {
