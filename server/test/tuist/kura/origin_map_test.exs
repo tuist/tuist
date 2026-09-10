@@ -47,6 +47,23 @@ defmodule Tuist.Kura.OriginMapTest do
       assert OriginMap.candidates("US-ZZ") == OriginMap.candidates("US")
     end
 
+    test "places every outlying territory rather than defaulting it" do
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("IO")
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("CX")
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("MP")
+      assert ["sa-west" | _rest] = OriginMap.candidates("FK")
+      assert ["sa-west" | _rest] = OriginMap.candidates("GS")
+      assert ["sa-west" | _rest] = OriginMap.candidates("PN")
+      assert ["eu-west" | _rest] = OriginMap.candidates("RE")
+      assert ["eu-west" | _rest] = OriginMap.candidates("SH")
+      assert ["us-west" | _rest] = OriginMap.candidates("UM")
+
+      # ca-east is in the catalog but unserved. candidates/1 answers before
+      # availability narrows the list, so it still leads here.
+      assert ["ca-east" | _rest] = OriginMap.candidates("GL")
+      assert ["ca-east" | _rest] = OriginMap.candidates("PM")
+    end
+
     test "answers for an unmapped origin and for none at all" do
       # The default is where an account stating no constraint resolves today,
       # so an origin nobody mapped changes nothing rather than moving someone.
