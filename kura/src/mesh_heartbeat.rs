@@ -46,7 +46,8 @@ const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
 // Linux retransmits a lost SYN at ~1s, so a 1s connect budget turned a single
 // dropped packet into a failed sync. See `usage` and `auth::config`, which
-// carry the same budgets for the same reason.
+// carry the same 3s connect budget for the same reason; the request budget is
+// sized to the 60s cadence below rather than matched to theirs.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 // reqwest's request timeout spans the connect, so a connect budget at or above

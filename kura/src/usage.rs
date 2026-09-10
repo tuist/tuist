@@ -22,9 +22,11 @@ const USAGE_PATH: &str = "/_internal/kura/usage";
 // Linux retransmits a lost SYN at ~1s, so a 1s connect budget turned a single
 // dropped packet into a failed delivery. Distant regions lose enough of them
 // that the outbox never drained; the auth path already learned this
-// (`auth::config`), and these budgets match it. The connect timeout is only
-// ever spent on a path that is already failing, so a healthy region pays
-// nothing for the wider window.
+// (`auth::config`), and the connect budget here is the 3s it settled on. The
+// request budget is wider than auth's because a delivery carries a batch
+// rather than one introspection, and both cross the same WAN. The connect
+// timeout is only ever spent on a path that is already failing, so a healthy
+// region pays nothing for the wider window.
 const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 // reqwest's request timeout spans the connect, so a connect budget at or above
