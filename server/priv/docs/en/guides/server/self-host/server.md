@@ -630,7 +630,6 @@ server:
     existingSecretKeys:
       key: TUIST_LICENSE
       certificateBase64: ""
-      verifyKey: ""
 ```
 
 For an air-gapped installation, reference the Base64-encoded license certificate instead:
@@ -643,7 +642,6 @@ server:
     existingSecretKeys:
       key: ""
       certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
-      verifyKey: ""
 ```
 
 Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.

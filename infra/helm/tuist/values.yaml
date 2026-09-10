@@ -524,15 +524,12 @@ server:
       name: onepassword
     # Sync either the online Tuist license key or the air-gapped license
     # certificate from the external store. These sources are mutually
-    # exclusive. The optional verify key lets air-gapped certificates signed
-    # by an additional issuer validate during a key rotation.
+    # exclusive.
     license:
       item: ""
       field: password
       certificateItem: ""
       certificateField: password
-      verifyKeyItem: ""
-      verifyKeyField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -690,14 +687,13 @@ server:
   license:
     key: ""
     certificateBase64: ""
-    verifyKey: ""
     selfHostingDevelopmentMode: false
     # Name of an existing Kubernetes Secret whose keys back the license
     # environment variables. Use this when the license values live in a
     # Secret populated out-of-band (Vault, sealed-secrets, bank-vaults, an
     # ExternalSecret targeting a store other than 1Password, etc.) and you
     # do not want the chart to render them into its own app-secrets Secret.
-    # Mutually exclusive with `server.license.{key,certificateBase64,verifyKey}`
+    # Mutually exclusive with `server.license.{key,certificateBase64}`
     # and with the ESO `server.externalSecrets.license` path.
     #
     # Override `existingSecretKeys` to match the key names in your Secret.
@@ -708,7 +704,6 @@ server:
     existingSecretKeys:
       key: server-license-key
       certificateBase64: server-license-certificate-base64
-      verifyKey: server-license-verify-key
   database:
     ssl: false
   storage:
