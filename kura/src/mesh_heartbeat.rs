@@ -44,8 +44,14 @@ const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
 const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+// Linux retransmits a lost SYN at ~1s, so a 1s connect budget turned a single
+// dropped packet into a failed sync. See `usage` and `auth::config`, which
+// carry the same budgets for the same reason.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+// reqwest's request timeout spans the connect, so a connect budget at or above
+// it can never be reached and the node gives up on the handshake early.
+const _: () = assert!(CONNECT_TIMEOUT.as_millis() < REQUEST_TIMEOUT.as_millis());
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
 // becoming a per-minute signing loop while staying well inside the server's

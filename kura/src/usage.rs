@@ -19,8 +19,17 @@ use crate::{
 };
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
-const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
-const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+// Linux retransmits a lost SYN at ~1s, so a 1s connect budget turned a single
+// dropped packet into a failed delivery. Distant regions lose enough of them
+// that the outbox never drained; the auth path already learned this
+// (`auth::config`), and these budgets match it. The connect timeout is only
+// ever spent on a path that is already failing, so a healthy region pays
+// nothing for the wider window.
+const USAGE_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const USAGE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+// reqwest's request timeout spans the connect, so a connect budget at or above
+// it can never be reached and the node gives up on the handshake early.
+const _: () = assert!(USAGE_CONNECT_TIMEOUT.as_millis() < USAGE_REQUEST_TIMEOUT.as_millis());
 // Eviction reports awaiting a successful delivery. In memory only: the claim
 // sizing policy reads weeks of aggregates, so reports lost to a restart are
 // noise, and keeping them off the durable outbox keeps the on-disk format
