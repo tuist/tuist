@@ -690,10 +690,68 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) and url_matches_rendered_host?(server) do
-      refresh_private_endpoint(server)
-    else
-      do_converge(server, desired)
+    cond do
+      not converged?(server, desired) ->
+        do_converge(server, desired)
+
+      url_matches_rendered_host?(server) ->
+        clear_public_host_drift(server)
+        refresh_private_endpoint(server)
+
+      true ->
+        converge_public_host_drift(server, desired)
+    end
+  end
+
+  # A converged server reaches this branch on the same tick its instance
+  # re-renders, so `activate_server/2` would resolve the new host ahead of the
+  # record for it (`Kura.public_host_publication_seconds/0`). The tick that
+  # notices the change only records it; the probe runs on a later one.
+  defp converge_public_host_drift(%Server{} = server, desired) do
+    case server.public_host_drift_observed_at do
+      nil ->
+        Logger.info(
+          "[Kura.Reconciler] public host changed for server #{server.id}; holding the endpoint probe for #{Kura.public_host_publication_seconds()}s"
+        )
+
+        record_public_host_drift(server)
+
+      observed_at ->
+        if DateTime.diff(DateTime.utc_now(), observed_at) >= Kura.public_host_publication_seconds() do
+          do_converge(server, desired)
+        else
+          Logger.info("[Kura.Reconciler] still holding the endpoint probe for server #{server.id}")
+
+          :ok
+        end
+    end
+  end
+
+  defp record_public_host_drift(%Server{} = server) do
+    case Kura.record_public_host_drift(server, now()) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not record the public host change for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  defp clear_public_host_drift(%Server{} = server) do
+    case Kura.clear_public_host_drift(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not clear the public host change for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
     end
   end
 

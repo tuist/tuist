@@ -117,6 +117,16 @@ defmodule Tuist.Kura do
   @doc "Seconds a provisioning attempt may run without a routable endpoint before it counts as stalled."
   def provisioning_stall_seconds, do: @provisioning_stall_seconds
 
+  # Resolving a name before its record exists caches the negative answer at the
+  # DNS provider for the zone's SOA minimum, 1800 s on tuist.dev. So a host the
+  # region template has just started rendering is left unresolved for one
+  # external-dns poll interval (60 s), plus the same again for the controller's
+  # reconcile and the publication itself, before the endpoint probe first runs.
+  @public_host_publication_seconds 120
+
+  @doc "Seconds a newly rendered public host is left unresolved before the first probe."
+  def public_host_publication_seconds, do: @public_host_publication_seconds
+
   # How long a client may hold an endpoint answer before it has to ask again.
   # Lives here rather than on the controller that sets the header because the
   # drain below has to outlast it, and two numbers that must agree should not
@@ -1530,6 +1540,25 @@ defmodule Tuist.Kura do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc "Stamps when the reconciler first saw a server's rendered public host move away from its stored `url`."
+  def record_public_host_drift(%Server{} = server, %DateTime{} = observed_at) do
+    server
+    |> Server.public_host_drift_changeset(%{public_host_drift_observed_at: observed_at})
+    |> Repo.update()
+  end
+
+  @doc "Clears a server's public-host drift clock. A no-op when none is set."
+  def clear_public_host_drift(%Server{public_host_drift_observed_at: nil}), do: :ok
+
+  def clear_public_host_drift(%Server{} = server) do
+    case server
+         |> Server.public_host_drift_changeset(%{public_host_drift_observed_at: nil})
+         |> Repo.update() do
+      {:ok, _server} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
