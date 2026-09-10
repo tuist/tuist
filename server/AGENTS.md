@@ -146,3 +146,5 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
+
+- Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.

@@ -83,6 +83,8 @@ This directory contains the core business logic and domain modules for the serve
 
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
 
+- `Builds.RecordedSteps` exposes Gradle and Bazel timeline metadata through authorized API/MCP callers. These adapters reuse source records rather than copying them into Xcode `build_steps`. Opaque IDs remain scoped to the authorized parent; unavailable logs are null.
+
 - Module-cache miss classification compares reported direct inputs, including optional cache-key strings, effective destinations and other reported key inputs through a fingerprint map, before dependency hashes. Compare only optional map entries present on both observations: missing telemetry must not count as a direct change. Availability reads use the same bounded module-name batch as classification and shared ingestion margins.
 
 - Module-cache Unavailable misses require an earlier reported remote hit for the exact artifact key in the same project and recorded cache endpoint. Local hits, partial-input matches, and later reports are not evidence of prior remote availability.

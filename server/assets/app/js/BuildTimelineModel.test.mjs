@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   normalizeEvents,
+  matchesEvent,
+  timelineDuration,
+  neighborEvent,
   layoutEvents,
   clampRange,
   zoomRange,
@@ -18,6 +21,138 @@ const event = (id, start, duration, project = "App") => ({
   project,
   target: "Core",
   category: "swiftCompilation",
+});
+
+test("Bazel action mnemonics map to the legend while setup work keeps its Other category", () => {
+  const categories = [
+    "CppCompile",
+    "CppLink",
+    "Genrule",
+    "Rustc",
+    "CppArchive",
+    "CargoBuildScriptRun",
+    "general information",
+    "bazel module processing",
+    "SymlinkTree",
+  ];
+  const events = normalizeEvents(categories.map((category, id) => ({ ...event(id, id, 1), category })));
+  assert.deepEqual(
+    events.map((event) => event.kind),
+    ["compile", "link", "script", "compile", "link", "script", "other", "other", "other"],
+  );
+  assert.deepEqual(
+    events.map((event) => event.category),
+    categories,
+  );
+});
+
+test("Bazel separates file preparation, fetching and analysis without relabeling mixed execution spans", () => {
+  const categories = [
+    "FileWrite",
+    "Symlink",
+    "SymlinkTree",
+    "RunfilesTree",
+    "RepoMappingManifest",
+    "CppModuleMap",
+    "MaterializeIncludeDir",
+    "Fetching repository",
+    "Remote execution download time",
+    "bazel module processing",
+    "package creation",
+    "Starlark user function call",
+    "general information",
+    "Remote execution upload time",
+    "CustomAction",
+  ];
+  const events = categories.map((category, id) => ({ ...event(id, id, 1), category }));
+  assert.deepEqual(
+    normalizeEvents(events, "bazel").map((event) => event.kind),
+    [
+      "resource",
+      "resource",
+      "resource",
+      "resource",
+      "resource",
+      "resource",
+      "resource",
+      "fetch",
+      "fetch",
+      "setup",
+      "setup",
+      "setup",
+      "other",
+      "other",
+      "other",
+    ],
+  );
+  assert.equal(normalizeEvents([{ ...event(1, 0, 1), category: "configuration" }], "xcode")[0].kind, "other");
+});
+
+test("Gradle separates configuration, transforms, testing and packaging while retaining task types", () => {
+  const categories = [
+    "configuration",
+    "transform",
+    "org.gradle.api.tasks.compile.JavaCompile",
+    "org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile",
+    "org.gradle.api.tasks.testing.Test",
+    "org.gradle.api.tasks.bundling.Jar",
+    "org.gradle.api.tasks.bundling.Zip_Decorated",
+    "org.gradle.api.tasks.Exec",
+    "org.gradle.language.jvm.tasks.ProcessResources",
+    "org.gradle.nativeplatform.tasks.LinkSharedLibrary",
+    "org.gradle.api.DefaultTask",
+    "org.gradle.api.tasks.Delete",
+  ];
+  const events = normalizeEvents(
+    categories.map((category, id) => ({ ...event(id, id, 1), category })),
+    "gradle",
+  );
+  assert.deepEqual(
+    events.map((event) => event.kind),
+    [
+      "setup",
+      "transform",
+      "compile",
+      "compile",
+      "test",
+      "package",
+      "package",
+      "script",
+      "resource",
+      "link",
+      "other",
+      "other",
+    ],
+  );
+  assert.deepEqual(
+    events.map((event) => event.category),
+    categories,
+  );
+});
+
+test("group filters intersect category-aware search and preserve failed action types", () => {
+  const step = {
+    title: "Creating tree",
+    target: "//:app",
+    project: "kura",
+    kind: "resource",
+    category: "SymlinkTree",
+    status: "failure",
+  };
+  const labels = { resource: "File preparation" };
+  assert.ok(matchesEvent(step, "SYMLINKTREE", "resource", labels));
+  assert.ok(matchesEvent(step, "file preparation", "resource", labels));
+  assert.ok(matchesEvent(step, "//:app", "failure", labels));
+  assert.ok(!matchesEvent(step, "SymlinkTree", "compile", labels));
+  assert.ok(!matchesEvent(step, "SymlinkTree", null, labels, false));
+  assert.ok(!matchesEvent({ ...step, status: "success" }, "", "failure", labels));
+});
+
+test("profile timelines use their own duration instead of the longer BEP invocation clock", () => {
+  const events = normalizeEvents([event(1, 0, 11_292.777)]);
+  assert.equal(timelineDuration({ time_origin: "profile_start", duration: 11_292.777 }, events, "14200"), 11_292.777);
+  assert.equal(timelineDuration({ duration: 11_292.777 }, events, "14200"), 14_200);
+  assert.equal(timelineDuration({ time_origin: "profile_start", duration: 10_000 }, events, "14200"), 11_292.777);
 });
 
 test("overlapping work gets separate lanes, touching intervals reuse a lane", () => {
@@ -117,4 +252,19 @@ test("deep zoom remains scrollable within browser layout limits", () => {
   const geometry = scrollGeometry(1000, range, 7_200_000);
   assert.equal(geometry.width, 8_001_000);
   assert.equal(scrollStart(geometry.left, geometry.width - 1000, range, 7_200_000), range.start);
+});
+
+test("opaque operation IDs sort stably and local keyboard navigation respects filtered steps", () => {
+  const events = normalizeEvents([event("task:b", 10, 5), event("task:a", 10, 5), event("configuration:a", 0, 10)]);
+  assert.deepEqual(
+    events.map((e) => e.event_id),
+    ["configuration:a", "task:a", "task:b"],
+  );
+  const filtered = events.filter((e) => e.event_id.startsWith("task:"));
+  assert.equal(neighborEvent(filtered, null, "next").event_id, "task:a");
+  assert.equal(neighborEvent(filtered, "task:a", "next").event_id, "task:b");
+  assert.equal(neighborEvent(filtered, "task:b", "previous").event_id, "task:a");
+  assert.equal(neighborEvent(filtered, null, "last").event_id, "task:b");
+  assert.equal(neighborEvent(filtered, "task:b", "next"), undefined);
+  assert.equal(neighborEvent([], null, "next"), undefined);
 });

@@ -279,6 +279,10 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.
 - For end-to-end behavior, the shellspec suite under `spec/e2e/` exercises the live stack.
 
+### Bazel profile delivery
+
+The BEP service retains bounded summary state while a separate bounded delivery queue receives CAS profile references and action-result metadata. The worker forwards complete compressed profiles and bounded diagnostic ranges through signed server webhooks. No arbitrary URI is fetched. The server validates the profile identity, decompression size and event count, retains all normalized intervals and available counters in ClickHouse, and reads action logs separately from timeline metadata. This path is additive; older peers and servers continue receiving the existing invocation summaries.
+
 ### Private runner caches
 
 Runner caches share the ordinary managed two-replica StatefulSet rollout. Both pods own independent local PVCs and continuously replicate through the account mesh. The standby catches up through initial backfill after restart and the normal persistent outbox thereafter. Replication is asynchronous: a healthy standby is intended to stay roughly current, not provide synchronous write acknowledgements.
@@ -294,3 +298,7 @@ DNS retains a healthy published gateway across handoffs, and an explicit Cilium
 host/remote-node rule permits its cache-port hop across hosts. The endpoint's
 check time is separate from workload convergence and is preserved through server
 dispatch, so maintenance cannot expire a healthy entrance or renew stale status.
+
+### Bazel timeline delivery
+
+Action diagnostics and native profile references have independent, bounded queues so diagnostic delivery never waits for webhook capacity on the BEP stream. Actions are grouped into requests of up to 32 within one account/project; overflow is observable best effort. Profile delivery has separate capacity, so an action burst cannot displace the profile. New servers accept batch and legacy requests; Kura falls back to legacy requests only when the batch endpoint is absent during rollout. Profile parsing runs on Tuist’s bounded artifact processor queue after durable staging.

@@ -42,6 +42,36 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  test "timeline shows retained coverage and downloads metadata separately from the shared hook", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    Bazel.create_invocations([
+      invocation_attributes(project, "timeline", "build", NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+    ])
+
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/timeline"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[data-source=bazel]")
+    assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=resource][aria-pressed=false]", "File preparation")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=fetch]", "Fetching")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Analysis/setup")
+    refute has_element?(lv, "[data-part=legend] button[data-kind=transform]")
+    assert has_element?(lv, "[data-part=timeline-coverage]", "trace profile is not available yet")
+    tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=tabs] a") |> Enum.map(&Floki.text/1)
+    assert tabs == ["Overview", "Timeline", "Bazel Cache"]
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+  end
+
   test "aligns the Bazel overview analytics, builds, and tests with the other build systems", %{
     conn: conn,
     organization: organization,
@@ -382,7 +412,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(live_view, "[data-part='tabs']", "Bazel Cache")
     refute has_element?(live_view, "[data-part='tabs']", "Command")
     refute has_element?(live_view, "[data-part='tabs']", "Logs")
-    refute has_element?(live_view, "#bazel-invocation", "Timeline")
+    assert has_element?(live_view, "#bazel-invocation", "Timeline")
     refute has_element?(live_view, "#bazel-invocation", "Critical path")
     refute has_element?(live_view, "[data-part='actions']", "Download logs")
     assert has_element?(live_view, "#bazel-invocation-command", "bazel build //App:App")

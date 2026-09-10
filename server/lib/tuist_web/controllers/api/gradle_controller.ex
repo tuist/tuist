@@ -43,6 +43,12 @@ defmodule TuistWeb.API.GradleController do
          properties: %{
            id: %Schema{type: :string, nullable: true, description: "Client-provided build ID (UUID)."},
            duration_ms: %Schema{type: :integer, minimum: 0, description: "Build duration in milliseconds."},
+           started_at: %Schema{
+             type: :string,
+             format: :"date-time",
+             nullable: true,
+             description: "Origin used to calculate build duration and align recorded operations and machine samples."
+           },
            status: %Schema{type: :string, enum: ["success", "failure", "cancelled"], description: "Build status."},
            gradle_version: %Schema{type: :string, nullable: true, description: "Gradle version."},
            java_version: %Schema{type: :string, nullable: true, description: "Java version."},
@@ -258,6 +264,7 @@ defmodule TuistWeb.API.GradleController do
       project_id: project.id,
       account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
       duration_ms: body.duration_ms,
+      started_at: body[:started_at],
       status: body.status,
       gradle_version: body[:gradle_version],
       java_version: body[:java_version],

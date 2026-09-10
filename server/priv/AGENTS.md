@@ -31,3 +31,5 @@ This directory contains database migrations and other private assets.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Gradle build start timestamps are nullable for backward compatibility and use `Nullable(DateTime64(6))` in ClickHouse. They align recorded operations and machine samples; no upload-time backfill is valid.
