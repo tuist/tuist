@@ -465,6 +465,67 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- end -}}
 {{- end -}}
 
+{{/*
+TUIST_CLICKHOUSE_URL env-var block. Emits a `value:` literal by default, or a
+`valueFrom.secretKeyRef` pointing at clickhouse.external.existingSecret when
+that field is set — the escape hatch for Vault-synced installs that don't
+want ClickHouse credentials rendered into the manifest. Mutually exclusive
+with `clickhouse.external.url`.
+*/}}
+{{- define "tuist.clickhouseUrlEnv" -}}
+{{- $existingSecret := "" -}}
+{{- if eq .Values.clickhouse.mode "external" -}}
+{{- $existingSecret = .Values.clickhouse.external.existingSecret | default "" -}}
+{{- end -}}
+{{- if ne $existingSecret "" -}}
+{{- if ne (.Values.clickhouse.external.url | default "") "" -}}
+{{- fail "clickhouse.external.existingSecret is mutually exclusive with clickhouse.external.url; pick one source for TUIST_CLICKHOUSE_URL." -}}
+{{- end -}}
+{{- $key := .Values.clickhouse.external.existingSecretKey | default "" -}}
+{{- if eq $key "" -}}
+{{- fail "clickhouse.external.existingSecretKey is required when clickhouse.external.existingSecret is set." -}}
+{{- end }}
+- name: TUIST_CLICKHOUSE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ $existingSecret | quote }}
+      key: {{ $key | quote }}
+{{- else }}
+- name: TUIST_CLICKHOUSE_URL
+  value: {{ include "tuist.clickhouseUrl" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+TUIST_SECRET_KEY_BASE env-var block. Points at the chart-managed app-secrets
+Secret by default, or at server.secretKeyBaseExistingSecret when that field
+is set — the escape hatch for Vault-synced installs. Mutually exclusive with
+`server.secretKeyBase`.
+*/}}
+{{- define "tuist.secretKeyBaseEnv" -}}
+{{- $existingSecret := .Values.server.secretKeyBaseExistingSecret | default "" -}}
+{{- if ne $existingSecret "" -}}
+{{- if ne (.Values.server.secretKeyBase | default "") "" -}}
+{{- fail "server.secretKeyBaseExistingSecret is mutually exclusive with server.secretKeyBase; pick one source for TUIST_SECRET_KEY_BASE." -}}
+{{- end -}}
+{{- $key := .Values.server.secretKeyBaseExistingSecretKey | default "" -}}
+{{- if eq $key "" -}}
+{{- fail "server.secretKeyBaseExistingSecretKey is required when server.secretKeyBaseExistingSecret is set." -}}
+{{- end }}
+- name: TUIST_SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ $existingSecret | quote }}
+      key: {{ $key | quote }}
+{{- else }}
+- name: TUIST_SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") | quote }}
+      key: server-secret-key-base
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.clickhouseReadyUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
