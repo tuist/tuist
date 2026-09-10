@@ -117,12 +117,6 @@ kura-eu-west-ingress-nginx:
       # changing it would make the upgrade patch an existing class and fail.
       # It is an opaque identifier that nothing displays.
       controllerValue: k8s.io/kura-eu-central-ingress-nginx
-      # Until the server has re-rendered every KuraInstance in the region, its
-      # Ingresses still name the old class, and this keeps them claimed by the
-      # renamed controller. Remove once no Ingress in the region carries
-      # kura-eu-central.
-      aliases:
-        - kura-eu-central
     publishService:
       enabled: true
     service:
