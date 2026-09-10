@@ -6,7 +6,7 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
   alias Tuist.Slack
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  describe "perform/0" do
+  describe "perform/1" do
     test "sends a message when there are new users and/or organizations" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -26,7 +26,7 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
         }
       ]
 
-      expect(Slack, :send_message, fn ^expected_message -> :ok end)
+      expect(Slack, :send_message, fn ^expected_message, [channel: "#gtm"] -> :ok end)
 
       # When
       Oban.Testing.with_testing_mode(:inline, fn ->
@@ -36,12 +36,23 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
 
     test "doesn't send a message when there were no new users or organizations in the last hour" do
       # Given
-      Mimic.reject(&Slack.send_message/1)
+      Mimic.reject(&Slack.send_message/2)
 
       # When
       Oban.Testing.with_testing_mode(:inline, fn ->
         {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
       end)
+    end
+
+    test "returns delivery errors so Oban retries the report" do
+      AccountsFixtures.user_fixture()
+
+      expect(Slack, :send_message, fn _, [channel: "#gtm"] ->
+        {:error, "Slack API error: not_in_channel"}
+      end)
+
+      assert {:error, "Slack API error: not_in_channel"} =
+               perform_job(HourlySlackReportWorker, %{})
     end
   end
 end

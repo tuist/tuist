@@ -4,6 +4,7 @@ This context owns ops reporting workers.
 
 ## Responsibilities
 - Schedule Slack reports for daily/hourly business metrics.
+- The hourly sign-up report posts new users and organizations to `#gtm` every day, including weekends. Slack API failures must propagate to Oban for retries.
 - Query growth stats for users, orgs, projects, and command events.
 - Provide bounded, read-only ClickHouse queries and schema discovery for internal operations consumers.
 
