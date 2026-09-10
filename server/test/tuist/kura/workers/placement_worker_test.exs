@@ -127,7 +127,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       accounts
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 4
   end
@@ -147,7 +147,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       (first ++ second)
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 6
   end
@@ -161,7 +161,7 @@ defmodule Tuist.Kura.Workers.PlacementWorkerTest do
     applied =
       accounts
       |> Enum.map(&PlacerRegions.primary_region/1)
-      |> Enum.count(&(&1 == "eu-central"))
+      |> Enum.count(&(&1 == "eu-west"))
 
     assert applied == 3
   end

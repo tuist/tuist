@@ -1052,10 +1052,10 @@ defmodule Tuist.Kura.LifecycleTest do
       # a drain scheduled now would outlive the window that made it look wrong.
       account = account(plan: :enterprise)
       source = active_instance_in(account, "atlantis")
-      destination = active_instance_in(account, "eu-central")
+      destination = active_instance_in(account, "eu-west")
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, "atlantis")
-      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, "atlantis")
 
       Lifecycle.reconcile_placement_retirements()
