@@ -29,5 +29,7 @@ This directory contains database migrations and other private assets.
 - Add marketing changelog entries only for customer-facing product changes that are ready to announce.
 - Do not add product changelog entries for ops-only, admin-only, internal rollout, infrastructure-only, or otherwise unannounced functionality.
 
+- Region-rename sweeps must handle duplicate account-region-day storage rollups: retain the canonical aggregate and rename non-conflicting legacy rows. Do not add aggregates together or combine their medians; refresh from the source telemetry.
+
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`

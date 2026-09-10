@@ -1115,6 +1115,7 @@ jobs:
           registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
           registry_render="$(mktemp)"
           helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
             "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
             --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
