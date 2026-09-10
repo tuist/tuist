@@ -10,12 +10,24 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   alias Tuist.Marketing.Blog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
+  embed_templates "marketing_blog_post_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (blog_post_new/1) distinct from the legacy blog_post/1.
+  embed_templates "marketing_blog_post_live/new/*", suffix: "_new"
+
+  def render(%{new_design: true} = assigns), do: blog_post_new(assigns)
+  def render(assigns), do: blog_post(assigns)
+
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :csp_nonce, get_csp_nonce())}
+    {:ok,
+     socket
+     |> assign(:csp_nonce, get_csp_nonce())
+     |> assign(:new_design, Design.new?(socket.assigns[:current_user], :blog_post))}
   end
 
   def handle_params(_params, url, socket) do
@@ -31,6 +43,13 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     author = Blog.get_authors()[post.author]
     post_image_url = post_image_url(post)
 
+    # The redesigned page closes with the three most recent other posts;
+    # get_posts/0 is already newest-first.
+    read_next_posts =
+      Blog.get_posts()
+      |> Enum.reject(&(&1.slug == post.slug))
+      |> Enum.take(3)
+
     current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
 
     socket =
@@ -38,6 +57,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       |> assign(:current_path, current_path)
       |> assign(:post, post)
       |> assign(:author, author)
+      |> assign(:read_next_posts, read_next_posts)
       |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
       |> assign(:head_keywords, post.tags)
