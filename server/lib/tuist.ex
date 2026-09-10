@@ -33,6 +33,7 @@ defmodule Tuist do
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
+      Marketing.Customers.CoverArtwork,
       Marketing.Stats,
       OpenGraphImageTemplates,
       OpenGraphImages,
