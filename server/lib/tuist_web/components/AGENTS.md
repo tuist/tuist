@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors, as well as neutral for other uses.
+- Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
 - Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
 - Provide reusable UI components (navigation, auth components, forms).
 - Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.
@@ -19,3 +19,7 @@ This area owns shared UI components for LiveView and templates.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Run cache details and JSON comparisons use individual recorded hash inputs. Missing historical destinations and other unrecorded inputs display as unavailable; recorded empty inputs remain distinguishable. Test device and runtime rows appear only in selective-testing details.
+
+- Expanded cache targets list sorted direct target dependencies, linking to module details within the selected project, and retain the aggregate dependencies hash separately. JSON comparisons include both names and the hash.

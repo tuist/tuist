@@ -27,7 +27,8 @@ type KuraInstanceSpec struct {
 	// multi-box region (and the gateway stops feeding external-dns the ambiguous
 	// all-nodes address). On an LB region (false) DNS is sourced from the gateway
 	// Service/Ingress as before. This is the customer-plane analog of
-	// MeshPeerHostNetwork.
+	// MeshPeerHostNetwork. Private instances publish PrivateHost to the node PN
+	// address through the same mechanism.
 	PublicHostNetwork bool `json:"publicHostNetwork,omitempty"`
 
 	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
@@ -42,14 +43,13 @@ type KuraInstanceSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	ExtraEnv    []corev1.EnvVar     `json:"extraEnv,omitempty"`
 
-	// Private marks a region with no public endpoint, reachable only
-	// over the cluster's internal Service DNS (today: the runner-cache
-	// regions, serving an in-cluster runner fleet). When true the
-	// controller leaves the public/gRPC Ingress and Certificate
-	// unreconciled and the primary Service stays ClusterIP — there is
-	// no public host to advertise, and the runner Pods reach the cache
-	// at `<instance>.<namespace>.svc.cluster.local`.
+	// Private restricts client access to the cluster and ClientCIDRs. PrivateHost
+	// opts into the shared regional gateway; otherwise no Ingress is created.
 	Private bool `json:"private,omitempty"`
+	// PrivateHost uses the same ingress/TLS/primary Service as PublicHost, with
+	// DNS targeting the node's tuist.dev/pn-ipv4 address. Requires a host-network
+	// ingress class and nonempty ClientCIDRs. PublicHost is ignored when private.
+	PrivateHost string `json:"privateHost,omitempty"`
 
 	// ExposeNodePort additionally publishes the co-hosted cache port
 	// (HTTP + gRPC) through a NodePort Service (`<instance>-external`)
@@ -59,8 +59,8 @@ type KuraInstanceSpec struct {
 	// cluster's pod network — the macOS Tart VMs reach the pool over
 	// a cloud Private Network, where ClusterIP DNS doesn't resolve
 	// and isn't routed. Traffic must enter on the node hosting the
-	// pod; status.NodeAddress + status.NodePortCache are what dispatch
-	// hands those clients.
+	// pod; status.NodeAddress + status.NodePortCache describe that legacy URL.
+	// Gateway regions retain this Service during migration to PrivateHost.
 	ExposeNodePort bool `json:"exposeNodePort,omitempty"`
 
 	// ClientCIDRs are source ranges allowed to reach the cache port in
@@ -262,13 +262,20 @@ type KuraInstancePeerRole struct {
 }
 
 type KuraInstanceStatus struct {
-	Phase            string       `json:"phase,omitempty"`
-	PublicURL        string       `json:"publicURL,omitempty"`
-	GRPCPublicURL    string       `json:"grpcPublicURL,omitempty"`
-	ObservedImage    string       `json:"observedImage,omitempty"`
-	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
-	Message          string       `json:"message,omitempty"`
-	LastReconciledAt *metav1.Time `json:"lastReconciledAt,omitempty"`
+	// PrivateURL is published only after the private gateway, DNS, certificate,
+	// and primary have been observed ready for EndpointObservedGeneration.
+	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
+	EndpointReason             string       `json:"endpointReason,omitempty"`
+	EndpointMessage            string       `json:"endpointMessage,omitempty"`
+	PrivateURL                 string       `json:"privateURL,omitempty"`
+	EndpointObservedGeneration int64        `json:"endpointObservedGeneration,omitempty"`
+	Phase                      string       `json:"phase,omitempty"`
+	PublicURL                  string       `json:"publicURL,omitempty"`
+	GRPCPublicURL              string       `json:"grpcPublicURL,omitempty"`
+	ObservedImage              string       `json:"observedImage,omitempty"`
+	ReadyReplicas              int32        `json:"readyReplicas,omitempty"`
+	Message                    string       `json:"message,omitempty"`
+	LastReconciledAt           *metav1.Time `json:"lastReconciledAt,omitempty"`
 
 	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
 	// reports, published for the control plane's health-gated progressive

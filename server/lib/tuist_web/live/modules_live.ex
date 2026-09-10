@@ -7,7 +7,7 @@ defmodule TuistWeb.ModulesLive do
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.ModuleInvalidationsTable
   import TuistWeb.Components.Skeleton
-  import TuistWeb.Helpers.ModuleCache, only: [miss_reason_description: 1]
+  import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -136,7 +136,7 @@ defmodule TuistWeb.ModulesLive do
       |> assign(:after_cursor, params["after"])
       |> assign(:before_cursor, params["before"])
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
-      |> assign(:selected_miss_reason, params["miss-reason"] || "all")
+      |> assign(:selected_miss_reason, normalize_miss_reason(params["miss-reason"]))
 
     opts = analytics_opts(socket.assigns)
     default_branch = socket.assigns.selected_project.default_branch || "main"

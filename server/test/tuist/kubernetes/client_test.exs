@@ -24,7 +24,7 @@ defmodule Tuist.Kubernetes.ClientTest do
         assert opts[:method] == :patch
 
         assert opts[:url] ==
-                 "https://kubernetes.default.svc:443/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/kura-tuist-eu-central-1"
+                 "https://kubernetes.default.svc:443/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/kura-tuist-eu-west-1"
 
         assert opts[:params] == %{"fieldManager" => "tuist-server", "force" => "true"}
         assert {"authorization", "Bearer test-token"} in opts[:headers]
@@ -32,15 +32,15 @@ defmodule Tuist.Kubernetes.ClientTest do
         assert opts[:connect_options] == [transport_opts: [cacertfile: ca_path]]
         assert opts[:body] =~ "kind: KuraInstance"
 
-        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-eu-central-1"}}}}
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-eu-west-1"}}}}
       end)
 
-      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-eu-central-1"}}} =
+      assert {:ok, %{"metadata" => %{"name" => "kura-tuist-eu-west-1"}}} =
                Client.apply(
                  %{
                    "apiVersion" => "kura.tuist.dev/v1alpha1",
                    "kind" => "KuraInstance",
-                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-eu-central-1"},
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-eu-west-1"},
                    "spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}
                  },
                  env: Env,
@@ -60,11 +60,11 @@ defmodule Tuist.Kubernetes.ClientTest do
         assert opts[:method] == :patch
 
         assert opts[:url] ==
-                 "https://kubernetes.default.svc:443/api/v1/namespaces/kura/secrets/kura-tuist-eu-central-1-mesh-peer-tls"
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/kura/secrets/kura-tuist-eu-west-1-mesh-peer-tls"
 
         assert opts[:body] =~ "kind: Secret"
 
-        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-eu-central-1-mesh-peer-tls"}}}}
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-eu-west-1-mesh-peer-tls"}}}}
       end)
 
       assert {:ok, _} =
@@ -73,7 +73,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                    "apiVersion" => "v1",
                    "kind" => "Secret",
                    "type" => "Opaque",
-                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-eu-central-1-mesh-peer-tls"},
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-eu-west-1-mesh-peer-tls"},
                    "stringData" => %{"ca.pem" => "x"}
                  },
                  env: Env,

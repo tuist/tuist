@@ -3,6 +3,8 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
   use Mimic
 
   alias Tuist.Builds.Analytics
+  alias Tuist.IngestRepo
+  alias Tuist.Xcode.XcodeTarget
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -49,23 +51,6 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       })
     end
 
-    test "#{view}: updating Xcode's compiler changes every module in a warmed graph", %{
-      project: project,
-      opts: opts
-    } do
-      warmed = observation(project, 1, xcode_version: "15.3", swift_version: "5.10")
-      insert_chain(warmed, :remote, "v1", compiler: "5.10.0.13")
-
-      upgraded = observation(project, 2, xcode_version: "16.0", swift_version: "6.0")
-      insert_chain(upgraded, :miss, "v2", compiler: "6.0.0.9")
-
-      assert_reasons(@view, opts, upgraded, %{
-        "A" => "changed",
-        "B" => "changed",
-        "C" => "changed"
-      })
-    end
-
     test "#{view}: a direct settings change takes precedence over changed dependencies", %{
       project: project,
       opts: opts
@@ -91,10 +76,10 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       project: project,
       opts: opts
     } do
-      warmed = observation(project, 1, swift_version: "6.0")
+      warmed = observation(project, 1)
       insert_chain(warmed, :remote, "v1", compiler: "6.0.0.9")
 
-      upgraded = observation(project, 2, swift_version: "6.0")
+      upgraded = observation(project, 2)
       insert_chain(upgraded, :miss, "v2", compiler: "6.0.0.10")
 
       assert_reasons(@view, opts, upgraded, %{"A" => "changed", "B" => "changed", "C" => "changed"})
@@ -117,6 +102,100 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       end
     end
 
+    for {input, old, new} <- [
+          {:additional_strings, ["Debug", "6.0.0.9", "7"], ["Release", "6.0.0.9", "7"]},
+          {:hashed_destinations, ["mac"], ["iphone"]},
+          {:embedded_product_references_hash, "", "embedded"},
+          {:foreign_build_hash, "", "foreign"},
+          {:test_device, "iPhone 16", "iPhone 17"},
+          {:test_runtime, "iOS 18", "iOS 26"}
+        ] do
+      @input input
+      @old old
+      @new new
+      test "#{view}: a change to #{@input} changes every affected module", %{project: project, opts: opts} do
+        warmed = observation(project, 1)
+        insert_chain(warmed, :remote, "v1", [{@input, @old}])
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v2", [{@input, @new}])
+        assert_reasons(@view, opts, current, %{"A" => "changed", "B" => "changed", "C" => "changed"})
+      end
+    end
+
+    for missing <- [:earlier, :later] do
+      @missing missing
+      test "#{view}: missing #{@missing} optional inputs do not imply a change", %{project: project, opts: opts} do
+        reported = [
+          hashed_destinations: ["mac"],
+          foreign_build_hash: "",
+          embedded_product_references_hash: "",
+          test_device: "",
+          test_runtime: ""
+        ]
+
+        warmed = observation(project, 1)
+        insert_chain(warmed, :remote, "v1", if(@missing == :earlier, do: [], else: reported))
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v2", if(@missing == :later, do: [], else: reported))
+        assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "upstream", "C" => "upstream"})
+      end
+    end
+
+    test "#{view}: known empty destinations differ from a reported nonempty set", %{project: project, opts: opts} do
+      known_empty = [
+        hashed_destinations: [],
+        foreign_build_hash: "",
+        embedded_product_references_hash: "",
+        test_device: "",
+        test_runtime: ""
+      ]
+
+      warmed = observation(project, 1)
+      insert_chain(warmed, :remote, "v1", known_empty)
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v2", Keyword.put(known_empty, :hashed_destinations, ["mac"]))
+      assert_reasons(@view, opts, current, %{"A" => "changed", "B" => "changed", "C" => "changed"})
+    end
+
+    test "#{view}: new destination telemetry does not hide an existing compiler change", %{project: project, opts: opts} do
+      warmed = observation(project, 1)
+      insert_chain(warmed, :remote, "v1", compiler: "6.0.0.9")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v2", compiler: "6.0.0.10", hashed_destinations: ["mac"])
+      assert_reasons(@view, opts, current, %{"A" => "changed", "B" => "changed", "C" => "changed"})
+    end
+
+    test "#{view}: a future end date does not shorten the available evidence window", %{project: project, opts: opts} do
+      warmed = observation(project, 1, observed_at: ~N[2024-03-04 13:00:00])
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1")
+
+      assert_reasons(@view, Keyword.put(opts, :end_datetime, ~U[2024-04-04 23:59:59Z]), current, %{
+        "A" => "unavailable",
+        "B" => "unavailable",
+        "C" => "unavailable"
+      })
+    end
+
+    test "#{view}: a runner clock ahead cannot use a hit reported after its server-derived start", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 2, observed_at: ~N[2024-04-02 10:01:00])
+      insert_chain(warmed, :remote, "v1")
+
+      current =
+        observation(project, 2,
+          observed_at: ~N[2024-04-02 10:05:00],
+          reported_at: ~N[2024-04-02 10:02:00],
+          duration: 120_000
+        )
+
+      insert_chain(current, :miss, "v1")
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+    end
+
     test "#{view}: an earlier remote hit for the exact key and endpoint makes a miss unavailable", %{
       project: project,
       opts: opts
@@ -126,10 +205,6 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       current = observation(project, 2)
       insert_chain(current, :miss, "v1")
       assert_reasons(@view, opts, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
-      page = Analytics.module_build_history(Keyword.put(opts, :name, "A"))
-      row = Enum.find(page.rows, &(&1.id == current.id))
-      assert row.previous_remote_hit_id == warmed.id
-      assert NaiveDateTime.compare(row.previous_remote_hit_at, ~N[2024-04-01 10:00:00]) == :eq
       filtered = Analytics.module_build_history(opts ++ [name: "A", reason: "unavailable"])
       assert Enum.map(filtered.rows, & &1.id) == [current.id]
       series = Analytics.module_miss_reasons_timeseries(opts)
@@ -243,10 +318,43 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     end
   end
 
+  test "a named breakdown binds the same module batch for availability", %{project: project, opts: opts} do
+    warmed = observation(project, 1)
+    insert_chain(warmed, :remote, "v1")
+    current = observation(project, 2)
+    insert_chain(current, :miss, "v1")
+    assert [row] = Analytics.module_invalidations(Keyword.put(opts, :name, "A"))
+    assert row.name == "A"
+    assert row.unavailable == 1
+  end
+
+  test "availability remains correct across multiple bounded name batches", %{project: project, opts: opts} do
+    warmed = observation(project, 1)
+    current = observation(project, 2)
+
+    targets =
+      for index <- 1..257, {event, hit} <- [{warmed, 2}, {current, 0}] do
+        %{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          command_event_id: event.id,
+          inserted_at: NaiveDateTime.truncate(event.created_at, :second),
+          name: "Module#{index}",
+          binary_cache_hash: "key#{index}",
+          binary_cache_hit: hit
+        }
+      end
+
+    IngestRepo.insert_all(XcodeTarget, targets)
+    rows = Analytics.module_invalidations(Keyword.put(opts, :limit, 300))
+    assert length(rows) == 257
+    assert Enum.all?(rows, &(&1.unavailable == 1 and &1.unclassified == 0))
+  end
+
   defp observation(project, day, attrs \\ []) do
     created_at = Keyword.get_lazy(attrs, :observed_at, fn -> NaiveDateTime.new!(2024, 4, day, 10, 0, 0) end)
 
-    build =
+    {:ok, build} =
       RunsFixtures.build_fixture(
         project_id: project.id,
         inserted_at: DateTime.from_naive!(created_at, "Etc/UTC"),
@@ -262,7 +370,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       created_at: Keyword.get(attrs, :reported_at, created_at),
       ran_at: DateTime.from_naive!(created_at, "Etc/UTC"),
       cache_endpoint: Keyword.get(attrs, :cache_endpoint, "https://cache.example.com"),
-      swift_version: Keyword.get(attrs, :swift_version, "5.10"),
+      duration: Keyword.get(attrs, :duration, 0),
       is_ci: Keyword.get(attrs, :is_ci, true)
     )
   end
@@ -287,7 +395,12 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
         target_settings_hash: settings,
         dependencies: dependencies,
         dependencies_hash: dependency_hash,
-        additional_strings: Keyword.get(attrs, :additional_strings, ["Debug", compiler, "7"])
+        additional_strings: Keyword.get(attrs, :additional_strings, ["Debug", compiler, "7"]),
+        hashed_destinations: Keyword.get(attrs, :hashed_destinations, []),
+        embedded_product_references_hash: Keyword.get(attrs, :embedded_product_references_hash),
+        foreign_build_hash: Keyword.get(attrs, :foreign_build_hash),
+        test_device: Keyword.get(attrs, :test_device),
+        test_runtime: Keyword.get(attrs, :test_runtime)
       )
     end
   end

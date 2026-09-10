@@ -91,6 +91,14 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
+#### ClickHouse replication topology {#clickhouse-replication-topology}
+
+Multi-replica ClickHouse behind Tuist is supported on ClickHouse Cloud only. Self-managed ClickHouse is single-replica.
+
+The ingest migrations emit a plain `MergeTree` engine. On Cloud that becomes a `SharedMergeTree` transparently, so writes land in shared object storage and any replica count works. On self-managed ClickHouse, `MergeTree` writes to local disk on one replica only; a multi-replica setup will either split ingest silently across replicas or reject the CREATE with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` depending on how `database_replicated_allow_only_replicated_engine` is set on the connecting user.
+
+Run one shard with one replica on self-managed ClickHouse, and take regular backups of the ClickHouse data directory. There is no second replica to fall back to if the node is lost.
+
 #### Capping operational log retention {#capping-operational-log-retention}
 
 Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
@@ -617,6 +625,36 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --set server.license.key="YOUR_LICENSE_KEY" \
   --version 0.1.0
 ```
+
+### License {#helm-license}
+
+Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: TUIST_LICENSE
+      certificateBase64: ""
+```
+
+For an air-gapped installation, reference the Base64-encoded license certificate instead:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: ""
+      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
+```
+
+Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
+
+Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 

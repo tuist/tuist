@@ -124,7 +124,7 @@
         id="widget-misses"
         title={miss_reason_title(@selected_miss_reason)}
         legend_color={miss_reason_color(@selected_miss_reason)}
-        description={miss_reason_description(@selected_miss_reason)}
+        description={reason_description(@selected_miss_reason)}
         value={if totals, do: format_number(miss_reason_value(totals, @selected_miss_reason))}
         phx_click="select_widget"
         phx_value_widget="misses"

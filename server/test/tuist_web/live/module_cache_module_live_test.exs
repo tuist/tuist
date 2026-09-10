@@ -10,6 +10,15 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
+  test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core?miss-reason=evicted")
+
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-why-it-misses", "Misses")
+    assert has_element?(lv, "#widget-why-it-misses", "Cold: insufficient evidence")
+  end
+
   test "renders the module detail page with chart and downstream impact", %{
     conn: conn,
     organization: organization,
@@ -122,15 +131,15 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
     assert reasons == ["Changed", "Cached", "Cold"]
 
-    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "same branch")
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "The module's reported inputs changed")
 
     assert has_element?(
              lv,
              "[id^=module-miss-reason-] [data-part=description]",
-             "does not mean the module was never cached"
+             "No earlier comparison is available"
            )
 
-    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=trigger][tabindex=0]")
+    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=trigger][tabindex=\"0\"]")
 
     results =
       document
@@ -237,7 +246,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     organization: organization,
     project: project
   } do
-    stub(Analytics, :module_invalidations, fn _opts ->
+    stub(Analytics, :module_invalidation_breakdown, fn _opts ->
       raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
     end)
 
@@ -352,7 +361,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
     assert has_element?(lv, "#widget-why-it-misses", "Changed misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
-    assert has_element?(lv, "#widget-why-it-misses", "does not necessarily mean its source code was edited")
+    assert has_element?(lv, "#widget-why-it-misses", "configuration, or compiler version")
 
     # The other two widgets are the ones the modules page keeps in its table.
     assert has_element?(lv, "#widget-hit-rate")

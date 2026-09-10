@@ -41,7 +41,7 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
   ## Examples
 
       iex> format_cache_endpoint("https://cache-eu-central.tuist.dev")
-      "EU Central"
+      "EU West"
 
       iex> format_cache_endpoint("https://cache-us-east.tuist.dev")
       "US East"
@@ -55,8 +55,10 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
 
   def format_cache_endpoint(endpoint) do
     case Regex.run(~r/cache-([a-z-]+)\.tuist\.dev/, endpoint) do
+      # The legacy lane's hostname keeps the slug the region was named by when
+      # that lane was built; the label follows the region.
       [_, "eu-central"] ->
-        "EU Central"
+        "EU West"
 
       [_, "us-east"] ->
         "US East"

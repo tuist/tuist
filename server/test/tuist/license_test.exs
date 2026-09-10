@@ -349,4 +349,26 @@ defmodule Tuist.LicenseTest do
       assert {:error, _} = result
     end
   end
+
+  describe "ed25519_verify_keys/0" do
+    test "trusts the Atlas and Keygen verify keys without extra configuration" do
+      stub(Tuist.Environment, :license_verify_key, fn -> nil end)
+
+      assert License.ed25519_verify_keys() == [
+               License.atlas_ed25519_verify_key(),
+               License.ed25519_verify_key()
+             ]
+    end
+
+    test "trusts an additional verify key from the environment" do
+      verify_key = Base.encode16(:crypto.strong_rand_bytes(32), case: :lower)
+      stub(Tuist.Environment, :license_verify_key, fn -> verify_key end)
+
+      assert License.ed25519_verify_keys() == [
+               verify_key,
+               License.atlas_ed25519_verify_key(),
+               License.ed25519_verify_key()
+             ]
+    end
+  end
 end

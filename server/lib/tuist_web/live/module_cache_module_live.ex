@@ -6,7 +6,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.Skeleton
-  import TuistWeb.Helpers.ModuleCache, only: [miss_reason_description: 1, reason_description: 1]
+  import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -133,7 +133,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
-    selected_miss_reason = params["miss-reason"] || "all"
+    selected_miss_reason = normalize_miss_reason(params["miss-reason"])
 
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
@@ -174,7 +174,9 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         # Fetching the top N by miss count and looking this module up in it
         # loses the page's own module once the project has more modules than
         # the cutoff, so ask for it by name.
-        row = opts |> Keyword.put(:name, name) |> Analytics.module_invalidations() |> List.first()
+        module_opts = Keyword.put(opts, :name, name)
+        breakdown = Analytics.module_invalidation_breakdown(module_opts)
+        row = breakdown |> Analytics.module_invalidations_from_breakdown(module_opts) |> List.first()
 
         timeseries =
           opts
@@ -188,7 +190,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
           Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
 
         miss_reasons_series =
-          Analytics.module_miss_reasons_timeseries(Keyword.put(opts, :name, name))
+          Analytics.miss_reasons_timeseries_from_breakdown(breakdown, module_opts)
 
         {:ok,
          %{

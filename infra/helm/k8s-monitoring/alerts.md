@@ -1252,10 +1252,10 @@ the region reads as the occupied nodes only. That is the same blind spot the
 pool-derived `kura:node_region` closes, and both halves are needed: the join
 puts the node in the region, the default gives it its capacity.
 
-Measured on 2026-09-03, per constraint, as `eu-central` / `us-east` /
+Measured on 2026-09-03, per constraint, as `eu-west` / `us-east` /
 `us-west`: ceiling 6 / 1 / 4, memory 20 / 8 / 10, disk 10 / 3 / 5, egress
 34 / 96 / 58. The ceiling binds first in every region that advertises one, and
-`us-east` is the region to watch. Most of `eu-central`'s ceiling room is a
+`us-east` is the region to watch. Most of `eu-west`'s ceiling room is a
 second node that carries no cache pod yet, which is the case the pool-derived
 join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
@@ -3459,9 +3459,9 @@ rather than silently. `region` and `cluster` both survive. Every
 `tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
 has to be one that collapses identical values rather than adding them.
 Measured on 2026-09-08 against a ground truth of two stuck instances in
-us-east and one in eu-central:
+us-east and one in eu-west:
 
-| query | us-east | eu-central |
+| query | us-east | eu-west |
 | --- | --- | --- |
 | `sum by (region)` | 10 | 5 |
 | `max by (region)` | 2 | 1 |
@@ -3758,7 +3758,7 @@ topk(5, sum by (cluster, account) (rate(kura_egress_tree_class_sent_bytes{cluste
 
 Measured over the 7 days to 2026-09-02 with a 30 minute rate, the highest
 sustained share of budget on any production box was about 0.15 (us-east) and
-about 0.07 (eu-central); the others sat near zero. Both tiers are quiet on
+about 0.07 (eu-west); the others sat near zero. Both tiers are quiet on
 creation by a wide margin.
 
 ### Kura account at its egress ceiling
@@ -4338,7 +4338,7 @@ and were cleared on 2026-08-19:
   with it. Their Postgres rows were already gone, and
   `reconcile_retired_region_servers` drives teardown from those rows, so
   the orphaned `KuraInstance` CRs were invisible to it permanently.
-- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
+- 3 belonging to `kgw-…-eu-west-controller`, left behind when the
   per-account Kura gateway was removed in
   [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
   CRDs, so the CRD and its CR outlived the controller that reconciled

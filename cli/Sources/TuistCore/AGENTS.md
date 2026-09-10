@@ -18,3 +18,5 @@ This module contains core domain abstractions and shared models used across the 
 ## Related Context
 - Shared utilities: `cli/Sources/TuistSupport/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
+
+- Subhash diagnostics carry optional effective destinations, foreign-build hashes, and UI-test device/runtime inputs. Missing historical inputs remain nil; RunTarget destinations retain declared graph metadata.

@@ -12,6 +12,15 @@ defmodule TuistWeb.ModulesLiveTest do
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.ModulesLive
 
+  test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?miss-reason=evicted")
+
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-misses", "Misses")
+    assert has_element?(lv, "#widget-misses", "Cold: insufficient evidence")
+  end
+
   test "lists all modules with invalidations", %{
     conn: conn,
     organization: organization,

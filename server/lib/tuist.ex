@@ -188,6 +188,7 @@ defmodule Tuist do
       ClickHouseRepo,
       ClickHouseFlop,
       ClickHouseTimeSeries,
+      Telemetry.QueryErrorContext,
       OpsClickHouseRepo,
       Markdown,
       Cldr,

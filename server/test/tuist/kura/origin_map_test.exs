@@ -5,14 +5,14 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "candidates/1" do
     test "puts the nearest region first for each continent" do
-      assert ["eu-central" | _rest] = OriginMap.candidates("FR")
-      assert ["eu-central" | _rest] = OriginMap.candidates("DE")
+      assert ["eu-west" | _rest] = OriginMap.candidates("FR")
+      assert ["eu-west" | _rest] = OriginMap.candidates("DE")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("SG")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("AU")
       assert ["sa-west" | _rest] = OriginMap.candidates("BR")
       assert ["sa-west" | _rest] = OriginMap.candidates("CL")
       assert ["sa-west" | _rest] = OriginMap.candidates("AR")
-      assert ["eu-central" | _rest] = OriginMap.candidates("ZA")
+      assert ["eu-west" | _rest] = OriginMap.candidates("ZA")
     end
 
     test "splits the countries that hold more than one region" do
@@ -54,7 +54,7 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "preferred/2" do
     test "picks the nearest permitted region" do
-      assert OriginMap.preferred("FR", ["us-east", "eu-central"]) == "eu-central"
+      assert OriginMap.preferred("FR", ["us-east", "eu-west"]) == "eu-west"
       assert OriginMap.preferred("US-OR", ["us-east", "us-west"]) == "us-west"
       assert OriginMap.preferred("US-VA", ["us-east", "us-west"]) == "us-east"
     end
@@ -74,7 +74,7 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "distance/2" do
     test "orders regions by how near they are to the origin" do
-      assert OriginMap.distance("FR", "eu-central") < OriginMap.distance("FR", "us-east")
+      assert OriginMap.distance("FR", "eu-west") < OriginMap.distance("FR", "us-east")
       assert OriginMap.distance("US-OR", "us-west") < OriginMap.distance("US-OR", "us-east")
     end
 

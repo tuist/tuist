@@ -2,7 +2,8 @@ defmodule TuistWeb.Helpers.ModuleCache do
   @moduledoc false
   use Gettext, backend: TuistWeb.Gettext
 
-  def miss_reason_description(reason), do: reason_description(reason)
+  def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold unavailable), do: reason
+  def normalize_miss_reason(_), do: "all"
 
   def reason_description("changed") do
     dgettext(
@@ -42,4 +43,6 @@ defmodule TuistWeb.Helpers.ModuleCache do
       "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Unavailable: a previously served key now misses."
     )
   end
+
+  def reason_description(_), do: reason_description("all")
 end

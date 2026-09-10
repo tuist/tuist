@@ -88,11 +88,6 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    # The offline-certificate license config is now the shared default in
-    # values-managed-common.yaml, so production no longer overrides it here.
-    license:
-      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
-      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
@@ -192,7 +187,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -372,6 +367,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -821,15 +818,15 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
 # (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
 # adoptable box hangs helm --wait.
 #
-# eu-central is a shared public region, so its capacity is the sum of its boxes
+# eu-west is a shared public region, so its capacity is the sum of its boxes
 # and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
 # ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
@@ -854,7 +851,7 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
     # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
