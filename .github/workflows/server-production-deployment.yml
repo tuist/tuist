@@ -2173,11 +2173,11 @@ jobs:
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
-      # (see Project.swift): the EE caching and generation suite this job has
-      # always run, plus TuistServerAcceptanceTests, which exercises the freshly
-      # deployed canary end to end. Until the latter existed this job asserted
-      # nothing about the server, which is how a change that killed 100% of
-      # build ingestion promoted to production green on 2026-09-09.
+      # (see Project.swift): the EE suite this job has always run, which covers
+      # caching, module cache and selective testing against canary, plus
+      # TuistServerAcceptanceTests, which covers build ingestion. Ingestion had
+      # no coverage here at all, which is how a change that killed 100% of it
+      # promoted to production green on 2026-09-09.
       - name: Test
         env:
           TUIST_EE: 1
