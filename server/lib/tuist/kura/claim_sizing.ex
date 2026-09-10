@@ -6,8 +6,9 @@ defmodule Tuist.Kura.ClaimSizing do
   Growth is driven by shed age (how soon after being written content was
   evicted), shrinking by occupancy, because an oversized ring never evicts and
   so produces no shed age at all. Confirmation scales with severity: the worse
-  the shedding, the shorter the window, and the shortest rungs are bought with
-  evicted volume rather than elapsed time.
+  the shedding, the shorter the window, and a tier's window can be bought down
+  with the volume the ring cycled in place of elapsed time. The step a reading
+  may take scales with the confirmation behind it.
 
   Windows count rollup rows, one row being one UTC day per account-region.
   Today's row is live, so a one-row window can be satisfied in minutes. Rows
@@ -23,12 +24,16 @@ defmodule Tuist.Kura.ClaimSizing do
     retention_floor_days: 3,
     ceiling: %{air: "64Gi", pro: "64Gi", enterprise: "256Gi"},
     # Ordered shortest window first; the first rung a reading satisfies wins.
-    # The absolute arm does not move when the floor is recalibrated.
+    # The absolute arm does not move when the floor is recalibrated. A tier
+    # appears twice where volume can stand in for elapsed time: the ring the
+    # account cycled is evidence the same reading held all day. Turnover counts
+    # rings across the whole window, so two over two days is one a day.
     grow_windows: [
       %{shed_age_under: {:seconds, 3_600}, window_days: 1, min_ring_turnover: 1.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 1, min_ring_turnover: 2.0},
       %{shed_age_under: {:seconds, 28_800}, window_days: 2},
       %{shed_age_under: {:floor_fraction, 0.1}, window_days: 2},
+      %{shed_age_under: {:floor_fraction, 0.34}, window_days: 2, min_ring_turnover: 2.0},
       %{shed_age_under: {:floor_fraction, 0.34}, window_days: 5},
       %{shed_age_under: {:floor_fraction, 1.0}, window_days: 14}
     ],
@@ -36,7 +41,8 @@ defmodule Tuist.Kura.ClaimSizing do
     shrink_window_days: 30,
     shrink_occupancy_percent: 40,
     shrink_target_occupancy_percent: 60,
-    max_step_factor: 2.0
+    max_step_factor: 2.0,
+    max_confirmed_step_factor: 4.0
   }
 
   def default_policy, do: @default_policy
@@ -108,7 +114,7 @@ defmodule Tuist.Kura.ClaimSizing do
       with window when not is_nil(window) <-
              qualifying_window(by_date, context.today, rung.window_days, &grow_day?(&1, threshold_seconds)),
            true <- turnover_cleared?(window, rung) do
-        {grow_target_bytes(window, current_bytes, floor_seconds, policy),
+        {grow_target_bytes(window, current_bytes, floor_seconds, rung, policy),
          grow_evidence(window, floor_seconds, threshold_seconds)}
       else
         _ -> nil
@@ -178,16 +184,24 @@ defmodule Tuist.Kura.ClaimSizing do
 
   # Projected from the retention the current claim buys, plus headroom so a
   # correct resize does not land on the boundary it is escaping.
-  defp grow_target_bytes(window, current_bytes, floor_seconds, policy) do
+  defp grow_target_bytes(window, current_bytes, floor_seconds, rung, policy) do
     span_seconds = window |> Enum.map(& &1.median_ring_span_seconds) |> median() |> max(1)
 
     projected = current_bytes * (floor_seconds / span_seconds) * policy.grow_headroom_factor
 
     projected
-    |> min(current_bytes * policy.max_step_factor)
+    |> min(current_bytes * max_step_factor(rung, policy))
     |> max(current_bytes)
     |> round()
   end
+
+  # The bound scales with the confirmation behind the reading: one day buys a
+  # doubling, a tier proven across days buys the projection's own answer. It
+  # binds only under 45 hours of retention at 2x and 22.5 hours at 4x, so an
+  # account near the floor is sized by the projection either way and the one
+  # furthest under it arrives in a single rebuild rather than three.
+  defp max_step_factor(%{window_days: 1}, policy), do: policy.max_step_factor
+  defp max_step_factor(_rung, policy), do: policy.max_confirmed_step_factor
 
   defp shrink_target_bytes(window, policy) do
     peak_bytes =

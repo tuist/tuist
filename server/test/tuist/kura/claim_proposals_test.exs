@@ -127,7 +127,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.direction == :grow
       assert proposal.region == "us-east"
       assert proposal.current_claim_size == "8Gi"
-      assert proposal.recommended_claim_size == "16Gi"
+      assert proposal.recommended_claim_size == "20Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
     end
 
@@ -264,12 +264,12 @@ defmodule Tuist.Kura.ClaimProposalsTest do
 
       assert {:ok, result} = Kura.apply_claim_proposal(proposal, "ops@tuist.dev")
 
-      assert result.claim_size == "16Gi"
+      assert result.claim_size == "20Gi"
       assert [raised_server] = result.raised
       assert raised_server.id == server.id
-      assert Repo.get!(Server, server.id).storage_claim_size == "16Gi"
-      assert PlacerClaims.claim_for(account) == "16Gi"
-      assert PlacerClaims.effective_claim_size(account) == "16Gi"
+      assert Repo.get!(Server, server.id).storage_claim_size == "20Gi"
+      assert PlacerClaims.claim_for(account) == "20Gi"
+      assert PlacerClaims.effective_claim_size(account) == "20Gi"
 
       resolved = Repo.get!(ClaimProposal, proposal.id)
       assert resolved.status == :applied

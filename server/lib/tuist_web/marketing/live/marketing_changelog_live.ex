@@ -6,8 +6,20 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
+  alias TuistWeb.Marketing.Design
+  alias TuistWeb.Marketing.SocialCards
+
+  on_mount {TuistWeb.Authentication, :mount_current_user}
 
   @page_size 10
+
+  embed_templates "marketing_changelog_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (changelog_new/1) distinct from the legacy changelog/1.
+  embed_templates "marketing_changelog_live/new/*", suffix: "_new"
+
+  def render(%{new_design: true} = assigns), do: changelog_new(assigns)
+  def render(assigns), do: changelog(assigns)
 
   def mount(params, _session, socket) do
     entries = Changelog.get_entries()
@@ -23,6 +35,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :changelog))
       |> assign(:entries, paginated_entries)
       |> assign(:all_entries, filtered_entries)
       |> assign(:categories, categories)
@@ -57,12 +70,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(:has_more?, has_more?)
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(
-         path:
-           TuistWeb.Helpers.OpenGraph.image_path(:marketing_changelog,
-             title: dgettext("marketing", "Changelog")
-           )
-       )
+       SocialCards.image_url("changelog")
      )
      |> assign(:head_title, "Tuist Changelog")
      |> assign(:head_include_blog_rss_and_atom, false)

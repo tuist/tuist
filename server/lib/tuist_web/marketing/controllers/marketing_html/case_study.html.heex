@@ -23,7 +23,9 @@
 
       <img
         data-part="image"
-        src={static_asset_path(@case_study.og_image_path)}
+        src={
+          static_asset_path(TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(@case_study))
+        }
         alt={dgettext("marketing", "%{company} case study", company: @case_study.company)}
         decoding="async"
       />
@@ -75,7 +77,9 @@
         >
           <img
             data-part="image"
-            src={static_asset_path(related.og_image_path)}
+            src={
+              static_asset_path(TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(related))
+            }
             alt={dgettext("marketing", "%{company} case study", company: related.company)}
             loading="lazy"
             decoding="async"
