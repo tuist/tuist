@@ -79,3 +79,5 @@ This directory contains the core business logic and domain modules for the serve
 - Data export requirements: `server/data-export.md`
 
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
+
+- `Builds.RecordedSteps` exposes Gradle and Bazel timeline metadata through authorized API/MCP callers. These adapters reuse source records rather than copying them into Xcode `build_steps`. Opaque IDs remain scoped to the authorized parent; unavailable logs are null.

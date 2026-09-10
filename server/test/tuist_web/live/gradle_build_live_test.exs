@@ -21,6 +21,45 @@ defmodule TuistWeb.GradleBuildLiveTest do
     %{project: project, conn: conn}
   end
 
+  test "timeline loads lazily and reloads metadata after leaving the tab", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        started_at: ~U[2026-09-09 10:00:00Z],
+        tasks: [%{task_path: ":app:compile", outcome: "executed", duration_ms: 100, started_at: ~U[2026-09-09 10:00:01Z]}]
+      )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
+    {:ok, lv, _} = live(conn, path)
+    refute has_element?(lv, "#build-timeline")
+    tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("a[href^='?tab=']") |> Enum.map(&Floki.text/1)
+    assert Enum.take(tabs, 2) == ["Overview", "Timeline"]
+    refute "Machine Metrics" in tabs
+    render_patch(lv, path <> "?tab=machine-metrics")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "#build-timeline[data-source=gradle]")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Configuration")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=transform]", "Artifact transforms")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=package]", "Packaging")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=test]", "Testing")
+    refute has_element?(lv, "[data-part=legend] button[data-kind=fetch]")
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    assert String.to_integer(reopened) > String.to_integer(version)
+    render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
+    assert has_element?(lv, "#build-timeline")
+  end
+
   test "list_tasks with like filter works at the data layer", %{project: project} do
     build_id =
       GradleFixtures.build_fixture(

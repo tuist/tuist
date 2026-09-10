@@ -472,6 +472,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Get one recorded Gradle build step.
+    ///
+    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
+    func getGradleBuildStep(_ input: Operations.getGradleBuildStep.Input) async throws -> Operations.getGradleBuildStep.Output
     /// List the values seen for a build filter dimension.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
@@ -578,6 +585,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/multipart/start`.
     /// - Remark: Generated from `#/paths//api/cache/multipart/start/post(startCacheArtifactMultipartUpload)`.
     func startCacheArtifactMultipartUpload(_ input: Operations.startCacheArtifactMultipartUpload.Input) async throws -> Operations.startCacheArtifactMultipartUpload.Output
+    /// Get one recorded Bazel build step.
+    ///
+    /// Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)`.
+    func getBazelBuildStep(_ input: Operations.getBazelBuildStep.Input) async throws -> Operations.getBazelBuildStep.Output
     /// Create a shard plan.
     ///
     /// Creates a new test sharding session that distributes test targets across multiple CI runners.
@@ -731,6 +745,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)`.
     func listGenerations(_ input: Operations.listGenerations.Input) async throws -> Operations.listGenerations.Output
+    /// List recorded Gradle build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Gradle reports without a start timestamp use the first recorded timestamp as origin.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)`.
+    func listGradleBuildSteps(_ input: Operations.listGradleBuildSteps.Input) async throws -> Operations.listGradleBuildSteps.Output
     /// List test suite runs for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites`.
@@ -836,6 +857,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/get(getTestCaseRun)`.
     func getTestCaseRun(_ input: Operations.getTestCaseRun.Input) async throws -> Operations.getTestCaseRun.Output
+    /// List recorded Bazel build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Trace profiles include all recorded intervals relative to the profile start. Older builds fall back to retained BEP summaries.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)`.
+    func listBazelBuildSteps(_ input: Operations.listBazelBuildSteps.Input) async throws -> Operations.listBazelBuildSteps.Output
     /// List test cases associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
@@ -2020,6 +2048,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get one recorded Gradle build step.
+    ///
+    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
+    public func getGradleBuildStep(
+        path: Operations.getGradleBuildStep.Input.Path,
+        headers: Operations.getGradleBuildStep.Input.Headers = .init()
+    ) async throws -> Operations.getGradleBuildStep.Output {
+        try await getGradleBuildStep(Operations.getGradleBuildStep.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List the values seen for a build filter dimension.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
@@ -2279,6 +2322,21 @@ extension APIProtocol {
     ) async throws -> Operations.startCacheArtifactMultipartUpload.Output {
         try await startCacheArtifactMultipartUpload(Operations.startCacheArtifactMultipartUpload.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// Get one recorded Bazel build step.
+    ///
+    /// Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)`.
+    public func getBazelBuildStep(
+        path: Operations.getBazelBuildStep.Input.Path,
+        headers: Operations.getBazelBuildStep.Input.Headers = .init()
+    ) async throws -> Operations.getBazelBuildStep.Output {
+        try await getBazelBuildStep(Operations.getBazelBuildStep.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -2659,6 +2717,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List recorded Gradle build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Gradle reports without a start timestamp use the first recorded timestamp as origin.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)`.
+    public func listGradleBuildSteps(
+        path: Operations.listGradleBuildSteps.Input.Path,
+        query: Operations.listGradleBuildSteps.Input.Query = .init(),
+        headers: Operations.listGradleBuildSteps.Input.Headers = .init()
+    ) async throws -> Operations.listGradleBuildSteps.Output {
+        try await listGradleBuildSteps(Operations.listGradleBuildSteps.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// List test suite runs for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites`.
@@ -2923,6 +2998,23 @@ extension APIProtocol {
     ) async throws -> Operations.getTestCaseRun.Output {
         try await getTestCaseRun(Operations.getTestCaseRun.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// List recorded Bazel build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Trace profiles include all recorded intervals relative to the profile start. Older builds fall back to retained BEP summaries.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)`.
+    public func listBazelBuildSteps(
+        path: Operations.listBazelBuildSteps.Input.Path,
+        query: Operations.listBazelBuildSteps.Input.Query = .init(),
+        headers: Operations.listBazelBuildSteps.Input.Headers = .init()
+    ) async throws -> Operations.listBazelBuildSteps.Output {
+        try await listBazelBuildSteps(Operations.listBazelBuildSteps.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -4570,6 +4662,77 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail`.
+        public struct GradleBuildStepDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/log`.
+            public var log: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/log_truncated`.
+            public var log_truncated: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepDetail/title`.
+            public var title: Swift.String
+            /// Creates a new `GradleBuildStepDetail`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - log:
+            ///   - log_truncated:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                log: Swift.String? = nil,
+                log_truncated: Swift.Bool,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.log = log
+                self.log_truncated = log_truncated
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case log
+                case log_truncated
+                case project
+                case start_ms
+                case status
+                case target
+                case title
+            }
+        }
         /// Represents a single build run.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsBuild`.
@@ -5896,6 +6059,77 @@ public enum Components {
                 case recovery_enabled
                 case trigger_actions
                 case trigger_config
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail`.
+        public struct BazelBuildStepDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/log`.
+            public var log: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/log_truncated`.
+            public var log_truncated: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepDetail/title`.
+            public var title: Swift.String
+            /// Creates a new `BazelBuildStepDetail`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - log:
+            ///   - log_truncated:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                log: Swift.String? = nil,
+                log_truncated: Swift.Bool,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.log = log
+                self.log_truncated = log_truncated
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case log
+                case log_truncated
+                case project
+                case start_ms
+                case status
+                case target
+                case title
             }
         }
         /// - Remark: Generated from `#/components/schemas/Preview`.
@@ -9998,6 +10232,126 @@ public enum Components {
                 case xcode_version
             }
         }
+        /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList`.
+        public struct BazelBuildStepsList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/availability`.
+            @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case processing = "processing"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/availability`.
+            public var availability: Components.Schemas.BazelBuildStepsList.availabilityPayload
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/coverage`.
+            @frozen public enum coveragePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case recorded_operations = "recorded_operations"
+                case retained_action_spans = "retained_action_spans"
+                case trace_profile = "trace_profile"
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/coverage`.
+            public var coverage: Components.Schemas.BazelBuildStepsList.coveragePayload
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.PaginationMetadata
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload`.
+            public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/category`.
+                public var category: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/duration_ms`.
+                public var duration_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/project`.
+                public var project: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/start_ms`.
+                public var start_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/status`.
+                public var status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/target`.
+                public var target: Swift.String
+                /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/stepsPayload/title`.
+                public var title: Swift.String
+                /// Creates a new `stepsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - category:
+                ///   - duration_ms:
+                ///   - id:
+                ///   - project:
+                ///   - start_ms:
+                ///   - status:
+                ///   - target:
+                ///   - title:
+                public init(
+                    category: Swift.String,
+                    duration_ms: Swift.Double,
+                    id: Swift.String,
+                    project: Swift.String,
+                    start_ms: Swift.Double,
+                    status: Swift.String,
+                    target: Swift.String,
+                    title: Swift.String
+                ) {
+                    self.category = category
+                    self.duration_ms = duration_ms
+                    self.id = id
+                    self.project = project
+                    self.start_ms = start_ms
+                    self.status = status
+                    self.target = target
+                    self.title = title
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case category
+                    case duration_ms
+                    case id
+                    case project
+                    case start_ms
+                    case status
+                    case target
+                    case title
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/steps`.
+            public typealias stepsPayload = [Components.Schemas.BazelBuildStepsList.stepsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/steps`.
+            public var steps: Components.Schemas.BazelBuildStepsList.stepsPayload
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/time_origin`.
+            @frozen public enum time_originPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build_start = "build_start"
+                case first_recorded_timestamp = "first_recorded_timestamp"
+                case profile_start = "profile_start"
+            }
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStepsList/time_origin`.
+            public var time_origin: Components.Schemas.BazelBuildStepsList.time_originPayload
+            /// Creates a new `BazelBuildStepsList`.
+            ///
+            /// - Parameters:
+            ///   - availability:
+            ///   - coverage:
+            ///   - pagination_metadata:
+            ///   - steps:
+            ///   - time_origin:
+            public init(
+                availability: Components.Schemas.BazelBuildStepsList.availabilityPayload,
+                coverage: Components.Schemas.BazelBuildStepsList.coveragePayload,
+                pagination_metadata: Components.Schemas.PaginationMetadata,
+                steps: Components.Schemas.BazelBuildStepsList.stepsPayload,
+                time_origin: Components.Schemas.BazelBuildStepsList.time_originPayload
+            ) {
+                self.availability = availability
+                self.coverage = coverage
+                self.pagination_metadata = pagination_metadata
+                self.steps = steps
+                self.time_origin = time_origin
+            }
+            public enum CodingKeys: String, CodingKey {
+                case availability
+                case coverage
+                case pagination_metadata
+                case steps
+                case time_origin
+            }
+        }
         /// Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPage`.
@@ -11581,6 +11935,65 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexAfter`.
         public typealias RunsIndexAfter = Swift.String
+        /// - Remark: Generated from `#/components/schemas/BazelBuildStep`.
+        public struct BazelBuildStep: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BazelBuildStep/title`.
+            public var title: Swift.String
+            /// Creates a new `BazelBuildStep`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case project
+                case start_ms
+                case status
+                case target
+                case title
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/GradleTaskOutcome`.
         @frozen public enum GradleTaskOutcome: String, Codable, Hashable, Sendable, CaseIterable {
             case local_hit = "local_hit"
@@ -11862,6 +12275,124 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPageSize`.
         public typealias BuildIssuesIndexPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList`.
+        public struct GradleBuildStepsList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/availability`.
+            @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case processing = "processing"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/availability`.
+            public var availability: Components.Schemas.GradleBuildStepsList.availabilityPayload
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/coverage`.
+            @frozen public enum coveragePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case recorded_operations = "recorded_operations"
+                case retained_action_spans = "retained_action_spans"
+            }
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/coverage`.
+            public var coverage: Components.Schemas.GradleBuildStepsList.coveragePayload
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.PaginationMetadata
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload`.
+            public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/category`.
+                public var category: Swift.String
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/duration_ms`.
+                public var duration_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/project`.
+                public var project: Swift.String
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/start_ms`.
+                public var start_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/status`.
+                public var status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/target`.
+                public var target: Swift.String
+                /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/stepsPayload/title`.
+                public var title: Swift.String
+                /// Creates a new `stepsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - category:
+                ///   - duration_ms:
+                ///   - id:
+                ///   - project:
+                ///   - start_ms:
+                ///   - status:
+                ///   - target:
+                ///   - title:
+                public init(
+                    category: Swift.String,
+                    duration_ms: Swift.Double,
+                    id: Swift.String,
+                    project: Swift.String,
+                    start_ms: Swift.Double,
+                    status: Swift.String,
+                    target: Swift.String,
+                    title: Swift.String
+                ) {
+                    self.category = category
+                    self.duration_ms = duration_ms
+                    self.id = id
+                    self.project = project
+                    self.start_ms = start_ms
+                    self.status = status
+                    self.target = target
+                    self.title = title
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case category
+                    case duration_ms
+                    case id
+                    case project
+                    case start_ms
+                    case status
+                    case target
+                    case title
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/steps`.
+            public typealias stepsPayload = [Components.Schemas.GradleBuildStepsList.stepsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/steps`.
+            public var steps: Components.Schemas.GradleBuildStepsList.stepsPayload
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/time_origin`.
+            @frozen public enum time_originPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build_start = "build_start"
+                case first_recorded_timestamp = "first_recorded_timestamp"
+            }
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStepsList/time_origin`.
+            public var time_origin: Components.Schemas.GradleBuildStepsList.time_originPayload
+            /// Creates a new `GradleBuildStepsList`.
+            ///
+            /// - Parameters:
+            ///   - availability:
+            ///   - coverage:
+            ///   - pagination_metadata:
+            ///   - steps:
+            ///   - time_origin:
+            public init(
+                availability: Components.Schemas.GradleBuildStepsList.availabilityPayload,
+                coverage: Components.Schemas.GradleBuildStepsList.coveragePayload,
+                pagination_metadata: Components.Schemas.PaginationMetadata,
+                steps: Components.Schemas.GradleBuildStepsList.stepsPayload,
+                time_origin: Components.Schemas.GradleBuildStepsList.time_originPayload
+            ) {
+                self.availability = availability
+                self.coverage = coverage
+                self.pagination_metadata = pagination_metadata
+                self.steps = steps
+                self.time_origin = time_origin
+            }
+            public enum CodingKeys: String, CodingKey {
+                case availability
+                case coverage
+                case pagination_metadata
+                case steps
+                case time_origin
+            }
+        }
         /// The maximum number of targets to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/ModuleCacheTargetsPageSize`.
@@ -12313,6 +12844,65 @@ public enum Components {
                 case id
                 case object
                 case _type = "type"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/GradleBuildStep`.
+        public struct GradleBuildStep: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildStep/title`.
+            public var title: Swift.String
+            /// Creates a new `GradleBuildStep`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case project
+                case start_ms
+                case status
+                case target
+                case title
             }
         }
         /// Parameters to create a single run.
@@ -25826,28 +26416,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -49501,6 +50091,466 @@ public enum Operations {
             }
         }
     }
+    /// Get one recorded Gradle build step.
+    ///
+    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
+    public enum getGradleBuildStep {
+        public static let id: Swift.String = "getGradleBuildStep"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Build ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// The opaque ID returned by listGradleBuildSteps.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/path/step_id`.
+                public var step_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - build_id: Build ID.
+                ///   - step_id: The opaque ID returned by listGradleBuildSteps.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String,
+                    step_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                    self.step_id = step_id
+                }
+            }
+            public var path: Operations.getGradleBuildStep.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGradleBuildStep.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGradleBuildStep.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getGradleBuildStep.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getGradleBuildStep.Input.Path,
+                headers: Operations.getGradleBuildStep.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/category`.
+                        public var category: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/log`.
+                        public var log: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/log_truncated`.
+                        public var log_truncated: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/project`.
+                        public var project: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/start_ms`.
+                        public var start_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/target`.
+                        public var target: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/title`.
+                        public var title: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - category:
+                        ///   - duration_ms:
+                        ///   - id:
+                        ///   - log:
+                        ///   - log_truncated:
+                        ///   - project:
+                        ///   - start_ms:
+                        ///   - status:
+                        ///   - target:
+                        ///   - title:
+                        public init(
+                            category: Swift.String,
+                            duration_ms: Swift.Double,
+                            id: Swift.String,
+                            log: Swift.String? = nil,
+                            log_truncated: Swift.Bool,
+                            project: Swift.String,
+                            start_ms: Swift.Double,
+                            status: Swift.String,
+                            target: Swift.String,
+                            title: Swift.String
+                        ) {
+                            self.category = category
+                            self.duration_ms = duration_ms
+                            self.id = id
+                            self.log = log
+                            self.log_truncated = log_truncated
+                            self.project = project
+                            self.start_ms = start_ms
+                            self.status = status
+                            self.target = target
+                            self.title = title
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case category
+                            case duration_ms
+                            case id
+                            case log
+                            case log_truncated
+                            case project
+                            case start_ms
+                            case status
+                            case target
+                            case title
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getGradleBuildStep.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getGradleBuildStep.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuildStep.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuildStep.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded step metadata
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getGradleBuildStep.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getGradleBuildStep.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuildStep.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuildStep.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getGradleBuildStep.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getGradleBuildStep.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuildStep.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuildStep.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getGradleBuildStep.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getGradleBuildStep.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuildStep.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuildStep.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getGradleBuildStep.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getGradleBuildStep.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getGradleBuildStep.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuildStep.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getGradleBuildStep.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getGradleBuildStep.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getGradleBuildStep.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getGradleBuildStep.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List the values seen for a build filter dimension.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
@@ -56737,6 +57787,466 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.startCacheArtifactMultipartUpload.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get one recorded Bazel build step.
+    ///
+    /// Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)`.
+    public enum getBazelBuildStep {
+        public static let id: Swift.String = "getBazelBuildStep"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// The opaque ID returned by listBazelBuildSteps.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/path/step_id`.
+                public var step_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - invocation_id: Bazel invocation identifier.
+                ///   - step_id: The opaque ID returned by listBazelBuildSteps.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String,
+                    step_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                    self.step_id = step_id
+                }
+            }
+            public var path: Operations.getBazelBuildStep.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelBuildStep.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelBuildStep.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getBazelBuildStep.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getBazelBuildStep.Input.Path,
+                headers: Operations.getBazelBuildStep.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/category`.
+                        public var category: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/log`.
+                        public var log: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/log_truncated`.
+                        public var log_truncated: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/project`.
+                        public var project: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/start_ms`.
+                        public var start_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/target`.
+                        public var target: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/json/title`.
+                        public var title: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - category:
+                        ///   - duration_ms:
+                        ///   - id:
+                        ///   - log:
+                        ///   - log_truncated:
+                        ///   - project:
+                        ///   - start_ms:
+                        ///   - status:
+                        ///   - target:
+                        ///   - title:
+                        public init(
+                            category: Swift.String,
+                            duration_ms: Swift.Double,
+                            id: Swift.String,
+                            log: Swift.String? = nil,
+                            log_truncated: Swift.Bool,
+                            project: Swift.String,
+                            start_ms: Swift.Double,
+                            status: Swift.String,
+                            target: Swift.String,
+                            title: Swift.String
+                        ) {
+                            self.category = category
+                            self.duration_ms = duration_ms
+                            self.id = id
+                            self.log = log
+                            self.log_truncated = log_truncated
+                            self.project = project
+                            self.start_ms = start_ms
+                            self.status = status
+                            self.target = target
+                            self.title = title
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case category
+                            case duration_ms
+                            case id
+                            case log
+                            case log_truncated
+                            case project
+                            case start_ms
+                            case status
+                            case target
+                            case title
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getBazelBuildStep.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getBazelBuildStep.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelBuildStep.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelBuildStep.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded step metadata
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getBazelBuildStep.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getBazelBuildStep.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelBuildStep.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelBuildStep.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getBazelBuildStep.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getBazelBuildStep.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelBuildStep.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelBuildStep.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getBazelBuildStep.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getBazelBuildStep.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelBuildStep.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelBuildStep.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getBazelBuildStep.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getBazelBuildStep.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getBazelBuildStep.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelBuildStep.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getBazelBuildStep.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getBazelBuildStep.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}/get(getBazelBuildStep)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getBazelBuildStep.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getBazelBuildStep.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -67924,6 +69434,606 @@ public enum Operations {
             }
         }
     }
+    /// List recorded Gradle build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Gradle reports without a start timestamp use the first recorded timestamp as origin.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)`.
+    public enum listGradleBuildSteps {
+        public static let id: Swift.String = "listGradleBuildSteps"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Build ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - build_id: Build ID.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.listGradleBuildSteps.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Case-insensitive title, project, or target search.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/search`.
+                public var search: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/project`.
+                public var project: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/target`.
+                public var target: Swift.String?
+                /// Exact category returned by a recorded step.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/category`.
+                public var category: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                    case unknown = "unknown"
+                    case local_hit = "local_hit"
+                    case remote_hit = "remote_hit"
+                    case cache_hit = "cache_hit"
+                    case up_to_date = "up_to_date"
+                    case skipped = "skipped"
+                    case no_source = "no_source"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/status`.
+                public var status: Operations.listGradleBuildSteps.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/start_ms`.
+                public var start_ms: Swift.Double?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/end_ms`.
+                public var end_ms: Swift.Double?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case duration_ms = "duration_ms"
+                    case start_ms = "start_ms"
+                }
+                /// Duration descending or start time ascending; ties use step ID ascending.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/query/sort_by`.
+                public var sort_by: Operations.listGradleBuildSteps.Input.Query.sort_byPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                ///   - search: Case-insensitive title, project, or target search.
+                ///   - project:
+                ///   - target:
+                ///   - category: Exact category returned by a recorded step.
+                ///   - status:
+                ///   - start_ms:
+                ///   - end_ms:
+                ///   - sort_by: Duration descending or start time ascending; ties use step ID ascending.
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    search: Swift.String? = nil,
+                    project: Swift.String? = nil,
+                    target: Swift.String? = nil,
+                    category: Swift.String? = nil,
+                    status: Operations.listGradleBuildSteps.Input.Query.statusPayload? = nil,
+                    start_ms: Swift.Double? = nil,
+                    end_ms: Swift.Double? = nil,
+                    sort_by: Operations.listGradleBuildSteps.Input.Query.sort_byPayload? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                    self.search = search
+                    self.project = project
+                    self.target = target
+                    self.category = category
+                    self.status = status
+                    self.start_ms = start_ms
+                    self.end_ms = end_ms
+                    self.sort_by = sort_by
+                }
+            }
+            public var query: Operations.listGradleBuildSteps.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuildSteps.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuildSteps.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listGradleBuildSteps.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listGradleBuildSteps.Input.Path,
+                query: Operations.listGradleBuildSteps.Input.Query = .init(),
+                headers: Operations.listGradleBuildSteps.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/availability`.
+                        @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case available = "available"
+                            case processing = "processing"
+                            case unavailable = "unavailable"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/availability`.
+                        public var availability: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/coverage`.
+                        @frozen public enum coveragePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case recorded_operations = "recorded_operations"
+                            case retained_action_spans = "retained_action_spans"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/coverage`.
+                        public var coverage: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.coveragePayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload`.
+                        public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/category`.
+                            public var category: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/duration_ms`.
+                            public var duration_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/project`.
+                            public var project: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/start_ms`.
+                            public var start_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/status`.
+                            public var status: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/target`.
+                            public var target: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/title`.
+                            public var title: Swift.String
+                            /// Creates a new `stepsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category:
+                            ///   - duration_ms:
+                            ///   - id:
+                            ///   - project:
+                            ///   - start_ms:
+                            ///   - status:
+                            ///   - target:
+                            ///   - title:
+                            public init(
+                                category: Swift.String,
+                                duration_ms: Swift.Double,
+                                id: Swift.String,
+                                project: Swift.String,
+                                start_ms: Swift.Double,
+                                status: Swift.String,
+                                target: Swift.String,
+                                title: Swift.String
+                            ) {
+                                self.category = category
+                                self.duration_ms = duration_ms
+                                self.id = id
+                                self.project = project
+                                self.start_ms = start_ms
+                                self.status = status
+                                self.target = target
+                                self.title = title
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case duration_ms
+                                case id
+                                case project
+                                case start_ms
+                                case status
+                                case target
+                                case title
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/steps`.
+                        public typealias stepsPayload = [Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.stepsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/steps`.
+                        public var steps: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/time_origin`.
+                        @frozen public enum time_originPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case build_start = "build_start"
+                            case first_recorded_timestamp = "first_recorded_timestamp"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/json/time_origin`.
+                        public var time_origin: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.time_originPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - availability:
+                        ///   - coverage:
+                        ///   - pagination_metadata:
+                        ///   - steps:
+                        ///   - time_origin:
+                        public init(
+                            availability: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload,
+                            coverage: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.coveragePayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            steps: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload,
+                            time_origin: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload.time_originPayload
+                        ) {
+                            self.availability = availability
+                            self.coverage = coverage
+                            self.pagination_metadata = pagination_metadata
+                            self.steps = steps
+                            self.time_origin = time_origin
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case availability
+                            case coverage
+                            case pagination_metadata
+                            case steps
+                            case time_origin
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/200/content/application\/json`.
+                    case json(Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listGradleBuildSteps.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildSteps.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildSteps.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded steps
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listGradleBuildSteps.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listGradleBuildSteps.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildSteps.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildSteps.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listGradleBuildSteps.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listGradleBuildSteps.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildSteps.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildSteps.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listGradleBuildSteps.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listGradleBuildSteps.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildSteps.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildSteps.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listGradleBuildSteps.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listGradleBuildSteps.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listGradleBuildSteps.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildSteps.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listGradleBuildSteps.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listGradleBuildSteps.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listGradleBuildSteps.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listGradleBuildSteps.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List test suite runs for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites`.
@@ -74447,6 +76557,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/root_project_name`.
                     public var root_project_name: Swift.String?
+                    /// Origin used to calculate build duration and align recorded operations and machine samples.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/started_at`.
+                    public var started_at: Foundation.Date?
                     /// Build status.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/status`.
@@ -74659,6 +76773,7 @@ public enum Operations {
                     ///   - machine_metrics: Machine performance metrics collected during the build.
                     ///   - requested_tasks: The tasks requested by the user (e.g., assembleRelease).
                     ///   - root_project_name: Root project name.
+                    ///   - started_at: Origin used to calculate build duration and align recorded operations and machine samples.
                     ///   - status: Build status.
                     ///   - tasks:
                     public init(
@@ -74678,6 +76793,7 @@ public enum Operations {
                         machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload? = nil,
                         requested_tasks: [Swift.String]? = nil,
                         root_project_name: Swift.String? = nil,
+                        started_at: Foundation.Date? = nil,
                         status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
                         tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
                     ) {
@@ -74697,6 +76813,7 @@ public enum Operations {
                         self.machine_metrics = machine_metrics
                         self.requested_tasks = requested_tasks
                         self.root_project_name = root_project_name
+                        self.started_at = started_at
                         self.status = status
                         self.tasks = tasks
                     }
@@ -74717,6 +76834,7 @@ public enum Operations {
                         case machine_metrics
                         case requested_tasks
                         case root_project_name
+                        case started_at
                         case status
                         case tasks
                     }
@@ -76806,6 +78924,608 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.getTestCaseRun.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List recorded Bazel build steps without logs.
+    ///
+    /// Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Trace profiles include all recorded intervals relative to the profile start. Older builds fall back to retained BEP summaries.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)`.
+    public enum listBazelBuildSteps {
+        public static let id: Swift.String = "listBazelBuildSteps"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - invocation_id: Bazel invocation identifier.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                }
+            }
+            public var path: Operations.listBazelBuildSteps.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Case-insensitive title, project, or target search.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/search`.
+                public var search: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/project`.
+                public var project: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/target`.
+                public var target: Swift.String?
+                /// Exact category returned by a recorded step.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/category`.
+                public var category: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                    case unknown = "unknown"
+                    case local_hit = "local_hit"
+                    case remote_hit = "remote_hit"
+                    case cache_hit = "cache_hit"
+                    case up_to_date = "up_to_date"
+                    case skipped = "skipped"
+                    case no_source = "no_source"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/status`.
+                public var status: Operations.listBazelBuildSteps.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/start_ms`.
+                public var start_ms: Swift.Double?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/end_ms`.
+                public var end_ms: Swift.Double?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case duration_ms = "duration_ms"
+                    case start_ms = "start_ms"
+                }
+                /// Duration descending or start time ascending; ties use step ID ascending.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/query/sort_by`.
+                public var sort_by: Operations.listBazelBuildSteps.Input.Query.sort_byPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                ///   - search: Case-insensitive title, project, or target search.
+                ///   - project:
+                ///   - target:
+                ///   - category: Exact category returned by a recorded step.
+                ///   - status:
+                ///   - start_ms:
+                ///   - end_ms:
+                ///   - sort_by: Duration descending or start time ascending; ties use step ID ascending.
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    search: Swift.String? = nil,
+                    project: Swift.String? = nil,
+                    target: Swift.String? = nil,
+                    category: Swift.String? = nil,
+                    status: Operations.listBazelBuildSteps.Input.Query.statusPayload? = nil,
+                    start_ms: Swift.Double? = nil,
+                    end_ms: Swift.Double? = nil,
+                    sort_by: Operations.listBazelBuildSteps.Input.Query.sort_byPayload? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                    self.search = search
+                    self.project = project
+                    self.target = target
+                    self.category = category
+                    self.status = status
+                    self.start_ms = start_ms
+                    self.end_ms = end_ms
+                    self.sort_by = sort_by
+                }
+            }
+            public var query: Operations.listBazelBuildSteps.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelBuildSteps.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelBuildSteps.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listBazelBuildSteps.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listBazelBuildSteps.Input.Path,
+                query: Operations.listBazelBuildSteps.Input.Query = .init(),
+                headers: Operations.listBazelBuildSteps.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/availability`.
+                        @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case available = "available"
+                            case processing = "processing"
+                            case unavailable = "unavailable"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/availability`.
+                        public var availability: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/coverage`.
+                        @frozen public enum coveragePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case recorded_operations = "recorded_operations"
+                            case retained_action_spans = "retained_action_spans"
+                            case trace_profile = "trace_profile"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/coverage`.
+                        public var coverage: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.coveragePayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload`.
+                        public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/category`.
+                            public var category: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/duration_ms`.
+                            public var duration_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/project`.
+                            public var project: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/start_ms`.
+                            public var start_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/status`.
+                            public var status: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/target`.
+                            public var target: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/stepsPayload/title`.
+                            public var title: Swift.String
+                            /// Creates a new `stepsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category:
+                            ///   - duration_ms:
+                            ///   - id:
+                            ///   - project:
+                            ///   - start_ms:
+                            ///   - status:
+                            ///   - target:
+                            ///   - title:
+                            public init(
+                                category: Swift.String,
+                                duration_ms: Swift.Double,
+                                id: Swift.String,
+                                project: Swift.String,
+                                start_ms: Swift.Double,
+                                status: Swift.String,
+                                target: Swift.String,
+                                title: Swift.String
+                            ) {
+                                self.category = category
+                                self.duration_ms = duration_ms
+                                self.id = id
+                                self.project = project
+                                self.start_ms = start_ms
+                                self.status = status
+                                self.target = target
+                                self.title = title
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case duration_ms
+                                case id
+                                case project
+                                case start_ms
+                                case status
+                                case target
+                                case title
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/steps`.
+                        public typealias stepsPayload = [Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.stepsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/steps`.
+                        public var steps: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/time_origin`.
+                        @frozen public enum time_originPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case build_start = "build_start"
+                            case first_recorded_timestamp = "first_recorded_timestamp"
+                            case profile_start = "profile_start"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/json/time_origin`.
+                        public var time_origin: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.time_originPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - availability:
+                        ///   - coverage:
+                        ///   - pagination_metadata:
+                        ///   - steps:
+                        ///   - time_origin:
+                        public init(
+                            availability: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload,
+                            coverage: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.coveragePayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            steps: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload,
+                            time_origin: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload.time_originPayload
+                        ) {
+                            self.availability = availability
+                            self.coverage = coverage
+                            self.pagination_metadata = pagination_metadata
+                            self.steps = steps
+                            self.time_origin = time_origin
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case availability
+                            case coverage
+                            case pagination_metadata
+                            case steps
+                            case time_origin
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/200/content/application\/json`.
+                    case json(Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listBazelBuildSteps.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelBuildSteps.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelBuildSteps.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded steps
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listBazelBuildSteps.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listBazelBuildSteps.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelBuildSteps.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelBuildSteps.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listBazelBuildSteps.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listBazelBuildSteps.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelBuildSteps.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelBuildSteps.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listBazelBuildSteps.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listBazelBuildSteps.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelBuildSteps.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelBuildSteps.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listBazelBuildSteps.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listBazelBuildSteps.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listBazelBuildSteps.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelBuildSteps.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listBazelBuildSteps.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listBazelBuildSteps.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/get(listBazelBuildSteps)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listBazelBuildSteps.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listBazelBuildSteps.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):

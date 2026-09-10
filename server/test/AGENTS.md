@@ -12,3 +12,5 @@ This directory contains ExUnit tests for the Tuist Server.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Recorded timeline coverage includes Gradle clock alignment, all-operation loading, legacy reports, Bazel retained-span limits, opaque IDs, filtered navigation, tab reopening, and API/MCP parent authorization.

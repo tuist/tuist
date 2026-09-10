@@ -3,12 +3,11 @@ defmodule TuistWeb.GradleBuildLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Components.MachineMetricsCharts
+  import TuistWeb.Components.BuildTimeline
   import TuistWeb.Helpers.GradleTask
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
-  alias Tuist.ClickHouseRepo
   alias Tuist.Gradle
   alias Tuist.Repo
   alias Tuist.Tests
@@ -16,6 +15,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RecordedBuildTimeline
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -27,7 +27,7 @@ defmodule TuistWeb.GradleBuildLive do
   def assign_mount(socket, build_id) do
     %{selected_project: project, selected_account: account} = socket.assigns
 
-    case Gradle.get_build(build_id) do
+    case Gradle.get_build(build_id, project_id: project.id) do
       {:error, :not_found} ->
         raise NotFoundError, dgettext("dashboard_gradle", "Build not found.")
 
@@ -49,11 +49,8 @@ defmodule TuistWeb.GradleBuildLive do
         {:error, :not_found} -> nil
       end
 
-    build = ClickHouseRepo.preload(build, [:machine_metrics])
-
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
-    machine_metrics = build.machine_metrics
 
     has_build_setup_data = has_build_setup_data?(build)
 
@@ -90,7 +87,6 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
-    |> assign(:machine_metrics, machine_metrics)
   end
 
   @doc """
@@ -98,13 +94,14 @@ defmodule TuistWeb.GradleBuildLive do
   Called from BuildRunLive when the project is a gradle project.
   """
   def assign_handle_params(socket, params) do
-    selected_tab = params["tab"] || "overview"
+    selected_tab = if params["tab"] == "machine-metrics", do: "timeline", else: params["tab"] || "overview"
     uri = URI.new!("?" <> URI.encode_query(params))
 
     socket
     |> assign(:selected_tab, selected_tab)
     |> assign(:uri, uri)
     |> assign_tab_data(selected_tab, params)
+    |> RecordedBuildTimeline.assign_timeline(selected_tab, socket.assigns.build)
   end
 
   defp build_run_path(socket) do

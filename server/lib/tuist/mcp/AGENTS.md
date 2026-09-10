@@ -29,3 +29,5 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 
 - Parent boundary: `server/lib/tuist/AGENTS.md`
 - Bounded source-code service: `codebase-search/AGENTS.md`
+
+- Gradle/Bazel step list/detail tools share `Builds.RecordedSteps` with their APIs. They enforce build-read access, preserve opaque IDs, and expose coverage and timestamp-origin metadata; Bazel action logs are fetched separately for details while Gradle logs remain unavailable.

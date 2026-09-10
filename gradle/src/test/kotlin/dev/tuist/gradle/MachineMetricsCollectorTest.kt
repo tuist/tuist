@@ -9,6 +9,34 @@ class MachineMetricsCollectorTest {
     private fun createCollector() = MachineMetricsCollector(sampleIntervalMs = 50)
 
     @Test
+    fun `uses the supplied operation clock for boundary timestamps`() {
+        var operationTime = 2000L
+        val collector = MachineMetricsCollector(sampleIntervalMs = 60_000, currentTimeMillis = { operationTime })
+        collector.start()
+        operationTime = 2250L
+        val samples = collector.stop()
+        assertEquals(listOf(2.0, 2.25), samples.map { it.timestamp })
+    }
+
+    @Test
+    fun `short builds include samples at monitoring start and stop`() {
+        val collector = MachineMetricsCollector(sampleIntervalMs = 60_000)
+        val beforeStart = System.currentTimeMillis() / 1000.0
+        collector.start()
+        val afterStart = System.currentTimeMillis() / 1000.0
+        val beforeStop = System.currentTimeMillis() / 1000.0
+        val samples = collector.stop()
+        val afterStop = System.currentTimeMillis() / 1000.0
+
+        assertEquals(2, samples.size)
+        assertTrue(samples.first().timestamp in beforeStart..afterStart)
+        assertTrue(samples.last().timestamp in beforeStop..afterStop)
+        assertEquals(0L, samples.first().networkBytesIn)
+        assertEquals(0L, samples.first().diskBytesRead)
+        assertEquals(samples, collector.stop())
+    }
+
+    @Test
     fun `stop returns empty list when no samples collected`() {
         val collector = createCollector()
         val samples = collector.stop()

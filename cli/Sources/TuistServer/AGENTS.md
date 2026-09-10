@@ -14,3 +14,5 @@ This module handles CLI integration with the Tuist Server APIs.
 ## Invariants
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided.
+
+- Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.

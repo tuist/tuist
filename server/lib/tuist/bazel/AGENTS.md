@@ -44,3 +44,11 @@ does not expose a second Build Event Service listener.
   `test_runs` data model and retain the Bazel invocation identifier.
 - Update `server/data-export.md` and the public retention guide whenever a
   retained field, table, or retention period changes.
+
+- `Profile` ingests the complete Bazel JSON trace profile through Kura's signed profile webhook. `Timeline` prefers that profile and uses the bounded BEP summary only for older builds. Profile times use the native profile origin; CPU is measured in cores, memory in MiB and network in megabits/s before conversion for the UI. Never manufacture missing counters or rank away short events.
+- `Action` stores BEP outcomes and sanitized diagnostic output, keyed by project, invocation, primary output and execution start. Step lists exclude logs; details and the dashboard fetch them separately. Ambiguous repeated-output actions are not assigned a guessed outcome.
+- Profile and action rows expire after 90 days. Profile size limits reject the whole payload explicitly. Keep migration, data export and public retention documentation aligned.
+- Native resource counters are one-second interval aggregates, timestamped at the bucket start. Attach `duration_ms` to each bucket, clipped to the timeline end, including when reading older stored profiles. Preserve the original offset and value; do not backfill the interval before collection or interpolate between aggregates.
+- Remove trailing all-zero resource buckets only when they include zero total host memory, identifying Bazel's empty export padding. Apply this on ingestion and loading existing profiles. Preserve legitimate zero CPU/network readings and ambiguous CPU-only buckets; do not extend the previous measurement over the removed interval.
+
+- On profile load, valid positive integer `TUIST_CPU_COUNT` invocation metadata converts native core usage to a percentage. Retain native readings and use cores when metadata is absent, invalid, or smaller than recorded usage; do not normalize against an observed peak or job count.

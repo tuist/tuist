@@ -20,6 +20,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
+  alias Tuist.Gradle.Build
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
@@ -408,6 +409,13 @@ defmodule TuistWeb.BuildRunLive do
   defp assign_timeline(socket, _tab, _force), do: assign(socket, :timeline_run_id, nil)
 
   @impl true
+  def handle_event(event, _params, %{assigns: %{build: %Build{}}} = socket)
+      when event in ["load-timeline-log", "load-timeline-step"], do: {:reply, %{error: true}, socket}
+
+  def handle_event("load-timeline", params, %{assigns: %{build: %Build{}}} = socket) do
+    TuistWeb.RecordedBuildTimeline.handle_event("load-timeline", params, socket)
+  end
+
   def handle_event("load-timeline", %{"version" => version}, socket) do
     case socket.assigns do
       %{timeline_version: ^version, timeline: %{ok?: true, result: %{events: _} = timeline}} ->

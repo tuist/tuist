@@ -720,3 +720,7 @@ serve is refused before anything else happens.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
+
+### Bazel build timelines
+
+With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.

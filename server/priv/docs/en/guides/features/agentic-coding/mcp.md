@@ -293,6 +293,10 @@ The same operations are available over the HTTP API at `GET /api/projects/{accou
 | `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
 | `get_gradle_build` | Get build metadata and task/cache counts. | `build_run_id` |
 | `list_gradle_build_tasks` | List task outcomes, composite build identity, cacheability, and incremental status. | `build_run_id` |
+| `list_gradle_build_steps` | List timed tasks, configuration and transforms, with search, metadata and overlapping time filters. | `build_run_id` |
+| `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; per-step logs are unavailable. | `build_run_id`, `step_id` |
+
+Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null.
 
 #### Bazel invocations
 
@@ -301,6 +305,8 @@ The same operations are available over the HTTP API at `GET /api/projects/{accou
 | `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
 | `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
 | `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
+| `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
 | `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
 | `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |

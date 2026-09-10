@@ -1087,6 +1087,64 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCaseCreatedEvent
       x-validate:
+    GradleBuildStepDetail:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        log:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        log_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+        - log
+        - log_truncated
+      title: GradleBuildStepDetail
+      type: object
+      x-struct:
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -2023,6 +2081,64 @@ components:
       title: AutomationAlert
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AutomationAlert
+      x-validate:
+    BazelBuildStepDetail:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        log:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        log_truncated:
+          type: boolean
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+        - log
+        - log_truncated
+      title: BazelBuildStepDetail
+      type: object
+      x-struct:
       x-validate:
     Preview:
       properties:
@@ -4855,6 +4971,95 @@ components:
       type: object
       x-struct:
       x-validate:
+    BazelBuildStepsList:
+      properties:
+        availability:
+          enum:
+            - available
+            - processing
+            - unavailable
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          enum:
+            - recorded_operations
+            - retained_action_spans
+            - trace_profile
+          type: string
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        steps:
+          items:
+            properties:
+              category:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: number
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                type: string
+                x-struct:
+                x-validate:
+              start_ms:
+                type: number
+                x-struct:
+                x-validate:
+              status:
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - title
+              - project
+              - target
+              - category
+              - start_ms
+              - duration_ms
+              - status
+            title: BazelBuildStep
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        time_origin:
+          enum:
+            - build_start
+            - first_recorded_timestamp
+            - profile_start
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - steps
+        - pagination_metadata
+        - availability
+        - time_origin
+        - coverage
+      title: BazelBuildStepsList
+      type: object
+      x-struct:
+      x-validate:
     GenerationsIndexPage:
       description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
       minimum: 1
@@ -6182,6 +6387,53 @@ components:
       type: string
       x-struct:
       x-validate:
+    BazelBuildStep:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+      title: BazelBuildStep
+      type: object
+      x-struct:
+      x-validate:
     GradleTaskOutcome:
       enum:
         - local_hit
@@ -6408,6 +6660,93 @@ components:
       minimum: 1
       title: BuildIssuesIndexPageSize
       type: integer
+      x-struct:
+      x-validate:
+    GradleBuildStepsList:
+      properties:
+        availability:
+          enum:
+            - available
+            - processing
+            - unavailable
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          enum:
+            - recorded_operations
+            - retained_action_spans
+          type: string
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        steps:
+          items:
+            properties:
+              category:
+                type: string
+                x-struct:
+                x-validate:
+              duration_ms:
+                type: number
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              project:
+                type: string
+                x-struct:
+                x-validate:
+              start_ms:
+                type: number
+                x-struct:
+                x-validate:
+              status:
+                type: string
+                x-struct:
+                x-validate:
+              target:
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - title
+              - project
+              - target
+              - category
+              - start_ms
+              - duration_ms
+              - status
+            title: GradleBuildStep
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        time_origin:
+          enum:
+            - build_start
+            - first_recorded_timestamp
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - steps
+        - pagination_metadata
+        - availability
+        - time_origin
+        - coverage
+      title: GradleBuildStepsList
+      type: object
       x-struct:
       x-validate:
     ModuleCacheTargetsPageSize:
@@ -6794,6 +7133,53 @@ components:
       title: WebhookTestCaseUpdatedEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Webhook.TestCaseUpdatedEvent
+      x-validate:
+    GradleBuildStep:
+      properties:
+        category:
+          type: string
+          x-struct:
+          x-validate:
+        duration_ms:
+          type: number
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        project:
+          type: string
+          x-struct:
+          x-validate:
+        start_ms:
+          type: number
+          x-struct:
+          x-validate:
+        status:
+          type: string
+          x-struct:
+          x-validate:
+        target:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - project
+        - target
+        - category
+        - start_ms
+        - duration_ms
+        - status
+      title: GradleBuildStep
+      type: object
+      x-struct:
       x-validate:
     RunParams:
       description: Parameters to create a single run.
@@ -11562,25 +11948,9 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
           required: false
           schema:
             type: integer
@@ -11592,6 +11962,22 @@ paths:
           required: false
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -19495,6 +19881,151 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}:
+    get:
+      callbacks: {}
+      description: Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+      operationId: getGradleBuildStep
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: The opaque ID returned by listGradleBuildSteps.
+          in: path
+          name: step_id
+          required: true
+          schema:
+            maxLength: 128
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  category:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  project:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  start_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  title:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - title
+                  - project
+                  - target
+                  - category
+                  - start_ms
+                  - duration_ms
+                  - status
+                  - log
+                  - log_truncated
+                title: GradleBuildStepDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Recorded step metadata
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get one recorded Gradle build step.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values:
     get:
       callbacks: {}
@@ -21630,6 +22161,150 @@ paths:
       summary: It initiates a multipart upload in the cache.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps/{step_id}:
+    get:
+      callbacks: {}
+      description: Returns recorded metadata and separately fetched sanitized action output when published by Bazel. Older summaries do not include per-action logs.
+      operationId: getBazelBuildStep
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The opaque ID returned by listBazelBuildSteps.
+          in: path
+          name: step_id
+          required: true
+          schema:
+            maxLength: 128
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  category:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  id:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  log_truncated:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  project:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  start_ms:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  target:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  title:
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - title
+                  - project
+                  - target
+                  - category
+                  - start_ms
+                  - duration_ms
+                  - status
+                  - log
+                  - log_truncated
+                title: BazelBuildStepDetail
+                type: object
+                x-struct:
+                x-validate:
+          description: Recorded step metadata
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get one recorded Bazel build step.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/tests/shards:
     post:
       callbacks: {}
@@ -25282,6 +25957,277 @@ paths:
       summary: List generations associated with a given project.
       tags:
         - Generations
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps:
+    get:
+      callbacks: {}
+      description: Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Gradle reports without a start timestamp use the first recorded timestamp as origin.
+      operationId: listGradleBuildSteps
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Case-insensitive title, project, or target search.
+          in: query
+          name: search
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: project
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: target
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact category returned by a recorded step.
+          in: query
+          name: category
+          required: false
+          schema:
+            maxLength: 128
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - unknown
+              - local_hit
+              - remote_hit
+              - cache_hit
+              - up_to_date
+              - skipped
+              - no_source
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: Duration descending or start time ascending; ties use step ID ascending.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: duration_ms
+            enum:
+              - duration_ms
+              - start_ms
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  availability:
+                    enum:
+                      - available
+                      - processing
+                      - unavailable
+                    type: string
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    enum:
+                      - recorded_operations
+                      - retained_action_spans
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  steps:
+                    items:
+                      properties:
+                        category:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        start_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        status:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - title
+                        - project
+                        - target
+                        - category
+                        - start_ms
+                        - duration_ms
+                        - status
+                      title: GradleBuildStep
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  time_origin:
+                    enum:
+                      - build_start
+                      - first_recorded_timestamp
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - steps
+                  - pagination_metadata
+                  - availability
+                  - time_origin
+                  - coverage
+                title: GradleBuildStepsList
+                type: object
+                x-struct:
+                x-validate:
+          description: Recorded steps
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List recorded Gradle build steps without logs.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites:
     get:
       callbacks: {}
@@ -27827,6 +28773,13 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                started_at:
+                  description: Origin used to calculate build duration and align recorded operations and machine samples.
+                  format: date-time
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
                 status:
                   description: Build status.
                   enum:
@@ -28800,6 +29753,278 @@ paths:
       summary: Get a test case run by ID.
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/steps:
+    get:
+      callbacks: {}
+      description: Recorded steps are retained for 90 days. IDs are opaque strings scoped to their parent. Time filters select overlaps; end_ms is exclusive. Trace profiles include all recorded intervals relative to the profile start. Older builds fall back to retained BEP summaries.
+      operationId: listBazelBuildSteps
+      parameters:
+        - description: Account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Project handle.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Bazel invocation identifier.
+          in: path
+          name: invocation_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Case-insensitive title, project, or target search.
+          in: query
+          name: search
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: project
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: target
+          required: false
+          schema:
+            maxLength: 512
+            type: string
+            x-struct:
+            x-validate:
+        - description: Exact category returned by a recorded step.
+          in: query
+          name: category
+          required: false
+          schema:
+            maxLength: 128
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - unknown
+              - local_hit
+              - remote_hit
+              - cache_hit
+              - up_to_date
+              - skipped
+              - no_source
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end_ms
+          required: false
+          schema:
+            minimum: 0
+            type: number
+            x-struct:
+            x-validate:
+        - description: Duration descending or start time ascending; ties use step ID ascending.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: duration_ms
+            enum:
+              - duration_ms
+              - start_ms
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  availability:
+                    enum:
+                      - available
+                      - processing
+                      - unavailable
+                    type: string
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    enum:
+                      - recorded_operations
+                      - retained_action_spans
+                      - trace_profile
+                    type: string
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  steps:
+                    items:
+                      properties:
+                        category:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        start_ms:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        status:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - title
+                        - project
+                        - target
+                        - category
+                        - start_ms
+                        - duration_ms
+                        - status
+                      title: BazelBuildStep
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  time_origin:
+                    enum:
+                      - build_start
+                      - first_recorded_timestamp
+                      - profile_start
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - steps
+                  - pagination_metadata
+                  - availability
+                  - time_origin
+                  - coverage
+                title: BazelBuildStepsList
+                type: object
+                x-struct:
+                x-validate:
+          description: Recorded steps
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid step ID, filters, or time range
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Access denied
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build or step not found
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List recorded Bazel build steps without logs.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/tests/test-cases:
     get:
       callbacks: {}

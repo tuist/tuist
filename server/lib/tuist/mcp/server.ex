@@ -50,6 +50,10 @@ defmodule Tuist.MCP.Server do
     Tools.ListGradleBuilds,
     Tools.GetGradleBuild,
     Tools.ListGradleBuildTasks,
+    Tools.ListGradleBuildSteps,
+    Tools.GetGradleBuildStep,
+    Tools.ListBazelBuildSteps,
+    Tools.GetBazelBuildStep,
     Tools.ListBazelInvocations,
     Tools.GetBazelInvocation,
     Tools.ListBazelInvocationLogs,
@@ -119,7 +123,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.30.0",
+      version: "1.31.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

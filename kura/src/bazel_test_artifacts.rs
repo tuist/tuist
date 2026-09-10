@@ -13,6 +13,7 @@ use hmac::{Hmac, Mac};
 use reqwest::{Client, StatusCode, header::CONTENT_TYPE};
 use serde::Serialize;
 use sha2::Sha256;
+use tokio::io::AsyncReadExt;
 use tokio::{sync::mpsc, time::sleep};
 use tracing::{debug, warn};
 
@@ -23,6 +24,8 @@ use crate::{
 
 type HmacSha256 = Hmac<Sha256>;
 
+pub const MAX_BAZEL_PROFILE_BYTES: u64 = 32 * 1024 * 1024;
+const BAZEL_PROFILE_WEBHOOK_PATH: &str = "/webhooks/bazel-profiles";
 const BAZEL_TEST_ARTIFACTS_WEBHOOK_PATH: &str = "/webhooks/bazel-test-artifacts";
 /// Limits both local materialization and the webhook body. A JUnit report can
 /// contain arbitrarily large failure output, so sending it is intentionally a
@@ -36,6 +39,26 @@ const MAX_BAZEL_TEST_ARTIFACT_QUEUE_DEPTH: usize = 64;
 pub struct BazelTestArtifactDelivery {
     sender: mpsc::Sender<DeliveryEvent>,
     metrics: Metrics,
+}
+
+#[derive(Clone, Debug)]
+pub struct BazelAction {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub invocation_id: String,
+    pub primary_output: String,
+    pub started_at_ms: u64,
+    pub success: bool,
+    pub logs: Vec<(String, u64)>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BazelProfile {
+    pub account_handle: String,
+    pub project_handle: String,
+    pub invocation_id: String,
+    pub digest: String,
+    pub size: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +109,8 @@ pub struct BazelTestArtifact {
 
 #[derive(Clone, Debug)]
 enum DeliveryEvent {
+    Action(BazelAction),
+    Profile(BazelProfile),
     TestResult(BazelTestResult),
     TestSummary(BazelTestSummary),
     InvocationFinished(BazelTestInvocationFinished),
@@ -211,6 +236,28 @@ impl BazelTestArtifactDelivery {
         Ok(Some(Self { sender, metrics }))
     }
 
+    pub async fn enqueue_action(&self, action: BazelAction) {
+        if self
+            .sender
+            .send(DeliveryEvent::Action(action))
+            .await
+            .is_err()
+        {
+            warn!("Bazel action delivery queue is closed");
+        }
+    }
+
+    pub async fn enqueue_profile(&self, profile: BazelProfile) {
+        if self
+            .sender
+            .send(DeliveryEvent::Profile(profile))
+            .await
+            .is_err()
+        {
+            warn!("Bazel profile delivery queue is closed");
+        }
+    }
+
     /// Queues metadata only. This deliberately never waits for I/O, memory, or
     /// webhook capacity on the build-event stream.
     pub fn enqueue_test_result(&self, test_result: BazelTestResult) {
@@ -268,8 +315,36 @@ impl BazelTestArtifactDelivery {
 
 impl Runtime {
     async fn run(self, mut receiver: mpsc::Receiver<DeliveryEvent>) {
-        while let Some(event) = receiver.recv().await {
+        let mut pending = None;
+        loop {
+            let event = match pending.take() {
+                Some(event) => event,
+                None => match receiver.recv().await {
+                    Some(event) => event,
+                    None => break,
+                },
+            };
             match event {
+                DeliveryEvent::Action(action) => {
+                    let mut actions = vec![action];
+                    while actions.len() < 8 {
+                        match receiver.try_recv() {
+                            Ok(DeliveryEvent::Action(action)) => actions.push(action),
+                            Ok(event) => {
+                                pending = Some(event);
+                                break;
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    futures_util::future::join_all(
+                        actions
+                            .into_iter()
+                            .map(|action| self.deliver_action(action)),
+                    )
+                    .await;
+                }
+                DeliveryEvent::Profile(profile) => self.deliver_profile(profile).await,
                 DeliveryEvent::TestResult(test_result) => {
                     self.deliver_test_result(test_result).await;
                 }
@@ -280,6 +355,100 @@ impl Runtime {
                     self.deliver_invocation_finished(invocation).await;
                 }
             }
+        }
+    }
+
+    async fn deliver_action(&self, action: BazelAction) {
+        let Ok(_reservation) = self.memory.reserve_background_transient(1024 * 1024).await else {
+            return;
+        };
+        let mut log = Vec::new();
+        let mut truncated = false;
+        for (digest, size) in &action.logs {
+            let key = blob_key(&format!("{digest}/{size}"));
+            let Ok(Some(manifest)) =
+                self.store
+                    .manifest_for_key(ArtifactProducer::Reapi, &action.project_handle, &key)
+            else {
+                continue;
+            };
+            if manifest.size != *size {
+                continue;
+            }
+            let ranges = if *size > 32 * 1024 {
+                truncated = true;
+                vec![(0, 16 * 1024), (size - 16 * 1024, 16 * 1024)]
+            } else {
+                vec![(0, *size)]
+            };
+            for (offset, length) in ranges {
+                let Ok(Some((_, mut reader))) = self
+                    .store
+                    .open_artifact_reader_range_tolerating_promotion(
+                        &manifest,
+                        offset,
+                        Some(length),
+                    )
+                    .await
+                else {
+                    continue;
+                };
+                if offset > 0 {
+                    log.extend_from_slice(b"\n[... truncated ...]\n");
+                }
+                if reader.read_to_end(&mut log).await.is_err() {
+                    truncated = true;
+                }
+            }
+            log.push(b'\n');
+        }
+        let payload = serde_json::json!({
+            "account_handle": action.account_handle,
+            "project_handle": action.project_handle,
+            "invocation_id": action.invocation_id,
+            "primary_output": action.primary_output,
+            "started_at_ms": action.started_at_ms,
+            "success": action.success,
+            "log": String::from_utf8_lossy(&log),
+            "log_truncated": truncated,
+        });
+        if let Ok(body) = serde_json::to_vec(&payload) {
+            self.post_to("/webhooks/bazel-actions", body).await;
+        }
+    }
+
+    async fn deliver_profile(&self, profile: BazelProfile) {
+        if profile.size == 0 || profile.size > MAX_BAZEL_PROFILE_BYTES {
+            return;
+        }
+        let Ok(_reservation) = self
+            .memory
+            .reserve_background_transient(
+                profile
+                    .size
+                    .saturating_mul(5)
+                    .saturating_add(DELIVERY_MEMORY_OVERHEAD_BYTES),
+            )
+            .await
+        else {
+            warn!("Bazel profile delivery could not reserve memory");
+            return;
+        };
+        let Some(bytes) = self
+            .read_blob(&profile.project_handle, &profile.digest, profile.size)
+            .await
+        else {
+            return;
+        };
+        let payload = serde_json::json!({
+            "account_handle": profile.account_handle,
+            "project_handle": profile.project_handle,
+            "invocation_id": profile.invocation_id,
+            "digest": profile.digest,
+            "content_base64": STANDARD.encode(bytes),
+        });
+        if let Ok(body) = serde_json::to_vec(&payload) {
+            self.post_to(BAZEL_PROFILE_WEBHOOK_PATH, body).await;
         }
     }
 
@@ -405,14 +574,15 @@ impl Runtime {
     }
 
     async fn post(&self, body: Vec<u8>) {
+        self.post_to(BAZEL_TEST_ARTIFACTS_WEBHOOK_PATH, body).await;
+    }
+
+    async fn post_to(&self, path: &str, body: Vec<u8>) {
         for attempt in 0..DELIVERY_ATTEMPTS {
             let started_at = std::time::Instant::now();
             let response = self
                 .client
-                .post(format!(
-                    "{}{}",
-                    self.config.server_url, BAZEL_TEST_ARTIFACTS_WEBHOOK_PATH
-                ))
+                .post(format!("{}{}", self.config.server_url, path))
                 .header(CONTENT_TYPE, "application/json")
                 .header("x-cache-signature", sign(&self.config.signing_key, &body))
                 .header("x-cache-endpoint", &self.cache_endpoint)
@@ -475,13 +645,18 @@ impl Runtime {
         project_handle: &str,
         artifact: &BazelTestArtifact,
     ) -> Option<Vec<u8>> {
-        let key = blob_key(&format!("{}/{}", artifact.digest, artifact.size));
+        self.read_blob(project_handle, &artifact.digest, artifact.size)
+            .await
+    }
+
+    async fn read_blob(&self, project_handle: &str, digest: &str, size: u64) -> Option<Vec<u8>> {
+        let key = blob_key(&format!("{digest}/{size}"));
         let manifest =
             match self
                 .store
                 .manifest_for_key(ArtifactProducer::Reapi, project_handle, &key)
             {
-                Ok(Some(manifest)) if manifest.size == artifact.size => manifest,
+                Ok(Some(manifest)) if manifest.size == size => manifest,
                 Ok(Some(_)) => {
                     self.metrics
                         .record_analytics_event("bazel_test_artifact", "size_mismatch", 1);
@@ -505,7 +680,7 @@ impl Runtime {
             .read_artifact_bytes_tolerating_promotion(&manifest)
             .await
         {
-            Ok(Some(bytes)) if bytes.len() as u64 == artifact.size => Some(bytes),
+            Ok(Some(bytes)) if bytes.len() as u64 == size => Some(bytes),
             Ok(Some(_)) => {
                 self.metrics
                     .record_analytics_event("bazel_test_artifact", "size_mismatch", 1);
@@ -571,6 +746,39 @@ mod tests {
         BazelTestArtifactKind, BazelTestInvocationFinished, BazelTestResult, BazelTestSummary,
         MAX_BAZEL_TEST_ARTIFACT_BYTES, retry_delay, should_retry, sign,
     };
+
+    #[tokio::test]
+    async fn profile_waits_for_capacity_instead_of_dropping_after_an_action_burst() {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+        let profile = super::BazelProfile {
+            account_handle: "acme".into(),
+            project_handle: "app".into(),
+            invocation_id: "build".into(),
+            digest: "a".repeat(64),
+            size: 1,
+        };
+        sender
+            .send(super::DeliveryEvent::Profile(profile.clone()))
+            .await
+            .unwrap();
+        let delivery = super::BazelTestArtifactDelivery {
+            sender,
+            metrics: crate::metrics::Metrics::new("local".into(), "acme".into()),
+        };
+        let pending = delivery.enqueue_profile(profile);
+        tokio::pin!(pending);
+        assert!(
+            timeout(Duration::from_millis(20), &mut pending)
+                .await
+                .is_err()
+        );
+        assert!(receiver.recv().await.is_some());
+        timeout(Duration::from_secs(1), pending).await.unwrap();
+        assert!(matches!(
+            receiver.recv().await,
+            Some(super::DeliveryEvent::Profile(_))
+        ));
+    }
 
     #[test]
     fn recognizes_only_conventional_test_output_names() {

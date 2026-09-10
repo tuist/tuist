@@ -267,3 +267,7 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 - For replication invariants see `src/replication/mod.rs` and `src/state.rs`; for the pull links and roles see `src/sync/` with `docs/replication-design.md` beside it; for catch-up pass scheduling and retry behavior see `src/backfill/lifecycle.rs`.
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.
 - For end-to-end behavior, the shellspec suite under `spec/e2e/` exercises the live stack.
+
+### Bazel profile delivery
+
+The BEP service retains bounded summary state while a separate bounded delivery queue receives CAS profile references and action-result metadata. The worker forwards complete compressed profiles and bounded diagnostic ranges through signed server webhooks. No arbitrary URI is fetched. The server validates the profile identity, decompression size and event count, retains all normalized intervals and available counters in ClickHouse, and reads action logs separately from timeline metadata. This path is additive; older peers and servers continue receiving the existing invocation summaries.

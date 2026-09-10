@@ -6,18 +6,21 @@ defmodule TuistWeb.BazelInvocationLive do
   import TuistWeb.BazelAnalyticsHelpers,
     only: [parse_page: 1, requested_command: 1, sort_direction: 1, target_patterns_label: 1]
 
+  import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Bazel
+  alias Tuist.Builds.RecordedSteps
   alias Tuist.ReapiCache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.RecordedBuildTimeline
   alias TuistWeb.Utilities.Query
 
   @cache_page_size 20
@@ -90,8 +93,26 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:active_cache_filters, active_cache_filters)
      |> assign(:available_filters, available_filters)
      |> assign(:cache_sort_by, cache_sort_by)
-     |> assign(:cache_sort_order, cache_sort_order)}
+     |> assign(:cache_sort_order, cache_sort_order)
+     |> RecordedBuildTimeline.assign_timeline(selected_tab, invocation)}
   end
+
+  def handle_event("load-timeline", params, socket),
+    do: RecordedBuildTimeline.handle_event("load-timeline", params, socket)
+
+  def handle_event("load-timeline-log", %{"event_id" => id, "request_id" => request}, socket)
+      when is_binary(id) and byte_size(id) <= 128 and is_integer(request) and request >= 0 do
+    case RecordedSteps.get(socket.assigns.invocation, id) do
+      {:ok, step} ->
+        {:noreply,
+         push_event(socket, "timeline-log", %{request_id: request, log: Map.take(step, [:log, :log_truncated])})}
+
+      _ ->
+        {:reply, %{error: true}, socket}
+    end
+  end
+
+  def handle_event("load-timeline-log", _, socket), do: {:reply, %{error: true}, socket}
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
@@ -160,11 +181,24 @@ defmodule TuistWeb.BazelInvocationLive do
           selected={@selected_tab == "overview"}
         />
         <.tab_menu_horizontal_item
+          label={dgettext("dashboard_builds", "Timeline")}
+          patch={tab_path(assigns, "timeline")}
+          selected={@selected_tab == "timeline"}
+        />
+        <.tab_menu_horizontal_item
           label={dgettext("dashboard_projects", "Bazel Cache")}
           patch={tab_path(assigns, "cache")}
           selected={@selected_tab == "cache"}
         />
       </.tab_menu_horizontal>
+      <section :if={@selected_tab == "timeline"}>
+        <.recorded_build_timeline
+          timeline={@timeline}
+          duration={@invocation.duration_ms}
+          version={@timeline_version}
+          source="bazel"
+        />
+      </section>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">
         <.card title={@bazel_details_title} icon="chart_arcs" data-part="build-details">
           <.card_section data-part="build-details-section">
@@ -969,7 +1003,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp invocation_title(%{target_patterns: []}), do: dgettext("dashboard_projects", "Bazel invocation")
   defp invocation_title(invocation), do: target_patterns_label(invocation.target_patterns)
 
-  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache"], do: tab
+  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache", "timeline"], do: tab
   defp selected_tab(_params), do: "overview"
 
   defp remote_cache_used?(invocation) do

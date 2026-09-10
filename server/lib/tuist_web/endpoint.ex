@@ -115,6 +115,20 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature"
 
   plug WebhookPlug,
+    at: "/webhooks/bazel-actions",
+    handler: TuistWeb.Webhooks.BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-profiles",
+    handler: TuistWeb.Webhooks.BazelProfilesController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 45_000_000
+
+  plug WebhookPlug,
     at: "/webhooks/bazel-test-artifacts",
     handler: TuistWeb.Webhooks.BazelTestArtifactsController,
     secret: {Tuist.Environment, :cache_api_key, []},

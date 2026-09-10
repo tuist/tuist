@@ -13,9 +13,11 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToLong
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -115,6 +117,22 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("remote_hit", cached["outcome"].asString)
             assertTrue(cached.getAsJsonObject("execution")["remote_cache_download_duration_ms"].asLong >= 0)
             assertTrue(cold["id"] != warm["id"], "Each configuration-cache reuse needs a fresh build identity")
+            for (report in listOf(cold, warm)) {
+                val startedAt = Instant.parse(report["started_at"].asString).toEpochMilli()
+                val finishedAt = startedAt + report["duration_ms"].asLong
+                val metrics = report.getAsJsonArray("machine_metrics").map { it.asJsonObject }
+                assertTrue(metrics.size >= 2, "A build must include monitoring boundary samples")
+                val firstSampleAt = (metrics.first()["timestamp"].asDouble * 1000).roundToLong()
+                val lastSampleAt = (metrics.last()["timestamp"].asDouble * 1000).roundToLong()
+                assertTrue(firstSampleAt <= startedAt, "Monitoring started at $firstSampleAt after build origin $startedAt")
+                assertTrue(lastSampleAt >= finishedAt, "Monitoring ended at $lastSampleAt before the build finished at $finishedAt; warm=${report === warm}")
+                for (task in report.getAsJsonArray("tasks").map { it.asJsonObject }) {
+                    val taskStart = Instant.parse(task["started_at"].asString).toEpochMilli()
+                    assertTrue(taskStart >= startedAt, "Task must share the build duration origin")
+                    assertTrue(taskStart + task["duration_ms"].asLong <= finishedAt)
+                }
+            }
+            assertTrue(Instant.parse(warm["started_at"].asString) > Instant.parse(cold["started_at"].asString))
 
             val (_, uncached) = run("--no-build-cache")
             val executed = uncached.getAsJsonArray("tasks").map { it.asJsonObject }
