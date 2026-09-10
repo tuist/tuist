@@ -155,7 +155,11 @@ leaves the subtree alone on join. --%>
       built from Noora dropdown items inside a statically-open Noora content
       panel — the wrapper only positions it and drives visibility. Copy
       actions always serve the light-mode SVGs regardless of theme. --%>
-      <div data-part="logo-menu" data-open="false" role="menu" aria-label="Brand assets">
+      <div
+        data-part="logo-menu"
+        data-open="false"
+        aria-label={dgettext("marketing", "Brand assets")}
+      >
         <div class="noora-dropdown-content" data-state="open">
           <div data-part="items">
             <%!-- The hook's data-copied flag fades in the check icon as
@@ -220,7 +224,11 @@ leaves the subtree alone on join. --%>
         </div>
       </div>
     </div>
-    <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
+    <nav
+      data-part="menus"
+      id="marketing-navbar-menus"
+      aria-label={dgettext("marketing", "Main navigation")}
+    >
       <div data-part="menu">
         <button
           type="button"
@@ -287,7 +295,7 @@ leaves the subtree alone on join. --%>
         </div>
       </div>
     </nav>
-    <nav data-part="actions" aria-label="Call to action">
+    <nav data-part="actions" aria-label={dgettext("marketing", "Account actions")}>
       <.neutral_button
         href="https://slack.tuist.dev"
         target="_blank"
@@ -504,7 +512,7 @@ leaves the subtree alone on join. --%>
       </div>
     </div>
   </div>
-  <nav data-part="mobile-menus" aria-label="Mobile navigation">
+  <nav data-part="mobile-menus" aria-label={dgettext("marketing", "Mobile navigation")}>
     <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-features">
       <button
         type="button"
@@ -616,14 +624,25 @@ leaves the subtree alone on join. --%>
           icon_only
           data-theme-option="system"
           data-selected
-          aria-label="System theme"
+          aria-pressed="true"
+          aria-label={dgettext("marketing", "System theme")}
         >
           <Noora.Icon.icon name="device_desktop" />
         </.button_group_item>
-        <.button_group_item icon_only data-theme-option="light" aria-label="Light theme">
+        <.button_group_item
+          icon_only
+          data-theme-option="light"
+          aria-pressed="false"
+          aria-label={dgettext("marketing", "Light theme")}
+        >
           <Noora.Icon.icon name="sun_high" />
         </.button_group_item>
-        <.button_group_item icon_only data-theme-option="dark" aria-label="Dark theme">
+        <.button_group_item
+          icon_only
+          data-theme-option="dark"
+          aria-pressed="false"
+          aria-label={dgettext("marketing", "Dark theme")}
+        >
           <Noora.Icon.icon name="moon" />
         </.button_group_item>
       </.button_group>

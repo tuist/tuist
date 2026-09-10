@@ -245,6 +245,9 @@
   & > [data-part="posts"] {
     display: grid;
     grid-template-columns: 1fr;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 
     @media (min-width: 768px) {
       grid-template-columns: repeat(2, 1fr);
@@ -259,7 +262,7 @@
        own border is the only line on all four outer edges — nothing doubles
        up against it. The blank filler cells stretch to the row height, which
        keeps the column lines running through a last row that isn't full. */
-    & > [data-part="post"],
+    & > [data-part="post-item"],
     & > [data-part="filler"] {
       border-top: 1px solid var(--marketing-stroke-default);
 
@@ -299,7 +302,13 @@
       }
     }
 
-    & > [data-part="post"] {
+    /* The list item is the grid cell (a single-cell grid, so the card fills
+       it); the card itself is the link inside. */
+    & > [data-part="post-item"] {
+      display: grid;
+    }
+
+    & > [data-part="post-item"] > [data-part="post"] {
       display: flex;
       flex-direction: column;
       padding: var(--noora-spacing-8);
@@ -414,10 +423,17 @@
      table's own shadow, radius and header surface are reset, because the page
      frame provides the box. */
   & > [data-part="list"] {
+    margin: 0;
     box-shadow: none;
     border-radius: 0;
+    padding: 0;
+    list-style: none;
 
-    & > [data-part="row"] {
+    & > [data-part="row-item"]:not(:first-child) {
+      border-top: 1px solid var(--marketing-stroke-default);
+    }
+
+    & > [data-part="row-item"] > [data-part="row"] {
       display: grid;
       /* Fixed tag/date columns: rows are independent grids, so auto-sized
          columns would leave every row's tag at its own offset instead of a
@@ -426,10 +442,6 @@
       align-items: center;
       transition: background 0.2s ease;
       text-decoration: none;
-
-      &:not(:first-child) {
-        border-top: 1px solid var(--marketing-stroke-default);
-      }
 
       &:hover {
         background: var(--noora-surface-background-secondary);

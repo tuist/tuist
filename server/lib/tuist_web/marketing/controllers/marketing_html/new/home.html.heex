@@ -42,7 +42,10 @@
       </div>
     </div>
 
-    <section data-part="company-logos" aria-label="Organizations using Tuist">
+    <section
+      data-part="company-logos"
+      aria-label={dgettext("marketing", "Organizations using Tuist")}
+    >
       <div data-part="side-panel" aria-hidden="true">
         <div data-part="box"></div>
         <div data-part="box"></div>
@@ -847,7 +850,7 @@
               "Hear from our community about their experience with Tuist."
             )}
           </p>
-          <nav data-part="actions" aria-label="Community links">
+          <nav data-part="actions" aria-label={dgettext("marketing", "Community links")}>
             <.button
               label={dgettext("marketing", "Slack")}
               variant="secondary"
@@ -946,7 +949,7 @@
               phx-hook="CustomersDitherDots"
               aria-hidden="true"
             ></canvas>
-            <span data-part="logo" aria-label="Monzo"><.monzo_org_logo_color /></span>
+            <span data-part="logo"><.monzo_org_logo_color /></span>
             <p>{dgettext("marketing", "Monzo slashed CI pipeline time by 70%")}</p>
           </article>
           <article data-part="story" data-company="trendyol">
@@ -963,7 +966,7 @@
               phx-hook="CustomersDitherLine"
               aria-hidden="true"
             ></canvas>
-            <span data-part="logo" aria-label="Trendyol"><.trendyol_org_logo /></span>
+            <span data-part="logo"><.trendyol_org_logo /></span>
             <p>{dgettext("marketing", "Trendyol reduced build times by 65%")}</p>
           </article>
         </div>

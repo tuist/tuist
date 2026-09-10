@@ -5,13 +5,19 @@
 
       <div data-part="filters-bar">
         <div data-part="categories">
-          <.link patch={~p"/changelog"} data-selected={is_nil(@category)} data-part="category">
+          <.link
+            patch={~p"/changelog"}
+            data-selected={is_nil(@category)}
+            aria-current={if is_nil(@category), do: "page"}
+            data-part="category"
+          >
             {dgettext("marketing", "All")}
           </.link>
           <.link
             :for={category <- @categories}
             patch={~p"/changelog?#{%{category: category}}"}
             data-selected={@category == category}
+            aria-current={if @category == category, do: "page"}
             data-part="category"
           >
             {category}
@@ -83,6 +89,7 @@
               label={"##{entry.pull_request}"}
               href={"https://github.com/tuist/tuist/pull/#{entry.pull_request}"}
               target="_blank"
+              rel="noopener noreferrer"
             >
               <:icon_left>
                 <.git_merge />
