@@ -17,13 +17,13 @@ msgstr ""
 msgid "Page not found"
 msgstr ""
 
-#: lib/tuist_web/controllers/build_controller.ex:23
-#: lib/tuist_web/controllers/build_controller.ex:49
+#: lib/tuist_web/controllers/build_controller.ex:25
+#: lib/tuist_web/controllers/build_controller.ex:66
 #, elixir-autogen, elixir-format
 msgid "Build not found"
 msgstr ""
 
-#: lib/tuist_web/controllers/build_controller.ex:45
+#: lib/tuist_web/controllers/build_controller.ex:62
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
 msgstr ""

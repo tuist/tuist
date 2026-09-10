@@ -11,6 +11,8 @@ defmodule Tuist.Repo.Migrations.CreateBazelProfileUploads do
       timestamps(type: :timestamptz)
     end
 
+    # The table is new and invisible to other transactions until this migration commits.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:bazel_profile_uploads, [:inserted_at])
   end
 end
