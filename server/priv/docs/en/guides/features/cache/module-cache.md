@@ -147,7 +147,7 @@ The **Misses** dropdown selects a count and explanation for one reason. The char
 | **Cold** | There is no earlier module observation to compare with, or the reported inputs do not explain the miss and there is no qualifying evidence of earlier remote availability. Cold does not prove that the module was never cached. |
 | **Unavailable** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. The **Earlier remote hit** link opens the run used as evidence. |
 
-Unavailable establishes prior remote availability, not the cause of the current miss. Eviction, access problems, or a failed download can all produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
+The cached artifact was most likely evicted. Unavailable establishes prior remote availability, but does not confirm eviction: access problems or a failed download can also produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
 
 For example:
 

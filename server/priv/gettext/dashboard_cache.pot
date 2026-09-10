@@ -1285,7 +1285,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/module_cache.ex:29
 #, elixir-autogen, elixir-format
-msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cause is not yet known."
+msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
 msgstr ""
 
 #: lib/tuist_web/live/modules_live.html.heex:95

@@ -28,7 +28,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
   def reason_description("unavailable") do
     dgettext(
       "dashboard_cache",
-      "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cause is not yet known."
+      "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
     )
   end
 
