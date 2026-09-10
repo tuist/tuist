@@ -41,7 +41,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
   defp comparison_description do
     dgettext(
       "dashboard_cache",
-      "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations; test shards can repeat an earlier build's cache results."
+      "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations. Older CLI versions may report an earlier build's cache results again from test shards."
     )
   end
 end

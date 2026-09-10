@@ -201,7 +201,7 @@ defmodule TuistWeb.ModulesLiveTest do
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
     assert has_element?(lv, "#widget-misses", "repeated misses for the same cache key")
-    assert has_element?(lv, "#widget-misses", "test shards can repeat an earlier build's cache results")
+    assert has_element?(lv, "#widget-misses", "Older CLI versions may report an earlier build's cache results again from test shards")
   end
 
   test "pages through the modules table", %{

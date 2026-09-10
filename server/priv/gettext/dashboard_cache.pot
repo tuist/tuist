@@ -1277,12 +1277,12 @@ msgstr ""
 msgid "Cold: there is no earlier observation to compare with, or the compared inputs did not explain the miss. This can include repeated misses for the same cache key; it does not mean the module was never cached."
 msgstr ""
 
-#: lib/tuist_web/helpers/module_cache.ex:42
-#, elixir-autogen, elixir-format
-msgid "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations; test shards can repeat an earlier build's cache results."
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:17
 #, elixir-autogen, elixir-format
 msgid "Upstream: the module's own compared inputs stayed the same, but its dependency or external package hash changed."
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:42
+#, elixir-autogen, elixir-format
+msgid "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations. Older CLI versions may report an earlier build's cache results again from test shards."
 msgstr ""
