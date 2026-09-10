@@ -12,7 +12,9 @@ defmodule Tuist.IngestRepo.Migrations.AddDurationUsToReapiCacheEvents do
   # at the coarse resolution they were recorded with. `duration_ms` is kept
   # until every Kura node reports microseconds.
   def up do
-    execute("ALTER TABLE reapi_cache_events ADD COLUMN IF NOT EXISTS duration_us UInt64 DEFAULT duration_ms * 1000")
+    execute(
+      "ALTER TABLE reapi_cache_events ADD COLUMN IF NOT EXISTS duration_us UInt64 DEFAULT duration_ms * 1000"
+    )
   end
 
   def down do
