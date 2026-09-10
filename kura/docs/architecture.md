@@ -209,6 +209,15 @@ The Xcode compilation-cache plugin negotiates these existing split/splice capabi
 
 Each PVC is owned by exactly one Kura process. On startup, `DataDirLock` (`src/runtime.rs`) takes an OS file lock on `.kura.writer.lock` inside `KURA_DATA_DIR`. If another process holds the lock, startup fails fast. Public readiness depends on the lock being held, so a node that loses the lock cannot serve traffic.
 
+Before opening RocksDB, `startup.rs` binds the public HTTP port with a bounded bootstrap server. It answers `/up` and `/metrics`, returns 503 for `/ready` and every cache request, and starts no peer listener or background writer. Store opening runs on the blocking pool while retaining the data-dir writer lock. Orphan segment cleanup must succeed before activation: errors fail startup instead of logging and continuing with unfinished recovery. After initialization the bootstrap connections close and the same bound socket transfers to the ordinary accelerated HTTP server. Existing discovery and backfill readiness gates still apply.
+
+Recovery health measures completed work. Opening RocksDB has a separate 15-minute bound because its replay is opaque; other preparation phases and orphan cleanup fail `/up` after five minutes without a phase transition, completed index page, or committed deletion batch. A long cleanup can run beyond five minutes while advancing. The probe handler itself never advances progress. Startup phase (`0` preparing, `1` opening store, `2` cleaning segments, `3` configuring, `4` complete, `5` failed), last progress timestamp, completed pages and committed batches are exported as `kura_startup_recovery_*`. Missing metrics on older versions must not be interpreted as stalled recovery.
+
+Eviction walks bounded index pages (at most 256 keys, with a 2 MiB page-byte target), releases the RocksDB iterator between pages, and reads candidates and commits batches on the blocking pool. The exclusive key continuation advances even when a row is retained; already committed deletions survive a restart and the new sweep starts over the remaining rows. Stale action-cache and recipe reverse rows obey the same batch budget as live referrers. Batches preserve dependency ordering: entries disappear before their blobs, and a segment file is unlinked only after metadata cleanup succeeds. Batch sizing is a target at record boundaries, not a way to split one record's integrity updates.
+
+SIGUSR1, SIGTERM and SIGINT handlers are registered before store recovery. A startup drain prevents activation and interrupts cleanup at a completed work boundary; an outstanding blocking write is awaited before relinquishing the writer lock. In the serving phase the same signal task wakes replication drain waiters and preserves the ordinary shutdown budget.
+
+
 The Kubernetes layer reinforces this with `ReadWriteOncePod` PVC access by default; the app-level lock is the source of truth and works even when the CSI driver only supports `ReadWriteOnce`.
 
 ## Rollouts

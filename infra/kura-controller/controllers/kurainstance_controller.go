@@ -70,11 +70,10 @@ const (
 	// preStop for liveness restarts too, so this gives the hook time to remove
 	// the endpoint while bounding an otherwise unbounded cache outage.
 	livenessTerminationGraceSeconds int64 = 30
-	// Kura opens its store, including RocksDB WAL replay after an unclean
-	// shutdown, before it binds the listener that answers /up, so store
-	// recovery is spent against the startup budget. With the 10s period
-	// this allows 300 seconds, matching kura/ops/helm/kura/templates/
-	// statefulset.yaml so controller-managed and chart-managed pods agree.
+	// The bootstrap /up listener starts before store recovery. This budget
+	// covers reaching that listener; recovery itself is supervised by the
+	// runtime's progress watchdog while readiness stays false. Keep this
+	// aligned with kura/ops/helm/kura/templates/statefulset.yaml.
 	startupFailureThreshold int32 = 30
 
 	// podNameLabel is the per-pod label the StatefulSet controller stamps
