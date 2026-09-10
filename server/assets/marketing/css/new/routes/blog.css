@@ -18,7 +18,9 @@
      `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
      ID), whose margins and 1296px max-width must lose to the page frame. */
   & > header[data-part="header"],
-  & > section {
+  & > section,
+  & > ul[data-part="posts"],
+  & > ul[data-part="list"] {
     box-sizing: border-box;
     /* The navbar's own margin-bottom provides the seam above the header. */
     margin: 0 var(--noora-spacing-1);
@@ -242,10 +244,13 @@
     }
   }
 
+  /* A list now, so pages.css's section rule no longer reaches it: the frame
+     rule above sizes it, and this restores the section's stacking. */
   & > [data-part="posts"] {
     display: grid;
+    position: relative;
     grid-template-columns: 1fr;
-    margin: 0;
+    z-index: var(--noora-z-index-1);
     padding: 0;
     list-style: none;
 
@@ -423,7 +428,7 @@
      table's own shadow, radius and header surface are reset, because the page
      frame provides the box. */
   & > [data-part="list"] {
-    margin: 0;
+    z-index: var(--noora-z-index-1);
     box-shadow: none;
     border-radius: 0;
     padding: 0;
