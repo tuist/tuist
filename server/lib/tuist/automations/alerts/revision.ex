@@ -27,11 +27,11 @@ defmodule Tuist.Automations.Alerts.Revision do
   end
 
   def changeset(revision, attrs) do
-    attrs = Map.put_new(attrs, :recorded_at, DateTime.utc_now())
+    attrs = Map.put(attrs, :recorded_at, DateTime.utc_now())
 
     revision
     |> cast(attrs, [:automation_alert_id, :actor_id, :event, :source, :changes, :snapshot, :recorded_at, :inserted_at])
-    |> validate_required([:automation_alert_id, :event, :source, :snapshot])
+    |> validate_required([:automation_alert_id, :event, :source, :snapshot, :recorded_at])
     |> validate_inclusion(:event, ~w(created updated))
     |> foreign_key_constraint(:automation_alert_id)
     |> foreign_key_constraint(:actor_id)
