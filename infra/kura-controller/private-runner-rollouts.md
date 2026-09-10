@@ -99,13 +99,28 @@ storage-sizing worker includes runner-region occupancy and eviction telemetry
 in the existing account-wide decision, so a runner region can drive growth and
 must agree with the other measured regions before a shrink.
 
-The enrollment migration pins existing live runner rows to their historical
-50Gi claim before the new catalog runs. This prevents enrollment from silently
-shrinking warm caches. Existing claims change only through the measured sizing
-flow or an explicit account claim change. Enrollment alone will therefore not
-clear an existing disk-capacity wedge; the standard 30-day shrink confirmation
-still applies. Apply migrations before starting the updated server, and retain
-claim pins on rollback.
+The enrollment migration immediately pins previously unpinned live runner rows
+to the account's sized claim, or the current plan default if none exists. The
+one-time enrollment is capped at the historical 50Gi: it can release reservations
+but cannot grow them without admission checks. Existing explicit pins stay
+unchanged. This deliberately permits warm-cache eviction to unblock scheduling;
+it does not wait for the ordinary 30-day shrink confirmation. Subsequent sizing
+uses the normal measured policy. Rollback retains the applied pins, because
+restoring 50Gi would reintroduce the blockage without recovering evicted data.
+
+The production deployment runs the migration in its pre-upgrade hook after the
+release pipeline reaches production. The server reconciler runs every minute;
+its disk revision changes when the pin changes, so even an existing server
+process can begin applying the new disk budget after the migration commits.
+The controller re-templates the StatefulSet, retains larger existing PVCs, and
+rolls replicas to their smaller runtime budgets and ephemeral-storage requests.
+Unscheduled Pending pods still carrying the old larger reservation are recreated
+once the smaller template is observed, so the ordered readiness gate cannot
+strand them indefinitely. Resource-version preconditions protect pods scheduled
+in the meantime. Operator OnDelete or partition pauses remain respected.
+Convergence still depends on controller rollout, scheduling and pod readiness;
+there is no fixed merge-to-recovery deadline. This does not resolve independent
+private gateway certificate failures.
 
 Memory requests and limits follow the standard plan profiles. CPU requests stay
 measured by the controller; CPU limits follow the same plan profiles. The runner

@@ -32,4 +32,4 @@ This directory contains database migrations and other private assets.
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
 
-- The runner Kura sizing enrollment migration pins live, previously unpinned `scw-fr-par-runners` rows to their historical 50Gi budget before the catalog enables measured sizing. Rollback retains those pins because later sizing may have changed them.
+- The runner Kura sizing enrollment migration pins live, previously unpinned `scw-fr-par-runners` rows immediately to the account-sized claim or current plan default, capped at the historical 50Gi. This intentionally allows cache eviction to release scheduler reservations without waiting for measured shrink confirmation. Growth still requires normal admission. Rollback retains the applied pins to avoid restoring the scheduling blockage.
