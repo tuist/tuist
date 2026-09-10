@@ -199,7 +199,9 @@
     }
   }
 
-  & #connect-buildkite-modal :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
+  &
+    :is(#connect-buildkite-modal, #connect-gitlab-modal)
+    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);

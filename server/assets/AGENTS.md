@@ -44,4 +44,4 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Hash-input detail values wrap long values within the cache and selective-testing tables.
 
 - Direct dependency links wrap within expanded target rows in both cache tabs.
-- Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`.
+- Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs.
