@@ -75,7 +75,7 @@ msgstr ""
 msgid "Attachments"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:837
+#: lib/tuist_web/live/test_case_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Automatically by Tuist"
 msgstr ""
@@ -144,7 +144,7 @@ msgstr ""
 msgid "Avg. test run duration"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:308
+#: lib/tuist_web/live/test_case_live.ex:317
 #: lib/tuist_web/live/test_case_live.html.heex:1019
 #: lib/tuist_web/live/test_case_run_live.html.heex:169
 #: lib/tuist_web/live/test_run_live.html.heex:332
@@ -166,7 +166,7 @@ msgstr ""
 msgid "Build: %{scheme}"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.ex:288
+#: lib/tuist_web/live/flaky_tests_live.ex:293
 #: lib/tuist_web/live/flaky_tests_live.html.heex:26
 #: lib/tuist_web/live/once_runs_live.ex:1320
 #: lib/tuist_web/live/test_case_live.ex:331
@@ -311,7 +311,7 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:830
+#: lib/tuist_web/live/test_case_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "Event"
 msgstr ""
@@ -477,7 +477,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:823
+#: lib/tuist_web/live/test_case_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "First run of this test"
 msgstr ""
@@ -488,7 +488,7 @@ msgstr ""
 msgid "Flakiness rate"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:265
+#: lib/tuist_web/live/test_case_live.ex:274
 #: lib/tuist_web/live/test_case_live.html.heex:70
 #: lib/tuist_web/live/test_case_live.html.heex:327
 #: lib/tuist_web/live/test_case_live.html.heex:993
@@ -517,6 +517,7 @@ msgid "Flaky Runs"
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.ex:23
+#: lib/tuist_web/live/flaky_tests_live.ex:26
 #: lib/tuist_web/live/flaky_tests_live.html.heex:86
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
@@ -631,7 +632,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/test_cases_live.ex:40
+#: lib/tuist_web/live/test_cases_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Last Status"
 msgstr ""
@@ -675,7 +676,7 @@ msgid "Loading..."
 msgstr ""
 
 #: lib/tuist_web/components/runs/selective_testing_tab.ex:148
-#: lib/tuist_web/live/flaky_tests_live.ex:287
+#: lib/tuist_web/live/flaky_tests_live.ex:292
 #: lib/tuist_web/live/flaky_tests_live.html.heex:18
 #: lib/tuist_web/live/once_runs_live.ex:1319
 #: lib/tuist_web/live/test_cases_live.ex:391
@@ -699,7 +700,7 @@ msgstr ""
 msgid "Mac device"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:839
+#: lib/tuist_web/live/test_case_live.ex:848
 #, elixir-autogen, elixir-format
 msgid "Manually by @%{name}"
 msgstr ""
@@ -709,7 +710,7 @@ msgstr ""
 msgid "Mark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:824
+#: lib/tuist_web/live/test_case_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
 msgstr ""
@@ -909,7 +910,7 @@ msgstr ""
 msgid "Project"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:270
+#: lib/tuist_web/live/test_case_live.ex:279
 #: lib/tuist_web/live/test_case_run_live.html.heex:54
 #: lib/tuist_web/live/test_run_live.html.heex:638
 #: lib/tuist_web/live/test_run_live.html.heex:983
@@ -956,7 +957,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:325
+#: lib/tuist_web/live/test_case_live.ex:334
 #: lib/tuist_web/live/test_case_live.html.heex:1029
 #: lib/tuist_web/live/test_case_run_live.html.heex:143
 #: lib/tuist_web/live/test_run_live.html.heex:303
@@ -1249,14 +1250,14 @@ msgstr ""
 msgid "Test case"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:40
-#: lib/tuist_web/live/test_case_live.ex:45
+#: lib/tuist_web/live/test_case_live.ex:41
+#: lib/tuist_web/live/test_case_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Test case not found."
 msgstr ""
 
-#: lib/tuist_web/live/test_case_run_live.ex:37
-#: lib/tuist_web/live/test_case_run_live.ex:41
+#: lib/tuist_web/live/test_case_run_live.ex:38
+#: lib/tuist_web/live/test_case_run_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Test case run not found."
 msgstr ""
@@ -1329,6 +1330,7 @@ msgstr ""
 
 #: lib/tuist_web/live/once_tests_live.ex:29
 #: lib/tuist_web/live/tests_live.ex:27
+#: lib/tuist_web/live/tests_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr ""
@@ -1442,7 +1444,7 @@ msgstr ""
 msgid "Unmark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:825
+#: lib/tuist_web/live/test_case_live.ex:834
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
 msgstr ""
@@ -1818,9 +1820,9 @@ msgstr ""
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:795
-#: lib/tuist_web/live/test_case_live.ex:827
-#: lib/tuist_web/live/test_case_live.ex:829
+#: lib/tuist_web/live/test_case_live.ex:804
+#: lib/tuist_web/live/test_case_live.ex:836
+#: lib/tuist_web/live/test_case_live.ex:838
 #: lib/tuist_web/live/test_case_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Enabled"
@@ -1919,7 +1921,7 @@ msgstr ""
 msgid "Skipped tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:835
+#: lib/tuist_web/live/test_case_live.ex:844
 #, elixir-autogen, elixir-format
 msgid "By automation %{name}"
 msgstr ""
@@ -2006,7 +2008,7 @@ msgstr ""
 msgid "No runs in this period"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:255
+#: lib/tuist_web/live/test_case_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Successful"
 msgstr ""
@@ -2021,8 +2023,8 @@ msgstr ""
 msgid "Not reported"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:82
-#: lib/tuist_web/live/test_case_live.ex:87
+#: lib/tuist_web/live/test_case_live.ex:91
+#: lib/tuist_web/live/test_case_live.ex:96
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to update this test case."
 msgstr ""
@@ -2063,7 +2065,7 @@ msgid_plural "%{count} repetitions"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/test_case_run_live.ex:109
+#: lib/tuist_web/live/test_case_run_live.ex:118
 #, elixir-autogen, elixir-format
 msgid "%{count} repetition passed"
 msgid_plural "All %{count} repetitions passed"

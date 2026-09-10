@@ -55,7 +55,7 @@ msgstr ""
 #: lib/tuist_web/helpers/mix_analytics.ex:32
 #: lib/tuist_web/live/gradle_builds_live.ex:175
 #: lib/tuist_web/live/gradle_builds_live.html.heex:10
-#: lib/tuist_web/live/gradle_cache_live.ex:206
+#: lib/tuist_web/live/gradle_cache_live.ex:211
 #: lib/tuist_web/live/gradle_cache_live.html.heex:46
 #: lib/tuist_web/live/gradle_overview_live.ex:166
 #: lib/tuist_web/live/gradle_overview_live.ex:170
@@ -194,8 +194,8 @@ msgstr ""
 msgid "Build duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_build_live.ex:32
-#: lib/tuist_web/live/gradle_build_live.ex:36
+#: lib/tuist_web/live/gradle_build_live.ex:33
+#: lib/tuist_web/live/gradle_build_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Build not found."
 msgstr ""
@@ -236,8 +236,8 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_runs_live.ex:254
 #: lib/tuist_web/live/gradle_builds_live.ex:177
 #: lib/tuist_web/live/gradle_builds_live.html.heex:26
-#: lib/tuist_web/live/gradle_cache_live.ex:208
-#: lib/tuist_web/live/gradle_cache_live.ex:209
+#: lib/tuist_web/live/gradle_cache_live.ex:213
+#: lib/tuist_web/live/gradle_cache_live.ex:214
 #: lib/tuist_web/live/gradle_cache_live.html.heex:62
 #: lib/tuist_web/live/gradle_overview_live.ex:168
 #: lib/tuist_web/live/gradle_overview_live.ex:172
@@ -521,6 +521,7 @@ msgstr ""
 
 #: lib/tuist_web/live/gradle_build_live.html.heex:82
 #: lib/tuist_web/live/gradle_cache_live.ex:30
+#: lib/tuist_web/live/gradle_cache_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
@@ -643,8 +644,8 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_runs_live.ex:255
 #: lib/tuist_web/live/gradle_builds_live.ex:176
 #: lib/tuist_web/live/gradle_builds_live.html.heex:18
-#: lib/tuist_web/live/gradle_cache_live.ex:207
-#: lib/tuist_web/live/gradle_cache_live.ex:210
+#: lib/tuist_web/live/gradle_cache_live.ex:212
+#: lib/tuist_web/live/gradle_cache_live.ex:215
 #: lib/tuist_web/live/gradle_cache_live.html.heex:54
 #: lib/tuist_web/live/gradle_overview_live.ex:167
 #: lib/tuist_web/live/gradle_overview_live.ex:171
@@ -1236,7 +1237,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/mix_analytics.ex:38
 #: lib/tuist_web/live/gradle_builds_live.ex:183
-#: lib/tuist_web/live/gradle_cache_live.ex:245
+#: lib/tuist_web/live/gradle_cache_live.ex:250
 #: lib/tuist_web/live/gradle_overview_live.ex:164
 #: lib/tuist_web/live/gradle_tasks_live.ex:91
 #, elixir-autogen, elixir-format
@@ -1245,7 +1246,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/mix_analytics.ex:37
 #: lib/tuist_web/live/gradle_builds_live.ex:182
-#: lib/tuist_web/live/gradle_cache_live.ex:244
+#: lib/tuist_web/live/gradle_cache_live.ex:249
 #: lib/tuist_web/live/gradle_overview_live.ex:163
 #: lib/tuist_web/live/gradle_tasks_live.ex:90
 #, elixir-autogen, elixir-format
@@ -1254,7 +1255,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/mix_analytics.ex:35
 #: lib/tuist_web/live/gradle_builds_live.ex:180
-#: lib/tuist_web/live/gradle_cache_live.ex:242
+#: lib/tuist_web/live/gradle_cache_live.ex:247
 #: lib/tuist_web/live/gradle_overview_live.ex:161
 #: lib/tuist_web/live/gradle_tasks_live.ex:88
 #, elixir-autogen, elixir-format
@@ -1263,7 +1264,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/mix_analytics.ex:36
 #: lib/tuist_web/live/gradle_builds_live.ex:181
-#: lib/tuist_web/live/gradle_cache_live.ex:243
+#: lib/tuist_web/live/gradle_cache_live.ex:248
 #: lib/tuist_web/live/gradle_overview_live.ex:162
 #: lib/tuist_web/live/gradle_tasks_live.ex:89
 #, elixir-autogen, elixir-format
@@ -1272,7 +1273,7 @@ msgstr ""
 
 #: lib/tuist_web/helpers/mix_analytics.ex:34
 #: lib/tuist_web/live/gradle_builds_live.ex:179
-#: lib/tuist_web/live/gradle_cache_live.ex:241
+#: lib/tuist_web/live/gradle_cache_live.ex:246
 #: lib/tuist_web/live/gradle_overview_live.ex:160
 #: lib/tuist_web/live/gradle_tasks_live.ex:87
 #, elixir-autogen, elixir-format

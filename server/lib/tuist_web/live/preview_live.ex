@@ -53,11 +53,7 @@ defmodule TuistWeb.PreviewLive do
               " · ",
               &(&1 |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize())
             ),
-          badge: dgettext("dashboard_previews", "App preview"),
-          metric_one_label: dgettext("dashboard_previews", "Version"),
-          metric_one_value: preview.version || dgettext("dashboard_builds", "None"),
-          metric_two_label: dgettext("dashboard_previews", "Bundle identifier"),
-          metric_two_value: preview.bundle_identifier || dgettext("dashboard_builds", "None")
+          badge: dgettext("dashboard_previews", "App preview")
         )
       )
       |> assign(

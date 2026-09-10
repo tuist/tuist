@@ -66,75 +66,15 @@ defmodule TuistWeb.Helpers.OpenGraph do
         title: normalized_text(Keyword.get(opts, :title), 160),
         subtitle: normalized_text(Keyword.get(opts, :subtitle), 200),
         badge: normalized_text(Keyword.get(opts, :badge), 60),
-        metric_one_label: normalized_text(Keyword.get(opts, :metric_one_label), 80),
-        metric_one_value: normalized_text(Keyword.get(opts, :metric_one_value), 100),
-        metric_two_label: normalized_text(Keyword.get(opts, :metric_two_label), 80),
-        metric_two_value: normalized_text(Keyword.get(opts, :metric_two_value), 100),
         locale: Gettext.get_locale(TuistWeb.Gettext)
       ]
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-      |> put_chart(opts)
 
     path = image_path(:project, variables)
 
     if byte_size(path) <= @max_image_path_bytes, do: {:ok, path}, else: :error
   rescue
     ArgumentError -> :error
-  end
-
-  defp put_chart(variables, opts) do
-    values = Keyword.get(opts, :chart)
-    label = normalized_text(Keyword.get(opts, :chart_label), 100)
-    kind = Keyword.get(opts, :chart_kind, "line")
-    categories = Keyword.get(opts, :chart_categories)
-
-    with true <- is_list(values) and length(values) in 2..16,
-         true <- kind in ["line", "bars"],
-         true <- is_binary(label),
-         {:ok, values} <- normalize_chart_values(values),
-         {:ok, categories} <- normalize_chart_categories(categories, values, kind) do
-      variables
-      |> Keyword.put(:chart, Enum.join(values, ","))
-      |> Keyword.put(:chart_label, label)
-      |> Keyword.put(:chart_kind, kind)
-      |> maybe_put_chart_categories(categories)
-    else
-      _ -> variables
-    end
-  end
-
-  defp normalize_chart_values(values) do
-    values
-    |> Enum.reduce_while({:ok, []}, fn
-      value, {:ok, acc} when is_integer(value) and value >= 0 ->
-        {:cont, {:ok, [min(value, 9_007_199_254_740_991) | acc]}}
-
-      value, {:ok, acc} when is_float(value) and value >= 0 ->
-        {:cont, {:ok, [min(round(value), 9_007_199_254_740_991) | acc]}}
-
-      _value, _acc ->
-        {:halt, :error}
-    end)
-    |> case do
-      {:ok, normalized} -> {:ok, Enum.reverse(normalized)}
-      :error -> :error
-    end
-  end
-
-  defp normalize_chart_categories(nil, _values, "line"), do: {:ok, []}
-
-  defp normalize_chart_categories(categories, values, "bars")
-       when is_list(categories) and length(categories) == length(values) do
-    normalized = Enum.map(categories, &normalized_text(&1, 30))
-    if Enum.all?(normalized, &is_binary/1), do: {:ok, normalized}, else: :error
-  end
-
-  defp normalize_chart_categories(_categories, _values, _kind), do: :error
-
-  defp maybe_put_chart_categories(variables, []), do: variables
-
-  defp maybe_put_chart_categories(variables, categories) do
-    Keyword.put(variables, :chart_categories, Enum.join(categories, "|"))
   end
 
   defp normalized_text(value, max_length) when is_binary(value) do

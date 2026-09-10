@@ -72,7 +72,7 @@ msgstr ""
 msgid "Avg. latency writing cache keys"
 msgstr ""
 
-#: lib/tuist_web/live/generate_runs_live.ex:281
+#: lib/tuist_web/live/generate_runs_live.ex:286
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:35
 #: lib/tuist_web/live/once_runs_live.ex:891
@@ -91,7 +91,8 @@ msgstr ""
 msgid "Build Details"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.ex:83
+#: lib/tuist_web/live/build_run_live.ex:84
+#: lib/tuist_web/live/build_run_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "Build Run"
 msgstr ""
@@ -896,7 +897,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/generate_runs_live.ex:316
+#: lib/tuist_web/live/generate_runs_live.ex:321
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/once_runs_live.ex:902
 #: lib/tuist_web/live/run_detail_live.html.heex:152
@@ -933,7 +934,7 @@ msgstr ""
 msgid "Resources"
 msgstr ""
 
-#: lib/tuist_web/live/run_detail_live.ex:36
+#: lib/tuist_web/live/run_detail_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr ""
@@ -1502,7 +1503,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/generate_runs_live.ex:297
+#: lib/tuist_web/live/generate_runs_live.ex:302
 #: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
@@ -1522,6 +1523,7 @@ msgid "Custom metadata"
 msgstr ""
 
 #: lib/tuist_web/live/generate_runs_live.ex:22
+#: lib/tuist_web/live/generate_runs_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr ""
