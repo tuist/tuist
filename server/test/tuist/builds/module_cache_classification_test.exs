@@ -116,10 +116,135 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
         assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "upstream", "C" => "upstream"})
       end
     end
+
+    test "#{view}: an earlier remote hit for the exact key and endpoint makes a miss unavailable", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1)
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1")
+      assert_reasons(@view, opts, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
+      page = Analytics.module_build_history(Keyword.put(opts, :name, "A"))
+      row = Enum.find(page.rows, &(&1.id == current.id))
+      assert row.previous_remote_hit_id == warmed.id
+      assert NaiveDateTime.compare(row.previous_remote_hit_at, ~N[2024-04-01 10:00:00]) == :eq
+      filtered = Analytics.module_build_history(opts ++ [name: "A", reason: "unavailable"])
+      assert Enum.map(filtered.rows, & &1.id) == [current.id]
+      series = Analytics.module_miss_reasons_timeseries(opts)
+      assert series.unavailable == [0, 3]
+      assert series.cold == [0, 0]
+    end
+
+    for prior_hit <- [:local, :miss] do
+      @prior_hit prior_hit
+      test "#{view}: a previous #{@prior_hit} does not establish remote availability", %{project: project, opts: opts} do
+        warmed = observation(project, 1)
+        insert_chain(warmed, @prior_hit, "v1")
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v1")
+        current_opts = Keyword.put(opts, :start_datetime, ~U[2024-04-02 00:00:00Z])
+        assert_reasons(@view, current_opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+      end
+    end
+
+    for endpoint <- ["", "https://other-cache.example.com"] do
+      @endpoint endpoint
+      test "#{view}: an unknown or different endpoint #{inspect(endpoint)} does not establish availability", %{
+        project: project,
+        opts: opts
+      } do
+        warmed = observation(project, 1, cache_endpoint: @endpoint)
+        insert_chain(warmed, :remote, "v1")
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v1")
+        assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+      end
+    end
+
+    test "#{view}: matching partial inputs with a different full key do not establish availability", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1)
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1", key_revision: "v2")
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+    end
+
+    test "#{view}: empty cache keys do not establish availability", %{project: project, opts: opts} do
+      warmed = observation(project, 1)
+      insert_chain(warmed, :remote, "v1", hash: "")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1", hash: "")
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+    end
+
+    test "#{view}: remote availability crosses branch, environment, and selected start-date filters", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1, git_branch: "main", is_ci: false)
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2, git_branch: "feature", is_ci: true)
+      insert_chain(current, :miss, "v1")
+      scoped = Keyword.merge(opts, start_datetime: ~U[2024-04-02 00:00:00Z], git_branch: "feature", is_ci: true)
+      assert_reasons(@view, scoped, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
+    end
+
+    for reported_at <- [~N[2024-04-02 10:00:00], ~N[2024-04-02 10:05:00]] do
+      @reported_at reported_at
+      test "#{view}: a remote-hit report at #{reported_at} cannot establish availability before command start", %{
+        project: project,
+        opts: opts
+      } do
+        warmed = observation(project, 1, reported_at: @reported_at)
+        insert_chain(warmed, :remote, "v1")
+        current = observation(project, 2)
+        insert_chain(current, :miss, "v1")
+        assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+      end
+    end
+
+    test "#{view}: remote hits outside the available 30-day history do not establish availability", %{
+      project: project,
+      opts: opts
+    } do
+      warmed = observation(project, 1, observed_at: ~N[2024-03-01 10:00:00])
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1")
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+    end
+
+    test "#{view}: another project's remote hit is not evidence", %{project: project, opts: opts} do
+      other = ProjectsFixtures.project_fixture()
+      warmed = observation(other, 1)
+      insert_chain(warmed, :remote, "v1")
+      current = observation(project, 2)
+      insert_chain(current, :miss, "v1")
+      assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
+    end
+
+    test "#{view}: returning to a previously served key takes precedence over intervening input changes", %{
+      project: project,
+      opts: opts
+    } do
+      first = observation(project, 1)
+      insert_chain(first, :remote, "v1")
+      other = observation(project, 2)
+      insert_chain(other, :remote, "v2", a_sources: "changed-sources")
+      current = observation(project, 3)
+      insert_chain(current, :miss, "v1")
+      opts = Keyword.put(opts, :end_datetime, ~U[2024-04-03 23:59:59Z])
+      assert_reasons(@view, opts, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
+    end
   end
 
   defp observation(project, day, attrs \\ []) do
-    created_at = NaiveDateTime.new!(2024, 4, day, 10, 0, 0)
+    created_at = Keyword.get_lazy(attrs, :observed_at, fn -> NaiveDateTime.new!(2024, 4, day, 10, 0, 0) end)
 
     build =
       RunsFixtures.build_fixture(
@@ -132,11 +257,13 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
       build_run_id: build.id,
-      git_branch: "main",
+      git_branch: Keyword.get(attrs, :git_branch, "main"),
       git_commit_sha: "same-commit",
-      created_at: created_at,
+      created_at: Keyword.get(attrs, :reported_at, created_at),
+      ran_at: DateTime.from_naive!(created_at, "Etc/UTC"),
+      cache_endpoint: Keyword.get(attrs, :cache_endpoint, "https://cache.example.com"),
       swift_version: Keyword.get(attrs, :swift_version, "5.10"),
-      is_ci: true
+      is_ci: Keyword.get(attrs, :is_ci, true)
     )
   end
 
@@ -154,7 +281,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
         command_event_id: event.id,
         name: name,
         product: "framework",
-        binary_cache_hash: "#{name}-#{revision}",
+        binary_cache_hash: Keyword.get(attrs, :hash, "#{name}-#{Keyword.get(attrs, :key_revision, revision)}"),
         binary_cache_hit: hit,
         sources_hash: sources,
         target_settings_hash: settings,
@@ -184,10 +311,15 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       |> Analytics.module_invalidations()
       |> Map.new(fn row ->
         assert row.invalidations == 1
-        {row.name, {row.self_changes, row.dependency_induced, row.unclassified}}
+        {row.name, {row.self_changes, row.dependency_induced, row.unclassified, row.unavailable}}
       end)
 
-    counts = %{"changed" => {1, 0, 0}, "upstream" => {0, 1, 0}, "cold" => {0, 0, 1}}
+    counts = %{
+      "changed" => {1, 0, 0, 0},
+      "upstream" => {0, 1, 0, 0},
+      "cold" => {0, 0, 1, 0},
+      "unavailable" => {0, 0, 0, 1}
+    }
 
     assert actual ==
              Map.new(expected, fn {name, reason} -> {name, Map.fetch!(counts, reason)} end)

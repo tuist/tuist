@@ -82,3 +82,5 @@ This directory contains the core business logic and domain modules for the serve
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
 
 - Module-cache miss classification compares reported direct inputs, including the additional cache-key strings, before dependency hashes. Missing additional-input telemetry must not count as a direct change.
+
+- Module-cache Unavailable misses require an earlier reported remote hit for the exact artifact key in the same project and recorded cache endpoint. Local hits, partial-input matches, and later reports are not evidence of prior remote availability.

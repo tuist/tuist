@@ -1262,24 +1262,9 @@ msgstr ""
 msgid "Cached: this observation reports a local or remote cache hit."
 msgstr ""
 
-#: lib/tuist_web/helpers/module_cache.ex:35
-#, elixir-autogen, elixir-format
-msgid "Changed means the module's own compared inputs changed. Upstream means its dependency or external package hash changed. Cold means there is no earlier observation, or the compared inputs did not explain the miss."
-msgstr ""
-
-#: lib/tuist_web/helpers/module_cache.ex:24
-#, elixir-autogen, elixir-format
-msgid "Cold: there is no earlier observation to compare with, or the compared inputs did not explain the miss. This can include repeated misses for the same cache key; it does not mean the module was never cached."
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:17
 #, elixir-autogen, elixir-format
 msgid "Upstream: the module's own compared inputs stayed the same, but its dependency or external package hash changed."
-msgstr ""
-
-#: lib/tuist_web/helpers/module_cache.ex:42
-#, elixir-autogen, elixir-format
-msgid "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Not all cache-key inputs are available for comparison. Counts include reported observations. Older CLI versions may report an earlier build's cache results again from test shards."
 msgstr ""
 
 #: lib/tuist_web/helpers/module_cache.ex:10
@@ -1290,4 +1275,45 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "and %{count} more"
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.html.heex:565
+#, elixir-autogen, elixir-format
+msgid "Earlier remote hit"
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:31
+#, elixir-autogen, elixir-format
+msgid "Unavailable: this exact cache key was previously served remotely from the same recorded endpoint, but this run missed. Eviction, access, or transfer problems are possible; this label does not establish the cause."
+msgstr ""
+
+#: lib/tuist_web/live/modules_live.ex:213
+#: lib/tuist_web/live/module_cache_module_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "Unavailable misses"
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:42
+#, elixir-autogen, elixir-format
+msgid "Changed means the module's own compared inputs changed. Upstream means its dependency or external package hash changed. Unavailable means this exact key previously had a remote hit at the same endpoint but now misses. Cold covers missing comparison history or otherwise unexplained misses without that evidence."
+msgstr ""
+
+#: lib/tuist_web/live/modules_live.html.heex:141
+#: lib/tuist_web/live/modules_live.html.heex:313
+#: lib/tuist_web/live/module_cache_module_live.ex:303
+#: lib/tuist_web/live/module_cache_module_live.ex:327
+#: lib/tuist_web/live/module_cache_module_live.html.heex:184
+#: lib/tuist_web/live/module_cache_module_live.html.heex:407
+#, elixir-autogen, elixir-format
+msgid "Unavailable"
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:49
+#, elixir-autogen, elixir-format
+msgid "Reasons compare the same module on the same branch within the selected date range and environment, using the inputs reported by the CLI. The previous observation may be a miss or a hit. Unavailable uses remote-hit reports received before this command started, across branches and CI/local runs in the same project and endpoint, within the 30-day history ending at the selected end date. Local hits and unknown endpoints do not establish remote availability. Not all cache-key inputs are available for comparison. Counts include reported observations. Older CLI versions may report an earlier build's cache results again from test shards."
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:24
+#, elixir-autogen, elixir-format
+msgid "Cold: there is no earlier module observation to compare with, or the compared inputs did not explain the miss and we have no qualifying earlier remote hit for this exact key and endpoint. This includes repeated misses for keys that may never have been warmed; it does not prove the module was never cached."
 msgstr ""

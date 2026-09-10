@@ -183,7 +183,7 @@ defmodule TuistWeb.ModulesLiveTest do
     # view and the markup is checked separately.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold) do
+    for reason <- ~w(all changed upstream cold unavailable) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
@@ -192,16 +192,27 @@ defmodule TuistWeb.ModulesLiveTest do
 
     assert has_element?(lv, "#widget-misses", "Changed misses")
     assert has_element?(lv, "#widget-misses", "1")
-    assert has_element?(lv, "#widget-misses", "sources, resources, or build settings")
+    assert has_element?(lv, "#widget-misses", "sources, resources, build settings")
     assert_patched(lv, base <> "?miss-reason=changed")
+
+    render_click(lv, "select_miss_reason", %{"type" => "unavailable"})
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-misses", "Unavailable misses")
+    assert has_element?(lv, "#widget-misses", "0")
+    assert has_element?(lv, "#widget-misses", "same recorded endpoint")
 
     render_click(lv, "select_miss_reason", %{"type" => "cold"})
     render_async(lv, 2000)
 
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
-    assert has_element?(lv, "#widget-misses", "repeated misses for the same cache key")
-    assert has_element?(lv, "#widget-misses", "Older CLI versions may report an earlier build's cache results again from test shards")
+    assert has_element?(lv, "#widget-misses", "repeated misses for keys that may never have been warmed")
+
+    assert has_element?(
+             lv,
+             "#widget-misses",
+             "Older CLI versions may report an earlier build's cache results again from test shards"
+           )
   end
 
   test "pages through the modules table", %{

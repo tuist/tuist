@@ -123,7 +123,13 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     assert reasons == ["Changed", "Cached", "Cold"]
 
     assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "same branch")
-    assert has_element?(lv, "[id^=module-miss-reason-] [data-part=description]", "does not mean the module was never cached")
+
+    assert has_element?(
+             lv,
+             "[id^=module-miss-reason-] [data-part=description]",
+             "does not mean the module was never cached"
+           )
+
     assert has_element?(lv, "[id^=module-miss-reason-] [data-part=trigger][tabindex=0]")
 
     results =
@@ -253,6 +259,48 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     refute has_element?(lv, "#module-build-history-table")
   end
 
+  test "unavailable misses link to the earlier remote hit", %{conn: conn, organization: organization, project: project} do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    observe = fn at, hit ->
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: at,
+          cache_endpoint: "https://cache.example.com"
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "same-artifact",
+        binary_cache_hit: hit,
+        sources_hash: "unchanged"
+      )
+
+      event
+    end
+
+    earlier = observe.(~N[2024-01-29 10:00:00], :remote)
+    observe.(~N[2024-01-30 10:00:00], :miss)
+    base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+    {:ok, lv, _html} = live(conn, base <> "?miss-reason=unavailable&builds-reason=unavailable")
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-why-it-misses", "Unavailable misses")
+    assert has_element?(lv, "#widget-why-it-misses", "1")
+    assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Unavailable")
+
+    assert has_element?(
+             lv,
+             ~s([data-part="previous-remote-hit"][href="/#{organization.account.name}/#{project.name}/runs/#{earlier.id}"]),
+             "Earlier remote hit"
+           )
+
+    assert has_element?(lv, "#module-build-history-table", "does not establish the cause")
+  end
+
   test "the analytics widgets read the same way as the modules page", %{
     conn: conn,
     organization: organization,
@@ -301,7 +349,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     # Every reason, including the total, is wired to the event.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold) do
+    for reason <- ~w(all changed upstream cold unavailable) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
