@@ -16,6 +16,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -91,6 +92,18 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
     |> assign(:machine_metrics, machine_metrics)
+    |> assign_open_graph(build, title)
+  end
+
+  defp assign_open_graph(socket, build, title) do
+    assign(
+      socket,
+      OpenGraph.project_image_assigns(socket.assigns.selected_project,
+        title: title,
+        subtitle: Enum.join(Enum.reject([build.git_branch, build.gradle_version], &(&1 in [nil, ""])), " · "),
+        badge: build.status |> to_string() |> String.capitalize()
+      )
+    )
   end
 
   @doc """

@@ -15,6 +15,7 @@ defmodule TuistWeb.BundleLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -59,6 +60,13 @@ defmodule TuistWeb.BundleLive do
       |> assign(
         :head_title,
         "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
+      )
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: bundle.name,
+          subtitle: Enum.join(Enum.reject([bundle.version, bundle.git_branch], &(&1 in [nil, ""])), " · "),
+          badge: bundle.type |> to_string() |> String.upcase()
+        )
       )
       |> assign(:all_artifacts, all_artifacts)
       |> assign(:artifacts_by_id, artifacts_by_id)

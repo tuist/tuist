@@ -1,7 +1,12 @@
 defmodule Tuist.OpenGraphImageTemplatesTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.Accounts.Account
+  alias Tuist.OpenGraph.ProjectImage
   alias Tuist.OpenGraphImageTemplates
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
 
   test "builds deterministic specs from template variables" do
     params = %{
@@ -33,6 +38,55 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
     refute first_spec.key == second_spec.key
   end
 
+  test "includes public project variables in the content key" do
+    project = public_project()
+    slug = "#{project.account.name}/#{project.name}"
+    stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
+
+    base = %{
+      "template" => "project",
+      "title" => "App",
+      "project" => slug,
+      "subtitle" => "main · Release",
+      "badge" => "Success"
+    }
+
+    assert {:ok, first_spec} = OpenGraphImageTemplates.spec(base)
+
+    assert {:ok, second_spec} =
+             OpenGraphImageTemplates.spec(%{base | "badge" => "Failed"})
+
+    refute first_spec.key == second_spec.key
+  end
+
+  test "includes the locale in the project image key" do
+    project = public_project()
+    slug = "#{project.account.name}/#{project.name}"
+    stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
+
+    params = %{"template" => "project", "title" => "Builds", "project" => slug, "locale" => "en"}
+    assert {:ok, english} = OpenGraphImageTemplates.spec(params)
+    assert {:ok, spanish} = OpenGraphImageTemplates.spec(%{params | "locale" => "es"})
+
+    refute english.key == spanish.key
+  end
+
+  test "rejects malformed project image variables" do
+    assert OpenGraphImageTemplates.spec(%{
+             "template" => "project",
+             "title" => "Builds",
+             "project" => "tuist/tuist",
+             "logo" => "another-storage-prefix/logo.png"
+           }) == :error
+
+    assert OpenGraphImageTemplates.spec(%{
+             "template" => "project",
+             "title" => "Builds",
+             "project" => "tuist/tuist",
+             "chart" => "12,24"
+           }) == :error
+  end
+
   test "rejects unknown template variables" do
     assert OpenGraphImageTemplates.spec(%{
              "template" => "marketing",
@@ -49,5 +103,33 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
              })
 
     assert {:ok, <<0xFF, 0xD8, _rest::binary>>} = spec.render.()
+  end
+
+  test "renders a self-contained project card and escapes project data" do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    html =
+      ProjectImage.render_html(
+        title: "<script>unsafe</script>",
+        project: "tuist/tuist",
+        subtitle: "main branch",
+        badge: "Success",
+        fonts_dir: Path.join(priv_dir, "static/fonts"),
+        tuist_logo_path: Path.join(priv_dir, "docs/images/logo.webp")
+      )
+
+    assert html =~ "<!DOCTYPE html>"
+    assert html =~ "data:font/woff2;base64,"
+    assert html =~ "&lt;script&gt;unsafe&lt;/script&gt;"
+    refute html =~ "<script>unsafe</script>"
+  end
+
+  defp public_project do
+    %Project{
+      id: 42,
+      name: "tuist",
+      visibility: :public,
+      account: %Account{name: "tuist"}
+    }
   end
 end

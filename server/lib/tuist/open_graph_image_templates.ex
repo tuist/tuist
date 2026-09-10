@@ -11,11 +11,14 @@ defmodule Tuist.OpenGraphImageTemplates do
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogImage
   alias Tuist.Marketing.OgImages, as: MarketingImages
   alias Tuist.Marketing.OpenGraph
+  alias Tuist.OpenGraph.ProjectImage
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
 
-  @max_title_length 500
-  @max_description_length 1_000
+  @max_title_length 240
+  @max_description_length 500
 
   def spec(%{"template" => "marketing", "title" => title} = params) do
     with true <- allowed_keys?(params, ["template", "title"], ["icon"]),
@@ -117,6 +120,22 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
+  def spec(%{"template" => "project", "title" => title, "project" => project} = params) do
+    optional_keys = ["subtitle", "badge", "locale"]
+
+    with true <- allowed_keys?(params, ["template", "title", "project"], optional_keys),
+         true <- valid_text?(title, 160),
+         true <- valid_text?(project, 510),
+         true <- valid_optional_text?(Map.get(params, "subtitle"), 200),
+         true <- valid_optional_text?(Map.get(params, "badge"), 60),
+         true <- valid_optional_text?(Map.get(params, "locale"), 20),
+         {:ok, resolved_project} <- public_project(project) do
+      project_spec(params, title, resolved_project)
+    else
+      _ -> :error
+    end
+  end
+
   def spec(_params), do: :error
 
   defp marketing_spec(params, title, icon_path) do
@@ -169,6 +188,26 @@ defmodule Tuist.OpenGraphImageTemplates do
           "marketing_api_docs" ->
             MarketingImages.render_api_docs_html(common_opts)
         end
+
+      OpenGraphImageRenderer.render(html, title)
+    end)
+  end
+
+  defp project_spec(params, title, %Project{}) do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+    tuist_logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+
+    build_spec(params, project_asset_hash(), fn ->
+      html =
+        ProjectImage.render_html(
+          title: title,
+          project: Map.fetch!(params, "project"),
+          subtitle: Map.get(params, "subtitle"),
+          badge: Map.get(params, "badge"),
+          fonts_dir: fonts_dir,
+          tuist_logo_path: tuist_logo_path
+        )
 
       OpenGraphImageRenderer.render(html, title)
     end)
@@ -238,6 +277,23 @@ defmodule Tuist.OpenGraphImageTemplates do
       {:file, Path.join(priv_dir, "static/images/og_template.png")},
       {:dir, Path.join(priv_dir, "static/fonts")}
     ])
+  end
+
+  defp project_asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OpenGraphImages.cached_key(:project_open_graph_template_assets, [
+      {:module, ProjectImage},
+      {:dir, Path.join(priv_dir, "static/fonts")},
+      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+    ])
+  end
+
+  defp public_project(slug) do
+    case Projects.get_project_by_slug(slug) do
+      {:ok, %Project{visibility: :public} = project} -> {:ok, project}
+      _ -> :error
+    end
   end
 
   defp allowed_keys?(params, required, optional) do
