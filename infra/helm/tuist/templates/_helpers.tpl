@@ -833,12 +833,33 @@ workload is enabled, which is what keeps the schema clone, the backfill and
 the shadow writes inert everywhere else.
 */ -}}
 {{- define "tuist.clickhouseBareMetalEnv" -}}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- end }}
+
+{{/*
+The same env, but reading the tailnet URL. Only for writers that are not on the
+pod network: the macOS fleet's xcresult-processor runs in a Tart VM with a
+tailnet address, so the in-cluster Service name in `url` does not resolve for
+it. It wrote the whole test family to the system of record and mirrored none
+of it until this existed.
+*/}}
+{{- define "tuist.clickhouseBareMetalTailnetEnv" -}}
+{{- if .Values.clickhouse.managed.tailscale.enabled }}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url-tailnet") }}
+{{- else }}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- end }}
+{{- end }}
+
+{{- define "tuist.clickhouseBareMetalEnvForKey" -}}
+{{- $key := .key }}
+{{- with .root }}
 {{- if .Values.clickhouse.managed.enabled }}
 - name: TUIST_CLICKHOUSE_BARE_METAL_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
-      key: url
+      key: {{ $key }}
       # `optional` because the migration Job is a pre-upgrade hook and this
       # Secret is an ordinary release resource, so on the deploy that first
       # introduces the managed ClickHouse the Secret does not exist yet. A
@@ -851,6 +872,7 @@ the shadow writes inert everywhere else.
 {{- if .Values.clickhouse.managed.shadowWrites.enabled }}
 - name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
   value: "1"
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
