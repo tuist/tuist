@@ -32,6 +32,16 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
+  # Prepare the Canada wildcard and aliases before handing the URLs to clients.
+  # Follow infra/kura-controller/REGIONAL_ROUTING.md to verify and publish.
+  regionalRouting:
+    publishEndpoints: false
+    regions:
+      - region: ca-east
+        domain: ca-east.staging.kura.tuist.dev
+        ingressClass: kura-ca-east
+        ingressNamespace: platform
+        ingressDaemonSet: platform-kura-ca-east-ingress-nginx-controller
   telemetry:
     deploymentEnvironment: staging
 

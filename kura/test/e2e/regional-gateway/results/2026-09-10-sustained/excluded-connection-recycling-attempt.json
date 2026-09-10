@@ -1,0 +1,12 @@
+{
+  "protocol": "grpc",
+  "operation": "write",
+  "size_bytes": 262144,
+  "requests": 4096,
+  "errors": 15,
+  "first_error": "rpc error: code = Unavailable desc = the connection is draining",
+  "wall_s": 9.70946218,
+  "included_in_results": false,
+  "client_facing_keepalive_requests": 1000,
+  "cleanup": "Runner exited nonzero and deleted all ten temporary resources."
+}

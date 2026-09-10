@@ -1,0 +1,7 @@
+{
+  "backend-a": "usage_usec 64004\nuser_usec 22647\nsystem_usec 41356\ncore_sched.force_idle_usec 0\nnr_periods 30\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n7991296\n9383936\n",
+  "backend-b": "usage_usec 67542\nuser_usec 22877\nsystem_usec 44665\ncore_sched.force_idle_usec 0\nnr_periods 33\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n7782400\n8957952\n",
+  "gateway-a": "usage_usec 57982\nuser_usec 20535\nsystem_usec 37447\ncore_sched.force_idle_usec 0\nnr_periods 5\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n6496256\n7806976\n",
+  "gateway-b": "usage_usec 69335\nuser_usec 24471\nsystem_usec 44864\ncore_sched.force_idle_usec 0\nnr_periods 5\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n6500352\n7745536\n",
+  "client": "usage_usec 63030\nuser_usec 13081\nsystem_usec 49948\ncore_sched.force_idle_usec 0\nnr_periods 59\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n18792448\n20508672\n"
+}

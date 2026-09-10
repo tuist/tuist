@@ -1,0 +1,65 @@
+{
+  "client_binary_sha256": "51aade944bb9db5b45437d0ddcc7c82998e887247400a7080f4ea989a26d36fb",
+  "pods": [
+    {
+      "name": "kura-hop-20260910102114-backend-a",
+      "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+      "ip": "192.168.10.130",
+      "containers": [
+        {
+          "name": "kura",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "imageID": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        }
+      ]
+    },
+    {
+      "name": "kura-hop-20260910102114-backend-b",
+      "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+      "ip": "192.168.6.3",
+      "containers": [
+        {
+          "name": "kura",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "imageID": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        }
+      ]
+    },
+    {
+      "name": "kura-hop-20260910102114-client",
+      "node": "bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8",
+      "ip": "192.168.1.88",
+      "containers": [
+        {
+          "name": "client",
+          "image": "docker.io/library/debian:bookworm-slim",
+          "imageID": "docker.io/library/debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
+        }
+      ]
+    },
+    {
+      "name": "kura-hop-20260910102114-gateway-a",
+      "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+      "ip": "192.168.10.78",
+      "containers": [
+        {
+          "name": "nginx",
+          "image": "docker.io/library/nginx:1.27.3-alpine",
+          "imageID": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        }
+      ]
+    },
+    {
+      "name": "kura-hop-20260910102114-gateway-b",
+      "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+      "ip": "192.168.6.148",
+      "containers": [
+        {
+          "name": "nginx",
+          "image": "docker.io/library/nginx:1.27.3-alpine",
+          "imageID": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        }
+      ]
+    }
+  ]
+}

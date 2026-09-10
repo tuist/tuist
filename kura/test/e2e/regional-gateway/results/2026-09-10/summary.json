@@ -1,0 +1,152 @@
+[
+  {
+    "protocol": "grpc",
+    "operation": "read",
+    "size_bytes": 4096,
+    "local": {
+      "p50_ms": 1.0781209999999999,
+      "p95_ms": 1.3923565,
+      "successful_mbps": 30.260862088600195
+    },
+    "remote": {
+      "p50_ms": 1.4844085,
+      "p95_ms": 1.9232315,
+      "successful_mbps": 21.90101354179771
+    }
+  },
+  {
+    "protocol": "grpc",
+    "operation": "read",
+    "size_bytes": 262144,
+    "local": {
+      "p50_ms": 18.614685,
+      "p95_ms": 28.460718,
+      "successful_mbps": 842.62117601411
+    },
+    "remote": {
+      "p50_ms": 18.7495185,
+      "p95_ms": 34.3066695,
+      "successful_mbps": 792.2577736957171
+    }
+  },
+  {
+    "protocol": "grpc",
+    "operation": "write",
+    "size_bytes": 262144,
+    "local": {
+      "p50_ms": 18.9520195,
+      "p95_ms": 38.131446499999996,
+      "successful_mbps": 745.8852771828115
+    },
+    "remote": {
+      "p50_ms": 19.9664495,
+      "p95_ms": 43.789287,
+      "successful_mbps": 698.3511299332647
+    }
+  },
+  {
+    "protocol": "grpc",
+    "operation": "read",
+    "size_bytes": 8388608,
+    "local": {
+      "p50_ms": 252.64964550000002,
+      "p95_ms": 496.34488450000003,
+      "successful_mbps": 899.8787286966954
+    },
+    "remote": {
+      "p50_ms": 296.16684899999996,
+      "p95_ms": 326.0047475,
+      "successful_mbps": 898.0023370660044
+    }
+  },
+  {
+    "protocol": "grpc",
+    "operation": "write",
+    "size_bytes": 8388608,
+    "local": {
+      "p50_ms": 446.218817,
+      "p95_ms": 463.31052250000005,
+      "successful_mbps": 602.023856591672
+    },
+    "remote": {
+      "p50_ms": 459.1771115,
+      "p95_ms": 485.7040375,
+      "successful_mbps": 573.0315029573953
+    }
+  },
+  {
+    "protocol": "http2",
+    "operation": "read",
+    "size_bytes": 4096,
+    "local": {
+      "p50_ms": 1.0785965,
+      "p95_ms": 1.4422670000000002,
+      "successful_mbps": 30.338754656276357
+    },
+    "remote": {
+      "p50_ms": 1.5246095,
+      "p95_ms": 1.9618375,
+      "successful_mbps": 21.109490500490818
+    }
+  },
+  {
+    "protocol": "http2",
+    "operation": "read",
+    "size_bytes": 262144,
+    "local": {
+      "p50_ms": 18.6352605,
+      "p95_ms": 27.665049500000002,
+      "successful_mbps": 850.3197795278077
+    },
+    "remote": {
+      "p50_ms": 18.639856,
+      "p95_ms": 37.368269,
+      "successful_mbps": 789.0277278636222
+    }
+  },
+  {
+    "protocol": "http2",
+    "operation": "write",
+    "size_bytes": 262144,
+    "local": {
+      "p50_ms": 18.4416,
+      "p95_ms": 28.4372175,
+      "successful_mbps": 826.3198950612092
+    },
+    "remote": {
+      "p50_ms": 19.547562499999998,
+      "p95_ms": 40.5229865,
+      "successful_mbps": 724.0688999408469
+    }
+  },
+  {
+    "protocol": "http2",
+    "operation": "read",
+    "size_bytes": 8388608,
+    "local": {
+      "p50_ms": 217.151217,
+      "p95_ms": 948.4009115,
+      "successful_mbps": 899.0061449852028
+    },
+    "remote": {
+      "p50_ms": 263.4331615,
+      "p95_ms": 530.5869064999999,
+      "successful_mbps": 898.3214996679212
+    }
+  },
+  {
+    "protocol": "http2",
+    "operation": "write",
+    "size_bytes": 8388608,
+    "local": {
+      "p50_ms": 315.025762,
+      "p95_ms": 408.4562115,
+      "successful_mbps": 841.3938180051674
+    },
+    "remote": {
+      "p50_ms": 312.006123,
+      "p95_ms": 416.94452049999995,
+      "successful_mbps": 862.3713282034279
+    }
+  }
+]

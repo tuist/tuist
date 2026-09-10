@@ -36,6 +36,7 @@ func main() {
 	var grpcClusterIssuer string
 	var publicTLSSecretName string
 	var publicTLSDNSNames string
+	var regionalRoutingConfig string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
 
@@ -49,12 +50,19 @@ func main() {
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 
+	flag.StringVar(&regionalRoutingConfig, "regional-routing-config", "", "JSON array of regional wildcard domains and existing host-network ingress DaemonSets")
+
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	regions, err := controllers.ParseRegionalRouting(regionalRoutingConfig)
+	if err != nil || (len(regions) > 0 && (watchNamespace == "" || publicTLSSecretName == "" || publicTLSDNSNames == "" || grpcClusterIssuer == "")) {
+		setupLog.Error(err, "regional routing requires valid config, namespace, shared TLS secret, DNS names and issuer")
+		os.Exit(1)
+	}
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -86,6 +94,7 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		GRPCClusterIssuer:   grpcClusterIssuer,
 		PublicTLSSecretName: publicTLSSecretName,
+		RegionalRouting:     regions,
 		OTLPTracesEndpoint:  otlpTracesEndpoint,
 		Environment:         deploymentEnvironment,
 		MetricsClient:       metricsClient,
@@ -100,6 +109,9 @@ func main() {
 				names = append(names, trimmed)
 			}
 		}
+		for _, region := range regions {
+			names = append(names, "*."+region.Domain)
+		}
 		if err := mgr.Add(&controllers.PublicWildcardCertificate{
 			Client:        mgr.GetClient(),
 			Namespace:     watchNamespace,
@@ -108,6 +120,13 @@ func main() {
 			ClusterIssuer: grpcClusterIssuer,
 		}); err != nil {
 			setupLog.Error(err, "setup PublicWildcardCertificate")
+			os.Exit(1)
+		}
+	}
+
+	if len(regions) > 0 {
+		if err := mgr.Add(&controllers.RegionalDNS{Client: mgr.GetClient(), APIReader: mgr.GetAPIReader(), Namespace: watchNamespace, Regions: regions}); err != nil {
+			setupLog.Error(err, "setup regional DNS")
 			os.Exit(1)
 		}
 	}

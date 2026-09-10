@@ -433,6 +433,23 @@ defmodule Tuist.Environment do
     end)
   end
 
+  @doc """
+  Regional wildcard domains approved for endpoint publication, keyed by region.
+  Configure only after the controller has prepared and verified DNS, TLS and
+  routing. The explicit environment argument keeps parsing tests process-local.
+  """
+  def kura_regional_dns_domain(region_id, environment \\ System.get_env()) do
+    with {:ok, domains} when is_map(domains) <-
+           Jason.decode(Map.get(environment, "TUIST_KURA_REGIONAL_DNS_DOMAINS", "{}")),
+         domain when is_binary(domain) and byte_size(domain) <= 184 <- Map.get(domains, region_id),
+         true <-
+           Regex.match?(~r/\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/, domain) do
+      domain
+    else
+      _ -> nil
+    end
+  end
+
   def kura_tuist_base_url do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end

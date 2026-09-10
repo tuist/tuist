@@ -140,6 +140,7 @@ type KuraInstanceReconciler struct {
 	// certificate no per-instance Certificate is requested, so onboarding an
 	// account issues nothing against the ACME per-registered-domain limit.
 	PublicTLSSecretName string
+	RegionalRouting     []RegionalRouting
 
 	OTLPTracesEndpoint  string
 	Environment         string
@@ -288,11 +289,23 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // host, makes ingress-nginx serve its self-signed default. Coverage is checked
 // rather than presence because an ACME wildcard matches exactly one label.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	if r.PublicTLSSecretName == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.PublicHost == "" {
+		return false
+	}
+	for _, host := range r.publicHosts(ctx, instance) {
+		if !r.sharedPublicTLSCoversHost(ctx, instance.Namespace, host) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) sharedPublicTLSCoversHost(ctx context.Context, namespace, host string) bool {
+	if r.PublicTLSSecretName == "" || host == "" {
 		return false
 	}
 	secret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Name: r.PublicTLSSecretName, Namespace: instance.Namespace}, secret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: r.PublicTLSSecretName, Namespace: namespace}, secret); err != nil {
 		return false
 	}
 	block, _ := pem.Decode(secret.Data[corev1.TLSCertKey])
@@ -303,7 +316,7 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	return leaf.VerifyHostname(instance.Spec.PublicHost) == nil
+	return leaf.VerifyHostname(host) == nil
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
@@ -462,6 +475,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileExternalService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if err := r.prepareRegionalRouting(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -711,6 +728,9 @@ var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Versio
 // regions (a region never flips host-network state, so the LoadBalancer path
 // needs no DNSEndpoint cleanup here).
 func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if region := r.regionalRouting(instance); region != nil && instance.Spec.MeshPeerHostNetwork {
+		return r.reconcileRegionalLegacyDNS(ctx, instance, region, true)
+	}
 	// Only host-network regions ever get a peer DNSEndpoint (LB regions publish
 	// DNS off the public peer Service). Never touching the DNSEndpoint API for
 	// non-host-network regions keeps the common reconcile path free of it.
@@ -786,6 +806,9 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 	instance *kurav1alpha1.KuraInstance,
 	now time.Time,
 ) error {
+	if r.regionalRouting(instance) != nil {
+		return nil
+	}
 	if !meshManagedPeerTLS(instance) || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 		return nil
 	}
@@ -1436,6 +1459,9 @@ func legacyAccountPublicPeerServiceName(instance *kurav1alpha1.KuraInstance) str
 // this. The short TTL keeps client re-resolution quick when the account moves
 // boxes (the warm-handoff cutover flips this record's target).
 func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	if region := r.regionalRouting(instance); region != nil {
+		return r.reconcileRegionalLegacyDNS(ctx, instance, region, false)
+	}
 	// Only host-network regions get a per-account public DNSEndpoint. Never
 	// touching the DNSEndpoint API elsewhere keeps the common reconcile path
 	// (LB regions, Private instances) free of it.
@@ -1703,9 +1729,12 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		}
 		ingress.Labels = labels(instance)
 		ingress.Annotations = publicIngressAnnotations()
+		if r.regionalRouting(instance) != nil {
+			ingress.Annotations["external-dns.alpha.kubernetes.io/controller"] = "kura-controller"
+		}
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{instance.Spec.PublicHost},
+			Hosts:      r.publicHosts(ctx, instance),
 			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
@@ -1718,6 +1747,13 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 				}},
 			}},
 		}}
+		rule := ingress.Spec.Rules[0]
+		ingress.Spec.Rules = nil
+		for _, host := range r.publicHosts(ctx, instance) {
+			copy := *rule.DeepCopy()
+			copy.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, copy)
+		}
 		return nil
 	})
 	return err
@@ -1787,6 +1823,9 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		}
 		ingress.Labels = labels(instance)
 		ingress.Annotations = grpcIngressAnnotations()
+		if r.regionalRouting(instance) != nil {
+			ingress.Annotations["external-dns.alpha.kubernetes.io/controller"] = "kura-controller"
+		}
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
 		// The backend is the same co-hosted cache port that serves HTTP;
@@ -1806,6 +1845,13 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Paths: paths,
 			}},
 		}}
+		rule := ingress.Spec.Rules[0]
+		ingress.Spec.Rules = nil
+		for _, host := range r.publicHosts(ctx, instance) {
+			copy := *rule.DeepCopy()
+			copy.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, copy)
+		}
 		return nil
 	})
 	return err
@@ -2582,7 +2628,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.PublicHost),
+			"dnsNames":   dnsNames(r.publicHosts(ctx, instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -2784,7 +2830,8 @@ func generateAccountPeerCAData(instance *kurav1alpha1.KuraInstance) (map[string]
 // non-nil (mesh mode) the embedded CA must be the live account CA, so rotating
 // it reissues every instance leaf, and the leaf must cover the account peer
 // Service (the SNI replication clients verify against). When caCertPEM is nil
-// (self-signed mode) the leaf only needs to cover the instance's own pods.
+// (self-signed mode) the leaf must cover the instance's own pods. Both modes
+// also validate any configured public peer aliases.
 func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraInstance, caCertPEM []byte) bool {
 	if len(data[peerTLSCAFile]) == 0 || len(data[peerTLSCertFile]) == 0 || len(data[peerTLSKeyFile]) == 0 {
 		return false
@@ -2819,12 +2866,11 @@ func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraI
 	}); err != nil {
 		return false
 	}
-	// In mesh mode the stored leaf must also cover the public peer host so
-	// external nodes can verify it; a leaf predating MeshPublicPeerHost is
-	// reissued rather than served.
-	if caCertPEM != nil && instance.Spec.MeshPublicPeerHost != "" {
+	// Preserve verification for every public peer alias during endpoint
+	// migration; an older leaf without the expanded SANs is reissued.
+	for _, host := range publicPeerHosts(instance) {
 		if _, err := cert.Verify(x509.VerifyOptions{
-			DNSName:   instance.Spec.MeshPublicPeerHost,
+			DNSName:   host,
 			Roots:     roots,
 			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		}); err != nil {
@@ -2937,9 +2983,7 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 	// The public peer host is the SNI a self-hosted node verifies the
 	// managed peers against when dialing in over the internet, so the leaf
 	// must cover it too.
-	if instance.Spec.MeshPublicPeerHost != "" {
-		names = append(names, instance.Spec.MeshPublicPeerHost)
-	}
+	names = append(names, publicPeerHosts(instance)...)
 	return names
 }
 
@@ -4493,6 +4537,8 @@ func kuraInstanceDesiredStateChangedPredicate() predicate.Predicate {
 				return false
 			}
 			return oldInstance.Generation != newInstance.Generation ||
+				oldInstance.Annotations[regionalPeerHostAnnotation] != newInstance.Annotations[regionalPeerHostAnnotation] ||
+				oldInstance.Annotations[legacyPeerHostsAnnotation] != newInstance.Annotations[legacyPeerHostsAnnotation] ||
 				oldInstance.DeletionTimestamp.IsZero() != newInstance.DeletionTimestamp.IsZero()
 		},
 	}

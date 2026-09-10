@@ -160,19 +160,21 @@ func peerDemuxDesiredState(
 		if instance.Spec.Region != region || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 			continue
 		}
-		if validationErrors := validation.IsDNS1123Subdomain(instance.Spec.MeshPublicPeerHost); len(validationErrors) > 0 {
-			issues = append(issues, peerDemuxRouteIssue{
-				host:   instance.Spec.MeshPublicPeerHost,
-				reason: strings.Join(validationErrors, "; "),
-			})
-			continue
+		for _, host := range publicPeerHosts(instance) {
+			if validationErrors := validation.IsDNS1123Subdomain(host); len(validationErrors) > 0 {
+				issues = append(issues, peerDemuxRouteIssue{
+					host:   host,
+					reason: strings.Join(validationErrors, "; "),
+				})
+				continue
+			}
+			candidate := peerDemuxRouteCandidate{instance: instance, route: peerDemuxRoute{
+				host: host,
+				backend: fmt.Sprintf("%s.%s.svc.cluster.local:%d",
+					instancePublicPeerServiceName(instance), namespace, peerPort),
+			}}
+			candidatesByHost[candidate.route.host] = append(candidatesByHost[candidate.route.host], candidate)
 		}
-		candidate := peerDemuxRouteCandidate{instance: instance, route: peerDemuxRoute{
-			host: instance.Spec.MeshPublicPeerHost,
-			backend: fmt.Sprintf("%s.%s.svc.cluster.local:%d",
-				instancePublicPeerServiceName(instance), namespace, peerPort),
-		}}
-		candidatesByHost[candidate.route.host] = append(candidatesByHost[candidate.route.host], candidate)
 		eligibleInstances = append(eligibleInstances, instance)
 	}
 

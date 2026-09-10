@@ -1,0 +1,13 @@
+{
+  "mode": "run",
+  "context": "tuist-k8s-staging.taild6d7bb.ts.net",
+  "node_a": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+  "node_b": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+  "client_node": "bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8",
+  "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+  "output": "/tmp/kura-hop-sustained-b",
+  "binary": "/tmp/kura-hop-build/benchmark",
+  "rounds": 4,
+  "backend": "b",
+  "profile": "sustained"
+}

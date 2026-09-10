@@ -25,6 +25,9 @@
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- if and .Values.kuraController.regionalRouting.regions (not $publicWildcard.enabled) }}
+{{- fail "regional routing requires kuraController.publicWildcardCertificate.enabled" }}
+{{- end }}
 {{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
 {{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
 {{- end }}
@@ -165,6 +168,39 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
+{{- $ingressNamespaces := dict }}
+{{- range .Values.kuraController.regionalRouting.regions }}
+{{- $_ := set $ingressNamespaces .ingressNamespace true }}
+{{- end }}
+{{- range $ingressNamespace, $_ := $ingressNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-regional-ingress
+  namespace: {{ $ingressNamespace | quote }}
+rules:
+  - apiGroups: [apps]
+    resources: [daemonsets]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-regional-ingress
+  namespace: {{ $ingressNamespace | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-regional-ingress
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -355,6 +391,9 @@ spec:
             {{- end }}
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            {{- end }}
+            {{- with .Values.kuraController.regionalRouting.regions }}
+            - {{ printf "--regional-routing-config=%s" (toJson .) | quote }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
           ports:
