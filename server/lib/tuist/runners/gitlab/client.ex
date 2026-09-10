@@ -57,13 +57,17 @@ defmodule Tuist.Runners.GitLab.Client do
              retry: false,
              receive_timeout: to_timeout(minute: 1)
            ) do
+        {:ok, %{headers: %{"job-status" => [state]}}} when state in ["canceled", "canceling"] ->
+          {:error, :cancelled}
+
         {:ok, %{status: 204}} ->
           {:ok, nil}
 
-        {:ok, %{status: status, headers: headers, body: response}} when status in 200..299 ->
-          if Map.get(headers, "job-status") in [["canceled"], ["canceling"]],
-            do: {:error, :cancelled},
-            else: decode_response(response)
+        {:ok, %{status: status}} when method == :put and status in 200..299 ->
+          {:ok, nil}
+
+        {:ok, %{status: status, body: response}} when status in 200..299 ->
+          decode_response(response)
 
         {:ok, %{status: status}} when status in [401, 403] ->
           {:error, :unauthorized}
@@ -85,7 +89,8 @@ defmodule Tuist.Runners.GitLab.Client do
 
   defp request_headers(url, path, body) do
     headers = [{"host", URI.parse(url).authority}, {"accept-encoding", "identity"}]
-    if path == "/jobs/request", do: [{"runner-token", body.token} | headers], else: headers
+    token_header = if path == "/jobs/request", do: "runner-token", else: "job-token"
+    [{token_header, body.token} | headers]
   end
 
   defp bounded_body({:data, chunk}, {request, response}) do

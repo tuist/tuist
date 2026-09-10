@@ -19,8 +19,11 @@ defmodule Tuist.Runners.GitLab.ClientTest do
 
       conn
       |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.send_resp(201, JSON.encode!(%{id: 42, token: "job-local-test"}))
+      |> respond()
     end
+
+    defp respond(%{method: "PUT"} = conn), do: Plug.Conn.send_resp(conn, 200, JSON.encode!("200"))
+    defp respond(conn), do: Plug.Conn.send_resp(conn, 201, JSON.encode!(%{id: 42, token: "job-local-test"}))
   end
 
   setup :verify_on_exit!
@@ -56,11 +59,37 @@ defmodule Tuist.Runners.GitLab.ClientTest do
 
     expect(Req, :request, fn opts ->
       assert opts[:json].token == "job-token"
+      assert {"job-token", "job-token"} in opts[:headers]
       {:ok, %{status: 200, headers: %{"job-status" => ["canceling"]}, body: %{}}}
     end)
 
     assert {:error, :cancelled} =
              Client.update_job("https://gitlab.com", %{"id" => 42, "token" => "job-token"}, "running", nil)
+  end
+
+  test "recognizes cancellation even when the coordinator rejects further updates" do
+    expect(SSRFGuard, :pin, fn url -> {:ok, url, "gitlab.com"} end)
+    expect(Req, :request, fn _ -> {:ok, %{status: 403, headers: %{"job-status" => ["canceled"]}}} end)
+
+    assert {:error, :cancelled} =
+             Client.update_job("https://gitlab.com", %{"id" => 42, "token" => "job-token"}, "running", nil)
+  end
+
+  test "accepts the scalar JSON response returned by real coordinator keepalives" do
+    server = start_supervised!({Bandit, plug: {Coordinator, self()}, port: 0, ip: :loopback, startup_log: false})
+    {:ok, {_, port}} = ThousandIsland.listener_info(server)
+    expect(SSRFGuard, :connect_options, fn "127.0.0.1" -> [] end)
+
+    expect(SSRFGuard, :pin, fn "https://gitlab.example.com/api/v4/jobs/42" ->
+      {:ok, "http://127.0.0.1:#{port}/api/v4/jobs/42", "127.0.0.1"}
+    end)
+
+    assert {:ok, nil} =
+             Client.update_job("https://gitlab.example.com", %{"id" => 42, "token" => "job-local-test"}, "running", nil)
+
+    assert_receive {:coordinator_request, "PUT", "/api/v4/jobs/42", body, headers}
+    assert JSON.decode!(body)["state"] == "running"
+    assert {"job-token", "job-local-test"} in headers
   end
 
   test "bounds response bytes and disables implicit decompression" do

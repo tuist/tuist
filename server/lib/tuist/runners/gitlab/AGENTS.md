@@ -11,6 +11,8 @@ assignment upstream if persistence fails.
   job response and a job-scoped Tuist report token.
 - `Client` pins public DNS and disables redirects through the existing SSRF
   guard. Self-managed instances must be reachable over public HTTPS.
+- Assignment responses contain objects; successful job updates may return a
+  scalar JSON status. Check cancellation headers before HTTP error handling.
 - Queue at most five waiting assignments per connection, refresh their status,
   and fail them after ten minutes without a machine. A stopped machine fails
   through GitLab with `runner_system_failure`; never replay its job response.
