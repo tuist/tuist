@@ -23,6 +23,8 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Runners.JobReports
   alias Tuist.Runners.JobReportToken
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -48,9 +50,23 @@ defmodule Tuist.Runners.GitLab do
   end
 
   def save_connection(account_id, attrs) do
-    connection =
-      Repo.get_by(Connection, account_id: account_id, profile_label: Map.get(attrs, :profile_label)) || %Connection{}
+    attrs = Map.update(attrs, :url, "https://gitlab.com", &String.trim_trailing(&1, "/"))
 
+    connection =
+      if id = Map.get(attrs, :id) do
+        Repo.get_by(Connection, account_id: account_id, id: id)
+      else
+        Repo.get_by(Connection, account_id: account_id, url: attrs.url) || %Connection{}
+      end
+
+    if is_nil(connection) do
+      {:error, :not_found}
+    else
+      save_connection_record(connection, account_id, attrs)
+    end
+  end
+
+  defp save_connection_record(connection, account_id, attrs) do
     attrs = attrs |> Map.put(:account_id, account_id) |> Map.put(:enabled, true)
 
     attrs =
@@ -95,12 +111,11 @@ defmodule Tuist.Runners.GitLab do
     with %Connection{enabled: true} = current <- connection,
          {:ok, account} <- Accounts.get_account_by_id(current.account_id),
          true <- FeatureFlags.runners_enabled?(account),
-         false <- Allowance.exhausted?(account),
-         {:ok, target} <- Dispatch.resolve_dispatch_target(account, [current.profile_label]) do
+         false <- Allowance.exhausted?(account) do
       if length(waiting_jobs(current)) < @max_waiting_jobs do
-        case Client.request_job(current, target.platform) do
+        case Client.request_job(current) do
           {:ok, nil} -> {:ok, 0}
-          {:ok, payload} -> persist_assignment(current, account, target, payload)
+          {:ok, payload} -> persist_assignment(current, account, payload)
           error -> error
         end
       else
@@ -115,7 +130,7 @@ defmodule Tuist.Runners.GitLab do
     end
   end
 
-  defp persist_assignment(connection, account, target, %{"id" => id, "token" => token} = payload)
+  defp persist_assignment(connection, account, %{"id" => id, "token" => token} = payload)
        when is_integer(id) and id > 0 and is_binary(token) and token != "" do
     variables = Map.new(Map.get(payload, "variables", []), &{&1["key"], &1["value"]})
 
@@ -124,33 +139,20 @@ defmodule Tuist.Runners.GitLab do
         repository_path(get_in(payload, ["git_info", "repo_url"]), connection.url)
 
     pipeline_id = integer(variables["CI_PIPELINE_ID"])
+    target = resolve_job_target(account, variables["CI_JOB_TAGS"])
 
-    result =
-      Repo.transaction(fn ->
-        case Repo.one(from(c in Connection, where: c.id == ^connection.id, lock: "FOR UPDATE")) do
-          %Connection{enabled: true} -> :ok
-          _ -> Repo.rollback(:disconnected)
-        end
+    routing_error = routing_error(target)
 
-        job =
-          Repo.insert!(%Job{
-            account_id: account.id,
-            connection_id: connection.id,
-            url: connection.url,
-            job_id: id,
-            project_path: project_path,
-            pipeline_id: pipeline_id,
-            payload: JSON.encode!(payload)
-          })
-
-        enqueue_assignment(job, account, target, payload)
-
-        job
-      end)
+    result = store_assignment(connection, account, payload, target, routing_error, project_path, pipeline_id)
 
     case result do
-      {:ok, _} ->
-        {:ok, 1}
+      {:ok, job} ->
+        if routing_error do
+          settle_rejected(job, payload)
+          {:error, :invalid_job_tags}
+        else
+          {:ok, 1}
+        end
 
       {:error, _} ->
         Client.update_job(connection.url, payload, "failed", "runner_system_failure")
@@ -162,7 +164,62 @@ defmodule Tuist.Runners.GitLab do
       {:error, :persistence_failed}
   end
 
-  defp persist_assignment(_connection, _account, _target, _payload), do: {:error, :invalid_response}
+  defp persist_assignment(_connection, _account, _payload), do: {:error, :invalid_response}
+
+  defp routing_error({:ok, _}), do: nil
+
+  defp routing_error({:error, _}) do
+    "Set exactly one existing Tuist profile in the job tags, for example tags: [tuist-macos]. GitLab 19.3 or newer is required."
+  end
+
+  defp store_assignment(connection, account, payload, target, routing_error, project_path, pipeline_id) do
+    Repo.transaction(fn ->
+      case Repo.one(from(c in Connection, where: c.id == ^connection.id, lock: "FOR UPDATE")) do
+        %Connection{enabled: true} -> :ok
+        _ -> Repo.rollback(:disconnected)
+      end
+
+      job =
+        Repo.insert!(%Job{
+          account_id: account.id,
+          connection_id: connection.id,
+          url: connection.url,
+          job_id: payload["id"],
+          project_path: project_path,
+          pipeline_id: pipeline_id,
+          payload: JSON.encode!(payload),
+          routing_error: routing_error
+        })
+
+      case target do
+        {:ok, resolved} -> enqueue_assignment(job, account, resolved, payload)
+        {:error, _} -> :ok
+      end
+
+      job
+    end)
+  end
+
+  defp resolve_job_target(account, encoded_tags) when is_binary(encoded_tags) do
+    with {:ok, tags} when is_list(tags) <- JSON.decode(encoded_tags),
+         true <- Enum.all?(tags, &is_binary/1),
+         [label] <- tags |> Enum.filter(&String.starts_with?(String.downcase(&1), Profile.prefix())) |> Enum.uniq(),
+         {:ok, profile} <- Profiles.match_for_dispatch(account, [label]) do
+      Dispatch.resolve_dispatch_target(account, [Profile.dispatch_label(profile)])
+    else
+      _ -> {:error, :invalid_job_tags}
+    end
+  end
+
+  defp resolve_job_target(_account, _encoded_tags), do: {:error, :invalid_job_tags}
+
+  defp settle_rejected(job, payload) do
+    case Client.reject_job(job.url, payload, job.routing_error) do
+      {:ok, _} -> purge_payload(job.workflow_job_id)
+      {:error, reason} when reason in [:cancelled, :unauthorized, :not_found] -> purge_payload(job.workflow_job_id)
+      _ -> :ok
+    end
+  end
 
   defp enqueue_assignment(job, account, target, payload) do
     WorkflowJobs.enqueue_many_if_missing([
@@ -213,9 +270,11 @@ defmodule Tuist.Runners.GitLab do
   defp waiting_jobs(connection) do
     Repo.all(
       from(j in Job,
-        join: w in WorkflowJob,
+        left_join: w in WorkflowJob,
         on: w.workflow_job_id == j.workflow_job_id,
-        where: j.connection_id == ^connection.id and w.status in ["queued", "claimed"] and not is_nil(j.payload),
+        where:
+          j.connection_id == ^connection.id and not is_nil(j.payload) and
+            (w.status in ["queued", "claimed"] or not is_nil(j.routing_error)),
         select: j
       )
     )
@@ -224,16 +283,25 @@ defmodule Tuist.Runners.GitLab do
   defp settle_waiting(connection, disconnecting) do
     Enum.each(waiting_jobs(connection), fn job ->
       payload = JSON.decode!(job.payload)
-      timed_out = DateTime.diff(DateTime.utc_now(), job.inserted_at) >= @max_wait_seconds
-      state = if disconnecting or timed_out, do: "failed", else: "running"
 
-      case Client.update_job(job.url, payload, state, if(state == "failed", do: "runner_system_failure")) do
-        {:ok, _} when state == "failed" -> complete_unstarted(job, "failure")
-        {:error, :cancelled} -> complete_unstarted(job, "cancelled")
-        {:error, reason} when reason in [:unauthorized, :not_found] -> complete_unstarted(job, "failure")
-        _ -> :ok
+      if job.routing_error do
+        settle_rejected(job, payload)
+      else
+        settle_unstarted(job, payload, disconnecting)
       end
     end)
+  end
+
+  defp settle_unstarted(job, payload, disconnecting) do
+    timed_out = DateTime.diff(DateTime.utc_now(), job.inserted_at) >= @max_wait_seconds
+    state = if disconnecting or timed_out, do: "failed", else: "running"
+
+    case Client.update_job(job.url, payload, state, if(state == "failed", do: "runner_system_failure")) do
+      {:ok, _} when state == "failed" -> complete_unstarted(job, "failure")
+      {:error, :cancelled} -> complete_unstarted(job, "cancelled")
+      {:error, reason} when reason in [:unauthorized, :not_found] -> complete_unstarted(job, "failure")
+      _ -> :ok
+    end
   end
 
   defp complete_unstarted(job, conclusion) do
@@ -305,10 +373,20 @@ defmodule Tuist.Runners.GitLab do
   def record_poll_result(connection, result) do
     error =
       case result do
-        {:ok, _} -> nil
-        {:error, :unauthorized} -> "GitLab rejected the runner token. Rotate it in GitLab and update this connection."
-        {:error, :rate_limited} -> "GitLab is rate limiting runner requests. Tuist will retry."
-        {:error, _} -> "GitLab runner polling failed. Check the instance URL, runner token and Tuist profile."
+        {:ok, _} ->
+          nil
+
+        {:error, :unauthorized} ->
+          "GitLab rejected the runner token. Rotate it in GitLab and update this connection."
+
+        {:error, :invalid_job_tags} ->
+          "A GitLab job could not be routed. Set exactly one existing Tuist profile in its tags (GitLab 19.3+)."
+
+        {:error, :rate_limited} ->
+          "GitLab is rate limiting runner requests. Tuist will retry."
+
+        {:error, _} ->
+          "GitLab runner polling failed. Check the instance URL and runner token."
       end
 
     Repo.update_all(from(c in Connection, where: c.id == ^connection.id),

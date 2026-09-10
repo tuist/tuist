@@ -81,7 +81,7 @@ defmodule TuistWeb.IntegrationsLive do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
         params
-        |> Map.take(["url", "profile_label", "runner_token"])
+        |> Map.take(["id", "url", "runner_token"])
         |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
 
       case GitLab.save_connection(account.id, attrs) do
@@ -98,7 +98,7 @@ defmodule TuistWeb.IntegrationsLive do
              :gitlab_error,
              dgettext(
                "dashboard_integrations",
-               "Check the GitLab URL, Tuist profile label and runner authentication token."
+               "Check the GitLab URL and runner authentication token."
              )
            )}
       end

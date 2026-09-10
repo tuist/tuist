@@ -28,6 +28,46 @@ defmodule Tuist.Runners.GitLab.ClientTest do
 
   setup :verify_on_exit!
 
+  test "writes a routing error to the job trace before failing the job" do
+    payload = %{"id" => 42, "token" => "job-secret"}
+    expect(SSRFGuard, :pin, 2, fn url -> {:ok, url, "gitlab.com"} end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :patch
+      assert opts[:url] == "https://gitlab.com/api/v4/jobs/42/trace"
+      assert opts[:body] == "Tuist: Invalid job tags\n"
+      assert {"job-token", "job-secret"} in opts[:headers]
+      assert {"content-range", "0-23"} in opts[:headers]
+      {:ok, %{status: 202}}
+    end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :put
+      assert opts[:json].state == "failed"
+      assert opts[:json].failure_reason == "script_failure"
+      {:ok, %{status: 200}}
+    end)
+
+    assert {:ok, nil} = Client.reject_job("https://gitlab.com", payload, "Invalid job tags")
+  end
+
+  test "retries a rejected job update when the trace was already accepted" do
+    expect(SSRFGuard, :pin, 2, fn url -> {:ok, url, "gitlab.com"} end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :patch
+      {:ok, %{status: 416}}
+    end)
+
+    expect(Req, :request, fn opts ->
+      assert opts[:method] == :put
+      {:ok, %{status: 200}}
+    end)
+
+    assert {:ok, nil} =
+             Client.reject_job("https://gitlab.com", %{"id" => 42, "token" => "job-secret"}, "Invalid job tags")
+  end
+
   test "pins public DNS, disables redirects and never retries an acquisition" do
     connection = %Connection{id: 7, url: "https://gitlab.example.com", runner_token: "glrt-secret"}
 
@@ -45,13 +85,13 @@ defmodule Tuist.Runners.GitLab.ClientTest do
       {:ok, %{status: 204}}
     end)
 
-    assert {:ok, nil} = Client.request_job(connection, :macos)
+    assert {:ok, nil} = Client.request_job(connection)
   end
 
   test "refuses private instance addresses before sending credentials" do
     reject(&Req.request/1)
     connection = %Connection{id: 1, url: "https://127.0.0.1", runner_token: "glrt-secret"}
-    assert {:error, :private_ip_resolved} = Client.request_job(connection, :linux)
+    assert {:error, :private_ip_resolved} = Client.request_job(connection)
   end
 
   test "uses only the job token for status updates and recognizes cancellation" do
@@ -103,7 +143,7 @@ defmodule Tuist.Runners.GitLab.ClientTest do
       {:ok, %{status: 413}}
     end)
 
-    assert {:error, {:http_status, 413}} = Client.request_job(connection, :linux)
+    assert {:error, {:http_status, 413}} = Client.request_job(connection)
   end
 
   test "streams and decodes a real local coordinator assignment" do
@@ -116,7 +156,7 @@ defmodule Tuist.Runners.GitLab.ClientTest do
     end)
 
     connection = %Connection{id: 1, url: "https://gitlab.example.com", runner_token: "glrt-local-test"}
-    assert {:ok, %{"id" => 42, "token" => "job-local-test"}} = Client.request_job(connection, :linux)
+    assert {:ok, %{"id" => 42, "token" => "job-local-test"}} = Client.request_job(connection)
     assert_receive {:coordinator_request, "POST", "/api/v4/jobs/request", body, headers}
     assert JSON.decode!(body)["token"] == "glrt-local-test"
     assert {"runner-token", "glrt-local-test"} in headers

@@ -259,17 +259,27 @@
         <span data-part="title">{dgettext("dashboard_integrations", "GitLab CI")}</span>
         <span data-part="subtitle">{dgettext(
           "dashboard_integrations",
-          "Run GitLab CI jobs on Tuist runners. Connect a GitLab runner to each Tuist profile you want to use."
+          "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
         )}</span>
       </div>
-      <form id="connect-gitlab-form" phx-submit="save-gitlab">
+      <div :if={@gitlab_connections != []} data-part="actions">
+        <.button
+          :for={connection <- @gitlab_connections}
+          type="button"
+          label={dgettext("dashboard_integrations", "Disconnect")}
+          variant="secondary"
+          phx-click="disconnect-gitlab"
+          phx-value-id={connection.id}
+        />
+      </div>
+      <form :if={@gitlab_connections == []} id="connect-gitlab-form" phx-submit="save-gitlab">
         <.modal
           id="connect-gitlab-modal"
           title={dgettext("dashboard_integrations", "Connect GitLab CI")}
           description={
             dgettext(
               "dashboard_integrations",
-              "Create a GitLab project or group runner with tags matching your Tuist profile. Disable untagged jobs and paste its runner authentication token here."
+              "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
             )
           }
           header_size="large"
@@ -297,14 +307,6 @@
               type="basic"
               label={dgettext("dashboard_integrations", "GitLab URL")}
               value="https://gitlab.com"
-              required
-            />
-            <.text_input
-              id="gitlab-profile"
-              name="profile_label"
-              type="basic"
-              label={dgettext("dashboard_integrations", "Tuist profile label")}
-              placeholder="tuist-macos"
               required
             />
             <.text_input
@@ -340,16 +342,6 @@
       id={"gitlab-connection-#{connection.id}"}
       phx-submit="save-gitlab"
     >
-      <div data-part="header-row">
-        <span data-part="title">{connection.profile_label}</span>
-        <.button
-          type="button"
-          label={dgettext("dashboard_integrations", "Disconnect")}
-          variant="secondary"
-          phx-click="disconnect-gitlab"
-          phx-value-id={connection.id}
-        />
-      </div>
       <.alert
         :if={connection.last_error}
         status="error"
@@ -369,7 +361,7 @@
           )
         }
       />
-      <input type="hidden" name="profile_label" value={connection.profile_label} />
+      <input type="hidden" name="id" value={connection.id} />
       <div data-part="fields">
         <.text_input
           id={"gitlab-url-#{connection.id}"}

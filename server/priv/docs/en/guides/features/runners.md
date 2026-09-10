@@ -64,7 +64,7 @@ Your current limits are shown alongside each chart. If your workflows regularly 
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
         title="GitLab CI"
-        details="Connect a GitLab runner to a Tuist profile and target it with job tags."
+        details="Connect GitLab once and choose each job’s machine with pipeline tags."
         linkText="Get started"
         link="/guides/features/runners/gitlab-ci"/>
     <HomeCard

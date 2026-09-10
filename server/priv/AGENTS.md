@@ -32,4 +32,4 @@ This directory contains database migrations and other private assets.
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
 
-- GitLab runner assignments retain encrypted execution payloads temporarily; migration changes must preserve the documented cleanup and disjoint job-ID range.
+- GitLab runner assignments retain encrypted execution payloads temporarily; migration changes must preserve the documented cleanup and disjoint job-ID range. Connections are unique per account and instance URL; routing errors are retained as non-secret assignment metadata.

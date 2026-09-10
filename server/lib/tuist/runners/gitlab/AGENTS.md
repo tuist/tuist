@@ -2,9 +2,12 @@
 
 `Tuist.Runners.GitLab` acquires jobs using GitLab's Runner protocol and queues
 them in the shared runner lifecycle. A connection binds an encrypted runner
-authentication token to an account and profile. GitLab assigns immediately;
+authentication token to an account and instance URL. Each GitLab 19.3+ job
+selects its account-owned profile from `CI_JOB_TAGS`; require exactly one Tuist
+profile tag, ignoring unrelated tags. Never fall back to `CI_RUNNER_TAGS` or a
+default machine. GitLab assigns immediately;
 there is no reservation-release API. Never request a job twice on a transport
-retry. Persist the encrypted assignment and lifecycle together, and fail the
+retry. Persist the encrypted assignment and lifecycle together for routable jobs, and fail the
 assignment upstream if persistence fails.
 
 - Keep reusable runner credentials on the server. Dispatch only the acquired
@@ -31,3 +34,10 @@ assignment upstream if persistence fails.
   remain upstream responsibilities.
 - Tests use synthetic tokens and mocked requests or a local fake coordinator.
   Never use staging or real GitLab credentials for local validation.
+
+- Rejected assignments retain their encrypted payload and a non-secret
+  `routing_error` until their trace and failure are acknowledged by GitLab.
+  They never enter the dispatch queue. Polling and disconnect retry settlement;
+  a trace range conflict on retry means the error was already uploaded.
+- The poller advertises the Linux coordinator's platform; it does not choose a
+  machine until it reads the acquired job's tags.

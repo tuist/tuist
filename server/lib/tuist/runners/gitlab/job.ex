@@ -13,6 +13,7 @@ defmodule Tuist.Runners.GitLab.Job do
     field :project_path, :string
     field :pipeline_id, :integer
     field :payload, Binary, redact: true
+    field :routing_error, :string
     belongs_to :account, Account
     belongs_to :connection, Connection
     timestamps(type: :utc_datetime)
