@@ -368,9 +368,9 @@ impl ReapiService {
             outcome: observation.outcome,
             action_digest: observation.digest.to_owned(),
             size: observation.size,
-            duration_ms: observation
+            duration_us: observation
                 .duration
-                .as_millis()
+                .as_micros()
                 .try_into()
                 .unwrap_or(u64::MAX),
             observed_at_ms: SystemTime::now()
@@ -5061,7 +5061,7 @@ mod tests {
             outcome: "hit",
             action_digest: "digest-a".into(),
             size: 1,
-            duration_ms: 2,
+            duration_us: 2_000,
             observed_at_ms: 3,
         };
         let second = ReapiCacheAnalyticsEvent {
@@ -5070,7 +5070,7 @@ mod tests {
             outcome: "miss",
             action_digest: "digest-b".into(),
             size: 0,
-            duration_ms: 4,
+            duration_us: 4_000,
             observed_at_ms: 5,
         };
 
@@ -5130,7 +5130,7 @@ mod tests {
                         outcome: "hit",
                         action_digest: digest.to_owned(),
                         size: 4_096,
-                        duration_ms: 1,
+                        duration_us: 1_000,
                         observed_at_ms: 1,
                     });
                 }

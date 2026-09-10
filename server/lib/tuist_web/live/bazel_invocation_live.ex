@@ -355,6 +355,7 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={@cache.hits}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-action-misses"}
@@ -366,6 +367,7 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={@cache.misses}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-hit-rate"}
@@ -377,7 +379,7 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={cache_hit_rate(@cache)}
-          empty={@cache.hits + @cache.misses == 0}
+          empty={cache_summary_empty?(@cache) or @cache.hits + @cache.misses == 0}
         />
         <.widget
           id={@widget_id_prefix <> "-downloads"}
@@ -386,6 +388,7 @@ defmodule TuistWeb.BazelInvocationLive do
             dgettext("dashboard_projects", "Total size of data downloaded from the remote cache.")
           }
           value={ByteFormatter.format_bytes(@cache.download_bytes)}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-uploads"}
@@ -394,6 +397,7 @@ defmodule TuistWeb.BazelInvocationLive do
             dgettext("dashboard_projects", "Total size of data uploaded to the remote cache.")
           }
           value={ByteFormatter.format_bytes(@cache.upload_bytes)}
+          empty={cache_summary_empty?(@cache)}
         />
       </.card_section>
     </.card>
@@ -744,6 +748,14 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp cache_requests_empty_state_title(true, _selected_cache_view),
     do: dgettext("dashboard_projects", "No action cache requests were observed for this invocation.")
+
+  # One decision for the whole card. Previously only the hit-rate tile opted
+  # into an empty state, so an invocation with no cache activity rendered
+  # "0 / 0 / No data yet / 0 B / 0 B" - the inconsistency read as a broken
+  # widget rather than an absence of data.
+  defp cache_summary_empty?(cache) do
+    cache.hits + cache.misses == 0 and cache.download_bytes == 0 and cache.upload_bytes == 0
+  end
 
   defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
   defp cache_hit_rate(cache), do: "#{cache.hit_rate}%"

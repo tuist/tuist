@@ -19,6 +19,7 @@ defmodule Tuist.ReapiCache.CacheEvent do
       :inserted_at,
       :size,
       :duration_ms,
+      :duration_us,
       :operation,
       :outcome,
       :action_digest,
@@ -37,6 +38,7 @@ defmodule Tuist.ReapiCache.CacheEvent do
     field :action_digest, Ch, type: "String"
     field :size, Ch, type: "UInt64"
     field :duration_ms, Ch, type: "UInt64"
+    field :duration_us, Ch, type: "UInt64"
     field :invocation_id, Ch, type: "String"
     field :action_mnemonic, Ch, type: "String"
     field :target_label, Ch, type: "String"

@@ -29,7 +29,7 @@ defmodule Tuist.ReapiCache do
           outcome: event.outcome,
           action_digest: event.action_digest,
           size: event.size,
-          duration_ms: event.duration_ms,
+          duration_ms: event.duration_us,
           invocation_id: event.invocation_id,
           action_mnemonic: event.action_mnemonic,
           target_label: event.target_label,
@@ -65,9 +65,9 @@ defmodule Tuist.ReapiCache do
               ),
             download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
             upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0),
-            read_duration_ms: coalesce(sum(fragment("if(? != 'write', ?, 0)", event.outcome, event.duration_ms)), 0),
+            read_duration_us: coalesce(sum(fragment("if(? != 'write', ?, 0)", event.outcome, event.duration_us)), 0),
             read_count: coalesce(sum(fragment("if(? != 'write', 1, 0)", event.outcome)), 0),
-            write_duration_ms: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.duration_ms)), 0),
+            write_duration_us: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.duration_us)), 0),
             write_count: coalesce(sum(fragment("if(? = 'write', 1, 0)", event.outcome)), 0),
             download_throughput_bytes:
               coalesce(
@@ -76,21 +76,21 @@ defmodule Tuist.ReapiCache do
                     "if(? = 'hit' AND ? > 0 AND ? > 0, ?, 0)",
                     event.outcome,
                     event.size,
-                    event.duration_ms,
+                    event.duration_us,
                     event.size
                   )
                 ),
                 0
               ),
-            download_throughput_duration_ms:
+            download_throughput_duration_us:
               coalesce(
                 sum(
                   fragment(
                     "if(? = 'hit' AND ? > 0 AND ? > 0, ?, 0)",
                     event.outcome,
                     event.size,
-                    event.duration_ms,
-                    event.duration_ms
+                    event.duration_us,
+                    event.duration_us
                   )
                 ),
                 0
@@ -102,21 +102,21 @@ defmodule Tuist.ReapiCache do
                     "if(? = 'write' AND ? > 0 AND ? > 0, ?, 0)",
                     event.outcome,
                     event.size,
-                    event.duration_ms,
+                    event.duration_us,
                     event.size
                   )
                 ),
                 0
               ),
-            upload_throughput_duration_ms:
+            upload_throughput_duration_us:
               coalesce(
                 sum(
                   fragment(
                     "if(? = 'write' AND ? > 0 AND ? > 0, ?, 0)",
                     event.outcome,
                     event.size,
-                    event.duration_ms,
-                    event.duration_ms
+                    event.duration_us,
+                    event.duration_us
                   )
                 ),
                 0
@@ -132,25 +132,25 @@ defmodule Tuist.ReapiCache do
     summary
     |> Map.put(:hit_rate, if(lookups == 0, do: nil, else: Float.round(summary.hits / lookups * 100, 1)))
     |> Map.put(:transfer_bytes, summary.download_bytes + summary.upload_bytes)
-    |> Map.put(:read_latency_ms, divide(summary.read_duration_ms, summary.read_count))
-    |> Map.put(:write_latency_ms, divide(summary.write_duration_ms, summary.write_count))
+    |> Map.put(:read_latency_ms, latency_ms(summary.read_duration_us, summary.read_count))
+    |> Map.put(:write_latency_ms, latency_ms(summary.write_duration_us, summary.write_count))
     |> Map.put(
       :latency_ms,
-      divide(summary.read_duration_ms + summary.write_duration_ms, summary.read_count + summary.write_count)
+      latency_ms(summary.read_duration_us + summary.write_duration_us, summary.read_count + summary.write_count)
     )
     |> Map.put(
       :download_throughput_bytes_per_second,
-      bytes_per_second(summary.download_throughput_bytes, summary.download_throughput_duration_ms)
+      bytes_per_second(summary.download_throughput_bytes, summary.download_throughput_duration_us)
     )
     |> Map.put(
       :upload_throughput_bytes_per_second,
-      bytes_per_second(summary.upload_throughput_bytes, summary.upload_throughput_duration_ms)
+      bytes_per_second(summary.upload_throughput_bytes, summary.upload_throughput_duration_us)
     )
     |> Map.put(
       :throughput_bytes_per_second,
       bytes_per_second(
         summary.download_throughput_bytes + summary.upload_throughput_bytes,
-        summary.download_throughput_duration_ms + summary.upload_throughput_duration_ms
+        summary.download_throughput_duration_us + summary.upload_throughput_duration_us
       )
     )
   end
@@ -263,9 +263,9 @@ defmodule Tuist.ReapiCache do
             ),
           download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
           upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0),
-          read_duration_ms: coalesce(sum(fragment("if(? != 'write', ?, 0)", event.outcome, event.duration_ms)), 0),
+          read_duration_us: coalesce(sum(fragment("if(? != 'write', ?, 0)", event.outcome, event.duration_us)), 0),
           read_count: coalesce(sum(fragment("if(? != 'write', 1, 0)", event.outcome)), 0),
-          write_duration_ms: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.duration_ms)), 0),
+          write_duration_us: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.duration_us)), 0),
           write_count: coalesce(sum(fragment("if(? = 'write', 1, 0)", event.outcome)), 0),
           download_throughput_bytes:
             coalesce(
@@ -274,21 +274,21 @@ defmodule Tuist.ReapiCache do
                   "if(? = 'hit' AND ? > 0 AND ? > 0, ?, 0)",
                   event.outcome,
                   event.size,
-                  event.duration_ms,
+                  event.duration_us,
                   event.size
                 )
               ),
               0
             ),
-          download_throughput_duration_ms:
+          download_throughput_duration_us:
             coalesce(
               sum(
                 fragment(
                   "if(? = 'hit' AND ? > 0 AND ? > 0, ?, 0)",
                   event.outcome,
                   event.size,
-                  event.duration_ms,
-                  event.duration_ms
+                  event.duration_us,
+                  event.duration_us
                 )
               ),
               0
@@ -300,21 +300,21 @@ defmodule Tuist.ReapiCache do
                   "if(? = 'write' AND ? > 0 AND ? > 0, ?, 0)",
                   event.outcome,
                   event.size,
-                  event.duration_ms,
+                  event.duration_us,
                   event.size
                 )
               ),
               0
             ),
-          upload_throughput_duration_ms:
+          upload_throughput_duration_us:
             coalesce(
               sum(
                 fragment(
                   "if(? = 'write' AND ? > 0 AND ? > 0, ?, 0)",
                   event.outcome,
                   event.size,
-                  event.duration_ms,
-                  event.duration_ms
+                  event.duration_us,
+                  event.duration_us
                 )
               ),
               0
@@ -332,21 +332,21 @@ defmodule Tuist.ReapiCache do
            lookups: lookups,
            download_bytes: numeric(row.download_bytes),
            upload_bytes: numeric(row.upload_bytes),
-           read_latency_ms: divide(numeric(row.read_duration_ms), numeric(row.read_count)),
-           write_latency_ms: divide(numeric(row.write_duration_ms), numeric(row.write_count)),
+           read_latency_ms: latency_ms(numeric(row.read_duration_us), numeric(row.read_count)),
+           write_latency_ms: latency_ms(numeric(row.write_duration_us), numeric(row.write_count)),
            latency_ms:
              divide(
-               numeric(row.read_duration_ms) + numeric(row.write_duration_ms),
+               numeric(row.read_duration_us) + numeric(row.write_duration_us),
                numeric(row.read_count) + numeric(row.write_count)
              ),
            download_throughput_bytes_per_second:
-             bytes_per_second(numeric(row.download_throughput_bytes), numeric(row.download_throughput_duration_ms)),
+             bytes_per_second(numeric(row.download_throughput_bytes), numeric(row.download_throughput_duration_us)),
            upload_throughput_bytes_per_second:
-             bytes_per_second(numeric(row.upload_throughput_bytes), numeric(row.upload_throughput_duration_ms)),
+             bytes_per_second(numeric(row.upload_throughput_bytes), numeric(row.upload_throughput_duration_us)),
            throughput_bytes_per_second:
              bytes_per_second(
                numeric(row.download_throughput_bytes) + numeric(row.upload_throughput_bytes),
-               numeric(row.download_throughput_duration_ms) + numeric(row.upload_throughput_duration_ms)
+               numeric(row.download_throughput_duration_us) + numeric(row.upload_throughput_duration_us)
              )
          }}
       end)
@@ -452,14 +452,14 @@ defmodule Tuist.ReapiCache do
       ClickHouseRepo.one(
         from(event in invocation_cache_event_query(project_id, invocation_id, options),
           select: %{
-            action_read_duration_ms:
+            action_read_duration_us:
               coalesce(
                 sum(
                   fragment(
                     "if(? = 'action_cache' AND ? != 'write', ?, 0)",
                     event.operation,
                     event.outcome,
-                    event.duration_ms
+                    event.duration_us
                   )
                 ),
                 0
@@ -469,14 +469,14 @@ defmodule Tuist.ReapiCache do
                 sum(fragment("if(? = 'action_cache' AND ? != 'write', 1, 0)", event.operation, event.outcome)),
                 0
               ),
-            action_write_duration_ms:
+            action_write_duration_us:
               coalesce(
                 sum(
                   fragment(
                     "if(? = 'action_cache' AND ? = 'write', ?, 0)",
                     event.operation,
                     event.outcome,
-                    event.duration_ms
+                    event.duration_us
                   )
                 ),
                 0
@@ -497,13 +497,13 @@ defmodule Tuist.ReapiCache do
                     "if(? = 'cas' AND ? = 'hit' AND ? > 0, ?, 0)",
                     event.operation,
                     event.outcome,
-                    event.duration_ms,
+                    event.duration_us,
                     event.size
                   )
                 ),
                 0
               ),
-            content_download_duration_ms:
+            content_download_duration_us:
               coalesce(
                 sum(
                   fragment(
@@ -511,8 +511,8 @@ defmodule Tuist.ReapiCache do
                     event.operation,
                     event.outcome,
                     event.size,
-                    event.duration_ms,
-                    event.duration_ms
+                    event.duration_us,
+                    event.duration_us
                   )
                 ),
                 0
@@ -524,13 +524,13 @@ defmodule Tuist.ReapiCache do
                     "if(? = 'cas' AND ? = 'write' AND ? > 0, ?, 0)",
                     event.operation,
                     event.outcome,
-                    event.duration_ms,
+                    event.duration_us,
                     event.size
                   )
                 ),
                 0
               ),
-            content_upload_duration_ms:
+            content_upload_duration_us:
               coalesce(
                 sum(
                   fragment(
@@ -538,8 +538,8 @@ defmodule Tuist.ReapiCache do
                     event.operation,
                     event.outcome,
                     event.size,
-                    event.duration_ms,
-                    event.duration_ms
+                    event.duration_us,
+                    event.duration_us
                   )
                 ),
                 0
@@ -551,14 +551,14 @@ defmodule Tuist.ReapiCache do
     %{
       action_read_count: metrics.action_read_count,
       action_write_count: metrics.action_write_count,
-      action_read_latency_ms: divide(metrics.action_read_duration_ms, metrics.action_read_count),
-      action_write_latency_ms: divide(metrics.action_write_duration_ms, metrics.action_write_count),
+      action_read_latency_ms: latency_ms(metrics.action_read_duration_us, metrics.action_read_count),
+      action_write_latency_ms: latency_ms(metrics.action_write_duration_us, metrics.action_write_count),
       content_download_count: metrics.content_download_count,
       content_upload_count: metrics.content_upload_count,
       content_download_throughput_bytes_per_second:
-        bytes_per_second(metrics.content_download_bytes, metrics.content_download_duration_ms),
+        bytes_per_second(metrics.content_download_bytes, metrics.content_download_duration_us),
       content_upload_throughput_bytes_per_second:
-        bytes_per_second(metrics.content_upload_bytes, metrics.content_upload_duration_ms)
+        bytes_per_second(metrics.content_upload_bytes, metrics.content_upload_duration_us)
     }
   end
 
@@ -577,16 +577,16 @@ defmodule Tuist.ReapiCache do
 
   defp empty_invocation_detail_metric_aggregates do
     %{
-      action_read_duration_ms: 0,
+      action_read_duration_us: 0,
       action_read_count: 0,
-      action_write_duration_ms: 0,
+      action_write_duration_us: 0,
       action_write_count: 0,
       content_download_count: 0,
       content_upload_count: 0,
       content_download_bytes: 0,
-      content_download_duration_ms: 0,
+      content_download_duration_us: 0,
       content_upload_bytes: 0,
-      content_upload_duration_ms: 0
+      content_upload_duration_us: 0
     }
   end
 
@@ -739,14 +739,14 @@ defmodule Tuist.ReapiCache do
       misses: 0,
       download_bytes: 0,
       upload_bytes: 0,
-      read_duration_ms: 0,
+      read_duration_us: 0,
       read_count: 0,
-      write_duration_ms: 0,
+      write_duration_us: 0,
       write_count: 0,
       download_throughput_bytes: 0,
-      download_throughput_duration_ms: 0,
+      download_throughput_duration_us: 0,
       upload_throughput_bytes: 0,
-      upload_throughput_duration_ms: 0,
+      upload_throughput_duration_us: 0,
       last_observed_at: nil
     }
   end
@@ -754,9 +754,15 @@ defmodule Tuist.ReapiCache do
   defp divide(_numerator, denominator) when denominator in [nil, 0], do: 0
   defp divide(nil, _denominator), do: 0
   defp divide(numerator, denominator), do: numeric(numerator) / numeric(denominator)
-  defp bytes_per_second(_bytes, duration_ms) when duration_ms in [nil, 0], do: 0
-  defp bytes_per_second(nil, _duration_ms), do: 0
-  defp bytes_per_second(bytes, duration_ms), do: numeric(bytes) * 1000 / numeric(duration_ms)
+  defp bytes_per_second(_bytes, duration_us) when duration_us in [nil, 0], do: 0
+  defp bytes_per_second(nil, _duration_us), do: 0
+  defp bytes_per_second(bytes, duration_us), do: numeric(bytes) * 1_000_000 / numeric(duration_us)
+
+  # Latency is reported in milliseconds because that is the unit the dashboard
+  # labels, but it is measured in microseconds and stays fractional here: Kura
+  # answers most lookups in tens of microseconds, and rounding those to whole
+  # milliseconds is what made every latency read 0ms.
+  defp latency_ms(duration_us, count), do: divide(duration_us, count) / 1000
   defp percentage(value), do: value |> numeric() |> Kernel.*(1.0) |> Float.round(1)
 
   defp numeric(%Decimal{} = value), do: Decimal.to_float(value)
