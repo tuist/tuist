@@ -65,15 +65,7 @@ defmodule TuistWeb.BundleLive do
         OpenGraph.project_image_assigns(selected_project,
           title: bundle.name,
           subtitle: Enum.join(Enum.reject([bundle.version, bundle.git_branch], &(&1 in [nil, ""])), " · "),
-          badge: bundle.type |> to_string() |> String.upcase(),
-          metric_one_label: dgettext("dashboard_cache", "Install size"),
-          metric_one_value: ByteFormatter.format_bytes(bundle.install_size),
-          metric_two_label: dgettext("dashboard_cache", "Download size"),
-          metric_two_value:
-            if(is_nil(bundle.download_size),
-              do: dgettext("dashboard_builds", "None"),
-              else: ByteFormatter.format_bytes(bundle.download_size)
-            )
+          badge: bundle.type |> to_string() |> String.upcase()
         )
       )
       |> assign(:all_artifacts, all_artifacts)

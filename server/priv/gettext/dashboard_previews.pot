@@ -33,7 +33,6 @@ msgstr ""
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.ex:59
 #: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
@@ -223,9 +222,4 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Preview"
-msgstr ""
-
-#: lib/tuist_web/live/preview_live.ex:57
-#, elixir-autogen, elixir-format
-msgid "Version"
 msgstr ""

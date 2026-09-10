@@ -38,7 +38,7 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
     refute first_spec.key == second_spec.key
   end
 
-  test "includes public project metrics in the content key" do
+  test "includes public project variables in the content key" do
     project = public_project()
     slug = "#{project.account.name}/#{project.name}"
     stub(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
@@ -47,33 +47,16 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
       "template" => "project",
       "title" => "App",
       "project" => slug,
-      "metric_one_label" => "Build duration",
-      "metric_one_value" => "1m 12s",
-      "chart" => "12,18,16,27",
-      "chart_label" => "Recent build duration"
+      "subtitle" => "main · Release",
+      "badge" => "Success"
     }
 
     assert {:ok, first_spec} = OpenGraphImageTemplates.spec(base)
 
     assert {:ok, second_spec} =
-             OpenGraphImageTemplates.spec(%{base | "metric_one_value" => "48s"})
+             OpenGraphImageTemplates.spec(%{base | "badge" => "Failed"})
 
     refute first_spec.key == second_spec.key
-  end
-
-  test "accepts chart values larger than one gigabyte" do
-    project = public_project()
-    slug = "#{project.account.name}/#{project.name}"
-    expect(Projects, :get_project_by_slug, fn ^slug -> {:ok, project} end)
-
-    assert {:ok, _spec} =
-             OpenGraphImageTemplates.spec(%{
-               "template" => "project",
-               "title" => "Bundle",
-               "project" => slug,
-               "chart" => "2000000000,4000000000",
-               "chart_label" => "Bundle size"
-             })
   end
 
   test "includes the locale in the project image key" do
@@ -93,14 +76,14 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
              "template" => "project",
              "title" => "Builds",
              "project" => "tuist/tuist",
-             "chart" => "12,not-a-number"
+             "logo" => "another-storage-prefix/logo.png"
            }) == :error
 
     assert OpenGraphImageTemplates.spec(%{
              "template" => "project",
              "title" => "Builds",
              "project" => "tuist/tuist",
-             "logo" => "another-storage-prefix/logo.png"
+             "chart" => "12,24"
            }) == :error
   end
 
@@ -129,8 +112,8 @@ defmodule Tuist.OpenGraphImageTemplatesTest do
       ProjectImage.render_html(
         title: "<script>unsafe</script>",
         project: "tuist/tuist",
-        chart: [12, 18, 24],
-        chart_label: "Recent test duration",
+        subtitle: "main branch",
+        badge: "Success",
         fonts_dir: Path.join(priv_dir, "static/fonts"),
         tuist_logo_path: Path.join(priv_dir, "docs/images/logo.webp")
       )

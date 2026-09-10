@@ -64,13 +64,7 @@ defmodule TuistWeb.TestCaseLive do
           title: test_case_detail.name,
           subtitle:
             Enum.join(Enum.reject([test_case_detail.module_name, test_case_detail.suite_name], &(&1 in [nil, ""])), " · "),
-          badge: test_case_detail.last_status |> to_string() |> String.capitalize(),
-          metric_one_label: dgettext("dashboard_tests", "Last duration"),
-          metric_one_value: DateFormatter.format_duration_from_milliseconds(test_case_detail.last_duration),
-          metric_two_label: dgettext("dashboard_tests", "Average duration"),
-          metric_two_value: DateFormatter.format_duration_from_milliseconds(test_case_detail.avg_duration),
-          chart: Enum.take(test_case_detail.recent_durations || [], -16),
-          chart_label: dgettext("dashboard_tests", "Recent test duration")
+          badge: test_case_detail.last_status |> to_string() |> String.capitalize()
         )
       )
       |> assign(:available_filters, define_filters(project))

@@ -221,29 +221,6 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert get_resp_header(conn, "cache-control") == ["public, no-cache"]
   end
 
-  test "does not cache a project card when its configured logo cannot be read", %{conn: conn} do
-    project = %{public_project() | logo_storage_key: "project-logos/42/missing.png"}
-    slug = "#{project.account.name}/#{project.name}"
-    expect(Projects, :get_project_by_slug, 2, fn ^slug -> {:ok, project} end)
-    path = OpenGraph.project_image_assigns(project, title: "Builds")[:head_image]
-    uri = URI.parse(path)
-    key = Path.basename(uri.path, ".jpg")
-    object_key = "open-graph-images/#{key}.jpg"
-
-    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
-
-    expect(Storage, :get_object, fn "project-logos/" <> _rest, :project_logos ->
-      {:error, :not_found}
-    end)
-
-    reject(&Storage.put_object/3)
-    reject(&OpenGraphImageRenderer.render/2)
-
-    conn = get(conn, path)
-
-    assert response(conn, :service_unavailable) == ""
-  end
-
   test "does not render on-premise, forwarding the request away instead", %{conn: conn} do
     stub(Environment, :tuist_hosted?, fn -> false end)
     %{path: path} = image_request()

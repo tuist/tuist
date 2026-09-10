@@ -66,10 +66,8 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
     assigns =
       OpenGraph.project_image_assigns(project,
         title: "Builds",
-        metric_one_label: "Build duration",
-        metric_one_value: "42s",
-        chart: [12, 18, 24],
-        chart_label: "Recent build duration"
+        subtitle: "main · Release",
+        badge: "Success"
       )
 
     uri = URI.parse(assigns[:head_image])
@@ -80,8 +78,9 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
     assert params["template"] == "project"
     assert params["project"] == "#{project.account.name}/#{project.name}"
     refute Map.has_key?(params, "logo")
-    assert params["chart"] == "12,18,24"
-    assert params["chart_label"] == "Recent build duration"
+    assert params["title"] == "Builds"
+    assert params["subtitle"] == "main · Release"
+    assert params["badge"] == "Success"
     assert params["locale"] == "en"
     assert assigns[:head_twitter_card] == "summary_large_image"
     assert byte_size(uri.path <> "?" <> uri.query) <= 2_000
@@ -105,15 +104,14 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
       OpenGraph.project_image_assigns(project,
         title: "Build Run",
         subtitle: "",
-        metric_two_label: "Branch",
-        metric_two_value: ""
+        badge: ""
       )
 
     uri = URI.parse(assigns[:head_image])
     %{"token" => token} = URI.decode_query(uri.query)
     assert {:ok, params} = OpenGraph.verify_image_token(token)
     refute Map.has_key?(params, "subtitle")
-    refute Map.has_key?(params, "metric_two_value")
+    refute Map.has_key?(params, "badge")
   end
 
   defp public_project do
