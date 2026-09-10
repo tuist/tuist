@@ -287,7 +287,8 @@ func schemes() -> [Scheme] {
 
     schemes.append(
         contentsOf: (Module.allCases
-            .compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
+            .compactMap(\.acceptanceTestsTargetName) + [Module.serverAcceptanceTestsTargetName]
+            + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
         ).map {
             .scheme(
                 name: $0,
