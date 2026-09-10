@@ -36,7 +36,9 @@ private actor GitHubTokenCache {
             return token
         }
 
-        guard let output = try? await SystemProcess.output("/usr/bin/env", ["gh", "auth", "token"])
+        guard let output = try? await SystemProcess.output(
+            "/usr/bin/env", ["gh", "auth", "token", "--hostname", "github.com"]
+        )
         else {
             return nil
         }
@@ -49,14 +51,23 @@ private actor GitHubTokenCache {
 private let githubTokenCache = GitHubTokenCache()
 
 enum GitHubAuth {
-    private static let envKeys = ["SWIFTERPM_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]
+    private static let dedicatedEnvKey = "SWIFTERPM_GITHUB_TOKEN"
+    private static let ambientEnvKeys = ["GITHUB_TOKEN", "GH_TOKEN"]
 
+    /// `GitHubAuth` only ever authenticates github.com: `GitHubRepo` rejects every other host
+    /// and the API calls go to api.github.com. `GITHUB_TOKEN` and `GH_TOKEN` are ambient, and
+    /// GitHub Actions on a GitHub Enterprise Server instance exports them holding a credential
+    /// for that instance, which github.com answers with a 401. `GITHUB_SERVER_URL`,
+    /// `GITHUB_API_URL` and `GH_HOST` name the instance those credentials belong to, so they
+    /// are only used when all of them point at github.com. Naming `SWIFTERPM_GITHUB_TOKEN` is
+    /// itself a statement that the token is meant for github.com, so it is taken as given.
     static func envToken(from environment: [String: String]) -> String? {
-        for key in envKeys {
-            if let value = environment[key] {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { return trimmed }
-            }
+        if let token = nonEmpty(environment[dedicatedEnvKey]) {
+            return token
+        }
+        guard belongsToGitHubDotCom(environment) else { return nil }
+        for key in ambientEnvKeys {
+            if let token = nonEmpty(environment[key]) { return token }
         }
         return nil
     }
@@ -67,6 +78,28 @@ enum GitHubAuth {
 
     static func hasSession() async -> Bool {
         await token() != nil
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func belongsToGitHubDotCom(_ environment: [String: String]) -> Bool {
+        ["GITHUB_SERVER_URL", "GITHUB_API_URL", "GH_HOST"]
+            .compactMap { environment[$0] }
+            .compactMap(host(of:))
+            .allSatisfy { $0 == "github.com" || $0 == "api.github.com" }
+    }
+
+    private static func host(of value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let host = URL(string: trimmed)?.host {
+            return host.lowercased()
+        }
+        return trimmed.split(separator: "/").first.map { $0.lowercased() }
     }
 }
 
