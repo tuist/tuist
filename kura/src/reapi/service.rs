@@ -488,13 +488,13 @@ impl ReapiService {
                     );
                 }
                 if parsed_resource.compressor == BlobCompressor::Zstd {
-                    zstd_decoder = Some(
-                        zstd::stream::write::Decoder::new(Vec::new()).map_err(|error| {
+                    zstd_decoder = Some(zstd::stream::write::Decoder::new(Vec::new()).map_err(
+                        |error| {
                             Status::internal(format!(
                                 "failed to build zstd decoder for compressed write: {error}"
                             ))
-                        })?,
-                    );
+                        },
+                    )?);
                 }
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk.resource_name);
@@ -532,9 +532,7 @@ impl ReapiService {
                     // to the inner writer; flush forces them through so the
                     // per-chunk drain sees every decoded byte.
                     std::io::Write::flush(decoder).map_err(|error| {
-                        Status::invalid_argument(format!(
-                            "failed to flush zstd decoder: {error}"
-                        ))
+                        Status::invalid_argument(format!("failed to flush zstd decoder: {error}"))
                     })?;
                     // Take the decoder's scratch buffer so we can process it
                     // without holding a mutable borrow across the write path,
@@ -566,9 +564,7 @@ impl ReapiService {
                             tokio::io::AsyncWriteExt::write_all(file, data)
                                 .await
                                 .map_err(|error| {
-                                    Status::internal(format!(
-                                        "failed to write temp blob: {error}"
-                                    ))
+                                    Status::internal(format!("failed to write temp blob: {error}"))
                                 })?;
                             hasher.update(data);
                             stored_written = stored_written.saturating_add(data.len() as u64);
@@ -2801,9 +2797,12 @@ fn compressed_bytestream_read_response_stream(
             // out of input. `finish()` writes the closing frame bytes into the
             // encoder's sink, which then joins the pending queue.
             if let Some(reader) = state.reader.as_mut() {
-                let input = reader.read_chunk_owned(state.chunk_bytes).await.map_err(
-                    |error| Status::internal(format!("failed to stream blob chunk: {error}")),
-                )?;
+                let input = reader
+                    .read_chunk_owned(state.chunk_bytes)
+                    .await
+                    .map_err(|error| {
+                        Status::internal(format!("failed to stream blob chunk: {error}"))
+                    })?;
                 if input.is_empty() {
                     state.reader = None;
                 } else {
@@ -10107,7 +10106,9 @@ mod tests {
             "supported_compressors should include ZSTD"
         );
         assert!(
-            capabilities.supported_batch_update_compressors.contains(&zstd),
+            capabilities
+                .supported_batch_update_compressors
+                .contains(&zstd),
             "supported_batch_update_compressors should include ZSTD"
         );
     }
@@ -10149,7 +10150,10 @@ mod tests {
             .expect("compressed batch update should succeed")
             .into_inner();
         assert_eq!(update_response.responses.len(), 1);
-        assert_eq!(update_response.responses[0].status.as_ref().unwrap().code, 0);
+        assert_eq!(
+            update_response.responses[0].status.as_ref().unwrap().code,
+            0
+        );
 
         let read = service
             .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
@@ -10253,8 +10257,10 @@ mod tests {
             .into_inner();
         assert_eq!(write_response.committed_size as usize, compressed.len());
 
-        let read_resource =
-            format!("ios/compressed-blobs/zstd/{}/{}", digest_hash, uncompressed_size);
+        let read_resource = format!(
+            "ios/compressed-blobs/zstd/{}/{}",
+            digest_hash, uncompressed_size
+        );
         let mut stream = client
             .read(Request::new(bytestream::ReadRequest {
                 resource_name: read_resource,
