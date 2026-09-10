@@ -4,26 +4,31 @@ defmodule TuistWeb.Helpers.ModuleCache do
 
   alias TuistWeb.Helpers.DatePicker
 
-  # Relative presets are a snapshot for this page. Recomputing "now" on a
-  # table patch changes the query window and defeats reuse of loaded analytics.
+  # Relative presets reuse the period already displayed by the picker. Passing
+  # empty assigns explicitly refreshes it, including reapplying the same preset.
   def analytics_period_assigns(params, assigns) do
-    preset = params["analytics-date-range"] || "last-30-days"
-
-    selection =
-      if preset == "custom" do
-        {preset, params["analytics-start-date"], params["analytics-end-date"]}
-      else
-        preset
-      end
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     period =
-      if assigns[:module_cache_date_selection] == selection do
+      if preset != "custom" and assigns[:analytics_preset] == preset do
         assigns.analytics_period
       else
-        DatePicker.date_picker_params(params, "analytics").period
+        period
       end
 
-    %{analytics_preset: preset, analytics_period: period, module_cache_date_selection: selection}
+    %{analytics_preset: preset, analytics_period: period}
+  end
+
+  def with_hit_rates(timeseries) do
+    hit_rates =
+      Enum.zip_with(timeseries.invalidations, timeseries.reuses, fn misses, hits ->
+        case misses + hits do
+          0 -> 0.0
+          total -> Float.round(hits / total * 100, 1)
+        end
+      end)
+
+    Map.put(timeseries, :hit_rates, hit_rates)
   end
 
   def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold evicted), do: reason

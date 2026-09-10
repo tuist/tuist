@@ -32,9 +32,16 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
       series = opts |> Analytics.module_invalidation_breakdown() |> Analytics.module_timeseries_from_breakdown(opts)
       assert series.timeseries == Analytics.module_invalidation_timeseries(opts)
 
-      if !Keyword.has_key?(filters, :name) do
+      if Keyword.has_key?(filters, :name) do
+        assert series.modules_series.counts == [1, 0, 1]
+      else
         assert series.modules_series == Analytics.modules_timeseries(opts)
       end
+
+      assert series.miss_reasons_series.changed == [0, 0, 0]
+      assert series.miss_reasons_series.upstream == [0, 0, 0]
+      assert series.miss_reasons_series.evicted == [0, 0, 0]
+      assert series.miss_reasons_series.cold == series.timeseries.invalidations
 
       assert Enum.at(series.timeseries.invalidations, 1) == 0
       assert Enum.at(series.timeseries.reuses, 1) == 0

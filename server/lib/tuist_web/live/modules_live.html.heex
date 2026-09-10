@@ -74,24 +74,25 @@
     </.date_picker>
   </div>
 
-  <% analytics_failed = @timeseries.failed || @miss_reasons_series.failed || @module_count.failed %>
-  <% analytics_ready = @timeseries.ok? and @miss_reasons_series.ok? and @module_count.ok? %>
+  <% analytics_failed = @timeseries.failed || @miss_reasons_series.failed %>
+  <% analytics_ready = @timeseries.ok? and @miss_reasons_series.ok? %>
+  <% chart_result =
+    case @analytics_selected_widget do
+      "modules" -> @modules_series
+      "hits" -> @timeseries
+      _ -> @miss_reasons_series
+    end %>
   <% totals =
     if analytics_ready,
-      do:
-        analytics_totals(
-          @module_count.result,
-          @timeseries.result,
-          @miss_reasons_series.result
-        ) %>
+      do: analytics_totals(@timeseries.result, @miss_reasons_series.result) %>
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics"
   >
-    <div :if={!analytics_failed} data-part="widgets">
+    <div data-part="widgets">
       <.widget
-        loading={!analytics_ready}
+        loading={!@module_count.ok? and !@module_count.failed}
         id="widget-modules"
         title={dgettext("dashboard_cache", "Modules")}
         legend_color="primary"
@@ -101,12 +102,19 @@
             "Modules in the project, from the latest commit on its default branch."
           )
         }
-        value={if totals, do: format_number(totals.modules)}
+        value={
+          cond do
+            @module_count.failed -> dgettext("dashboard_cache", "Unavailable")
+            @module_count.ok? -> format_number(@module_count.result)
+            true -> nil
+          end
+        }
         phx_click="select_widget"
         phx_value_widget="modules"
         selected={@analytics_selected_widget == "modules"}
       />
       <.widget
+        :if={!analytics_failed}
         loading={!analytics_ready}
         id="widget-hits"
         title={dgettext("dashboard_cache", "Hits")}
@@ -120,6 +128,7 @@
         selected={@analytics_selected_widget == "hits"}
       />
       <.widget
+        :if={!analytics_failed}
         loading={!analytics_ready}
         id="widget-misses"
         title={miss_reason_title(@selected_miss_reason)}
@@ -160,15 +169,17 @@
     </div>
 
     <.card_section
-      :if={!analytics_ready and !analytics_failed}
+      :if={!chart_result.ok? and !chart_result.failed}
       data-part="analytics-chart-section"
     >
       <.skeleton_chart />
     </.card_section>
-    <.error_card_section :if={analytics_failed} data-part="analytics-error" />
+    <.error_card_section :if={chart_result.failed} data-part="analytics-error" />
 
     <.card_section
-      :if={analytics_ready && @analytics_selected_widget == "modules"}
+      :if={
+        @modules_series.ok? && !@modules_series.failed && @analytics_selected_widget == "modules"
+      }
       data-part="analytics-chart-section"
     >
       <.chart
@@ -211,7 +222,7 @@
     </.card_section>
 
     <.card_section
-      :if={analytics_ready && @analytics_selected_widget == "hits"}
+      :if={@timeseries.ok? && !@timeseries.failed && @analytics_selected_widget == "hits"}
       data-part="analytics-chart-section"
     >
       <.chart
@@ -255,7 +266,10 @@
     </.card_section>
 
     <.card_section
-      :if={analytics_ready && @analytics_selected_widget == "misses"}
+      :if={
+        @miss_reasons_series.ok? && !@miss_reasons_series.failed &&
+          @analytics_selected_widget == "misses"
+      }
       data-part="analytics-chart-section"
     >
       <.chart

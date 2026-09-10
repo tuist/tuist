@@ -77,7 +77,16 @@ defmodule TuistWeb.ModulesLive do
 
     {:noreply,
      socket
-     |> assign(:module_cache_date_selection, nil)
+     |> assign(
+       ModuleCache.analytics_period_assigns(
+         %{
+           "analytics-date-range" => preset,
+           "analytics-start-date" => start_date,
+           "analytics-end-date" => end_date
+         },
+         %{}
+       )
+     )
      |> push_patch(to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
@@ -139,58 +148,52 @@ defmodule TuistWeb.ModulesLive do
       |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "misses")
       |> assign(:selected_miss_reason, normalize_miss_reason(params["miss-reason"]))
 
-    opts = analytics_opts(socket.assigns)
+    assign_analytics(socket, analytics_opts(socket.assigns))
+  end
+
+  defp assign_analytics(socket, opts) do
     default_branch = socket.assigns.selected_project.default_branch || "main"
 
     # Sorting, searching and paging all run over the loaded list, so only a
     # change to what the query itself selects has to go back to ClickHouse.
-    if opts == socket.assigns[:modules_opts] do
-      socket
-    else
-      socket
-      |> assign(:modules_opts, opts)
-      |> assign_async([:modules, :miss_reasons_series, :timeseries, :modules_series], fn ->
-        breakdown = Analytics.module_invalidation_breakdown(opts)
-        series = Analytics.module_timeseries_from_breakdown(breakdown, opts)
+    same_opts? = opts == socket.assigns[:modules_opts]
 
-        {:ok,
-         %{
-           modules: Analytics.module_invalidations_from_breakdown(breakdown, Keyword.put(opts, :limit, @max_modules)),
-           miss_reasons_series: Analytics.miss_reasons_timeseries_from_breakdown(breakdown, opts),
-           timeseries: with_hit_rates(series.timeseries),
-           modules_series: series.modules_series
-         }}
-      end)
-      |> assign_async(:module_count, fn ->
-        {:ok, %{module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))}}
-      end)
-    end
-  end
+    socket =
+      if same_opts? and !socket.assigns.modules.failed do
+        socket
+      else
+        assign_async(socket, [:modules, :miss_reasons_series, :timeseries, :modules_series], fn ->
+          breakdown = Analytics.module_invalidation_breakdown(opts)
+          series = Analytics.module_timeseries_from_breakdown(breakdown, opts)
 
-  defp with_hit_rates(timeseries) do
-    hit_rates =
-      timeseries.invalidations
-      |> Enum.zip(timeseries.reuses)
-      |> Enum.map(fn {misses, hits} ->
-        case misses + hits do
-          0 -> 0.0
-          total -> Float.round(hits / total * 100, 1)
-        end
-      end)
+          {:ok,
+           %{
+             modules: Analytics.module_invalidations_from_breakdown(breakdown, Keyword.put(opts, :limit, @max_modules)),
+             miss_reasons_series: series.miss_reasons_series,
+             timeseries: ModuleCache.with_hit_rates(series.timeseries),
+             modules_series: series.modules_series
+           }}
+        end)
+      end
 
-    Map.put(timeseries, :hit_rates, hit_rates)
+    socket =
+      if same_opts? and !socket.assigns.module_count.failed do
+        socket
+      else
+        assign_async(socket, :module_count, fn ->
+          {:ok, %{module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))}}
+        end)
+      end
+
+    assign(socket, :modules_opts, opts)
   end
 
   @doc """
-  Totals for the analytics widgets.
-
-  None of it comes from the table, which lists only the modules that missed at
-  least once. The module count is the project's latest commit on its default
-  branch, and the rest come from the series, which cover every module.
+  Hit and miss totals from series covering every module, including hit-only
+  modules omitted from the table. The latest-commit module count loads separately.
   """
-  def analytics_totals(module_count, timeseries, miss_reasons) do
+  def analytics_totals(timeseries, miss_reasons) do
     %{
-      modules: module_count,
       hits: Enum.sum(timeseries.reuses),
       misses: Enum.sum(timeseries.invalidations),
       changed: Enum.sum(miss_reasons.changed),

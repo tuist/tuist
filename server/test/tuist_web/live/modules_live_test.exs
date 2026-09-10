@@ -76,6 +76,48 @@ defmodule TuistWeb.ModulesLiveTest do
     render_async(lv, 2000)
   end
 
+  test "patches reuse in-flight queries and charts render before the count finishes", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    owner = self()
+
+    expect(Analytics, :module_invalidation_breakdown, fn _opts ->
+      send(owner, {:breakdown_started, self()})
+
+      receive do
+        :release -> []
+      end
+    end)
+
+    expect(Analytics, :module_count, fn _opts ->
+      send(owner, {:count_started, self()})
+
+      receive do
+        :release -> 42
+      end
+    end)
+
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules"
+    {:ok, lv, _html} = live(conn, path)
+    assert_receive {:breakdown_started, breakdown_task}
+    assert_receive {:count_started, count_task}
+    monitor = Process.monitor(breakdown_task)
+    render_patch(lv, path <> "?q=Core")
+    send(breakdown_task, :release)
+    assert_receive {:DOWN, ^monitor, :process, ^breakdown_task, :normal}, 2000
+
+    assert has_element?(lv, "#widget-hits", "0")
+    assert has_element?(lv, "#modules-miss-reasons-chart")
+    refute has_element?(lv, "#widget-modules", "42")
+    click_widget(lv, "modules")
+    assert has_element?(lv, "#modules-chart")
+    send(count_task, :release)
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-modules", "42")
+  end
+
   test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?miss-reason=unknown")
@@ -440,24 +482,40 @@ defmodule TuistWeb.ModulesLiveTest do
     refute has_element?(lv, "#all-modules-table")
 
     # The miss reasons chart is derived from the same breakdown, so the
-    # analytics card fails with the table.
-    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+    # chart fails with the table while the independent module count stays visible.
+    refute has_element?(lv, "#widget-hits")
+    assert has_element?(lv, "#widget-modules")
     assert has_element?(lv, "[data-part=\"analytics-error\"]")
+
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    render_patch(lv, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?q=Core")
+    render_async(lv, 2000)
+    refute has_element?(lv, "[data-part=\"analytics-error\"]")
+    assert has_element?(lv, "#widget-hits")
   end
 
-  test "shows an analytics error when the independently loaded module count fails", %{
+  test "count failure leaves series visible and a patch retries only the count", %{
     conn: conn,
     organization: organization,
     project: project
   } do
-    stub(Analytics, :module_count, fn _opts -> raise Ch.Error, code: 159, message: "Timeout exceeded" end)
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :module_count, fn _opts -> raise Ch.Error, code: 159, message: "Timeout exceeded" end)
 
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
 
     render_async(lv, 2000)
-    assert has_element?(lv, ~s([data-part="analytics"] [data-error]))
-    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+    assert has_element?(lv, "#widget-modules", "Unavailable")
+    assert has_element?(lv, "#widget-hits", "0")
+    assert has_element?(lv, "#widget-misses", "0")
+    assert has_element?(lv, "#modules-miss-reasons-chart")
+
+    expect(Analytics, :module_count, fn _opts -> 42 end)
+    click_widget(lv, "modules")
+    render_async(lv, 2000)
+    assert has_element?(lv, "#widget-modules", "42")
+    assert has_element?(lv, "#modules-chart")
   end
 
   describe "page_of/3" do
