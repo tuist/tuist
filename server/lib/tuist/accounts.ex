@@ -2822,31 +2822,23 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account) do
-    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
-    # nodes are not static rows: each one self-registers its advertised URL via
-    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
-    # these are handed to the CLI is decided upstream by the `kura` client
-    # feature flag, so provisioning is the only server-side gate.
-    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
-  end
-
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
-  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
-  derives its in-cluster fallback from these, rather than a parallel query
-  that could drift.
+
+  Two sources, each read from the record that owns it: Tuist-managed instances
+  from `kura_servers`, and enrolled self-hosted nodes from their registration
+  heartbeats. Whether these are handed to the CLI at all is decided upstream by
+  the `kura` client feature flag, so provisioning is the only server-side gate.
+
+  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
+  its in-cluster fallback from these, rather than a parallel query that could
+  drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
-    static_urls =
-      account
-      |> kura_cache_endpoints()
-      |> Kura.order_endpoints_by_origin(account, origin)
-      |> Enum.map(& &1.url)
-
+    managed_urls = Kura.managed_cache_endpoint_urls(account, origin)
     registered_urls = registered_kura_endpoint_urls(account)
 
-    Enum.uniq(static_urls ++ registered_urls)
+    Enum.uniq(managed_urls ++ registered_urls)
   end
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that

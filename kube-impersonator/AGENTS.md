@@ -5,6 +5,15 @@ Sidecar deployed alongside Pomerium in each workload cluster's
 sidecar handles the per-request impersonation header injection
 based on tuist-ops's policy decision.
 
+**Canary and production are the real consumers.** Staging kubectl
+now reaches its apiserver over the tailnet through Tailscale's own
+API server proxy, which does its own impersonation from ACL grants
+and never calls this sidecar — see
+`infra/helm/tailscale-operator/values-staging.yaml`. This sidecar
+still runs in staging and still serves `kube-staging.tuist.dev` as
+an off-tailnet fallback, so the staging branches below are live but
+cold.
+
 ## Why
 
 Pomerium fronts kubectl at `kube-<env>.tuist.dev` and authenticates
@@ -16,9 +25,12 @@ must be **dynamic**:
 
 - Owner / Admin tailnet role → `tuist-admins` (view)
 - Member → `tuist-eng` (view)
-- Any of the above with an active elevation row in
-  tuist-ops's `tailscale_jit_elevations` table → add
-  `tuist-<env>-write` (edit)
+- Any of the above on **staging** → always add
+  `tuist-staging-write` (edit); staging is outside the
+  elevation flow entirely
+- Any of the above on canary / production with an active
+  elevation row in tuist-ops's `tailscale_jit_elevations`
+  table → add `tuist-<env>-write` (edit)
 
 tuist-ops's PolicyController makes that decision per request. This
 sidecar is the glue: receives every request from Pomerium, calls

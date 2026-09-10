@@ -9,6 +9,8 @@ on:
       - server/**
       - cache/**
       - .github/workflows/gradle-cache-acceptance.yml
+      - mise.toml
+      - mise.lock
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +18,8 @@ on:
       - server/**
       - cache/**
       - .github/workflows/gradle-cache-acceptance.yml
+      - mise.toml
+      - mise.lock
   merge_group: {}
 
 permissions:
@@ -26,7 +30,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
@@ -70,13 +73,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "erlang elixir java gradle tuist bats"
           cache: "true"
           working-directory: .
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
           cache: "true"
           working-directory: server

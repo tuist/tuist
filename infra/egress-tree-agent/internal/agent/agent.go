@@ -165,7 +165,7 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 				"pod", key)
 			continue
 		}
-		reattached, err := a.Attacher.EnsurePod(device, trampoline.Index, attachment)
+		outcome, err := a.Attacher.EnsurePod(device, trampoline.Index, attachment)
 		if err != nil {
 			skipped++
 			requeue = true
@@ -177,10 +177,13 @@ func (a *Agent) reconcile(ctx context.Context) (bool, error) {
 				"pod", key, "device", device, "error", err)
 			continue
 		}
-		if reattached {
+		switch outcome {
+		case AttachFirst:
+			a.Metrics.LinkAttaches.Inc()
+		case AttachReattach:
 			a.Metrics.LinkReattaches.Inc()
 		}
-		a.logPodChange(key, device, attachment, reattached)
+		a.logPodChange(key, device, attachment, outcome)
 		active[device] = true
 		deviceOf[key] = device
 		attached++
@@ -262,11 +265,17 @@ func (a *Agent) logClassChanges(classes map[uint16]TenantClass) {
 
 // logPodChange logs one pod's attach or config transition and records the
 // new fingerprint. A quiet cycle (attached, first, same config) logs nothing.
-func (a *Agent) logPodChange(key, device string, attachment PodAttachment, reattached bool) {
+func (a *Agent) logPodChange(key, device string, attachment PodAttachment, outcome AttachOutcome) {
 	old, existed := a.appliedPods[key]
 	current := appliedPod{Device: device, Minor: attachment.Minor, Siblings: attachment.SiblingIPs}
 	switch {
-	case reattached:
+	case outcome == AttachReattach:
+		// A link we had already installed was stripped or displaced. Cilium
+		// replaces its own link in place and leaves ours alone, so this is
+		// external interference: warn, and pair with link_reattach_total.
+		a.Log.Warn("reattached pod program", "pod", key, "device", device,
+			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
+	case outcome == AttachFirst:
 		a.Log.Info("attached pod program", "pod", key, "device", device,
 			"classid", ClassIDString(attachment.Minor), "siblings", attachment.SiblingIPs)
 	case !existed:

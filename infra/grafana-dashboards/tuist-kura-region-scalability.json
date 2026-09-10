@@ -2220,7 +2220,7 @@
         "spec": {
           "id": 8,
           "title": "Disk by region",
-          "description": "**Fit (disk)** counts how many more instances (two replicas of `$instance_claim_gib` GiB) the region's allocatable ephemeral-storage still admits, `floor()` per node first; each replica requests its storage claim as an `ephemeral-storage` request with no limit, so the request is the only admission control the claim has and it is what **Kura region cannot place another instance** counts as its `disk` row. **Disk requested** is the scheduler's view (claims against allocatable, the disk minus kubelet's eviction reserve); **Host disk used** is the filesystem holding the local-path cache. Rings run full by design, so usage says little: **Shortest retention** is the lowest one-day median of `kura_segment_shed_age_seconds` among the region's full rings (how soon after being written an artifact can be evicted), the number the customer feels; under two days warns, under a day pages (**Kura instance retention horizon**). Its lever is the account's storage claim (`Tuist.Kura.ClaimSizing`), and the region only enters when the claim cannot grow because the boxes are full.",
+          "description": "**Fit (disk)** counts how many more instances (two replicas of `$instance_claim_gib` GiB) the region's allocatable ephemeral-storage still admits, `floor()` per node first; each replica requests its storage claim as an `ephemeral-storage` request with no limit, so the request is the only admission control the claim has and it is what **Kura region cannot place another instance** counts as its `disk` row. **Disk requested** is the scheduler's view (claims against allocatable, the disk minus kubelet's eviction reserve); **Host disk used** is the filesystem holding the local-path cache. Rings run full by design, so usage says little: **Shortest retention** is the lowest one-day median of `kura_segment_shed_age_seconds` among the region's full rings (how soon after being written an artifact can be evicted), the number the customer feels; under a day pages (**Kura instance retention horizon under a day**). A ring is only counted once it has been full for the whole day, because a ring rebuilt more recently (an instance that landed on a new node) holds nothing older than itself and would read as its own age. Its lever is the account's storage claim (`Tuist.Kura.ClaimSizing`), and the region only enters when the claim cannot grow because the boxes are full.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -2330,7 +2330,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -2753,7 +2753,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100)",
+                        "expr": "histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100)",
                         "legendFormat": "__auto",
                         "instant": true,
                         "range": false,
@@ -3693,7 +3693,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (max by (cluster, pod) (kura_backfill_ring_fullness_percent{env=\"$env\"}) >= 100))",
+                        "expr": "min by (cluster, region) (histogram_quantile(0.5, sum by (cluster, region, tenant_id, pod, le) (increase(kura_segment_shed_age_seconds_bucket{env=\"$env\"}[1d]) * on (cluster, pod) group_left(region, tenant_id) max by (cluster, pod, region, tenant_id) (kura_node_geo_info{env=\"$env\"}))) and on (cluster, pod) (min by (cluster, pod) (min_over_time(kura_backfill_ring_fullness_percent{env=\"$env\"}[1d])) >= 100))",
                         "legendFormat": "{{region}}",
                         "instant": false,
                         "range": true
@@ -5944,6 +5944,198 @@
             }
           }
         }
+      },
+      "panel-23": {
+        "kind": "Panel",
+        "spec": {
+          "id": 23,
+          "title": "Page cache by node",
+          "description": "Share of each Kura box's RAM held as page cache (`node_memory_Cached_bytes / node_memory_MemTotal_bytes`). This is the quantity ceiling overcommit actually spends: Kura's mmap'd segments live here, so a box that is packed past its real memory reclaims page cache long before it OOM-kills anything, and pays for it in read latency rather than in restarts. **Host memory used** cannot show this, because `MemAvailable` counts reclaimable cache as available: a box with a large working cache and a genuinely idle box both read as ~90% available there.\n\nRead it against **Free memory by node** beside it. Cache high and free low is a box whose spare RAM is already doing work; both low is a box with no slack left. Cache is what a heavier `MemoryCeilingOversubscription` in the CAPI provider (`infra/cluster-api-provider-tuist/controllers/shared/node_memory.go`) consumes once free memory runs out.\n\nDo not drop this query without replacing it. Grafana Cloud Adaptive Metrics auto-applies query-driven recommendations, and it held an aggregation rule on `node_memory_Cached_bytes` and `node_memory_MemFree_bytes` that dropped `cluster` and `instance` for as long as nothing queried them; the series were a single label-less total until September 7, 2026.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, instance) (node_memory_Cached_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region, instance) (node_memory_MemTotal_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+                        "legendFormat": "{{region}} / {{instance}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "mean",
+                    "max"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            }
+          }
+        }
+      },
+      "panel-24": {
+        "kind": "Panel",
+        "spec": {
+          "id": 24,
+          "title": "Free memory by node",
+          "description": "Share of each Kura box's RAM the kernel is holding genuinely free (`node_memory_MemFree_bytes / node_memory_MemTotal_bytes`), doing no work for anyone. Overcommit spends this first and it costs nothing; only once it is gone does packing start evicting the page cache in **Page cache by node**.\n\nFree plus page cache is roughly what **Host memory used** reports as available, split into the half that is free for the taking and the half that is already earning its keep.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (cluster, region, instance) (node_memory_MemFree_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\")) / sum by (cluster, region, instance) (node_memory_MemTotal_bytes{env=\"$env\"} * on (cluster, instance) group_left(region) label_replace($node_region, \"instance\", \"$1\", \"node\", \"(.*)\"))",
+                        "legendFormat": "{{region}} / {{instance}}",
+                        "instant": false,
+                        "range": true
+                      },
+                      "version": "v0"
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "12.0.0",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "lineWidth": 2,
+                    "fillOpacity": 0,
+                    "showPoints": "never",
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "percentunit",
+                  "min": 0,
+                  "max": 1
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull",
+                    "mean",
+                    "max"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "layout": {
@@ -6074,6 +6266,32 @@
                         },
                         "x": 12,
                         "y": 8,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-23"
+                        },
+                        "x": 0,
+                        "y": 16,
+                        "width": 12,
+                        "height": 8
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-24"
+                        },
+                        "x": 12,
+                        "y": 16,
                         "width": 12,
                         "height": 8
                       }

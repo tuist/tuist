@@ -7,6 +7,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authentication
   import TuistWeb.Authorization
   import TuistWeb.OperatorGrant
+  import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
   alias TuistWeb.Marketing.Localization
@@ -41,6 +42,20 @@ defmodule TuistWeb.Router do
   def csp_opts(_conn) do
     s3_endpoint = Tuist.Environment.s3_endpoint()
 
+    # Deliberately reads the env-var toggle directly rather than the
+    # flag-aware `TuistWeb.Turnstile.required?/0`. This plug feeds the
+    # `:content_security_policy` pipeline, which the app, marketing, docs,
+    # image and ueberauth pipelines all use, so a per-request
+    # `FunWithFlags.enabled?(:turnstile_kill_switch)` would fire on every
+    # page load site-wide for a widget only two LiveViews ever render — and
+    # the underlying store `raise`s on a cold cache during a Postgres blip,
+    # which would 500 pages that previously had no DB dependency here.
+    # Flipping the kill switch still turns off the widget and the verify
+    # path everywhere immediately; the only thing left behind is a CSP
+    # source pointing at a host nothing loads from.
+    turnstile_source =
+      if Tuist.Environment.turnstile_required?(), do: " https://challenges.cloudflare.com", else: ""
+
     [
       frame_ancestors: "'self'",
       img_src:
@@ -52,10 +67,10 @@ defmodule TuistWeb.Router do
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://atlas.tuist.dev https://marketing.tuist.dev#{turnstile_source}",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
-      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}"
+      frame_src: "'self' https://atlas.tuist.dev https://*.tuist.dev https://newassets.hcaptcha.com#{turnstile_source}",
+      connect_src: "'self' https://search.tuist.dev #{s3_endpoint}#{turnstile_source}"
     ]
   end
 
@@ -91,6 +106,19 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug :content_security_policy
+  end
+
+  # Project-owned raw image (logo) endpoint. Skips `:accepts` because the URL
+  # has no format suffix and Open Graph crawlers vary in the Accept headers
+  # they send; the controller sets the content-type from the stored object.
+  pipeline :project_asset do
+    plug :put_request_kind, "project_asset"
+    plug :disable_robot_indexing
+    plug :fetch_session
+    plug :put_secure_browser_headers
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
@@ -135,6 +163,7 @@ defmodule TuistWeb.Router do
     plug MarkdownNegotiationPlug
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
@@ -220,6 +249,10 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
     plug SentryContextPlug
     plug ObservabilityContextPlug
+  end
+
+  pipeline :ops_api do
+    plug TuistWeb.Authorization, [:current_user, :read, :ops]
   end
 
   pipeline :scim_api do
@@ -451,6 +484,12 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api, :authenticated_api, :ops_api]
+
+    get "/api/ops/kura/pods/:pod/metrics", OpsKuraMetricsController, :show
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
     get "/agent/identity/claim", AgentAuthController, :protocol_claim_page
@@ -658,6 +697,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 
@@ -703,6 +743,8 @@ defmodule TuistWeb.Router do
         scope "/xcode" do
           scope "/builds" do
             get "/", BuildsController, :index
+            get "/:build_id/steps", BuildStepsController, :index
+            get "/:build_id/steps/:step_id", BuildStepsController, :show
             get "/:build_id/targets", BuildTargetsController, :index
             get "/:build_id/files", BuildFilesController, :index
             get "/:build_id/issues", BuildIssuesController, :index
@@ -722,6 +764,8 @@ defmodule TuistWeb.Router do
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
+          get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
@@ -824,6 +868,8 @@ defmodule TuistWeb.Router do
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+    post "/runners/jobs/logs", RunnerJobReportsController, :logs
+    post "/runners/jobs/finish", RunnerJobReportsController, :finish
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1048,6 +1094,12 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
+  scope "/:account_handle/:project_handle", TuistWeb do
+    pipe_through [:project_asset]
+
+    get "/logo", ProjectLogoController, :show
+  end
+
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
@@ -1076,6 +1128,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user_for_previews,
+      :mark_public_preview_page,
       :analytics
     ]
 
@@ -1105,6 +1158,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_accounts,
+      :mark_public_account_page,
       :require_sso_authentication,
       :analytics
     ]
@@ -1185,6 +1239,7 @@ defmodule TuistWeb.Router do
       :load_operator_grant,
       :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
+      :mark_public_project_page,
       :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
@@ -1210,22 +1265,31 @@ defmodule TuistWeb.Router do
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
+      live "/module-cache/modules", ModulesLive
+      live "/module-cache/modules/:module", ModuleCacheModuleLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
+      live "/builds/tasks", GradleTasksLive, :tasks
+      live "/builds/tasks/:name", GradleTasksLive, :task
+      live "/bazel-cache", BazelCacheLive
       live "/connect", ConnectLive
-      live "/invocations", BazelInvocationsLive
+      get "/invocations", RedirectPlug, to: "/builds"
+      live "/invocations/:invocation_id", BazelBuildInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
       live "/bundles/:bundle_id", BundleLive
       live "/builds", BuildsLive
       live "/builds/build-runs", BuildRunsLive
+      live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
+      get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
@@ -1258,8 +1322,6 @@ defmodule TuistWeb.Router do
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)

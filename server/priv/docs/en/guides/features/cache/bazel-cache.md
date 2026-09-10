@@ -17,11 +17,13 @@ Create a project with Bazel as its build system, authenticate the Tuist command-
 tuist bazel setup
 ```
 
-Add the generated file to your repository's `.bazelrc`:
+By default, setup adds the generated file to your repository's `.bazelrc`:
 
 ```text
 try-import %workspace%/.bazelrc.tuist
 ```
+
+Pass `--no-add-bazelrc-import` if you want to manage the import yourself. Setup also leaves `.bazelrc` unchanged when it cannot find a Bazel workspace marker, when the file is a symbolic link, or when the file already configures a remote cache or Build Event Service.
 
 The generated configuration points both Bazel's [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache and Build Event Service at Kura. It uses the existing Tuist credential helper for both connections.
 

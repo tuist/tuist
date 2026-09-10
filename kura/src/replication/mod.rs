@@ -13,7 +13,7 @@ use std::{
 };
 
 use futures_util::stream::{self, FuturesUnordered, StreamExt};
-use reqwest::header::{CONTENT_TYPE, HeaderValue};
+use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
     io::AsyncWriteExt,
@@ -37,6 +37,8 @@ use crate::{
     utils::{replication_target_label, url_encode},
 };
 
+use crate::sync::roles::PeerView;
+
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
 // How much of a staged peer body may accumulate in the page cache before the
@@ -48,6 +50,17 @@ struct PeerStatusPayload {
     region: String,
     tenant_id: String,
     node_url: String,
+    /// Additive (design §2.4, §5.2): an older peer reports neither and is
+    /// treated as serving and not pulling.
+    #[serde(default)]
+    traffic_state: Option<String>,
+    #[serde(default)]
+    pulling: Option<bool>,
+    /// The node URLs of the peer's own membership view (design §11.2). A
+    /// peer that reports none is treated as not knowing this node, which
+    /// errs toward a duplicate push rather than a silent gap.
+    #[serde(default)]
+    peers: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -75,7 +88,7 @@ pub async fn enqueue_replication_for_artifact(
     state: &SharedState,
     manifest: &crate::artifact::manifest::ArtifactManifest,
 ) {
-    for peer in replication_targets(state).await {
+    for peer in replication_targets(state).iter() {
         if let Err(error) = state.store.enqueue(OutboxMessage {
             target: peer.clone(),
             operation: ReplicationOperation::UpsertArtifact {
@@ -88,6 +101,7 @@ pub async fn enqueue_replication_for_artifact(
                 inline: manifest.inline,
                 branch: manifest.branch.clone(),
                 trunk: None,
+                origin_region: None,
             },
         }) {
             warn!("failed to enqueue artifact replication for {peer}: {error}");
@@ -138,6 +152,7 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
+        let mut views: Vec<PeerView> = Vec::new();
         let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
@@ -181,6 +196,24 @@ async fn membership_task_loop(state: SharedState) {
                                 continue;
                             }
                             members.insert(payload.region.clone());
+                            let traffic_state = payload.traffic_state.as_deref();
+                            let knows_me = payload.peers.as_ref().is_some_and(|peers| {
+                                peers.iter().any(|url| {
+                                    is_self_or_own_gateway(
+                                        url,
+                                        &state.config.node_url,
+                                        state.config.peer_gateway_url.as_deref(),
+                                    )
+                                })
+                            });
+                            views.push(PeerView {
+                                url: payload.node_url.clone(),
+                                region: payload.region.clone(),
+                                serving: traffic_state.is_none_or(|s| s == "serving"),
+                                draining: traffic_state == Some("draining"),
+                                pulling: payload.pulling.unwrap_or(false),
+                                knows_me,
+                            });
                             peer_nodes.insert(payload.node_url, payload.region);
                         }
                         Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
@@ -208,6 +241,9 @@ async fn membership_task_loop(state: SharedState) {
             .cloned()
             .collect();
         state.note_discovered_only_peers(discovered_only).await;
+        views.sort_by(|a, b| a.url.cmp(&b.url));
+        views.dedup_by(|a, b| a.url == b.url);
+        state.apply_peer_views(views);
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
             .await;
@@ -215,6 +251,7 @@ async fn membership_task_loop(state: SharedState) {
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
         state.backfill.evaluate(&state, &membership_update);
+        state.sync.evaluate(&state);
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;
     }
@@ -227,7 +264,8 @@ async fn outbox_task_loop(state: SharedState) {
 
         // Replication delivery runs at every pressure tier. It is not
         // sheddable background work: the outbox is depth-capped
-        // (`KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
+        // (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per peer, or a fixed
+        // `KURA_OUTBOX_MAX_DEPTH`) and `reserve_outbox_slots` fails a cache
         // write once that cap is reached, so a paused drain does not defer
         // work — it strands the queue and ends up rejecting writes. Both
         // write gates test only `pressure() == Critical` and test it *before*
@@ -261,8 +299,8 @@ async fn outbox_task_loop(state: SharedState) {
     }
 }
 
-pub async fn replication_targets(state: &SharedState) -> Vec<String> {
-    state.replication_targets().await
+pub fn replication_targets(state: &SharedState) -> Arc<Vec<String>> {
+    state.replication_targets()
 }
 
 pub(crate) async fn read_bounded_body(
@@ -302,6 +340,7 @@ pub(crate) async fn stream_response_to_temp(
     response: reqwest::Response,
     path: &Path,
     staging_limit: u64,
+    bandwidth_shaped: bool,
 ) -> Result<(), String> {
     let parent = path
         .parent()
@@ -323,7 +362,8 @@ pub(crate) async fn stream_response_to_temp(
                     "peer body response exceeded reserved {staging_limit} bytes"
                 ));
             }
-            if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            if bandwidth_shaped && let Some(limiter) = state.replication_bandwidth_limiter.as_ref()
+            {
                 limiter.acquire(chunk.len()).await;
             }
             destination
@@ -530,6 +570,7 @@ async fn replicate_batch(
             version_ms,
             branch,
             trunk,
+            origin_region,
             ..
         } = &message.operation
         else {
@@ -555,6 +596,7 @@ async fn replicate_batch(
             version_ms: *version_ms,
             branch: branch.clone(),
             trunk: trunk.clone(),
+            origin_region: origin_region.clone(),
         };
         let meta_bytes = serde_json::to_vec(&meta)
             .map_err(|error| format!("failed to encode replication batch meta: {error}"))?;
@@ -733,9 +775,11 @@ async fn drain_metadata_batches(
                     state
                         .metrics
                         .record_replication(&target, "upsert_artifact", "ok", elapsed);
-                    for ((message_key, _message), done) in items.iter().zip(resolved) {
+                    for ((message_key, message), done) in items.iter().zip(resolved) {
                         if done {
-                            state.store.delete_outbox_message(message_key)?;
+                            state
+                                .store
+                                .delete_outbox_message(message_key, &message.target)?;
                             progressed = true;
                         }
                     }
@@ -815,7 +859,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         return Ok(());
     }
 
-    let current_targets: BTreeSet<String> = state.replication_targets().await.into_iter().collect();
+    let current_targets: BTreeSet<String> = state.replication_targets().iter().cloned().collect();
     // Discovery-only peers (in-cluster siblings, cross-region pods) are
     // treated like the static seeds: never pruned. Their absence usually
     // means a network flap, not departure, and the re-join backfill only
@@ -901,7 +945,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 && !current_targets.contains(&message.target)
                 && !discovered_history.contains(&message.target)
             {
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 state.metrics.record_replication(
                     &message.target,
                     message.operation.name(),
@@ -946,7 +992,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                     "dropped_oversized",
                     elapsed,
                 );
-                state.store.delete_outbox_message(&message_key)?;
+                state
+                    .store
+                    .delete_outbox_message(&message_key, &message.target)?;
                 rewind_to_priority_head(state, &mut after).await?;
             }
             Ok(ReplicationOutcome::Delivered) => {
@@ -964,7 +1012,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             "ok",
                             elapsed,
                         );
-                        state.store.delete_outbox_message(&message_key)?;
+                        state
+                            .store
+                            .delete_outbox_message(&message_key, &message.target)?;
                         rewind_to_priority_head(state, &mut after).await?;
                     }
                     Err(error) => {
@@ -1137,6 +1187,7 @@ async fn replicate_message(
             inline,
             branch,
             trunk,
+            origin_region,
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
@@ -1189,6 +1240,10 @@ async fn replicate_message(
                 url.push_str("&trunk=");
                 url.push_str(&url_encode(trunk));
             }
+            if let Some(origin_region) = origin_region {
+                url.push_str("&origin_region=");
+                url.push_str(&url_encode(origin_region));
+            }
             let url = url;
             let size = manifest.size;
             let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
@@ -1219,6 +1274,11 @@ async fn replicate_message(
                     CONTENT_TYPE,
                     HeaderValue::from_static("application/octet-stream"),
                 );
+                // A streamed body has no length of its own, so without this
+                // the request goes out chunked and the receiver, sizing its
+                // staging reservation from Content-Length, has to assume the
+                // route ceiling for a body that is usually a few kilobytes.
+                headers.insert(CONTENT_LENGTH, HeaderValue::from(size));
 
                 let send = state
                     .upload_client()
@@ -1557,7 +1617,7 @@ mod tests {
             .expect("peer body request should succeed");
         let path = ctx.state.config.tmp_dir.join("backfill").join("overrun");
 
-        let error = stream_response_to_temp(&ctx.state, response, &path, reserved)
+        let error = stream_response_to_temp(&ctx.state, response, &path, reserved, true)
             .await
             .expect_err("a body larger than the reservation must be rejected");
         assert!(
@@ -1777,6 +1837,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2005,6 +2066,7 @@ mod tests {
             "https://gone-peer.test:7443".to_string(),
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
         local
             .state
             .store
@@ -2015,6 +2077,7 @@ mod tests {
         local.state.dynamic_peers.store(std::sync::Arc::new(vec![
             "https://live-peer.test:7443".to_string(),
         ]));
+        local.state.rebuild_replication_targets().await;
 
         process_outbox(&local.state)
             .await
@@ -2140,6 +2203,7 @@ mod tests {
                         inline: false,
                         branch: None,
                         trunk: None,
+                        origin_region: None,
                     },
                 })
                 .expect("upsert should enqueue");
@@ -2207,6 +2271,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2281,6 +2346,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2376,6 +2442,7 @@ mod tests {
                     inline: false,
                     branch: None,
                     trunk: None,
+                    origin_region: None,
                 },
             })
             .expect("outbox message should enqueue");
@@ -2432,6 +2499,90 @@ mod tests {
         assert_eq!(bytes, b"payload");
     }
 
+    // Regression test: the sender streamed the artifact without a
+    // Content-Length, so the request went out chunked and the receiver
+    // reserved its 2 GiB route ceiling for every body, whatever its size.
+    #[tokio::test]
+    async fn segment_artifact_replication_declares_the_body_length() {
+        let seen = Arc::new(std::sync::Mutex::new(None));
+        let app = Router::new().route(
+            "/_internal/replicate/artifact",
+            put({
+                let seen = seen.clone();
+                move |headers: axum::http::HeaderMap, body: axum::body::Bytes| {
+                    let seen = seen.clone();
+                    async move {
+                        let content_length = headers
+                            .get(axum::http::header::CONTENT_LENGTH)
+                            .map(|value| value.to_str().expect("ascii length").to_owned());
+                        let transfer_encoding = headers
+                            .get(axum::http::header::TRANSFER_ENCODING)
+                            .map(|value| value.to_str().expect("ascii encoding").to_owned());
+                        *seen.lock().expect("headers lock") =
+                            Some((content_length, transfer_encoding, body.len()));
+                        StatusCode::NO_CONTENT
+                    }
+                }
+            }),
+        );
+        let (peer_url, _server) = spawn_server(app).await;
+
+        let ctx = test_context(|_| {}).await;
+        let payload = vec![0xAB_u8; 2691];
+        let manifest = ctx
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "tuist/kura",
+                "blob/deadbeef/2691",
+                "application/octet-stream",
+                &payload,
+            )
+            .await
+            .expect("artifact should persist");
+        assert!(
+            !manifest.inline,
+            "fixture must take the segment-backed path"
+        );
+
+        let message = OutboxMessage {
+            target: peer_url,
+            operation: ReplicationOperation::UpsertArtifact {
+                producer: manifest.producer,
+                namespace_id: manifest.namespace_id.clone(),
+                key: manifest.key.clone(),
+                content_type: manifest.content_type.clone(),
+                artifact_id: manifest.artifact_id.clone(),
+                version_ms: manifest.version_ms,
+                inline: false,
+                branch: None,
+                trunk: None,
+                origin_region: None,
+            },
+        };
+        let outcome = replicate_message(&ctx.state, &message)
+            .await
+            .expect("replication should succeed");
+        assert!(matches!(outcome, ReplicationOutcome::Delivered));
+
+        let (content_length, transfer_encoding, received) = seen
+            .lock()
+            .expect("headers lock")
+            .take()
+            .expect("the peer must have received the upload");
+        assert_eq!(
+            content_length.as_deref(),
+            Some("2691"),
+            "the upload must declare the artifact size so the receiver reserves only that"
+        );
+        assert_eq!(
+            transfer_encoding, None,
+            "a body with a declared length must not be sent chunked"
+        );
+        assert_eq!(received, payload.len());
+    }
+
     #[tokio::test]
     async fn replicating_an_oversized_inline_artifact_purges_it_and_drops_the_message() {
         let ctx = test_context(|_| {}).await;
@@ -2460,6 +2611,7 @@ mod tests {
                 inline: manifest.inline,
                 branch: None,
                 trunk: None,
+                origin_region: None,
             },
         };
 

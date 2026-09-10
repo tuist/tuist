@@ -27,6 +27,11 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   (`TUIST_RUNNER_JIT_PATH`) and `exec`s
   `./run.sh --jitconfig <jit> --disableupdate`, or exits 0 if no
   JIT was staged (410 drain / poller abort). Holds no SA token.
+  The job-start hook publishes the staged `TUIST_CACHE_ENDPOINT`
+  through `GITHUB_ENV`: Docker job steps receive GitHub's explicit
+  job environment, not the runner process's inherited environment.
+  Keep environment-file expansion at hook execution time, since
+  GitHub creates that file after `run-job.sh` starts.
 - `/usr/local/bin/vitals.sh` — periodic resource-vitals emitter.
   `run-job.sh` backgrounds it just before exec'ing the runner (the
   dispatch-poll rollout-bridge path does too), so it samples for the
@@ -133,6 +138,18 @@ queued jobs. The controller's `podtemplate.Build` splits the Pod:
   and `exec`s the runner. A leaked JIT post-claim grants nothing
   the runner isn't already running under.
 
+A Buildkite job goes through the same split. The poller stages a
+`<jit>.buildkite-env` file instead of a JIT, holding the single-job
+acquisition token plus a **report token**, and `run-job.sh` runs
+`buildkite-agent` rather than `./run.sh`. The report token is what
+makes this work under token isolation: a Buildkite job reports its own
+log and outcome from a `pre-exit` hook, which needs a credential, and
+the SA token is exactly the credential this split exists to keep out of
+that container. A report token names one job and authorizes only what
+that job could already do — write its own log, declare its own exit
+status — so staging it changes nothing about what the container can
+reach. See `Tuist.Runners.Buildkite.ReportToken`.
+
 A warm-standby Pod therefore sits in `Pending` (poller polling in
 Init) until a job is claimed, not `Running`. macOS keeps the
 single-container shape — the Tart VM is the isolation boundary and
@@ -189,6 +206,17 @@ flow).
 `metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
 base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
+
+`run-job_test.sh` exercises the generated job-start hook, including
+late environment-file expansion and jobs without a cache endpoint.
+`.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
+enabled validates a deployed image with a real Docker job container. Select the runner
+profile, matching server URL, and an existing Gradle project authorized
+for the repository's OIDC token. It requires the injected endpoint to
+be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
+must upload on the first build and hit remotely after deleting outputs,
+with local caching disabled. Run this against the candidate image
+before promoting it, then against the production runner profile.
 
 ## How it ends up serving traffic
 

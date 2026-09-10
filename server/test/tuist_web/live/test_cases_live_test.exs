@@ -7,6 +7,7 @@ defmodule TuistWeb.TestCasesLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Analytics
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "test cases page" do
@@ -90,6 +91,45 @@ defmodule TuistWeb.TestCasesLiveTest do
 
       # Then
       assert has_element?(lv, "[data-part='test-cases-table']")
+    end
+
+    test "lists individual Bazel test cases and their target", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          build_system: "bazel",
+          scheme: "//app:unit_tests",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60),
+          test_modules: [
+            %{
+              name: "//app:unit_tests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{
+                  name: "testExample",
+                  test_suite_name: "ExampleTest",
+                  status: "success",
+                  duration: 100
+                }
+              ]
+            }
+          ]
+        )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+
+      render_async(lv)
+
+      assert has_element?(lv, "[data-part='test-cases-table']", "testExample")
+      assert has_element?(lv, "[data-part='test-cases-table']", "//app:unit_tests")
     end
 
     test "filters test cases whose module does not contain a substring", %{

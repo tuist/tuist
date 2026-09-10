@@ -94,19 +94,122 @@ k8s-monitoring:
       # feature-level allow-lists below. These labels are restart-scoped
       # Kubernetes identifiers that multiply otherwise equivalent series and
       # are not used by dashboards in this repo.
+      #
+      # The last rule drops histogram buckets outside production. Buckets are
+      # the most expensive shape we ship, roughly a third of all billable
+      # series, and their cardinality follows route/worker coverage rather
+      # than traffic, so an acceptance-test cluster that serves a handful of
+      # requests still mints the full `path` x `le` x `method` cross product.
+      # Staging carried 7.9k bucket series against production's 21.7k on a
+      # fraction of the load. `_count` and `_sum` survive the drop, so request
+      # rates and mean latency still work in every environment; only
+      # `histogram_quantile` percentiles become production-only.
+      #
+      # The Kura and Oban latency alerts already scope themselves to
+      # production, by `cluster` and by `instance="production"` respectively.
+      # The two Phoenix route-latency alerts do not: they aggregate
+      # `by (le, path)` across every environment, so acceptance-test traffic
+      # on staging and canary currently folds into what reads as a production
+      # SLO. This rule makes them production-only, which is what they were
+      # measuring for. Pin `cluster="tuist-production"` on them in Grafana as
+      # well so the scoping does not depend on a drop rule.
+      #
+      # The chart sets `cluster` in the first write_relabel_config of this
+      # same chain, so the label is populated by the time this rule runs.
+      #
+      # `traces_service_graph_request_.*` used to be dropped here. It never
+      # matched anything: those series are produced by Grafana Cloud Tempo's
+      # own metrics generator from received spans, not by Alloy, so they enter
+      # the Prometheus instance without passing through this remote_write.
+      # They carry no `cluster` / `job` / `instance` label, only span-derived
+      # ones plus `source`. Turning them off is a stack-side setting
+      # (Tempo -> Metrics generator -> service graphs), not a chart value.
       metricProcessingRules: |
+        // StatefulSet pod names survive replacement, but their IPs do not.
+        // Normalize both Ready autodiscovery and unready Kura scrapes here,
+        // including up/scrape_*; keep cluster and ready labels distinct.
+        write_relabel_config {
+          source_labels = ["job", "namespace", "pod"]
+          separator = ";"
+          regex = "kura;([^;]+);([^;]+)"
+          target_label = "instance"
+          replacement = "$1/$2"
+          action = "replace"
+        }
         write_relabel_config {
           action = "labeldrop"
           regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
         }
         write_relabel_config {
-          source_labels = ["__name__"]
-          regex = "traces_service_graph_request_.*"
+          source_labels = ["job"]
+          regex = "integrations/(process|self)"
           action = "drop"
         }
         write_relabel_config {
-          source_labels = ["job"]
-          regex = "integrations/(process|self)"
+          source_labels = ["cluster", "__name__"]
+          separator = ";"
+          regex = "tuist-(staging|canary|pentest);.+_bucket"
+          action = "drop"
+        }
+        // Non-production keeps only what validates a deploy. Everything below
+        // the `keep` list is dropped for staging, canary and pentest, which
+        // together were 39% of all billed series while nothing pages on them.
+        //
+        // The keep list is not a judgement call: it is every metric read by an
+        // alert rule that does NOT pin `cluster="tuist-production"`, so no
+        // alert changes scope silently. Recover it with
+        //   GET /api/v1/provisioning/alert-rules
+        //   jq '[.[] | {e: ([.data[]?|.model.expr? // empty]|join(" "))}
+        //        | select(.e|test("tuist-production")|not) | .e]'
+        // and re-derive this regex if the alert set changes. `up` and
+        // `scrape_*` are outside the dropped prefixes, so the
+        // "Kura - cache telemetry missing" alert keeps its staging and canary
+        // arms.
+        //
+        // Two alerts DO change scope, deliberately: the Phoenix route-latency
+        // pair carries no cluster matcher, so staging and canary traffic has
+        // been folding into what reads as a production SLO. They become
+        // production-only.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
+        // Keeping only its liveness anchor makes healthy non-production Macs
+        // appear to have no VLAN. Retain one series per VLAN, not every NIC.
+        write_relabel_config {
+          source_labels = ["job", "__name__", "device"]
+          separator = ";"
+          regex = "tuist-macos-node-exporter;node_network_transmit_bytes_total;vlan.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // `hubble_*` is in the dropped set because its `source` label is a bare
+        // remote address for external traffic, so its cardinality is unbounded.
+        // The mis-sourced-host runbook in alerts.md that justifies keeping it
+        // is production-only.
+        write_relabel_config {
+          source_labels = ["cluster", "__tmp_nonprod_keep", "__name__"]
+          separator = ";"
+          regex = "tuist-(staging|canary|pentest);;(kube_.*|kura_.*|tuist_.*|container_.*|node_.*|hubble_.*)"
+          action = "drop"
+        }
+        write_relabel_config {
+          regex = "__tmp_nonprod_keep"
+          action = "labeldrop"
+        }
+        // Kura histograms whose buckets no dashboard or alert reads. Their
+        // cardinality is pod count x `le`, so it grows with every account
+        // admitted to a region. `_count` and `_sum` survive, and a pod's full
+        // distribution is readable on demand from
+        // /api/ops/kura/pods/:pod/metrics.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
           action = "drop"
         }
 
@@ -165,7 +268,7 @@ k8s-monitoring:
               threshold_ms: 2000
             - name: healthy-sample
               type: probabilistic
-              sampling_percentage: 25
+              sampling_percentage: 10
           collector:
             alloy:
               resources:
@@ -198,12 +301,12 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kube-state-metrics: 96 `kube_*` metrics ingested; none of the explicit
-  #     high-churn omissions (`kube_lease_*`, `kube_endpointslice_*`,
-  #     `kube_mutatingwebhookconfiguration_*`,
-  #     `kube_configmap_metadata_resource_version`,
-  #     `kube_secret_metadata_resource_version`) are referenced by any
-  #     dashboard, alert, or recording rule.
+  #   - kube-state-metrics: 96 `kube_*` metrics ingested. `kube_lease_*`,
+  #     `kube_endpointslice_*` and `kube_mutatingwebhookconfiguration_*` are
+  #     absent as expected, but the default allow list does keep both
+  #     `*_metadata_resource_version` gauges, so they are excluded explicitly
+  #     below. None of them are referenced by any dashboard, alert, or
+  #     recording rule.
   #
   # `includeMetrics` therefore stays empty for all three. If a future
   # dashboard needs a dropped metric, add it under
@@ -316,6 +419,11 @@ k8s-monitoring:
         useDefaultAllowList: true
         includeMetrics:
           - kube_pod_status_unschedulable
+          # KuraInstance status, from the customResourceState block below.
+          # Custom-resource series are not in the default allow list and are
+          # not named kube_<builtin>, so without this they are collected and
+          # then dropped before they reach the destination.
+          - kube_customresource_kurainstance_.*
         excludeMetrics:
           # We page on container waiting/termination reasons, not pod-level
           # status reasons. This metric fans out by pod × reason and was one
@@ -325,6 +433,24 @@ k8s-monitoring:
           # monitor actual usage / pressure through PVC and kubelet volume
           # stats. The phase gauge fans out by PV × phase and is unused.
           - kube_persistentvolume_status_phase
+          # ReplicaSet bookkeeping gauges. Every rollout leaves a ReplicaSet
+          # behind up to the Deployment's revisionHistoryLimit, so the whole
+          # kube_replicaset_* family carries one series per historical
+          # revision, 573 of them across the fleet, eight metrics deep. These
+          # four are inert: a creation timestamp and three generation /
+          # label-bookkeeping counters. The rollout state the Kubernetes app
+          # and our dashboards actually read (`_owner`, `_spec_replicas`,
+          # `_status_replicas`, `_status_ready_replicas`) is kept.
+          - kube_replicaset_created
+          - kube_replicaset_metadata_generation
+          - kube_replicaset_status_observed_generation
+          - kube_replicaset_status_fully_labeled_replicas
+          # resourceVersion is an opaque, monotonically increasing integer
+          # that carries no monitoring signal: there is nothing to chart and
+          # nothing to alert on. The pair costs 2,999 series, 2,740 of them
+          # Secrets, and 1,836 of those on canary alone.
+          - kube_secret_metadata_resource_version
+          - kube_configmap_metadata_resource_version
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -361,6 +487,11 @@ k8s-monitoring:
           - node_cpu_seconds_total
           - node_exporter_build_info
           - node_filesystem.*
+          # `node_memory.*` keeps every member of the family node-exporter
+          # reads out of /proc/meminfo in one pass, so a member missing in
+          # Grafana Cloud was never dropped here; it was aggregated at
+          # ingest by Adaptive Metrics. See "Metrics aggregated downstream
+          # of this chart" in README.md before editing this list.
           - node_memory.*
           - process_cpu_seconds_total
           - process_resident_memory_bytes
@@ -605,6 +736,14 @@ k8s-monitoring:
         - cilium_controllers_.*
         - cilium_datapath_.*
         - cilium_policy_endpoint_enforcement_status
+        # Envoy's listener histograms cover its own admin and downstream
+        # sockets: connection lengths, accepts per socket event, LDS update
+        # duration. They fan out per listener address per node and nothing
+        # reads them. Scoped to `listener` rather than all of `envoy_.*`
+        # because `l7Proxy` is enabled in cilium-values.yaml, so the cluster
+        # and http families stay available for L7 work. Same exclusion
+        # values-pentest.yaml already carries.
+        - envoy_listener_.*
         # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
         # per scraped pod across the hundreds of Go infra pods (Cilium,
         # operators, controllers) and churn on every restart. The Tuist
@@ -643,6 +782,56 @@ k8s-monitoring:
       # counts towards its region's capacity before a cache pod lands on it.
       metricLabelsAllowlist:
         - nodes=[node.cluster.x-k8s.io/pool]
+      rbac:
+        extraRules:
+          - apiGroups: ["kura.tuist.dev"]
+            resources: ["kurainstances"]
+            verbs: ["list", "watch"]
+      # Publishes when the kura-controller last completed a full reconcile of
+      # each instance, which is the only signal that separates a controller
+      # doing its job from one looping without finishing.
+      #
+      # It has to come from the custom resource rather than from the
+      # controller. A wedged reconcile is busy, not idle: on 2026-09-07 a
+      # us-west instance short-circuited every 10 seconds for 69 minutes, so
+      # controller-runtime's own reconcile counters read as healthy activity
+      # throughout, and the workqueue never backed up. status.lastReconciledAt
+      # is written only at the end of a pass that reached the end, so it is the
+      # field that froze. Reading it here also keeps the observation outside
+      # the component being observed, so a controller that stops publishing
+      # cannot quietly take its own liveness signal with it.
+      #
+      # Nothing else in the CR is exported. The replica and readiness questions
+      # are already answered by kube_statefulset_*, and the fleet is ~50
+      # instances, so this is one series per instance.
+      customResourceState:
+        enabled: true
+        config:
+          kind: CustomResourceStateMetrics
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: kura.tuist.dev
+                  version: v1alpha1
+                  kind: KuraInstance
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  kurainstance: [metadata, name]
+                  tenant_id: [spec, tenantID]
+                  region: [spec, region]
+                metrics:
+                  - name: kurainstance_status_last_reconciled
+                    help: Unix time the controller last completed a full reconcile of this instance.
+                    each:
+                      type: Gauge
+                      gauge:
+                        # RFC3339 in the CR; kube-state-metrics parses a
+                        # timestamp string into Unix seconds. Deliberately no
+                        # nilIsZero: an instance whose status has never been
+                        # written should be absent here rather than reported as
+                        # last reconciled at the epoch, which would fire this
+                        # alert for the first minutes of every new instance.
+                        path: [status, lastReconciledAt]
     node-exporter:
       deploy: true
       # Setting tolerations overrides the subchart's broad default

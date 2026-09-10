@@ -304,6 +304,13 @@ type GHActionsRunnerConfig struct {
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.
 type ScalewayAppleSiliconMachineStatus struct {
+	// HostAgentStatus carries the phase, terminal-failure fields and
+	// host-config drift bookkeeping shared with every other macOS machine
+	// kind. Embedded, so the wire shape is unchanged (`.status.phase`,
+	// `.status.hostConfigHash`, ...) and the shared helpers in
+	// controllers/macos operate on one definition of those rules.
+	HostAgentStatus `json:",inline"`
+
 	// Ready is set to true once the Mac mini has joined the cluster
 	// and the corresponding Node object reports Ready=True. CAPI core
 	// reads this to mark the parent Machine Ready.
@@ -321,99 +328,10 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	Addresses []clusterv1.MachineAddress `json:"addresses,omitempty"`
 
-	// Phase tracks lifecycle: Pending | Provisioning | Bootstrapping |
-	// Ready | Deleting | Failed. Operator-facing only; CAPI core
-	// drives off Ready + Conditions.
-	// +optional
-	Phase string `json:"phase,omitempty"`
-
-	// FailureReason / FailureMessage are set on terminal failures. CAPI
-	// core surfaces them on the Machine object and prevents auto-retry.
-	// +optional
-	FailureReason *string `json:"failureReason,omitempty"`
-	// +optional
-	FailureMessage *string `json:"failureMessage,omitempty"`
-
 	// Conditions are CAPI-style condition entries (Provisioned,
 	// Bootstrapped, NodeReady).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
-
-	// TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary
-	// currently installed on the Mac mini. Drift between this and the
-	// operator's own baked-in binary SHA triggers a rolling update of
-	// the agent on each reconcile.
-	// +optional
-	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
-
-	// HostConfigHash is the fleet-wide canonical hash of every host
-	// config the operator pushes — the rendered install scripts plus the
-	// embedded binaries (bootstrap.HostConfigHash). Drift between this
-	// and the operator's own computed hash re-pushes the host config on
-	// the next reconcile, so a change to ANY pushed config (a script
-	// tweak, a fleet CIDR, or a re-baked binary) rolls to existing hosts
-	// instead of only a tart-kubelet binary change.
-	// +optional
-	HostConfigHash string `json:"hostConfigHash,omitempty"`
-
-	// FailedHostConfigHash records the desired HostConfigHash that
-	// exhausted its update-retry budget and drove the CR into the terminal
-	// Failed state. A broken config can never be applied, so HostConfigHash
-	// never advances to it and comparing desired-vs-last-applied would see
-	// drift forever and reset the retry cap every reconcile. Comparing
-	// desired-vs-FailedHostConfigHash instead keeps the cap for an unchanged
-	// broken config while still retrying a genuinely new one.
-	// +optional
-	FailedHostConfigHash string `json:"failedHostConfigHash,omitempty"`
-
-	// TartKubeletUpdateAttempts counts consecutive failures of the
-	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
-	// Once it crosses the operator's max-attempts threshold the CR
-	// transitions to a terminal Failed state with FailureReason set
-	// to "TartKubeletUpdateExceededRetries"; CAPI core surfaces that
-	// on the parent Machine and stops auto-driving it. Recovery is
-	// manual: clear FailureReason + zero this counter to resume the
-	// loop. Without this cap a persistently-broken host (binary
-	// corruption, disk-full, network partition) gets SSH-hammered
-	// every 60s indefinitely with no terminal-failure signal.
-	// +optional
-	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
-
-	// LastUpdateFailureTime is when the drift loop last recorded an
-	// update failure for this host. It exists so the terminal Failed
-	// state can expire: FailedHostConfigHash alone only lifts it when a
-	// NEW config ships, which is right for a config the host rejected
-	// but wrong for the far more common verdict — the host was simply
-	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
-	// terminal indefinitely while remaining Ready and schedulable, so
-	// they kept running jobs on a host config frozen at whatever the
-	// operator last managed to push. Re-arming after a cooldown lets a
-	// host that has since come back take the current config on its own,
-	// while a genuinely broken config still backs off to a handful of
-	// attempts per cooldown instead of hammering every reconcile.
-	// +optional
-	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
-
-	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
-	// failures on the currently-adopted host. Reset to zero on a
-	// successful bootstrap or whenever the underlying ServerID
-	// changes (mini swapped out). Drives the tiered recovery
-	// escalation in the BootstrapFailed path: at the reboot threshold
-	// the controller asks Scaleway to reboot the host to clear
-	// volatile state (PAM lockouts, sshd throttling, half-open
-	// connections); at the release threshold it returns the host to
-	// the adopt pool so the next reconcile claims a different mini.
-	// +optional
-	BootstrapAttempts int32 `json:"bootstrapAttempts,omitempty"`
-
-	// BootstrapRebootIssued records that a recovery reboot has
-	// already been triggered for the current host. Prevents
-	// re-rebooting the same host on every retry after the threshold
-	// crossing. Cleared when the underlying ServerID changes (mini
-	// swapped out, e.g., via release-to-pool) or on successful
-	// bootstrap.
-	// +optional
-	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
 }
 
 // +kubebuilder:object:root=true

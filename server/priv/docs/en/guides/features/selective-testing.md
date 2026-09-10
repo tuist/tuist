@@ -17,31 +17,24 @@ To run tests selectively with your <.localized_link href="/guides/features/proje
 
 ## Separate build and test jobs {#separate-build-and-test-jobs}
 
-Selective testing supports separate build and test jobs. If the build job produces an `.xctestrun` file, restore it in the test job and forward it to `tuist test --without-building`:
+Selective testing supports separate build and test jobs. Run `tuist test --build-only` in the build job so Tuist can persist a `selective-testing-graph.json` file alongside the products the build emits. That graph carries the hashes selective testing needs, so the test job doesn't have to regenerate the project or resolve Swift Package dependencies to figure out which targets to run.
+
+Tuist writes the graph in two places during `--build-only`:
+
+- Inside the `.xctestproducts` bundle when you pass `-testProductsPath`.
+- Next to every `.xctestrun` file under the derived data's `Build/Products/` directory.
+
+Cache either output alongside the built products and hand the same path to `--without-building` in the test job. Both forms work:
 
 ```sh
-tuist test MyScheme \
-  --without-building \
-  -- \
-  -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER' \
-  -xctestrun artifacts/MyScheme.xctestrun
-```
-
-Tuist generates the project to determine which test targets changed, then forwards those targets through `-only-testing`. It does not pass a project, workspace, or scheme to `xcodebuild` when `-xctestrun` is present because those input modes are mutually exclusive.
-
-Alternatively, build with `tuist test --build-only` and persist the complete `.xctestproducts` bundle:
-
-```sh
+# Build job — writes an .xctestproducts bundle with the graph inside it.
 tuist test MyScheme \
   --build-only \
   -- \
   -testProductsPath artifacts/MyScheme.xctestproducts \
   -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER'
-```
 
-In the test job, restore that complete bundle and pass the same path with `--without-building`:
-
-```sh
+# Test job — restores the same bundle.
 tuist test MyScheme \
   --without-building \
   -- \
@@ -49,7 +42,35 @@ tuist test MyScheme \
   -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER'
 ```
 
-An `.xctestrun` file is the test-run configuration: it identifies the built test bundles and how to launch them. An `.xctestproducts` bundle also contains the built test products and their `.xctestrun` files. Tuist adds the selective-testing graph to that bundle during the build job, letting the test job execute the selected tests without regenerating the project.
+```sh
+# Build job — writes the graph as a sibling of each xctestrun in derived data.
+tuist test MyScheme \
+  --build-only \
+  --derived-data-path artifacts/derived-data
+
+# Test job — points --without-building at any of those xctestrun files.
+tuist test MyScheme \
+  --without-building \
+  --derived-data-path artifacts/derived-data \
+  -- \
+  -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER' \
+  -xctestrun artifacts/derived-data/Build/Products/MyScheme_iphonesimulator.xctestrun
+```
+
+When Tuist can't find that graph next to the input (for example, when the build job used plain `xcodebuild build-for-testing` instead of `tuist test --build-only`), it falls back to regenerating the project so it can still compute the affected targets. That fallback needs Swift Package dependencies to be resolved on the test job, so run `tuist install` first or cache `Tuist/.build` between jobs.
+
+The graph reflects the source tree as it was at build time. Run the test job against the same commit as the build job — if the source drifts between the two, the hashes travel out of date and selective testing can skip tests that would actually fail against the newer source.
+
+### Which flag should I use? {#which-flag-should-i-use}
+
+`.xctestrun` and `.xctestproducts` are two different Xcode output formats, and they trade off portability against pipeline convenience:
+
+- **`-testProductsPath` (`.xctestproducts`) — recommended for new pipelines.** It's a self-contained directory: the built `.xctest` binaries and their `.xctestrun` files live inside it with paths made relative to the bundle root, so it stays valid wherever it ends up. It's also the format that has had the selective-testing fast path the longest, so it's the most-exercised path.
+- **`-xctestrun` (raw `.xctestrun`) — use it if you already have a pipeline built around derived data.** `xcodebuild build-for-testing` writes an `.xctestrun` at the top of `<derivedData>/Build/Products/` by default and points it at test bundles that live elsewhere in that tree. Reusing it in another job means keeping the paths in `Build/Products/` intact.
+
+If you're starting fresh, prefer `-testProductsPath`. If you're wiring Tuist into an existing pipeline that already caches derived data, `-xctestrun` will now get the same fast path as long as the build job runs through `tuist test --build-only`.
+
+Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, so Tuist skips those flags when the passthrough arguments include `-xctestrun` or `-testProductsPath`, and forwards the selected targets through `-only-testing`.
 
 > [!WARNING]
 > **Module Vs File-level Granularity**

@@ -24,6 +24,10 @@
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
+{{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
+{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
+{{- end }}
 {{- if not $imageTag }}
 {{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
 {{- end }}
@@ -81,6 +85,13 @@ rules:
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]
+  # The evacuation and gateway handover gates read the client and peer
+  # Services' core Endpoints to see which pod traffic actually lands on before
+  # deleting the other; without list/watch the cached client's informer is
+  # forbidden and every reconcile wedges.
+  - apiGroups: [""]
+    resources: [endpoints]
+    verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
   # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
@@ -133,6 +144,11 @@ rules:
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, update, patch]
+  # metrics-server's aggregated API is the source behind requests.cpu. An
+  # aggregated API cannot be bound per namespace.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: [pods]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -332,6 +348,10 @@ spec:
             - --watch-namespace={{ $namespace }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
+            {{- end }}
+            {{- if $publicWildcard.enabled }}
+            - --public-tls-secret-name={{ $publicWildcard.secretName }}
+            - --public-tls-dns-names={{ join "," $publicWildcard.dnsNames }}
             {{- end }}
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}

@@ -137,6 +137,10 @@ defmodule Tuist.Accounts.Account do
     cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
   end
 
+  def free_tier_reset_changeset(account, attrs) do
+    cast(account, attrs, [:free_tier_reset_at, :current_month_remote_cache_hits_count])
+  end
+
   def update_changeset(account, attrs) do
     account
     |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])

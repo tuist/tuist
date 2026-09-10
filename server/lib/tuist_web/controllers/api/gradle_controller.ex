@@ -6,6 +6,7 @@ defmodule TuistWeb.API.GradleController do
   alias Tuist.Gradle
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -41,7 +42,7 @@ defmodule TuistWeb.API.GradleController do
          type: :object,
          properties: %{
            id: %Schema{type: :string, nullable: true, description: "Client-provided build ID (UUID)."},
-           duration_ms: %Schema{type: :integer, description: "Build duration in milliseconds."},
+           duration_ms: %Schema{type: :integer, minimum: 0, description: "Build duration in milliseconds."},
            status: %Schema{type: :string, enum: ["success", "failure", "cancelled"], description: "Build status."},
            gradle_version: %Schema{type: :string, nullable: true, description: "Gradle version."},
            java_version: %Schema{type: :string, nullable: true, description: "Java version."},
@@ -142,11 +143,21 @@ defmodule TuistWeb.API.GradleController do
              items: %Schema{
                type: :object,
                properties: %{
+                 execution: GradleExecution.task(),
                  task_path: %Schema{type: :string, description: "Task path (e.g., :app:compileKotlin)."},
                  task_type: %Schema{type: :string, nullable: true, description: "Task type class name."},
                  outcome: %Schema{
                    type: :string,
-                   enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"],
+                   enum: [
+                     "local_hit",
+                     "remote_hit",
+                     "cache_hit",
+                     "up_to_date",
+                     "executed",
+                     "failed",
+                     "skipped",
+                     "no_source"
+                   ],
                    description: "Task outcome."
                  },
                  cacheable: %Schema{type: :boolean, description: "Whether the task is cacheable."},
@@ -240,6 +251,8 @@ defmodule TuistWeb.API.GradleController do
   end
 
   defp build_attributes(conn, project, body) do
+    metadata = body[:custom_metadata] || %{}
+
     %{
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
@@ -254,8 +267,8 @@ defmodule TuistWeb.API.GradleController do
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
       requested_tasks: body[:requested_tasks] || [],
-      custom_tags: Map.get(body[:custom_metadata] || %{}, :tags, []),
-      custom_values: Map.get(body[:custom_metadata] || %{}, :values, %{}),
+      custom_tags: Map.get(metadata, :tags, []),
+      custom_values: Map.get(metadata, :values, %{}),
       configuration_cache: body[:configuration_cache],
       configuration_operations: body[:configuration_operations] || [],
       artifact_transforms: body[:artifact_transforms] || [],
@@ -267,6 +280,7 @@ defmodule TuistWeb.API.GradleController do
   defp build_tasks(tasks) do
     Enum.map(tasks, fn task ->
       %{
+        execution: task[:execution],
         task_path: task.task_path,
         task_type: task[:task_type],
         outcome: task.outcome,
@@ -381,6 +395,7 @@ defmodule TuistWeb.API.GradleController do
                    configuration_cache_invalidation_reasons: %Schema{type: :array, items: %Schema{type: :string}},
                    tasks_local_hit_count: %Schema{type: :integer},
                    tasks_remote_hit_count: %Schema{type: :integer},
+                   tasks_cache_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
                    tasks_executed_count: %Schema{type: :integer},
                    cacheable_tasks_count: %Schema{type: :integer},
@@ -455,6 +470,7 @@ defmodule TuistWeb.API.GradleController do
             configuration_cache_invalidation_reasons: build.configuration_cache_invalidation_reasons,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
+            tasks_cache_hit_count: build.tasks_cache_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
@@ -528,6 +544,7 @@ defmodule TuistWeb.API.GradleController do
              artifact_transforms: %Schema{type: :array, items: %Schema{type: :object}},
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
+             tasks_cache_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
              tasks_executed_count: %Schema{type: :integer},
              tasks_failed_count: %Schema{type: :integer},
@@ -535,12 +552,21 @@ defmodule TuistWeb.API.GradleController do
              tasks_no_source_count: %Schema{type: :integer},
              cacheable_tasks_count: %Schema{type: :integer},
              cache_hit_rate: %Schema{type: :number, nullable: true},
+             cache_download_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of task outputs downloaded from the remote cache by the build."
+             },
+             cache_upload_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of task outputs uploaded to the remote cache by the build."
+             },
              inserted_at: %Schema{type: :string, format: :"date-time"},
              tasks: %Schema{
                type: :array,
                items: %Schema{
                  type: :object,
                  properties: %{
+                   execution: GradleExecution.task(),
                    task_path: %Schema{type: :string},
                    task_type: %Schema{type: :string, nullable: true},
                    outcome: %Schema{type: :string},
@@ -574,6 +600,7 @@ defmodule TuistWeb.API.GradleController do
           tasks = Gradle.list_tasks(build_id)
           configuration_operations = Gradle.list_configuration_operations(build_id)
           artifact_transforms = Gradle.list_artifact_transforms(build_id)
+          cache_aggregates = Gradle.task_cache_aggregates(build_id)
 
           json(conn, %{
             id: build.id,
@@ -616,6 +643,7 @@ defmodule TuistWeb.API.GradleController do
               end),
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
+            tasks_cache_hit_count: build.tasks_cache_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
             tasks_failed_count: build.tasks_failed_count,
@@ -623,10 +651,13 @@ defmodule TuistWeb.API.GradleController do
             tasks_no_source_count: build.tasks_no_source_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
             cache_hit_rate: Gradle.cache_hit_rate(build),
+            cache_download_bytes: cache_aggregates.cache_download_bytes,
+            cache_upload_bytes: cache_aggregates.cache_upload_bytes,
             inserted_at: build.inserted_at,
             tasks:
               Enum.map(tasks, fn task ->
                 %{
+                  execution: Gradle.task_execution_data(task),
                   task_path: task.task_path,
                   task_type: task.task_type,
                   outcome: task.outcome,

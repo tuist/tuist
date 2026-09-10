@@ -11,6 +11,7 @@ use crate::{
     analytics::Analytics,
     auth::SharedAuth,
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
     io::IoController,
     memory::MemoryController,
@@ -66,6 +67,7 @@ where
             chunk_bytes: 1024 * 1024,
         },
         action_cache_eviction_cascade_enabled: true,
+        reapi_blob_chunking_enabled: true,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
@@ -84,17 +86,27 @@ where
         rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
-        outbox_max_depth: 100_000,
+        outbox_max_depth: None,
+        outbox_max_depth_per_peer: 50_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
         replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
-        multipart_max_active_uploads: 128,
+        multipart_max_active_uploads: None,
         multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         backfill_margin_percent: 40,
         backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
         backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
+        replication_pull: false,
+        sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
+        sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
+        sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
+        sync_region_settle_ms: crate::constants::DEFAULT_SYNC_REGION_SETTLE_MS,
+        sync_feed_stale_peer_secs: crate::constants::DEFAULT_SYNC_FEED_STALE_PEER_SECS,
+        sync_drain_margin_ms: crate::constants::DEFAULT_SYNC_DRAIN_MARGIN_MS,
+        sync_peer_bodies_slots_per_peer: crate::constants::DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        sync_peer_serving_max_inflight: None,
         analytics: None,
         usage: None,
         otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
@@ -137,12 +149,21 @@ where
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store =
-        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let store = Arc::new(
+        Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
+    );
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        store.clone(),
+        memory.clone(),
+        metrics.clone(),
+    )
+    .expect("failed to build Bazel test artifact delivery");
     let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
         .expect("failed to build test usage");
     let peer_client_factory = PeerClientFactory::plain();
@@ -170,10 +191,17 @@ where
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
+    let replication_target_cache =
+        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
+    let replication_pull = config.replication_pull;
+    let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
+        config.sync_peer_bodies_slots_per_peer,
+        config.sync_peer_serving_max_inflight,
+    ));
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store: Arc::new(store),
+        store,
         io,
         memory,
         snapshot_cache,
@@ -181,12 +209,14 @@ where
         runtime,
         auth,
         analytics,
+        bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
         upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        replication_target_cache,
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
@@ -194,8 +224,13 @@ where
         peer_staging_budget,
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
-        backfill_bodies_peer_slots: Arc::new(crate::state::BackfillBodiesPeerSlots::default()),
+        backfill_bodies_peer_slots,
+        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
         backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
+        peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
+        published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
+        sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
     state.sync_runtime_metrics().await;
 

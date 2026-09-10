@@ -123,6 +123,16 @@ defmodule Tuist.Kura.Regions do
   # Air, and the fallback for any plan without its own profile.
   @standard_memory_floor_mib 256
   @standard_memory_ceiling_mib 768
+  # CPU ceilings become the pod's limits.cpu. There is no floor here: the
+  # controller observes requests.cpu per instance, so the plan grants only the
+  # burst bound. Each sits several times over its plan's measured 14-day peak
+  # (631m enterprise, 53m pro, 1-2m air, all 15-second averages) because a CFS
+  # quota is not work-conserving: one set near real use stalls a burst on an
+  # otherwise idle box. As a share of the smallest managed box, 11 cores:
+  # 36%, 18%, 9%.
+  @enterprise_cpu_ceiling_milli 4000
+  @pro_cpu_ceiling_milli 2000
+  @standard_cpu_ceiling_milli 1000
   # Filesystem quota one replica of a cache instance reserves, per plan. The
   # claim covers the whole data volume, not just the cache: Kura's artifact ring
   # shares it with the upload staging directory and the RocksDB index, and the
@@ -292,19 +302,20 @@ defmodule Tuist.Kura.Regions do
     # fleet's `cache-ap-southeast.tuist.dev` endpoint, so an account moved off
     # the legacy lane keeps the region name it already knows.
     #
-    # Nothing DERIVES here, and nothing is meant to. `accounts.region` is
-    # `all | europe | usa`: `europe` derives to eu-central, `usa` derives to
-    # us-east, and `all` defaults to us-east, so no storage-region preference
-    # resolves to Asia Pacific. Do not go looking for the rule that places
-    # accounts here; there is none. Air in particular can never land here,
-    # because Air resolves from the storage-region preference alone.
+    # No storage-region preference names this region: `accounts.region` is
+    # `all | europe | usa`, and none of the three derives to Asia Pacific. What
+    # places accounts here is where their traffic comes from — `Tuist.Kura.Origins`
+    # counts the origin, `Tuist.Kura.OriginMap` maps APAC to this region first,
+    # and an account whose residency constrains nothing resolves here without an
+    # operator. Air reaches it on the same rule as every other plan: what bounds
+    # a region is the disk `Tuist.Kura.Admission` can actually find there, not
+    # the tier of the account asking.
     #
-    # Two things do reach it, exactly as they reach us-west: an operator pinning
-    # an account's resolved region with `AccountPolicies.assign_service_region/4`,
-    # which carries plan checks, audit and versioning; and a customer picking the
-    # region in account settings, which goes through `selectable/0` and never
-    # consults AccountPolicies. The second is deliberate — this is a public
-    # region — so "assignment-only" describes derivation, not access.
+    # Two further routes reach it, exactly as they reach us-west: an operator
+    # pinning an account's resolved region with
+    # `AccountPolicies.assign_service_region/4`, which carries plan checks, audit
+    # and versioning; and a customer picking the region in account settings, which
+    # goes through `selectable/0` and never consults AccountPolicies.
     %{
       id: "ap-southeast",
       display_name: "Asia Pacific Southeast",
@@ -337,6 +348,109 @@ defmodule Tuist.Kura.Regions do
       # locates the node as precisely as the pair can. Stating a district would
       # be the guess this field exists to avoid (see `node_location/1`).
       country: "SG"
+    },
+    # South America West (Santiago / Vultr) on Vultr bare metal: the
+    # `kura-sa-west` node pool, local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as the OVH
+    # regions. The id matches the legacy cache fleet's `cache-sa-west.tuist.dev`
+    # endpoint, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH or Scaleway because neither sells in South America:
+    # OVH's own datacenter availability API lists bhs, ca-east-tor-a,
+    # eu-west-par-*, fra, gra, hil, lon, rbx, sbg, sgp, syd, waw and ynm, and
+    # Scaleway and Hetzner have no presence there either.
+    #
+    # Nothing DERIVES here, exactly as with us-west and ap-southeast:
+    # `accounts.region` is `all | europe | usa`, none of which resolves to South
+    # America. An account reaches it through an explicit
+    # `AccountPolicies.assign_service_region/4`, through a customer picking it in
+    # account settings via `selectable/0`, or through a placement proposal.
+    %{
+      id: "sa-west",
+      display_name: "South America West",
+      cluster_id: "sa-west-1",
+      ingress_class_name: "kura-sa-west",
+      node_pool: "kura-sa-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box. Unlike the OVH and Dedibox regions,
+      # which buy unmetered public bandwidth, this plan meters a 10 TB/month
+      # quota; the box's NIC links at 25 Gbit/s, so the quota rather than the
+      # link is what binds. 500 Mbps is the same conservative burst ceiling
+      # ap-southeast and ca-east carry, and it is provisional until the region
+      # serves enough traffic to measure. South America moved ~150 GiB a month on
+      # the legacy lane, so the quota has roughly 68x headroom at today's volume.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr Santiago, Chile. Región Metropolitana de Santiago, where the
+      # datacenter sits.
+      country: "CL",
+      subdivision: "CL-RM"
+    },
+    # EU East (Warsaw / OVHcloud WAW) on OVH bare metal: the `kura-eu-east` node
+    # pool (an `ovhFleets` entry), local-NVMe storage, and a hostNetwork regional
+    # gateway bound to the box's public IP, the same bare-metal shape as us-east
+    # and us-west.
+    #
+    # Serves the east of the OriginMap's europe split: the Baltics, the Nordics,
+    # and everything east of Germany. eu-central is in Paris, so those origins
+    # read across the continent today, Vilnius being 400km from Warsaw and 1600
+    # from Paris.
+    #
+    # OVH rather than Vultr, unlike sa-west: OVH sells in Warsaw, so the region
+    # reuses the OVHDedicatedMachine kind, its prep tooling and its unmetered
+    # bandwidth instead of adding a metered provider where an unmetered one is
+    # available.
+    %{
+      id: "eu-east",
+      display_name: "EU East",
+      cluster_id: "eu-east-1",
+      ingress_class_name: "kura-eu-east",
+      node_pool: "kura-eu-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC), the
+      # same shape us-east and us-west carry on the same range.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500,
+      # OVHcloud WAW, Warsaw, Masovian Voivodeship.
+      country: "PL",
+      subdivision: "PL-MZ"
+    },
+    # US Central (Chicago / Vultr ORD) on Vultr bare metal: the `kura-us-central`
+    # node pool (a `vultrFleets` entry), local-NVMe storage, and a hostNetwork
+    # regional gateway bound to the box's public IP. The id matches the legacy
+    # cache fleet's `cache-us-central.tuist.dev` endpoint, which was also in
+    # Chicago, so an account moved off the legacy lane keeps the region name it
+    # already knows.
+    #
+    # Vultr rather than OVH because no provider in the fleet sells bare metal in
+    # the US interior: OVH's datacenter availability API lists vin and hil in the
+    # United States, Hetzner sells Ashburn and Hillsboro, and Dedibox is EU-only.
+    # Chicago is where the interior's CI runs, and neither Vint Hill nor
+    # Hillsboro reaches it well.
+    %{
+      id: "us-central",
+      display_name: "US Central",
+      cluster_id: "us-central-1",
+      ingress_class_name: "kura-us-central",
+      node_pool: "kura-us-central",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      # Same metered plan as sa-west: a 10 TB/month egress quota rather than the
+      # unmetered bandwidth the OVH and Dedibox regions buy, so the quota rather
+      # than the link binds. Vultr pools the quota account-wide, so sa-west's
+      # unused allowance covers a burst here. 500 Mbps matches sa-west and is
+      # provisional until the region serves enough to measure.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500,
+      # Vultr ORD, Chicago, Illinois.
+      country: "US",
+      subdivision: "US-IL"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -470,6 +584,13 @@ defmodule Tuist.Kura.Regions do
   def private?(_), do: false
 
   @doc """
+  True iff the region's instances join the controller-managed per-account peer
+  mesh (replicate with the account's other nodes under one per-account CA).
+  """
+  def mesh?(%__MODULE__{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  def mesh?(_), do: false
+
+  @doc """
   The `%{floor_mib:, ceiling_mib:}` memory profile for a billing plan.
 
   Every plan gets a profile, so this is a sizing decision rather than a feature
@@ -483,6 +604,18 @@ defmodule Tuist.Kura.Regions do
   def memory_profile(:pro), do: %{floor_mib: @pro_memory_floor_mib, ceiling_mib: @pro_memory_ceiling_mib}
 
   def memory_profile(_plan), do: %{floor_mib: @standard_memory_floor_mib, ceiling_mib: @standard_memory_ceiling_mib}
+
+  @doc """
+  The `limits.cpu` in millicores for a billing plan.
+
+  The counterpart to `memory_profile/1`'s ceiling, and the burst bound half of
+  the same pair egress already has: a floor that is guaranteed and a ceiling
+  that is enforced. The floor has no entry here because the controller observes
+  it per instance rather than granting it per plan.
+  """
+  def cpu_ceiling_milli(:enterprise), do: @enterprise_cpu_ceiling_milli
+  def cpu_ceiling_milli(:pro), do: @pro_cpu_ceiling_milli
+  def cpu_ceiling_milli(_plan), do: @standard_cpu_ceiling_milli
 
   @doc """
   True iff the region sizes its instances per tier rather than taking the

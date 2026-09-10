@@ -63,6 +63,7 @@ config :esbuild,
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
@@ -179,6 +180,11 @@ config :logger, :console,
     :labels,
     :installation_id,
     :requested_labels,
+    # Tuist.Runners.Buildkite structured fields
+    :queue,
+    :job_uuid,
+    :errors,
+    :requested,
     :target,
     :observed,
     :gap,
@@ -249,7 +255,10 @@ config :logger, :console,
     :cap,
     :urls,
     :configured,
-    :reconciling
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis

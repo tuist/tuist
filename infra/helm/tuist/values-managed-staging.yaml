@@ -54,9 +54,30 @@ registry:
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
+  # Point registry's Sentry envelopes at the Registry domain DSN in the
+  # self-hosted Hive ingest (hive.tuist.dev). Prereq (MUST land before this
+  # merges): add a SENTRY_DSN_REGISTRY_HIVE field to the REGISTRY 1Password
+  # item in `tuist-k8s-staging` holding the Registry-domain Hive DSN;
+  # otherwise the ES sync errors on a missing remoteRef. Rollback is a
+  # revert; the old SENTRY_DSN_REGISTRY field on the same item stays put.
+  externalSecrets:
+    fields:
+      sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
   kuraCapacityAdmission:
+    enabled: true
+
+  # Cloudflare Turnstile signup gate. Uses the same real widget as production
+  # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
+  # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
+  # 1Password item in this env's vault via external-secrets. The always-
+  # passing test key pair is available on this chart for envs that need to
+  # keep automated signup flows unchallenged; staging's acceptance tests are
+  # CLI-based and never exercise the browser signup path, so the real widget
+  # is safe here and rehearses the exact ESO sync + hostname-allowlist path
+  # production runs.
+  turnstile:
     enabled: true
 
   replicaCount: 1
@@ -110,21 +131,6 @@ server:
     # done.
     - name: TUIST_KURA_ROLLOUT_PACING
       value: progressive
-    - name: TUIST_KURA_AIR_REGION
-      # Staging has no `us-east` pool, so every Air account would resolve to a
-      # region whose instances could never schedule, and the Air-only 60-day
-      # pressure rule could not be exercised at all. Run the free tier on the
-      # `ca-east` OVH validation box instead. Production omits this and serves
-      # us-east. Only Air moves: a paid account restricted to Europe or the
-      # USA chose that, and no deployment setting may relocate it.
-      value: ca-east
-    - name: TUIST_KURA_AIR_REGIONS
-      # Both public regions carry an Air budget here, which is what makes
-      # traffic-driven placement observable at all: with one funded region
-      # every Air account resolves to it whatever its traffic says. Production
-      # funds Air in one region and omits this, so the single-region variable
-      # above still decides there.
-      value: ca-east,eu-central
     - name: TUIST_KURA_INACTIVE_DAYS
       # Production reclaims after 90 days, which no environment can wait out,
       # so the archival half of the lifecycle would first run for real against
@@ -309,6 +315,78 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
+  # `mode` stays `external`: ClickHouse Cloud is still the system of record
+  # here, and the workload below runs alongside it. Staging is where the
+  # migration off Cloud (spec #73) is validated end to end, so both exist at
+  # once for the duration.
+  #
+  # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
+  # data on that node's XFS `/data`, and one Keeper on the general pool.
+  # Deliberately not a highly-available shape: what staging proves is the
+  # replicated engines, the Keeper dependency, the schema clone and the
+  # storage layout. Two replicas and a three-member quorum belong to canary.
+  #
+  # The volume is sized well under the 441 GB `/data` offers, because the
+  # staging dataset is a few GiB and the headroom is more useful as page
+  # cache than as a reservation nothing fills.
+  #
+  # First deploy ordering: the schema clone runs from the migration release
+  # task, which is a pre-upgrade hook, so on the deploy that introduces this
+  # workload there is nothing listening yet and the clone logs a warning and
+  # skips. The following deploy clones. That is expected, not a failure.
+  managed:
+    enabled: true
+    persistence:
+      size: 60Gi
+      localVolume:
+        # Staging's pool is one node, so this changes nothing here today. It is
+        # required rather than optional because the pool-label binding it
+        # replaces is safe only at one node, and an environment that grew a
+        # second one would otherwise regress silently.
+        nodeName: bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    shadowWrites:
+      enabled: true
+    # On here so the backup path itself is exercised before production depends
+    # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
+    backup:
+      enabled: true
+    # One step of the migration, run as a Job by the chart. The sequence is
+    # advanced by changing `task` and deploying, so each step is a reviewed
+    # change in the release history rather than a command typed at a database.
+    #
+    # Off, because the sequence has run here: the schema clone, dual writes,
+    # the backfill, parity over the ingest path and then over the read path,
+    # and finally the read flag. Each step is a post-upgrade hook, so leaving
+    # one enabled re-runs it on every deploy, and the last of them sets a flag
+    # — turning reads back off from the ops page would be silently undone by
+    # the next deploy.
+    #
+    # `name` and `task` name the step this would run if it were enabled, which
+    # is why they are the *next* step rather than the last one that ran. On
+    # 2026-09-04 a deploy from an unrelated branch removed this workload,
+    # because that branch's chart renders none of these resources. The data
+    # survived — the volume is Retain plus helm.sh/resource-policy: keep — but
+    # every row written since is missing from the in-cluster server, so what
+    # this environment needs next is a backfill.
+    #
+    # Leaving them pointed at the read cutover would have been worse than
+    # useless: `FunWithFlags.enable/1` is idempotent, so enabling this would
+    # have quietly re-pointed staging's reads at a server missing days of rows,
+    # and succeeded while doing it.
+    #
+    # `cutoff` is deliberately absent. The backfill refuses to run without one,
+    # so enabling this without choosing a boundary fails loudly and says so,
+    # rather than copying up to a stale timestamp. Set it to a moment after the
+    # deploy that turns dual writes back on has finished rolling out.
+    migration:
+      enabled: false
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
 
 cache:
   extraEnv:
@@ -647,6 +725,105 @@ ovhFleets:
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
+# BER1 rack fleet: the prototype M1 mini, the first hardware we own to join a
+# cluster. Staging only; the rack itself does not exist yet.
+#
+# At 1 since 2026-09-09, when the box first joined as a Node.
+#
+# The count is load-bearing beyond capacity. A Machine with nowhere to land sits
+# on NoAvailableHost forever, leaving the MachineDeployment below spec, and a
+# `helm upgrade --wait` gated on that count runs out its step ceiling. That is
+# not hypothetical: it wedged a staging deploy for half an hour during bring-up.
+# So raise this only to a number of hosts that can actually be claimed AND
+# bootstrapped.
+#
+# The prototype's reachability currently depends on a subnet router on a home
+# network. An already-Ready Machine is unaffected if that goes away, but a
+# re-bootstrap while it is gone would block staging deploys, so drop this to 0
+# if the box is going offline for a while. The dependency disappears once the
+# rack has its own service node.
+#
+# The address is a home-LAN address, not a public one, and reaching it needs a
+# tailnet subnet router advertising 192.168.0.41/32 plus the matching grant in
+# infra/tailscale/acls.json. A /32, not the /24: the tailnet still carries a
+# catch-all `*->*` grant that subsumes every narrowing, so advertising the whole
+# home prefix would expose every device on it, on every port, to every machine
+# on the tailnet including CI runner VMs. Without the route the claim succeeds
+# and bootstrap then fails on a dial timeout, which is loud but wasteful.
+# BER1 prototype. Deliberately the same shape as the rack fleet will be, so
+# that standing the rack up is adding hosts rather than rewriting this block.
+#
+# Every remaining difference is marked FORCED and names the physical fact that
+# causes it: a refurb M1 with 16 GB and a 256 GB disk, sitting on a flat home
+# LAN with no switch, no VLANs and no PDU. None of them is a preference, and
+# none should be copied into the rack's values.
+rackFleet:
+  enabled: true
+  pool: ber1-staging
+  site: ber1
+  # replicas intentionally omitted, exactly as the rack will omit it: it
+  # defaults to the declared host count, so inventory is the fleet and adding a
+  # host scales it. Pinning it here would have been a prototype-ism with no
+  # cause, since the default is already 1.
+  hosts:
+    - name: ber1-proto-01
+      serial: C07FC05JQ6NY
+      # FORCED (no switch, no VLANs): a home LAN address, advertised to the
+      # tailnet as a /32 because the catch-all grant in
+      # infra/tailscale/acls.json is still there and a wider prefix would
+      # expose the whole house. The rack puts
+      # minis on their own VLAN behind the ToR switch and advertises that prefix
+      # once, which removes the per-host ACL edit this address costs today. See
+      # "Two prerequisites before a real rack replaces the prototype" in
+      # infra/cluster-api-provider-tuist/AGENTS.md.
+      address: 192.168.0.41
+      # FORCED (no rack): no shelf or positionU. In the rack these carry the
+      # physical location a hands-on tech needs to find the box.
+      rack: proto
+      # FORCED (no PDU): no `power` block at all. The Shelly plug has not been
+      # delivered, so this host has no outlet: PowerReachable reports False with
+      # PowerNotConfigured, the bootstrap-failure ladder skips its reboot tier
+      # and escalates straight to quarantine, and `tuist.dev/power-action` is
+      # refused. That is correct behaviour for a box nobody can power-cycle
+      # remotely, and it is visible rather than silent, which is the point.
+      #
+      # The rack does not use a Shelly. A Shelly is a home and office prototype
+      # stand-in; the rack runs per-outlet-switched PDUs on the management VLAN,
+      # with their own driver, one credential Secret per PDU shared by every
+      # host plugged into it.
+      #
+      # KNOWN GAP for whoever adds the first `power` block: the controller dials
+      # `power.host` directly from its Pod, with no egress Service in front of
+      # it, unlike the host's SSH address. A Pod has no route to a subnet-routed
+      # address, so a PDU on a LAN or a management VLAN is unreachable the same
+      # way the minis were, and it surfaces as a connection error on
+      # PowerReachable rather than as anything naming a route.
+  machine:
+    # FORCED (M1, 16 GB): a refurb M1 bought to prove the plumbing. The rack is
+    # leased M5 Pro minis at 18 cores / 64 GB / 2 TB, so every number in this
+    # block goes up and guestCapacity stops being 1.
+    #
+    # M1, 8 cores / 16 GB. The advertised memory is the box's RAM minus the
+    # ~2 GB Virtualization.framework reserves for the host, below which
+    # `tart run` fails with `memorySize > maximumAllowedMemorySize`.
+    hostCPU: 8
+    hostMemoryMB: 14336
+    guestCapacity: 1
+    # guests x 2 + 1: a Pod stays bound to its Node after it finishes, so each
+    # guest slot can transiently hold its running Pod plus a predecessor GC has
+    # not collected yet.
+    maxPods: 3
+    # FORCED (256 GB disk): cache volumes OFF. A 2 TB rack mini runs the fleet's
+    # normal quota; this is only zero because the prototype's disk is 256 GB.
+    # The goldens alone do not leave
+    # room for the fleet's normal quota, and the point of this host is to
+    # validate the plumbing, not runner shapes. An explicit 0 is distinguishable
+    # from unset, which would inherit the fleet's non-zero global.
+    runnerCacheVolumeGiB: 0
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+
 macosFleet:
   enabled: true
   replicas: 1
@@ -849,7 +1026,31 @@ runnersFleet:
   # constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
   runnerImageSemver: ""
-  pools: []
+  # One explicit pool placed on the BER1 rack fleet rather than the rented
+  # Scaleway minis, so a real GitHub Actions job can run on hardware we own.
+  # `runs-on: tuist-ber1-smoke` reaches this server's webhook handler, which
+  # matches the label to this pool and dispatches a runner onto a rack Node.
+  #
+  # This key is the one that counts: an earlier `pools:` in this same mapping
+  # would be silently discarded, because YAML resolves duplicate keys last-wins
+  # and Helm never warns.
+  #
+  # A fixed replica rather than autoscaling: the fleet allocator apportions
+  # guest slots across the macOS pools of ONE fleet, and this pool deliberately
+  # sits in another, so an explicit count keeps it out of that arithmetic. It
+  # costs the rack's single guest slot, which nothing else competes for.
+  #
+  # The image is the 26.6 runner because the prototype host runs macOS 26.6 and
+  # a Tart guest cannot be newer than its host.
+  pools:
+    - name: ber1
+      runnerImage: ghcr.io/tuist/tuist-runner:macos-26-6-0.17.0
+      dispatchLabel: tuist-ber1-smoke
+      fleetSelector: tuist-tuist-rack-fleet
+      replicas: 1
+      pod:
+        cpuMilli: 6000
+        memoryMB: 14336
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

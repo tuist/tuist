@@ -27,10 +27,18 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var buildInsights = true
 
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: "Add the generated .bazelrc.tuist import to .bazelrc."
+    )
+    var addBazelrcImport = true
+
     public func run() async throws {
         try await BazelSetupCommandService().run(
             directory: path,
-            buildInsights: buildInsights
+            buildInsights: buildInsights,
+            addBazelrcImport: addBazelrcImport
         )
     }
 }

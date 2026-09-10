@@ -6,6 +6,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
 
   defp csr_pem do
     :secp256r1
@@ -244,6 +245,63 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     assert is_integer(interval)
   end
 
+  test "mesh heartbeat publishes the account's pull flag but never the managed pods' roles", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-central",
+      peer_roles: [
+        %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+        %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+      ]
+    )
+
+    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    body = json_response(conn, 200)
+
+    # Roles are keyed by each managed pod's internal `KURA_NODE_URL`, which a
+    # self-hosted node's peer list never names, so publishing them here could
+    # only ship internal cluster addresses for the node to ignore.
+    assert %{"mesh_member" => true, "peers" => [], "replication_pull" => true} = body
+    refute Map.has_key?(body, "peer_roles")
+  end
+
+  test "mesh heartbeat answers a false pull flag for an account without managed servers", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert %{"mesh_member" => true, "replication_pull" => false} = json_response(conn, 200)
+  end
+
   test "mesh heartbeat reports non-membership for a node that never enrolled", %{
     conn: conn,
     client: client,
@@ -277,9 +335,15 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
   test "returns the self-hosted peer view with a self-hosted credential", %{
     conn: conn,
+    account: account,
     client: client,
     secret: secret
   } do
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-central",
+      peer_roles: [%{"url" => "https://internal-pod.kura.svc:7443", "gateway" => true}]
+    )
+
     conn
     |> basic_auth(client.client_id, secret)
     |> post(~p"/_internal/kura/mesh/enroll", %{
@@ -294,6 +358,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert %{
              "peers" => ["https://kura-1.acme.test:4433"],
+             "peer_roles" => [],
              "refresh_interval_seconds" => interval
            } = json_response(conn, 200)
 
@@ -323,6 +388,60 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
 
     assert %{"peers" => ["https://kura-1.acme.test:4433"]} = json_response(conn, 200)
+  end
+
+  test "publishes the roles and the pull flag in the peer view for managed pods", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    gateway_url = "https://kura-eu-0.peer:7443"
+
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-central",
+      peer_roles: [%{"url" => gateway_url, "gateway" => true}]
+    )
+
+    # Every field in this response is a Postgres read: no apiserver on the path.
+    reject(&Client.get_kura_instance/3)
+
+    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn %{id: id} -> id == account.id end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{
+             "peers" => [],
+             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-central", "gateway" => true}],
+             "replication_pull" => true,
+             "refresh_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "answers no roles for a server the reconciler has not observed roles for", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    KuraFixtures.active_server_fixture(account, region: "eu-central")
+    reject(&Client.get_kura_instance/3)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => false} = json_response(conn, 200)
   end
 
   test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do

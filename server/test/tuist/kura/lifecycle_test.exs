@@ -3,7 +3,6 @@ defmodule Tuist.Kura.LifecycleTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
@@ -237,16 +236,16 @@ defmodule Tuist.Kura.LifecycleTest do
   end
 
   describe "entering drain-pending" do
-    test "drains an instance after a complete inactive window and unpublishes its endpoint" do
+    test "drains an instance after a complete inactive window, taking it out of resolution" do
       account = account()
       server = active_instance(account)
-      Repo.insert!(%AccountCacheEndpoint{account_id: account.id, url: server.url, technology: :kura})
+      assert Kura.managed_cache_endpoint_urls(account) == [server.url]
       with_demand(account, 91)
 
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :drain_pending
-      assert Repo.aggregate(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id), :count) == 0
+      assert Kura.managed_cache_endpoint_urls(account) == []
       assert reload_lifecycle(account).drain_started_at
     end
 
@@ -461,19 +460,16 @@ defmodule Tuist.Kura.LifecycleTest do
       reject(&Provisioner.destroy/1)
     end
 
-    test "republishes the cache endpoint the drain unpublished" do
+    test "returns the drained instance to resolution" do
       account = account()
       server = active_instance(account)
-      Repo.insert!(%AccountCacheEndpoint{account_id: account.id, url: server.url, technology: :kura})
       start_drain(account, server)
+      assert Kura.managed_cache_endpoint_urls(account) == []
 
       Demand.record(account.id)
       Lifecycle.reconcile()
 
-      assert [%AccountCacheEndpoint{url: url}] =
-               Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id))
-
-      assert url == server.url
+      assert Kura.managed_cache_endpoint_urls(account) == [server.url]
     end
 
     test "emits an archive cancellation" do
@@ -1047,6 +1043,24 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile_placement_retirements()
 
       assert reload(source).status == :drain_pending
+      assert reload(destination).status == :active
+    end
+
+    test "skips a retiring region the catalog does not name" do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. The instance there is still serving, and
+      # a drain scheduled now would outlive the window that made it look wrong.
+      account = account(plan: :enterprise)
+      source = active_instance_in(account, "atlantis")
+      destination = active_instance_in(account, "eu-central")
+      with_demand(account, 0)
+      {:ok, _held} = PlacerRegions.put_primary(account, "atlantis")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _retiring} = PlacerRegions.mark_retiring(account, "atlantis")
+
+      Lifecycle.reconcile_placement_retirements()
+
+      assert reload(source).status == :active
       assert reload(destination).status == :active
     end
 

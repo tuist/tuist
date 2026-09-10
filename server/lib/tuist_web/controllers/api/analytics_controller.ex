@@ -338,6 +338,12 @@ defmodule TuistWeb.API.AnalyticsController do
                                ]
                              }
                            },
+                           dependencies: %Schema{
+                             type: :array,
+                             description:
+                               "Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.",
+                             items: %Schema{type: :string}
+                           },
                            binary_cache_metadata: %Schema{
                              type: :object,
                              description: "Binary cache metadata",
@@ -1089,6 +1095,9 @@ defmodule TuistWeb.API.AnalyticsController do
       case type do
         "result_bundle" ->
           CommandEvents.get_result_bundle_key(run_id, project)
+
+        "stress_result_bundle" ->
+          CommandEvents.get_stress_result_bundle_key(run_id, project)
 
         "invocation_record" ->
           CommandEvents.get_result_bundle_invocation_record_key(

@@ -120,7 +120,8 @@ defmodule Tuist.Environment do
     * `:web` (default) — full Phoenix endpoint, every Oban queue, every
       ingestion buffer. What the existing server pods run.
     * `:processor` — no Phoenix listener, narrowed Oban queue set to
-      `:process_build`. Booted by processor-deployment.yaml.
+      `:process_build` and `:process_bazel_tests`. Booted by
+      processor-deployment.yaml.
     * `:xcresult_processor` — no Phoenix listener, Oban queue set
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
@@ -265,6 +266,22 @@ defmodule Tuist.Environment do
 
   def kura_capacity_admission_required? do
     tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
+  end
+
+  def turnstile_enabled? do
+    truthy?(System.get_env("TUIST_TURNSTILE_ENABLED", "0"))
+  end
+
+  def turnstile_required? do
+    tuist_hosted?() and turnstile_enabled?()
+  end
+
+  def turnstile_site_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SITE_KEY") || get([:turnstile, :site_key], secrets)
+  end
+
+  def turnstile_secret_key(secrets \\ secrets()) do
+    System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
   end
 
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
@@ -421,79 +438,60 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  The region Air instances run in for an account's storage region.
+  The placement apply budgets an operator has written, as counts keyed by the
+  name of the proposal kind they were written for.
 
-  An account that states no storage region ("All regions") has no residency
-  constraint to uphold, so where its free tier runs is a deployment decision:
-  `us-east` unless `TUIST_KURA_AIR_REGION` names another.
-
-  An account that chose Europe has stated one. "Storage region" in account
-  settings names module cache binaries, which is what a Kura instance holds, so
-  such an account is never placed in the United States: it runs in whichever
-  region `TUIST_KURA_AIR_EUROPE_REGION` names, and is refused while nothing
-  names one. That variable is unset everywhere today, which is why those
-  accounts are refused now, and setting it is what turns Air in Europe on.
-
-  Paid regions are not configurable for the opposite reason: a paid account
-  restricted to Europe or the USA chose that, and no deployment setting may
-  move it.
-
-  Staging has no `us-east` pool, so without this every Air account there
-  resolves to a region whose instances can never schedule, and the Air-only
-  pressure rule cannot be exercised at all.
-  """
-  def kura_air_region(:europe), do: air_region_env("TUIST_KURA_AIR_EUROPE_REGION", nil)
-
-  def kura_air_region(storage_region) when storage_region in [:all, :usa],
-    do: air_region_env("TUIST_KURA_AIR_REGION", "us-east")
-
-  @doc """
-  Every region with an Air budget, which is the set Air placement chooses
-  from. Air in a region costs a storage slot on a tier that pays for none, so
-  a region serves Air only once someone funds it; an account whose residency
-  admits no funded region is refused, and the refusal is what quantifies the
-  case for funding one.
-
-  `TUIST_KURA_AIR_REGIONS` names the set. Without it the set is whatever the
-  single-region variables name, so a deployment that has configured neither
-  keeps serving Air exactly where it does today.
-  """
-  def kura_air_region_ids do
-    case System.get_env("TUIST_KURA_AIR_REGIONS") do
-      value when value in [nil, ""] ->
-        Enum.reject([kura_air_region(:all), kura_air_region(:europe)], &is_nil/1)
-
-      value ->
-        value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-    end
-  end
-
-  @doc """
-  How many placement proposals the sweep may apply on its own in a day.
-
-  Zero unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a number,
+  Empty unless `TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY` names a kind,
   so placement proposes and an operator applies until someone decides
   otherwise. A placement transition costs a region's worth of cache refill,
   which is why this starts stopped where claim sizing does not.
-  """
-  def kura_placement_automatic_applies_per_day do
-    case System.get_env("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY") do
-      value when value in [nil, ""] ->
-        0
 
-      value ->
-        case Integer.parse(value) do
-          {count, _rest} when count >= 0 -> count
-          _ -> 0
-        end
+  Per kind because only one kind needs a fleet-wide ceiling at all. Every rung
+  already limits how often a single account may move: expansion stops at the
+  plan's region count, relocation runs once a quarter, correction fires once in
+  an account's life. Those bound the thing worth bounding and they scale with
+  the fleet by construction. A count here bounds something different, which is
+  how much of the *whole fleet* may move in a day, and the only reason to want
+  that is a rung deciding wrongly for everyone at once. Retirement is where
+  that matters, because it deletes volumes an hour later with no cancel; the
+  others cost a cold cache and re-derive their own decision.
+
+  The format is `kind=count` pairs, such as `expand=all,relocate=all,retire=25`.
+  A count of `all` lifts the fleet-wide ceiling on that kind entirely, which is
+  the right setting for every kind whose mistake is recoverable: the rungs
+  already limit how often any one account may move, and a fleet-wide constant
+  in front of a queue that grows with the account count is a ceiling that stops
+  tracking the fleet the moment it grows.
+
+  Which names are real kinds is
+  `Tuist.Kura.PlacementProposals.automatic_apply_budgets/0`'s to decide. What
+  is settled here is only that an unreadable pair is dropped rather than
+  failing the boot: a typo in one entry must not be able to take the server
+  down, and the direction it fails in is the one that applies nothing.
+  """
+  def kura_placement_automatic_applies_per_day(environment \\ System.get_env()) when is_map(environment) do
+    environment
+    |> Map.get("TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY")
+    |> to_string()
+    |> String.split(",", trim: true)
+    |> Enum.reduce(%{}, &put_placement_budget/2)
+  end
+
+  defp put_placement_budget(pair, budgets) do
+    with [name, count] <- String.split(pair, "=", parts: 2),
+         {:ok, count} <- parse_placement_budget(String.trim(count)) do
+      Map.put(budgets, String.trim(name), count)
+    else
+      _ -> budgets
     end
   end
 
-  defp air_region_env(variable, default) do
-    case System.get_env(variable) do
-      nil -> default
-      "" -> default
-      region -> region
+  defp parse_placement_budget("all"), do: {:ok, :unlimited}
+
+  defp parse_placement_budget(count) do
+    case Integer.parse(count) do
+      {count, ""} when count >= 0 -> {:ok, count}
+      _ -> :error
     end
   end
 
@@ -1261,6 +1259,18 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
+  # The in-cluster ClickHouse the workload is migrating onto, while
+  # `clickhouse_url/1` still points at the system of record. Set only for the
+  # duration of the migration: it is what the schema clone writes into, what
+  # the backfill fills, and what shadow writes are mirrored to. Absent
+  # everywhere else, which is what keeps all of that inert.
+  def clickhouse_bare_metal_url(secrets \\ secrets()) do
+    case get([:clickhouse, :bare_metal_url], secrets) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
   def ops_clickhouse_url(secrets \\ secrets()) do
     get([:ops, :clickhouse_url], secrets) ||
       build_ops_clickhouse_url(
@@ -1324,6 +1334,39 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Whether writes are mirrored onto the in-cluster ClickHouse. Separate from
+  # the URL being set, because the destination has to exist and hold the
+  # schema before it can accept a write: the schema clone runs after the
+  # release that first deploys the server, so a single switch would mirror
+  # writes into a database with no tables and log an error for each one.
+  def clickhouse_shadow_writes_enabled?(secrets \\ secrets()) do
+    not is_nil(clickhouse_bare_metal_url(secrets)) and
+      truthy?(get([:clickhouse, :shadow_writes_enabled], secrets, default_value: "0"))
+  end
+
+  # The instant that divides the two halves of the migration: the backfill
+  # copies rows from before it, and shadow writes carry everything from it on.
+  # It has to be named rather than inferred, because the only correct value is
+  # the moment dual writes were switched on, which this code cannot observe
+  # after the fact. Guessing it either way corrupts the copy: a cutoff before
+  # that moment loses the rows written in between, and one after it copies
+  # rows the dual write already delivered.
+  def clickhouse_backfill_cutoff(secrets \\ secrets()) do
+    with value when is_binary(value) and value != "" <- get([:clickhouse, :backfill_cutoff], secrets),
+         {:ok, cutoff, _offset} <- DateTime.from_iso8601(value) do
+      DateTime.truncate(cutoff, :second)
+    else
+      _ -> nil
+    end
+  end
+
+  def clickhouse_shadow_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_SHADOW_POOL_SIZE") do
+      nil -> 5
+      value -> String.to_integer(value)
+    end
+  end
+
   def clickhouse_pool_size(_secrets \\ nil) do
     case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
@@ -1353,6 +1396,10 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BUILD", "0"))
   end
 
+  def delegate_process_bazel_tests? do
+    truthy?(System.get_env("TUIST_DELEGATE_PROCESS_BAZEL_TESTS", "0"))
+  end
+
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
   (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
@@ -1368,6 +1415,13 @@ defmodule Tuist.Environment do
     case System.get_env("TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY") do
       value when is_binary(value) and value != "" -> String.to_integer(value)
       _ -> if processor_mode?(), do: 5, else: 2
+    end
+  end
+
+  def process_bazel_tests_queue_concurrency do
+    case System.get_env("TUIST_PROCESS_BAZEL_TESTS_QUEUE_CONCURRENCY") do
+      value when is_binary(value) and value != "" -> String.to_integer(value)
+      _ -> 1
     end
   end
 

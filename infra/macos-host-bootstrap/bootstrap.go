@@ -380,12 +380,14 @@ type Config struct {
 	// RunnerCacheVolumeGiB > 0.
 	CacheVolumeMasterCapGiB int
 
-	// CacheVolumeCASGiB is the Xcode compilation cache's byte budget WITHIN
-	// each per-account cache image (folded in as a subdir), passed to
+	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
+	// WITHIN each per-account cache image (folded in as a subdir), passed to
 	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
 	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// 0 (default) leaves the compilation cache VM-local. Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
+	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
+	// bounds one generation of a store that keeps two — so this is what the
+	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
+	// Only meaningful when RunnerCacheVolumeGiB > 0.
 	CacheVolumeCASGiB int
 }
 
@@ -1250,44 +1252,15 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 // macOS implements auto-login via:
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
-func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
-	// No password to XOR into /etc/kcpassword means we'd write a
-	// broken kcpassword (just the cipher key with no plaintext under
-	// it) and macOS would silently fail to auto-login the user. That
-	// path is hit on adopted pool hosts where Scaleway no longer
-	// surfaces the bootstrap password; the operator is expected to
-	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
-	// prep-script flow. Bail before doing damage.
-	if password == "" {
-		return nil
-	}
+//
+// autoLoginScript renders the auto-login setup. Split out of EnableAutoLogin
+// so its content is assertable without an SSH session: the sealed-marker
+// check inside it is a hardcoded constant that has to stay in step with
+// encodeKCPassword, and it must not reacquire a dependency on Xcode Command
+// Line Tools, which a rack host does not have.
+func autoLoginScript(user, password string) string {
 	encoded := encodeKCPassword(password)
-	// Stage the binary kcpassword via base64 to avoid TTY issues.
-	//
-	// Why we kick loginwindow at the end:
-	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
-	// macOS's loginwindow at boot does NOT honor the auto-login
-	// preference unless a display device is attached — so the system
-	// boots, the console stays at the root user, and no Aqua (GUI)
-	// session for the auto-login user comes up. Apple's
-	// Virtualization.framework refuses to start macOS guests in that
-	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
-	// which means tart-kubelet's `tart run` fails on every pod even
-	// after Tart and the kubelet are correctly installed.
-	//
-	// `launchctl kickstart -k system/com.apple.loginwindow` is the
-	// modern way to do this and handles both cases uniformly:
-	//   * loginwindow IS running: SIGTERM the existing instance and
-	//     respawn it.
-	//   * loginwindow is NOT running: just spawn it.
-	// `killall -HUP loginwindow` (the previous approach) exits 1 with
-	// "No matching processes were found" when loginwindow is missing,
-	// which is the state we land in if the host had loginwindow exit
-	// via SIGHUP earlier (launchd's policy is to not auto-respawn
-	// after SIGHUP for a console-bound daemon). kickstart talks to
-	// launchd's service registry directly so the missing-process case
-	// is a clean start, not an error.
-	script := fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -euo pipefail
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
@@ -1315,25 +1288,71 @@ done
 # session — Tart can't start guests, all runner pods hit
 # TartCreateFailed indefinitely.
 #
-# Read kcpassword as root and XOR-decode it; the first 8 bytes are
-# the signal. Python exit 1 here propagates via 'set -e' and fails
-# the bootstrap loudly, so the operator fixes the bootstrap-Secret-
-# vs-host password drift before the host ships.
-sudo /usr/bin/python3 - <<'CHECK'
-import sys
-key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
-with open('/etc/kcpassword', 'rb') as f:
-    enc = f.read()
-dec = bytes(b ^ key[i %% len(key)] for i, b in enumerate(enc))
-if dec.startswith(b'<sealed>'):
-    sys.stderr.write("kcpassword replaced by macOS with <sealed> marker — bootstrap-stored password does not match m1's actual password on this host\n")
-    sys.exit(1)
-CHECK
+# Compared as CIPHERTEXT rather than XOR-decoded, which is the same
+# test done with tools every macOS has. Apple's key is fixed and so is
+# the marker, so "<sealed>" always encodes to these 8 bytes; matching
+# them is equivalent to decoding and checking the prefix.
+#
+# This used to decode with /usr/bin/python3. That is a Command Line
+# Tools SHIM, not an interpreter: on a host without Xcode it exits
+# non-zero with "xcode-select: error: No developer tools were found",
+# which set -e turned into a bootstrap failure that named auto-login
+# and said nothing about the real cause. Rented images ship Xcode so
+# this never surfaced there; an MDM-provisioned rack host does not, and
+# it failed all 8 attempts on the BER1 prototype (2026-09-09). od is in
+# the base system and needs no developer tools.
+#
+# A match exits 1, which propagates via set -e and fails the bootstrap
+# loudly, so the operator fixes the password drift before the host
+# ships.
+if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "41fa3742bed9b9d4" ]; then
+  echo "kcpassword replaced by macOS with the <sealed> marker: the stored password does not match this host's actual password for '%[1]s'" >&2
+  exit 1
+fi
 
 if [ "$session_up" = "0" ]; then
   echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
 fi
 `, user, encoded)
+}
+
+func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	// No password to XOR into /etc/kcpassword means we'd write a
+	// broken kcpassword (just the cipher key with no plaintext under
+	// it) and macOS would silently fail to auto-login the user. That
+	// path is hit on adopted pool hosts where Scaleway no longer
+	// surfaces the bootstrap password; the operator is expected to
+	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
+	// prep-script flow. Bail before doing damage.
+	if password == "" {
+		return nil
+	}
+	// Stage the binary kcpassword via base64 to avoid TTY issues.
+	//
+	// Why we kick loginwindow at the end:
+	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
+	// macOS's loginwindow at boot does NOT honor the auto-login
+	// preference unless a display device is attached — so the system
+	// boots, the console stays at the root user, and no Aqua (GUI)
+	// session for the auto-login user comes up. Apple's
+	// Virtualization.framework refuses to start macOS guests in that
+	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
+	// which means tart-kubelet's `tart run` fails on every pod even
+	// after Tart and the kubelet are correctly installed.
+	//
+	// `launchctl kickstart -k system/com.apple.loginwindow` is the
+	// modern way to do this and handles both cases uniformly:
+	//   * loginwindow IS running: SIGTERM the existing instance and
+	//     respawn it.
+	//   * loginwindow is NOT running: just spawn it.
+	// `killall -HUP loginwindow` (the previous approach) exits 1 with
+	// "No matching processes were found" when loginwindow is missing,
+	// which is the state we land in if the host had loginwindow exit
+	// via SIGHUP earlier (launchd's policy is to not auto-respawn
+	// after SIGHUP for a console-bound daemon). kickstart talks to
+	// launchd's service registry directly so the missing-process case
+	// is a clean start, not an error.
+	script := autoLoginScript(user, password)
 	return RunCommand(ctx, client, script)
 }
 

@@ -4,6 +4,7 @@ defmodule TuistWeb.GradleBuildLive do
   use Noora
 
   import TuistWeb.Components.MachineMetricsCharts
+  import TuistWeb.Helpers.GradleTask
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -58,20 +59,20 @@ defmodule TuistWeb.GradleBuildLive do
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
-        do: aggregates.cache_download_bytes / (aggregates.download_duration_ms / 1000),
-        else: 0
+        do: aggregates.timed_download_bytes / (aggregates.download_duration_ms / 1000)
 
     upload_throughput =
       if aggregates.upload_duration_ms > 0,
-        do: aggregates.cache_upload_bytes / (aggregates.upload_duration_ms / 1000),
-        else: 0
+        do: aggregates.timed_upload_bytes / (aggregates.upload_duration_ms / 1000)
 
     slug = "#{account.name}/#{socket.assigns.selected_project.name}"
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
-    local_hits = build.tasks_local_hit_count || 0
-    remote_hits = build.tasks_remote_hit_count || 0
-    from_cache = local_hits + remote_hits
+    from_cache =
+      Enum.sum(
+        Enum.map([build.tasks_local_hit_count, build.tasks_remote_hit_count, build.tasks_cache_hit_count], &(&1 || 0))
+      )
+
     cacheable = build.cacheable_tasks_count || 0
 
     socket
@@ -86,9 +87,6 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
     |> assign(:download_throughput, download_throughput)
     |> assign(:upload_throughput, upload_throughput)
-    |> assign(:confirmed_remote_cache_miss_count, aggregates.confirmed_remote_cache_miss_count)
-    |> assign(:confirmed_remote_cache_miss_duration_ms, aggregates.confirmed_remote_cache_miss_duration_ms)
-    |> assign(:remote_cache_entries_stored_count, aggregates.remote_cache_entries_stored_count)
     |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
@@ -702,9 +700,10 @@ defmodule TuistWeb.GradleBuildLive do
         field: :outcome,
         display_name: dgettext("dashboard_gradle", "Outcome"),
         type: :option,
-        options: [:local_hit, :remote_hit, :up_to_date, :executed, :failed, :skipped, :no_source],
+        options: [:cache_hit, :local_hit, :remote_hit, :up_to_date, :executed, :failed, :skipped, :no_source],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local hit"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit"),
           remote_hit: dgettext("dashboard_gradle", "Remote hit"),
           up_to_date: dgettext("dashboard_gradle", "Up-to-date"),
           executed: dgettext("dashboard_gradle", "Executed"),
@@ -746,9 +745,10 @@ defmodule TuistWeb.GradleBuildLive do
         field: :outcome,
         display_name: dgettext("dashboard_gradle", "Status"),
         type: :option,
-        options: [:local_hit, :remote_hit, :executed],
+        options: [:cache_hit, :local_hit, :remote_hit, :executed],
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local"),
+          cache_hit: dgettext("dashboard_gradle", "Cache hit"),
           remote_hit: dgettext("dashboard_gradle", "Remote"),
           executed: dgettext("dashboard_gradle", "Missed")
         },
@@ -779,22 +779,6 @@ defmodule TuistWeb.GradleBuildLive do
       "asc"
     end
   end
-
-  defp outcome_color("local_hit"), do: "success"
-  defp outcome_color("remote_hit"), do: "information"
-  defp outcome_color("up_to_date"), do: "information"
-  defp outcome_color("executed"), do: "secondary"
-  defp outcome_color("failed"), do: "destructive"
-  defp outcome_color(_), do: "secondary"
-
-  defp outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
-  defp outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
-  defp outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
-  defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Executed")
-  defp outcome_label("failed"), do: dgettext("dashboard_gradle", "Failed")
-  defp outcome_label("skipped"), do: dgettext("dashboard_gradle", "Skipped")
-  defp outcome_label("no_source"), do: dgettext("dashboard_gradle", "No source")
-  defp outcome_label(other), do: other
 
   defp cache_miss_reason(%{remote_cache_miss: true, remote_cache_stored: true}) do
     dgettext("dashboard_gradle", "No remote entry, then stored")

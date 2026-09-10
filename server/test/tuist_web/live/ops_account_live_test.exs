@@ -10,6 +10,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
+  alias Tuist.Kura.PlacementProposal
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
@@ -189,6 +190,30 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ "kura-#{user.account.id}-us-east-0"
     assert html =~ "12.9 GB of 26.8 GB"
+  end
+
+  test "renders an open placement proposal of every kind", %{conn: conn, user: user} do
+    for {kind, summary} <- [
+          {:relocate, "Placement proposes moving this account from us-east to eu-central."},
+          {:correct, "Placement proposes moving this account off its first region, us-east, to eu-central."},
+          {:expand, "Placement proposes also serving this account from eu-central."},
+          {:retire, "Placement proposes giving up us-east for this account."}
+        ] do
+      Repo.delete_all(PlacementProposal)
+
+      Repo.insert!(%PlacementProposal{
+        account_id: user.account.id,
+        kind: kind,
+        from_region: "us-east",
+        to_region: "eu-central",
+        evidence: %{"share" => 0.82, "window_days" => 7, "runs_per_day" => 20},
+        status: :open
+      })
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ summary
+    end
   end
 
   defp kura_server(user, region) do
@@ -1000,6 +1025,65 @@ defmodule TuistWeb.OpsAccountLiveTest do
       end)
 
       lv |> element("button", "Start runner trial") |> render_click()
+    end
+  end
+
+  describe "free tier" do
+    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Free tier"
+      assert html =~ "42 of 200"
+      assert html =~ "Never"
+    end
+
+    test "warns only when the account is actually cut off", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      refute has_element?(lv, "#free-tier-blocked-alert")
+
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Repo.update!()
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert has_element?(lv, "#free-tier-blocked-alert")
+    end
+
+    test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Repo.update!()
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert has_element?(lv, "#free-tier-blocked-alert")
+
+      html = lv |> element("button", "Reset free tier") |> render_click()
+
+      refute has_element?(lv, "#free-tier-blocked-alert")
+      assert html =~ "starts over from now"
+
+      account = Repo.reload!(user.account)
+      assert account.current_month_remote_cache_hits_count == 0
+      assert account.free_tier_reset_at
+    end
+
+    test "the reset survives the nightly recount by moving the counting window", %{conn: conn, user: user} do
+      # Zeroing the counter alone would be recomputed straight back over
+      # the threshold, so the timestamp is the half that matters.
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv |> element("button", "Reset free tier") |> render_click()
+
+      account = Repo.reload!(user.account)
+      assert DateTime.after?(account.free_tier_reset_at, DateTime.add(DateTime.utc_now(), -60, :second))
     end
   end
 

@@ -218,6 +218,12 @@ defmodule Tuist.Kura.Lifecycle do
     servers = live_servers(account.id)
 
     cond do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. The instance there is still serving, and
+      # a drain scheduled now would outlive the window that made it look wrong.
+      not Regions.exists?(region_id) ->
+        :ok
+
       # Nothing left to drain: the instance is already gone, so the row has
       # done its job and the region is free to be chosen again on its merits.
       is_nil(Enum.find(servers, &(&1.region == region_id))) ->
@@ -410,7 +416,11 @@ defmodule Tuist.Kura.Lifecycle do
   # Nothing here decides whether the region has room. Every cache pod requests
   # its claim's worth of ephemeral storage, so the scheduler declines to place
   # an instance that does not fit and the KuraInstance stays Pending, which is
-  # exact per node in a way a forecast computed here never was.
+  # exact per node in a way a forecast computed here never was. Room is read
+  # one step earlier, where the region is chosen: `AccountPolicies` steers a
+  # first placement away from a region the cluster says is full when the
+  # account's residency admits another. What reaches here is an account whose
+  # region is decided, and a full region is then something to buy a box for.
   defp provision(%AccountRegionLifecycle{account: %Account{} = account} = lifecycle, region_id, image_tag) do
     # The lifecycle row records where demand *was* served; placement decides
     # where the account belongs *now*. They diverge when an account changes

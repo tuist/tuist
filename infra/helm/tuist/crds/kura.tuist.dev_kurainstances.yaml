@@ -142,6 +142,18 @@ spec:
                 memoryCeilingMib:
                   type: integer
                   format: int32
+                # limits.cpu. requests.cpu has no field here: the controller
+                # observes it per instance. Zero sets no CPU limit.
+                cpuCeilingMilli:
+                  type: integer
+                  format: int32
+                  # The observed request is clamped down to this, so a ceiling
+                  # under the smallest reservation the controller will ever ask
+                  # for (50m) would drag the request below its own floor. A
+                  # quota that tight also stalls the container on an idle box.
+                  x-kubernetes-validations:
+                    - rule: "self == 0 || self >= 50"
+                      message: "cpuCeilingMilli must be 0 (no CPU limit) or at least 50, the smallest reservation the controller will request"
                 # Ceilings oversubscribe the box. When true the pod also
                 # requests its ceiling as the tuist.dev/memory-ceiling-mib
                 # extended resource so the scheduler bounds that
@@ -229,6 +241,29 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                cpuAutosize:
+                  type: object
+                  properties:
+                    requestMilli:
+                      type: integer
+                      format: int32
+                    peakMilli:
+                      type: integer
+                      format: int32
+                    bucketStartedAt:
+                      type: string
+                      format: date-time
+                    bucketPeaksMilli:
+                      type: array
+                      items:
+                        type: integer
+                        format: int32
+                    scheduleCapMilli:
+                      type: integer
+                      format: int32
+                    scheduleCapSetAt:
+                      type: string
+                      format: date-time
                 rolloutHealth:
                   type: object
                   properties:
@@ -267,3 +302,16 @@ spec:
                     sampledAt:
                       type: string
                       format: date-time
+                peerRoles:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      nodeURL:
+                        type: string
+                      gateway:
+                        type: boolean
+                      primary:
+                        type: boolean
+                      node:
+                        type: string

@@ -67,16 +67,11 @@ permissions:
   contents: read
 
 env:
-  MISE_VERSION: "2026.5.15"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
   TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
-  # Jobs are ephemeral and persist .build with actions/cache. Keep Tuist metadata
-  # outside the per-account runner cache volume so a saturated warm cache cannot
-  # prevent authentication before the job starts.
-  TUIST_XDG_CACHE_HOME: /tmp/tuist-cache
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_LOCKED: 1
 
@@ -110,9 +105,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist swiftlint swiftformat"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -148,9 +142,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -190,9 +183,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -234,9 +226,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -275,9 +266,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -325,9 +315,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -349,7 +338,7 @@ jobs:
       # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
       # honours. Forks skip this: they do not check out the EE submodule, so the
       # suite that needs the plugin is not in the scheme there.
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         if: github.event.pull_request.head.repo.fork != true
         env:
           # The rust pin lives in cas-plugin/mise.toml and has no lockfile entry,
@@ -357,7 +346,6 @@ jobs:
           # workflow that builds the plugin installs this toolchain unlocked.
           MISE_LOCKED: 0
         with:
-          version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
           install_args: rust
           working_directory: cas-plugin
@@ -412,9 +400,8 @@ jobs:
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

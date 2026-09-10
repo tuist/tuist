@@ -250,6 +250,10 @@ defmodule Tuist.Docs.Sidebar do
               %Item{
                 label: "Gradle",
                 slug: "/en/guides/features/test-insights/flaky-tests/gradle"
+              },
+              %Item{
+                label: "Bazel",
+                slug: "/en/guides/features/test-insights/flaky-tests/bazel"
               }
             ]
           },
@@ -275,7 +279,8 @@ defmodule Tuist.Docs.Sidebar do
             label: "Runners",
             slug: "/en/guides/features/runners",
             items: [
-              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
+              %Item{label: "GitHub Actions", slug: "/en/guides/features/runners/github-actions"},
+              %Item{label: "Buildkite", slug: "/en/guides/features/runners/buildkite"},
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
               %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
             ]

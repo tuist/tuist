@@ -5,6 +5,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - JSON-RPC request handling
 - MCP tools and prompts
 - MCP authorization/serialization helpers
+- Xcode build-step list/detail tools share `Tuist.Builds.Steps` with the HTTP API. Lists omit logs, IDs are decimal strings scoped to a build, and details expose bounded logs separately after build-read authorization. The `compare_builds` prompt includes these tools; the flaky-test and integration skills intentionally do not use build-step data.
 
 ## Prompt/Skill Sync
 
@@ -12,6 +13,7 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - If the skill workflow changes (steps, heuristics, verification, checklist), update the MCP prompt in the same change.
 - If MCP tools or tool payloads change, update the skill or document intentional divergence.
 - Keep the Gradle integration workflow in `gradle_integration_guide.ex` shared by the `integrate_gradle_project` prompt and `get_gradle_integration_guide` tool. When its plugin version changes, update `Constants.gradlePluginVersion`, the Gradle plugin source example, and the installation guide in the same change.
+- Keep the Bazel integration workflow in `bazel_integration_guide.ex` shared by the `integrate_bazel_project` prompt and `get_bazel_integration_guide` tool. Keep its command and diagnostic-tool names aligned with the command-line implementation and the registered Model Context Protocol tools.
 
 ## Documentation Sync
 

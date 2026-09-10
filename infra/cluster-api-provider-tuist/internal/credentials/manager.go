@@ -187,6 +187,46 @@ func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, 
 	return priv, nil
 }
 
+// ReadFleetSSHCredentials returns a fleet's private SSH key and sudo password
+// WITHOUT generating or registering anything, for fleets whose hosts are
+// provisioned out of band.
+//
+// EnsureFleetSSHKey and FleetSudoPassword are the wrong shape for those. Both
+// mint a credential when the Secret does not carry one, which is right when the
+// operator can then install it on the host — it registers the public key with
+// the provider, and the provider's install sets the sudo password. A rack host
+// is provisioned by MDM before any of this runs, so a minted credential is one
+// the host has never heard of, and the two failures it buys are bad in
+// different ways: a generated SSH key fails every dial forever while reading as
+// a key problem rather than a config one, and a generated sudo password gets
+// XOR'd into /etc/kcpassword, which breaks auto-login — so no console session
+// exists, and `tart run` then fails on every Pod for the life of the host.
+//
+// Both are reachable without anyone doing anything wrong: the ExternalSecret
+// syncs asynchronously, so the window between a fresh install and ESO's first
+// sync is exactly when a machine reconcile would mint over it. Erring instead
+// costs a requeue.
+func (m *Manager) ReadFleetSSHCredentials(ctx context.Context, fleet string) ([]byte, string, error) {
+	secretName := fleet + sshKeySecretSuffix
+	secret := &corev1.Secret{}
+	if err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: secretName}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, "", fmt.Errorf("fleet secret %s/%s not found yet (ESO sync pending?); will retry", m.Namespace, secretName)
+		}
+		return nil, "", fmt.Errorf("get fleet secret %s/%s: %w", m.Namespace, secretName, err)
+	}
+
+	key := secret.Data["id_ed25519"]
+	if len(key) == 0 {
+		return nil, "", fmt.Errorf("secret %s/%s has no id_ed25519 (ESO mid-sync?); will retry", m.Namespace, secretName)
+	}
+	password := strings.TrimSpace(string(secret.Data["sudo-password"]))
+	if password == "" {
+		return nil, "", fmt.Errorf("secret %s/%s has no sudo-password; a macOS host needs it for /etc/kcpassword auto-login, without which Virtualization.framework has no console and every Tart VM fails to start", m.Namespace, secretName)
+	}
+	return key, password, nil
+}
+
 // FleetSSHKeyID returns the Scaleway-side SSH key ID registered for `fleet`,
 // recorded as an annotation on the per-fleet Secret by EnsureFleetSSHKey. The
 // Elastic Metal machine kind authorizes this key on the server at install time

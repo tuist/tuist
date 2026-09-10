@@ -83,15 +83,31 @@ class TuistHttpClientsTest {
         api.refreshToken(RefreshTokenBody("any")).execute()
 
         val request = server.takeRequest()
-        assertEquals("A,B", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+        assertEquals("A,B,KURA", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
     }
 
     @Test
-    fun `retrofit clients skip client feature flags header when absent`() {
+    fun `retrofit clients send the default feature flags when no flag variable is set`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
 
         val httpClients = TuistHttpClients(
             environmentVariables = mapOf("TUIST_TOKEN" to "token")
+        )
+        val api = httpClients.unauthenticatedRetrofit(URI(server.url("/").toString().trimEnd('/')))
+            .create(AuthenticationApi::class.java)
+
+        api.refreshToken(RefreshTokenBody("any")).execute()
+
+        val request = server.takeRequest()
+        assertEquals("KURA", request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+    }
+
+    @Test
+    fun `retrofit clients skip client feature flags header when every flag is disabled`() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"access_token":"at","refresh_token":"rt"}"""))
+
+        val httpClients = TuistHttpClients(
+            environmentVariables = mapOf("TUIST_FEATURE_FLAG_KURA" to "0")
         )
         val api = httpClients.unauthenticatedRetrofit(URI(server.url("/").toString().trimEnd('/')))
             .create(AuthenticationApi::class.java)

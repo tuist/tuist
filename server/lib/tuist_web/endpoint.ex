@@ -114,6 +114,13 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  plug WebhookPlug,
+    at: "/webhooks/bazel-test-artifacts",
+    handler: TuistWeb.Webhooks.BazelTestArtifactsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.

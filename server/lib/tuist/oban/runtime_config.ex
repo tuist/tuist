@@ -14,6 +14,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   has an empty crontab, so the gate stays an allowlist by construction.
   """
 
+  alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -27,6 +28,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
+    {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
   ]
@@ -47,15 +49,20 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
+    {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
+    {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
     {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
-    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker}
+    {"* * * * *", Tuist.Runners.Workers.ReplicateRunnerSessionsWorker},
+    # Inert unless a second ClickHouse is configured and mirrored to, which is
+    # only true mid-migration (spec #73).
+    {"@hourly", Tuist.ClickHouse.Workers.ParityWorker}
   ]
 
   @database_artifact_retention_resource_types [

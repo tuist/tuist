@@ -110,6 +110,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)`.
     func createTest(_ input: Operations.createTest.Input) async throws -> Operations.createTest.Output
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    func createStressPlan(_ input: Operations.createStressPlan.Input) async throws -> Operations.createStressPlan.Output
+    /// List recorded Xcode build steps without logs.
+    ///
+    /// Steps are retained for 90 days. Times are milliseconds from build start. Step IDs are decimal strings preserving UInt64 precision. Unavailable means steps were not recorded or have expired. Time filters select overlapping steps; end_ms is exclusive.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)`.
+    func listXcodeBuildSteps(_ input: Operations.listXcodeBuildSteps.Input) async throws -> Operations.listXcodeBuildSteps.Output
     /// Get a build by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/{build_id}`.
@@ -225,6 +239,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     @available(*, deprecated)
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output
+    /// Get one recorded Xcode build step and its log.
+    ///
+    /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)`.
+    func getXcodeBuildStep(_ input: Operations.getXcodeBuildStep.Input) async throws -> Operations.getXcodeBuildStep.Output
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
     /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
@@ -248,11 +269,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
     func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
-    @available(*, deprecated)
     func listRuns(_ input: Operations.listRuns.Input) async throws -> Operations.listRuns.Output
     /// Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.
     ///
@@ -265,6 +285,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/workflows`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/workflows/get(listRunnerWorkflows)`.
     func listRunnerWorkflows(_ input: Operations.listRunnerWorkflows.Input) async throws -> Operations.listRunnerWorkflows.Output
+    /// List the sanitized logs captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/get(listBazelInvocationLogs)`.
+    func listBazelInvocationLogs(_ input: Operations.listBazelInvocationLogs.Input) async throws -> Operations.listBazelInvocationLogs.Output
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -677,6 +702,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/auth/apple`.
     /// - Remark: Generated from `#/paths//api/auth/apple/post(authenticateApple)`.
     func authenticateApple(_ input: Operations.authenticateApple.Input) async throws -> Operations.authenticateApple.Output
+    /// Get one sanitized log captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)`.
+    func getBazelInvocationLog(_ input: Operations.getBazelInvocationLog.Input) async throws -> Operations.getBazelInvocationLog.Output
     /// Updates a member in an organization
     ///
     /// Updates a member in a given organization
@@ -1078,6 +1108,40 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    public func createStressPlan(
+        path: Operations.createStressPlan.Input.Path,
+        headers: Operations.createStressPlan.Input.Headers = .init(),
+        body: Operations.createStressPlan.Input.Body? = nil
+    ) async throws -> Operations.createStressPlan.Output {
+        try await createStressPlan(Operations.createStressPlan.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// List recorded Xcode build steps without logs.
+    ///
+    /// Steps are retained for 90 days. Times are milliseconds from build start. Step IDs are decimal strings preserving UInt64 precision. Unavailable means steps were not recorded or have expired. Time filters select overlapping steps; end_ms is exclusive.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)`.
+    public func listXcodeBuildSteps(
+        path: Operations.listXcodeBuildSteps.Input.Path,
+        query: Operations.listXcodeBuildSteps.Input.Query = .init(),
+        headers: Operations.listXcodeBuildSteps.Input.Headers = .init()
+    ) async throws -> Operations.listXcodeBuildSteps.Output {
+        try await listXcodeBuildSteps(Operations.listXcodeBuildSteps.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get a build by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/{build_id}`.
@@ -1367,6 +1431,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get one recorded Xcode build step and its log.
+    ///
+    /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)`.
+    public func getXcodeBuildStep(
+        path: Operations.getXcodeBuildStep.Input.Path,
+        headers: Operations.getXcodeBuildStep.Input.Headers = .init()
+    ) async throws -> Operations.getXcodeBuildStep.Output {
+        try await getXcodeBuildStep(Operations.getXcodeBuildStep.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
     /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
@@ -1416,11 +1495,10 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
-    @available(*, deprecated)
     public func listRuns(
         path: Operations.listRuns.Input.Path,
         query: Operations.listRuns.Input.Query = .init(),
@@ -1458,6 +1536,21 @@ extension APIProtocol {
         headers: Operations.listRunnerWorkflows.Input.Headers = .init()
     ) async throws -> Operations.listRunnerWorkflows.Output {
         try await listRunnerWorkflows(Operations.listRunnerWorkflows.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// List the sanitized logs captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/get(listBazelInvocationLogs)`.
+    public func listBazelInvocationLogs(
+        path: Operations.listBazelInvocationLogs.Input.Path,
+        query: Operations.listBazelInvocationLogs.Input.Query = .init(),
+        headers: Operations.listBazelInvocationLogs.Input.Headers = .init()
+    ) async throws -> Operations.listBazelInvocationLogs.Output {
+        try await listBazelInvocationLogs(Operations.listBazelInvocationLogs.Input(
             path: path,
             query: query,
             headers: headers
@@ -2491,6 +2584,19 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get one sanitized log captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)`.
+    public func getBazelInvocationLog(
+        path: Operations.getBazelInvocationLog.Input.Path,
+        headers: Operations.getBazelInvocationLog.Input.Headers = .init()
+    ) async throws -> Operations.getBazelInvocationLog.Output {
+        try await getBazelInvocationLog(Operations.getBazelInvocationLog.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Updates a member in an organization
     ///
     /// Updates a member in a given organization
@@ -3096,6 +3202,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
             public var status: Components.Schemas.TestParams.statusPayload?
+            /// - Remark: Generated from `#/components/schemas/TestParams/stress_new_tests`.
+            public var stress_new_tests: Components.Schemas.StressNewTestsResult?
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload`.
             public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                 /// The duration of the test module in milliseconds.
@@ -3202,6 +3310,17 @@ public enum Components {
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                             public var repetition_number: Swift.Int
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case run = "run"
+                                case stress = "stress"
+                            }
+                            /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                            public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                             /// The status.
                             ///
                             /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -3219,22 +3338,26 @@ public enum Components {
                             ///   - duration: The duration in milliseconds.
                             ///   - name: The name of the repetition.
                             ///   - repetition_number: The repetition attempt number.
+                            ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                             ///   - status: The status.
                             public init(
                                 duration: Swift.Int? = nil,
                                 name: Swift.String,
                                 repetition_number: Swift.Int,
+                                source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                 status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                             ) {
                                 self.duration = duration
                                 self.name = name
                                 self.repetition_number = repetition_number
+                                self.source = source
                                 self.status = status
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
                                 case name
                                 case repetition_number
+                                case source
                                 case status
                             }
                         }
@@ -3379,12 +3502,24 @@ public enum Components {
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                         public var repetition_number: Swift.Int
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case run = "run"
+                            case stress = "stress"
+                        }
+                        /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                        public var source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                         /// The status of this repetition attempt.
                         ///
                         /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
                         @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case success = "success"
                             case failure = "failure"
+                            case skipped = "skipped"
                         }
                         /// The status of this repetition attempt.
                         ///
@@ -3396,22 +3531,26 @@ public enum Components {
                         ///   - duration: The duration of this repetition in milliseconds.
                         ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                         ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                        ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                         ///   - status: The status of this repetition attempt.
                         public init(
                             duration: Swift.Int? = nil,
                             name: Swift.String,
                             repetition_number: Swift.Int,
+                            source: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                             status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                         ) {
                             self.duration = duration
                             self.name = name
                             self.repetition_number = repetition_number
+                            self.source = source
                             self.status = status
                         }
                         public enum CodingKeys: String, CodingKey {
                             case duration
                             case name
                             case repetition_number
+                            case source
                             case status
                         }
                     }
@@ -3609,6 +3748,7 @@ public enum Components {
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
             ///   - status: The status of the test run.
+            ///   - stress_new_tests:
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
@@ -3634,6 +3774,7 @@ public enum Components {
                 shard_plan_id: Swift.String? = nil,
                 skip_test_identifiers: [Swift.String]? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
+                stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
             ) {
@@ -3659,6 +3800,7 @@ public enum Components {
                 self.shard_plan_id = shard_plan_id
                 self.skip_test_identifiers = skip_test_identifiers
                 self.status = status
+                self.stress_new_tests = stress_new_tests
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
             }
@@ -3685,6 +3827,7 @@ public enum Components {
                 case shard_plan_id
                 case skip_test_identifiers
                 case status
+                case stress_new_tests
                 case test_modules
                 case xcode_version
             }
@@ -3699,6 +3842,7 @@ public enum Components {
             public var name: Swift.String?
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -3707,12 +3851,14 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
             @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case result_bundle = "result_bundle"
+                case stress_result_bundle = "stress_result_bundle"
                 case invocation_record = "invocation_record"
                 case result_bundle_object = "result_bundle_object"
                 case session = "session"
             }
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+            /// - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
             /// - session: A zipped CLI session directory containing logs and network recordings.
@@ -4235,6 +4381,77 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPageSize`.
         public typealias BuildsIndexPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail`.
+        public struct XcodeBuildStepDetail: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/log`.
+            public var log: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/log_truncated`.
+            public var log_truncated: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepDetail/title`.
+            public var title: Swift.String
+            /// Creates a new `XcodeBuildStepDetail`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - log:
+            ///   - log_truncated:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                log: Swift.String,
+                log_truncated: Swift.Bool,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.log = log
+                self.log_truncated = log_truncated
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case log
+                case log_truncated
+                case project
+                case start_ms
+                case status
+                case target
+                case title
+            }
+        }
         /// The upload has been initiated and preview and upload unique identifier are returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewArtifactUpload`.
@@ -5417,7 +5634,7 @@ public enum Components {
                 case xcode_version
             }
         }
-        /// The page number to return.
+        /// Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
         public typealias RunsIndexPage = Swift.Int
@@ -6057,6 +6274,315 @@ public enum Components {
                 case suites
             }
         }
+        /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
+        ///
+        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult`.
+        public struct StressNewTestsResult: Codable, Hashable, Sendable {
+            /// How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/excluded_count`.
+            public var excluded_count: Swift.Int
+            /// Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/has_result_bundle`.
+            public var has_result_bundle: Swift.Bool?
+            /// How many test cases have run in CI on the default branch, as the plan measured it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/known_count`.
+            public var known_count: Swift.Int?
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
+            @frozen public enum modePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case report = "report"
+                case enforce = "enforce"
+            }
+            /// The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/mode`.
+            public var mode: Components.Schemas.StressNewTestsResult.modePayload
+            /// How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/new_count`.
+            public var new_count: Swift.Int
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
+            @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case passed = "passed"
+                case disagreed = "disagreed"
+                case skipped = "skipped"
+                case no_candidates = "no_candidates"
+            }
+            /// `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/outcome`.
+            public var outcome: Components.Schemas.StressNewTestsResult.outcomePayload
+            /// Why the gate ran nothing, when `outcome` is `skipped`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/skip_reason`.
+            @frozen public enum skip_reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case first_pass_failed = "first_pass_failed"
+                case no_default_branch = "no_default_branch"
+                case no_default_branch_history = "no_default_branch_history"
+                case bulk_change = "bulk_change"
+                case plan_unavailable = "plan_unavailable"
+            }
+            /// Why the gate ran nothing, when `outcome` is `skipped`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/skip_reason`.
+            public var skip_reason: Components.Schemas.StressNewTestsResult.skip_reasonPayload?
+            /// How many candidates the gate reran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/stressed_count`.
+            public var stressed_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload`.
+            public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                /// How many of those repetitions failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/failed_repetitions`.
+                public var failed_repetitions: Swift.Int
+                /// Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/is_quarantined`.
+                public var is_quarantined: Swift.Bool?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/name`.
+                public var name: Swift.String
+                /// What the gate concluded for this candidate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/outcome`.
+                @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case passed = "passed"
+                    case disagreed = "disagreed"
+                    case excluded_too_slow = "excluded_too_slow"
+                    case excluded_candidate_cap = "excluded_candidate_cap"
+                    case not_stressed_ceiling = "not_stressed_ceiling"
+                    case not_stressed_error = "not_stressed_error"
+                }
+                /// What the gate concluded for this candidate.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/outcome`.
+                public var outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload`.
+                public struct repetition_resultsPayloadPayload: Codable, Hashable, Sendable {
+                    /// Duration of this repetition in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/duration`.
+                    public var duration: Swift.Int?
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public struct failurePayload: Codable, Hashable, Sendable {
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case assertion_failure = "assertion_failure"
+                            case error_thrown = "error_thrown"
+                            case issue_recorded = "issue_recorded"
+                        }
+                        /// The kind of failure.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/issue_type`.
+                        public var issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload?
+                        /// The line the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/line_number`.
+                        public var line_number: Swift.Int?
+                        /// The failure message.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/message`.
+                        public var message: Swift.String?
+                        /// The source file the failure points at.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure/path`.
+                        public var path: Swift.String?
+                        /// Creates a new `failurePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - issue_type: The kind of failure.
+                        ///   - line_number: The line the failure points at.
+                        ///   - message: The failure message.
+                        ///   - path: The source file the failure points at.
+                        public init(
+                            issue_type: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload.issue_typePayload? = nil,
+                            line_number: Swift.Int? = nil,
+                            message: Swift.String? = nil,
+                            path: Swift.String? = nil
+                        ) {
+                            self.issue_type = issue_type
+                            self.line_number = line_number
+                            self.message = message
+                            self.path = path
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case issue_type
+                            case line_number
+                            case message
+                            case path
+                        }
+                    }
+                    /// The failure this repetition produced, when it failed.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/failure`.
+                    public var failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload?
+                    /// The 1-based position of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/repetition_number`.
+                    public var repetition_number: Swift.Int
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case skipped = "skipped"
+                    }
+                    /// The result of this repetition.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_resultsPayload/status`.
+                    public var status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    /// Creates a new `repetition_resultsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration: Duration of this repetition in milliseconds.
+                    ///   - failure: The failure this repetition produced, when it failed.
+                    ///   - repetition_number: The 1-based position of this repetition.
+                    ///   - status: The result of this repetition.
+                    public init(
+                        duration: Swift.Int? = nil,
+                        failure: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.failurePayload? = nil,
+                        repetition_number: Swift.Int,
+                        status: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload.statusPayload
+                    ) {
+                        self.duration = duration
+                        self.failure = failure
+                        self.repetition_number = repetition_number
+                        self.status = status
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration
+                        case failure
+                        case repetition_number
+                        case status
+                    }
+                }
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public typealias repetition_resultsPayload = [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayloadPayload]
+                /// Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetition_results`.
+                public var repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload?
+                /// How many times the gate ran the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/repetitions`.
+                public var repetitions: Swift.Int
+                /// The suite (class) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_casesPayload/suite_name`.
+                public var suite_name: Swift.String?
+                /// Creates a new `test_casesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - failed_repetitions: How many of those repetitions failed.
+                ///   - is_quarantined: Whether the test case was muted, in which case a flaky result is recorded but cannot fail the gate.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - outcome: What the gate concluded for this candidate.
+                ///   - repetition_results: Each repetition the gate ran for this test case, in order, so the dashboard can show which of them failed.
+                ///   - repetitions: How many times the gate ran the test case.
+                ///   - suite_name: The suite (class) of the test case.
+                public init(
+                    failed_repetitions: Swift.Int,
+                    is_quarantined: Swift.Bool? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    outcome: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.outcomePayload,
+                    repetition_results: Components.Schemas.StressNewTestsResult.test_casesPayloadPayload.repetition_resultsPayload? = nil,
+                    repetitions: Swift.Int,
+                    suite_name: Swift.String? = nil
+                ) {
+                    self.failed_repetitions = failed_repetitions
+                    self.is_quarantined = is_quarantined
+                    self.module_name = module_name
+                    self.name = name
+                    self.outcome = outcome
+                    self.repetition_results = repetition_results
+                    self.repetitions = repetitions
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case failed_repetitions
+                    case is_quarantined
+                    case module_name
+                    case name
+                    case outcome
+                    case repetition_results
+                    case repetitions
+                    case suite_name
+                }
+            }
+            /// Every candidate the gate examined.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_cases`.
+            public typealias test_casesPayload = [Components.Schemas.StressNewTestsResult.test_casesPayloadPayload]
+            /// Every candidate the gate examined.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressNewTestsResult/test_cases`.
+            public var test_cases: Components.Schemas.StressNewTestsResult.test_casesPayload
+            /// Creates a new `StressNewTestsResult`.
+            ///
+            /// - Parameters:
+            ///   - excluded_count: How many candidates were not rerun: too slow for the curve, beyond the candidate cap, left over when the wall-clock ceiling was reached, or unrun because the stress pass itself failed to execute.
+            ///   - has_result_bundle: Whether the client uploaded the `.xcresult` bundle the gate's pass produced, as a `stress_result_bundle` artifact for this run. When it did, the server folds that bundle's executions into the test cases they belong to.
+            ///   - known_count: How many test cases have run in CI on the default branch, as the plan measured it.
+            ///   - mode: The mode the gate ran in. `report` only warns; `enforce` fails the run on a flaky test case.
+            ///   - new_count: How many of the run's test cases had not run in CI on the default branch in the trailing ninety days.
+            ///   - outcome: `passed` when every stressed candidate passed all its repetitions, `disagreed` when at least one failed some of them, `skipped` when a guard or the first pass kept the gate from running, `no_candidates` when the run added no tests.
+            ///   - skip_reason: Why the gate ran nothing, when `outcome` is `skipped`.
+            ///   - stressed_count: How many candidates the gate reran.
+            ///   - test_cases: Every candidate the gate examined.
+            public init(
+                excluded_count: Swift.Int,
+                has_result_bundle: Swift.Bool? = nil,
+                known_count: Swift.Int? = nil,
+                mode: Components.Schemas.StressNewTestsResult.modePayload,
+                new_count: Swift.Int,
+                outcome: Components.Schemas.StressNewTestsResult.outcomePayload,
+                skip_reason: Components.Schemas.StressNewTestsResult.skip_reasonPayload? = nil,
+                stressed_count: Swift.Int,
+                test_cases: Components.Schemas.StressNewTestsResult.test_casesPayload
+            ) {
+                self.excluded_count = excluded_count
+                self.has_result_bundle = has_result_bundle
+                self.known_count = known_count
+                self.mode = mode
+                self.new_count = new_count
+                self.outcome = outcome
+                self.skip_reason = skip_reason
+                self.stressed_count = stressed_count
+                self.test_cases = test_cases
+            }
+            public enum CodingKeys: String, CodingKey {
+                case excluded_count
+                case has_result_bundle
+                case known_count
+                case mode
+                case new_count
+                case outcome
+                case skip_reason
+                case stressed_count
+                case test_cases
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestRunStatus`.
         @frozen public enum TestRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -6067,6 +6593,242 @@ public enum Components {
         @frozen public enum BuildFileType: String, Codable, Hashable, Sendable, CaseIterable {
             case swift = "swift"
             case c = "c"
+        }
+        /// Which of the reported test cases have not run in CI on the project's default branch in the trailing ninety days, how many times each should be rerun, the guard that fired if one did, and the parameters the pass runs under.
+        ///
+        /// - Remark: Generated from `#/components/schemas/StressPlan`.
+        public struct StressPlan: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload`.
+            public struct candidatesPayloadPayload: Codable, Hashable, Sendable {
+                /// `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/excluded_reason`.
+                @frozen public enum excluded_reasonPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case too_slow = "too_slow"
+                    case candidate_cap = "candidate_cap"
+                }
+                /// `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/excluded_reason`.
+                public var excluded_reason: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/name`.
+                public var name: Swift.String
+                /// How many times to rerun the test case, priced from its duration on the project's curve. 0 when excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/repetitions`.
+                public var repetitions: Swift.Int
+                /// The suite (class) of the test case, or an empty string.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/candidatesPayload/suite_name`.
+                public var suite_name: Swift.String
+                /// Creates a new `candidatesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - excluded_reason: `too_slow` when the test case exceeds the curve's last bucket, `candidate_cap` when the run already has as many candidates as the project allows.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - repetitions: How many times to rerun the test case, priced from its duration on the project's curve. 0 when excluded.
+                ///   - suite_name: The suite (class) of the test case, or an empty string.
+                public init(
+                    excluded_reason: Components.Schemas.StressPlan.candidatesPayloadPayload.excluded_reasonPayload? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    repetitions: Swift.Int,
+                    suite_name: Swift.String
+                ) {
+                    self.excluded_reason = excluded_reason
+                    self.module_name = module_name
+                    self.name = name
+                    self.repetitions = repetitions
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case excluded_reason
+                    case module_name
+                    case name
+                    case repetitions
+                    case suite_name
+                }
+            }
+            /// The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidates`.
+            public typealias candidatesPayload = [Components.Schemas.StressPlan.candidatesPayloadPayload]
+            /// The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/candidates`.
+            public var candidates: Components.Schemas.StressPlan.candidatesPayload
+            /// The guard that kept the gate from producing candidates, if one fired.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/guard`.
+            public struct _guardPayload: Codable, Hashable, Sendable {
+                /// `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
+                @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case no_default_branch = "no_default_branch"
+                    case no_default_branch_history = "no_default_branch_history"
+                    case bulk_change = "bulk_change"
+                }
+                /// `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/kind`.
+                public var kind: Components.Schemas.StressPlan._guardPayload.kindPayload
+                /// How many test cases have run in CI on the default branch.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/known_count`.
+                public var known_count: Swift.Int
+                /// How many reported test cases had no default-branch history.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/guard/new_count`.
+                public var new_count: Swift.Int
+                /// Creates a new `_guardPayload`.
+                ///
+                /// - Parameters:
+                ///   - kind: `no_default_branch` when the project has no default branch, `no_default_branch_history` when no test case has run in CI on it yet, `bulk_change` when the share of new test cases exceeds the project's bulk-change ratio.
+                ///   - known_count: How many test cases have run in CI on the default branch.
+                ///   - new_count: How many reported test cases had no default-branch history.
+                public init(
+                    kind: Components.Schemas.StressPlan._guardPayload.kindPayload,
+                    known_count: Swift.Int,
+                    new_count: Swift.Int
+                ) {
+                    self.kind = kind
+                    self.known_count = known_count
+                    self.new_count = new_count
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case kind
+                    case known_count
+                    case new_count
+                }
+            }
+            /// The guard that kept the gate from producing candidates, if one fired.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/guard`.
+            public var _guard: Components.Schemas.StressPlan._guardPayload?
+            /// How many test cases have run in CI on the default branch.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/known_count`.
+            public var known_count: Swift.Int
+            /// The project's stress parameters, so the client can report which bound bit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/parameters`.
+            public struct parametersPayload: Codable, Hashable, Sendable {
+                /// Minimum number of new test cases before the bulk-change guard applies.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_floor`.
+                public var bulk_change_floor: Swift.Int
+                /// Share of the known test cases above which the bulk-change guard fires.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/bulk_change_ratio`.
+                public var bulk_change_ratio: Swift.Double
+                /// Maximum number of candidates a run stresses.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/candidate_cap`.
+                public var candidate_cap: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload`.
+                public struct repetition_curvePayloadPayload: Codable, Hashable, Sendable {
+                    /// Upper bound of the bucket in milliseconds, inclusive.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload/max_duration_ms`.
+                    public var max_duration_ms: Swift.Int
+                    /// Repetitions for test cases in the bucket.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curvePayload/repetitions`.
+                    public var repetitions: Swift.Int
+                    /// Creates a new `repetition_curvePayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - max_duration_ms: Upper bound of the bucket in milliseconds, inclusive.
+                    ///   - repetitions: Repetitions for test cases in the bucket.
+                    public init(
+                        max_duration_ms: Swift.Int,
+                        repetitions: Swift.Int
+                    ) {
+                        self.max_duration_ms = max_duration_ms
+                        self.repetitions = repetitions
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case max_duration_ms
+                        case repetitions
+                    }
+                }
+                /// Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curve`.
+                public typealias repetition_curvePayload = [Components.Schemas.StressPlan.parametersPayload.repetition_curvePayloadPayload]
+                /// Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/repetition_curve`.
+                public var repetition_curve: Components.Schemas.StressPlan.parametersPayload.repetition_curvePayload
+                /// Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlan/parameters/wall_clock_ceiling_ms`.
+                public var wall_clock_ceiling_ms: Swift.Int
+                /// Creates a new `parametersPayload`.
+                ///
+                /// - Parameters:
+                ///   - bulk_change_floor: Minimum number of new test cases before the bulk-change guard applies.
+                ///   - bulk_change_ratio: Share of the known test cases above which the bulk-change guard fires.
+                ///   - candidate_cap: Maximum number of candidates a run stresses.
+                ///   - repetition_curve: Buckets sorted by ascending `max_duration_ms`. A test case earns the repetitions of the first bucket its duration fits in; slower than the last bucket is excluded.
+                ///   - wall_clock_ceiling_ms: Maximum wall-clock time in milliseconds the pass may take before the remaining candidates are reported as not stressed.
+                public init(
+                    bulk_change_floor: Swift.Int,
+                    bulk_change_ratio: Swift.Double,
+                    candidate_cap: Swift.Int,
+                    repetition_curve: Components.Schemas.StressPlan.parametersPayload.repetition_curvePayload,
+                    wall_clock_ceiling_ms: Swift.Int
+                ) {
+                    self.bulk_change_floor = bulk_change_floor
+                    self.bulk_change_ratio = bulk_change_ratio
+                    self.candidate_cap = candidate_cap
+                    self.repetition_curve = repetition_curve
+                    self.wall_clock_ceiling_ms = wall_clock_ceiling_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case bulk_change_floor
+                    case bulk_change_ratio
+                    case candidate_cap
+                    case repetition_curve
+                    case wall_clock_ceiling_ms
+                }
+            }
+            /// The project's stress parameters, so the client can report which bound bit.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlan/parameters`.
+            public var parameters: Components.Schemas.StressPlan.parametersPayload
+            /// Creates a new `StressPlan`.
+            ///
+            /// - Parameters:
+            ///   - candidates: The reported test cases with no default-branch history, sorted by identity. Each carries its repetition count, or 0 and a reason when it is excluded.
+            ///   - _guard: The guard that kept the gate from producing candidates, if one fired.
+            ///   - known_count: How many test cases have run in CI on the default branch.
+            ///   - parameters: The project's stress parameters, so the client can report which bound bit.
+            public init(
+                candidates: Components.Schemas.StressPlan.candidatesPayload,
+                _guard: Components.Schemas.StressPlan._guardPayload? = nil,
+                known_count: Swift.Int,
+                parameters: Components.Schemas.StressPlan.parametersPayload
+            ) {
+                self.candidates = candidates
+                self._guard = _guard
+                self.known_count = known_count
+                self.parameters = parameters
+            }
+            public enum CodingKeys: String, CodingKey {
+                case candidates
+                case _guard = "guard"
+                case known_count
+                case parameters
+            }
         }
         /// The maximum number of runs to return in a single page.
         ///
@@ -7928,6 +8690,70 @@ public enum Components {
                 case _type = "type"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/StressPlanParams`.
+        public struct StressPlanParams: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload`.
+            public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                /// Duration of the test case in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/duration`.
+                public var duration: Swift.Int?
+                /// The module (target or Gradle project) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/name`.
+                public var name: Swift.String
+                /// The suite (class) of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_casesPayload/suite_name`.
+                public var suite_name: Swift.String?
+                /// Creates a new `test_casesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - duration: Duration of the test case in milliseconds.
+                ///   - module_name: The module (target or Gradle project) of the test case.
+                ///   - name: The name of the test case.
+                ///   - suite_name: The suite (class) of the test case.
+                public init(
+                    duration: Swift.Int? = nil,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    suite_name: Swift.String? = nil
+                ) {
+                    self.duration = duration
+                    self.module_name = module_name
+                    self.name = name
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case duration
+                    case module_name
+                    case name
+                    case suite_name
+                }
+            }
+            /// The test cases that executed and were not skipped, with the duration the run measured for each.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_cases`.
+            public typealias test_casesPayload = [Components.Schemas.StressPlanParams.test_casesPayloadPayload]
+            /// The test cases that executed and were not skipped, with the duration the run measured for each.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StressPlanParams/test_cases`.
+            public var test_cases: Components.Schemas.StressPlanParams.test_casesPayload
+            /// Creates a new `StressPlanParams`.
+            ///
+            /// - Parameters:
+            ///   - test_cases: The test cases that executed and were not skipped, with the duration the run measured for each.
+            public init(test_cases: Components.Schemas.StressPlanParams.test_casesPayload) {
+                self.test_cases = test_cases
+            }
+            public enum CodingKeys: String, CodingKey {
+                case test_cases
+            }
+        }
         /// A user.
         ///
         /// - Remark: Generated from `#/components/schemas/User`.
@@ -9394,6 +10220,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
         public typealias GradleBuildsIndexPage = Swift.Int
+        /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexBefore`.
+        public typealias RunsIndexBefore = Swift.String
         /// The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadID`.
@@ -9789,6 +10619,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/duration`.
             public var duration: Swift.Double
+            /// Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/error_message`.
+            public var error_message: Swift.String?
             /// Git branch of the repository
             ///
             /// - Remark: Generated from `#/components/schemas/Run/git_branch`.
@@ -9805,6 +10639,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/id`.
             public var id: Swift.Double
+            /// Whether the run was executed on CI
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/is_ci`.
+            public var is_ci: Swift.Bool
             /// Local cache target hits of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/local_cache_target_hits`.
@@ -9844,7 +10682,14 @@ public enum Components {
             /// Status of the command event
             ///
             /// - Remark: Generated from `#/components/schemas/Run/status`.
-            public var status: Swift.String
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+            }
+            /// Status of the command event
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/status`.
+            public var status: Components.Schemas.Run.statusPayload
             /// Subcommand of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/subcommand`.
@@ -9871,10 +10716,12 @@ public enum Components {
             ///   - cacheable_targets: Cacheable targets of the run
             ///   - command_arguments: Arguments passed to the command
             ///   - duration: Duration of the run
+            ///   - error_message: Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
             ///   - git_branch: Git branch of the repository
             ///   - git_commit_sha: Git commit SHA of the repository
             ///   - git_ref: Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`.
             ///   - id: ID of the run
+            ///   - is_ci: Whether the run was executed on CI
             ///   - local_cache_target_hits: Local cache target hits of the run
             ///   - local_test_target_hits: Local test target hits of the run
             ///   - macos_version: Version of macOS used
@@ -9894,10 +10741,12 @@ public enum Components {
                 cacheable_targets: [Swift.String]? = nil,
                 command_arguments: [Swift.String],
                 duration: Swift.Double,
+                error_message: Swift.String? = nil,
                 git_branch: Swift.String,
                 git_commit_sha: Swift.String,
                 git_ref: Swift.String,
                 id: Swift.Double,
+                is_ci: Swift.Bool,
                 local_cache_target_hits: [Swift.String]? = nil,
                 local_test_target_hits: [Swift.String]? = nil,
                 macos_version: Swift.String,
@@ -9907,7 +10756,7 @@ public enum Components {
                 ran_by: Swift.String? = nil,
                 remote_cache_target_hits: [Swift.String]? = nil,
                 remote_test_target_hits: [Swift.String]? = nil,
-                status: Swift.String,
+                status: Components.Schemas.Run.statusPayload,
                 subcommand: Swift.String,
                 swift_version: Swift.String,
                 test_targets: [Swift.String]? = nil,
@@ -9917,10 +10766,12 @@ public enum Components {
                 self.cacheable_targets = cacheable_targets
                 self.command_arguments = command_arguments
                 self.duration = duration
+                self.error_message = error_message
                 self.git_branch = git_branch
                 self.git_commit_sha = git_commit_sha
                 self.git_ref = git_ref
                 self.id = id
+                self.is_ci = is_ci
                 self.local_cache_target_hits = local_cache_target_hits
                 self.local_test_target_hits = local_test_target_hits
                 self.macos_version = macos_version
@@ -9941,10 +10792,12 @@ public enum Components {
                 case cacheable_targets
                 case command_arguments
                 case duration
+                case error_message
                 case git_branch
                 case git_commit_sha
                 case git_ref
                 case id
+                case is_ci
                 case local_cache_target_hits
                 case local_test_target_hits
                 case macos_version
@@ -10137,6 +10990,65 @@ public enum Components {
             case failure = "failure"
             case skipped = "skipped"
         }
+        /// - Remark: Generated from `#/components/schemas/XcodeBuildStep`.
+        public struct XcodeBuildStep: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/category`.
+            public var category: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/duration_ms`.
+            public var duration_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/project`.
+            public var project: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/start_ms`.
+            public var start_ms: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/status`.
+            public var status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/target`.
+            public var target: Swift.String
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStep/title`.
+            public var title: Swift.String
+            /// Creates a new `XcodeBuildStep`.
+            ///
+            /// - Parameters:
+            ///   - category:
+            ///   - duration_ms:
+            ///   - id:
+            ///   - project:
+            ///   - start_ms:
+            ///   - status:
+            ///   - target:
+            ///   - title:
+            public init(
+                category: Swift.String,
+                duration_ms: Swift.Double,
+                id: Swift.String,
+                project: Swift.String,
+                start_ms: Swift.Double,
+                status: Swift.String,
+                target: Swift.String,
+                title: Swift.String
+            ) {
+                self.category = category
+                self.duration_ms = duration_ms
+                self.id = id
+                self.project = project
+                self.start_ms = start_ms
+                self.status = status
+                self.target = target
+                self.title = title
+            }
+            public enum CodingKeys: String, CodingKey {
+                case category
+                case duration_ms
+                case id
+                case project
+                case start_ms
+                case status
+                case target
+                case title
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Account`.
         public struct Account: Codable, Hashable, Sendable {
             /// The handle of the account
@@ -10162,6 +11074,102 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case handle
                 case id
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList`.
+        public struct XcodeBuildStepsList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/availability`.
+            @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case processing = "processing"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/availability`.
+            public var availability: Components.Schemas.XcodeBuildStepsList.availabilityPayload
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.PaginationMetadata
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload`.
+            public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/category`.
+                public var category: Swift.String
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/duration_ms`.
+                public var duration_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/project`.
+                public var project: Swift.String
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/start_ms`.
+                public var start_ms: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/status`.
+                public var status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/target`.
+                public var target: Swift.String
+                /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/stepsPayload/title`.
+                public var title: Swift.String
+                /// Creates a new `stepsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - category:
+                ///   - duration_ms:
+                ///   - id:
+                ///   - project:
+                ///   - start_ms:
+                ///   - status:
+                ///   - target:
+                ///   - title:
+                public init(
+                    category: Swift.String,
+                    duration_ms: Swift.Double,
+                    id: Swift.String,
+                    project: Swift.String,
+                    start_ms: Swift.Double,
+                    status: Swift.String,
+                    target: Swift.String,
+                    title: Swift.String
+                ) {
+                    self.category = category
+                    self.duration_ms = duration_ms
+                    self.id = id
+                    self.project = project
+                    self.start_ms = start_ms
+                    self.status = status
+                    self.target = target
+                    self.title = title
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case category
+                    case duration_ms
+                    case id
+                    case project
+                    case start_ms
+                    case status
+                    case target
+                    case title
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/steps`.
+            public typealias stepsPayload = [Components.Schemas.XcodeBuildStepsList.stepsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/XcodeBuildStepsList/steps`.
+            public var steps: Components.Schemas.XcodeBuildStepsList.stepsPayload
+            /// Creates a new `XcodeBuildStepsList`.
+            ///
+            /// - Parameters:
+            ///   - availability:
+            ///   - pagination_metadata:
+            ///   - steps:
+            public init(
+                availability: Components.Schemas.XcodeBuildStepsList.availabilityPayload,
+                pagination_metadata: Components.Schemas.PaginationMetadata,
+                steps: Components.Schemas.XcodeBuildStepsList.stepsPayload
+            ) {
+                self.availability = availability
+                self.pagination_metadata = pagination_metadata
+                self.steps = steps
+            }
+            public enum CodingKeys: String, CodingKey {
+                case availability
+                case pagination_metadata
+                case steps
             }
         }
         /// The page number to return.
@@ -10569,10 +11577,15 @@ public enum Components {
                 case tokens
             }
         }
+        /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunsIndexAfter`.
+        public typealias RunsIndexAfter = Swift.String
         /// - Remark: Generated from `#/components/schemas/GradleTaskOutcome`.
         @frozen public enum GradleTaskOutcome: String, Codable, Hashable, Sendable, CaseIterable {
             case local_hit = "local_hit"
             case remote_hit = "remote_hit"
+            case cache_hit = "cache_hit"
             case up_to_date = "up_to_date"
             case executed = "executed"
             case failed = "failed"
@@ -19380,6 +20393,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
                     public var status: Operations.createTest.Input.Body.jsonPayload.statusPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/stress_new_tests`.
+                    public var stress_new_tests: Components.Schemas.StressNewTestsResult?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload`.
                     public struct test_modulesPayloadPayload: Codable, Hashable, Sendable {
                         /// The duration of the test module in milliseconds.
@@ -19486,6 +20501,17 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
                                     public var repetition_number: Swift.Int
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case run = "run"
+                                        case stress = "stress"
+                                    }
+                                    /// Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/source`.
+                                    public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                     /// The status.
                                     ///
                                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
@@ -19503,22 +20529,26 @@ public enum Operations {
                                     ///   - duration: The duration in milliseconds.
                                     ///   - name: The name of the repetition.
                                     ///   - repetition_number: The repetition attempt number.
+                                    ///   - source: Who asked for the execution: `run` for the run's own attempts and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                     ///   - status: The status.
                                     public init(
                                         duration: Swift.Int? = nil,
                                         name: Swift.String,
                                         repetition_number: Swift.Int,
+                                        source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                         status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
                                     ) {
                                         self.duration = duration
                                         self.name = name
                                         self.repetition_number = repetition_number
+                                        self.source = source
                                         self.status = status
                                     }
                                     public enum CodingKeys: String, CodingKey {
                                         case duration
                                         case name
                                         case repetition_number
+                                        case source
                                         case status
                                     }
                                 }
@@ -19663,12 +20693,24 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
                                 public var repetition_number: Swift.Int
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                @frozen public enum sourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case run = "run"
+                                    case stress = "stress"
+                                }
+                                /// Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/source`.
+                                public var source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload?
                                 /// The status of this repetition attempt.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
                                 @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case success = "success"
                                     case failure = "failure"
+                                    case skipped = "skipped"
                                 }
                                 /// The status of this repetition attempt.
                                 ///
@@ -19680,22 +20722,26 @@ public enum Operations {
                                 ///   - duration: The duration of this repetition in milliseconds.
                                 ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
                                 ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                ///   - source: Who asked for the execution: `run` for the run's own attempts, including its retries, and `stress` for a rerun the new-test stress gate solicited. Defaults to `run`.
                                 ///   - status: The status of this repetition attempt.
                                 public init(
                                     duration: Swift.Int? = nil,
                                     name: Swift.String,
                                     repetition_number: Swift.Int,
+                                    source: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.sourcePayload? = nil,
                                     status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
                                 ) {
                                     self.duration = duration
                                     self.name = name
                                     self.repetition_number = repetition_number
+                                    self.source = source
                                     self.status = status
                                 }
                                 public enum CodingKeys: String, CodingKey {
                                     case duration
                                     case name
                                     case repetition_number
+                                    case source
                                     case status
                                 }
                             }
@@ -19893,6 +20939,7 @@ public enum Operations {
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - skip_test_identifiers: The tests the caller asked this run to exclude.
                     ///   - status: The status of the test run.
+                    ///   - stress_new_tests:
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
@@ -19918,6 +20965,7 @@ public enum Operations {
                         shard_plan_id: Swift.String? = nil,
                         skip_test_identifiers: [Swift.String]? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
+                        stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
                     ) {
@@ -19943,6 +20991,7 @@ public enum Operations {
                         self.shard_plan_id = shard_plan_id
                         self.skip_test_identifiers = skip_test_identifiers
                         self.status = status
+                        self.stress_new_tests = stress_new_tests
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
                     }
@@ -19969,6 +21018,7 @@ public enum Operations {
                         case shard_plan_id
                         case skip_test_identifiers
                         case status
+                        case stress_new_tests
                         case test_modules
                         case xcode_version
                     }
@@ -20412,6 +21462,1076 @@ public enum Operations {
             }
         }
     }
+    /// Decide which of a run's test cases the stress gate for newly added tests should rerun.
+    ///
+    /// Given the test cases a run just executed, returns the ones that have not run in CI on the project's default branch in the trailing ninety days, each with the number of repetitions its duration earns on the project's curve, plus the guard that fired if one did and the parameters the pass runs under.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)`.
+    public enum createStressPlan {
+        public static let id: Swift.String = "createStressPlan"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createStressPlan.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStressPlan.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStressPlan.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createStressPlan.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload`.
+                    public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                        /// Duration of the test case in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/duration`.
+                        public var duration: Swift.Int?
+                        /// The module (target or Gradle project) of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/module_name`.
+                        public var module_name: Swift.String
+                        /// The name of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/name`.
+                        public var name: Swift.String
+                        /// The suite (class) of the test case.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_casesPayload/suite_name`.
+                        public var suite_name: Swift.String?
+                        /// Creates a new `test_casesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: Duration of the test case in milliseconds.
+                        ///   - module_name: The module (target or Gradle project) of the test case.
+                        ///   - name: The name of the test case.
+                        ///   - suite_name: The suite (class) of the test case.
+                        public init(
+                            duration: Swift.Int? = nil,
+                            module_name: Swift.String,
+                            name: Swift.String,
+                            suite_name: Swift.String? = nil
+                        ) {
+                            self.duration = duration
+                            self.module_name = module_name
+                            self.name = name
+                            self.suite_name = suite_name
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case module_name
+                            case name
+                            case suite_name
+                        }
+                    }
+                    /// The test cases that executed and were not skipped, with the duration the run measured for each.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_cases`.
+                    public typealias test_casesPayload = [Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayloadPayload]
+                    /// The test cases that executed and were not skipped, with the duration the run measured for each.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/json/test_cases`.
+                    public var test_cases: Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - test_cases: The test cases that executed and were not skipped, with the duration the run measured for each.
+                    public init(test_cases: Operations.createStressPlan.Input.Body.jsonPayload.test_casesPayload) {
+                        self.test_cases = test_cases
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case test_cases
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/requestBody/content/application\/json`.
+                case json(Operations.createStressPlan.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createStressPlan.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createStressPlan.Input.Path,
+                headers: Operations.createStressPlan.Input.Headers = .init(),
+                body: Operations.createStressPlan.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.StressPlan)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.StressPlan {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createStressPlan.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createStressPlan.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createStressPlan.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createStressPlan.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to request a plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createStressPlan.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createStressPlan.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createStressPlan.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createStressPlan.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createStressPlan.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createStressPlan.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createStressPlan.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createStressPlan.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createStressPlan.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createStressPlan.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createStressPlan.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/stress-new-tests/plan/post(createStressPlan)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createStressPlan.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createStressPlan.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List recorded Xcode build steps without logs.
+    ///
+    /// Steps are retained for 90 days. Times are milliseconds from build start. Step IDs are decimal strings preserving UInt64 precision. Unavailable means steps were not recorded or have expired. Time filters select overlapping steps; end_ms is exclusive.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)`.
+    public enum listXcodeBuildSteps {
+        public static let id: Swift.String = "listXcodeBuildSteps"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Build ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - build_id: Build ID.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.listXcodeBuildSteps.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Case-insensitive title, project, or target search.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/search`.
+                public var search: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/project`.
+                public var project: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/target`.
+                public var target: Swift.String?
+                /// Exact recorded category, such as swiftCompilation.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/category`.
+                public var category: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/status`.
+                public var status: Operations.listXcodeBuildSteps.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/start_ms`.
+                public var start_ms: Swift.Double?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/end_ms`.
+                public var end_ms: Swift.Double?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case duration_ms = "duration_ms"
+                    case start_ms = "start_ms"
+                }
+                /// Duration descending or start time ascending; ties use step ID ascending.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/sort_by`.
+                public var sort_by: Operations.listXcodeBuildSteps.Input.Query.sort_byPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                ///   - search: Case-insensitive title, project, or target search.
+                ///   - project:
+                ///   - target:
+                ///   - category: Exact recorded category, such as swiftCompilation.
+                ///   - status:
+                ///   - start_ms:
+                ///   - end_ms:
+                ///   - sort_by: Duration descending or start time ascending; ties use step ID ascending.
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    search: Swift.String? = nil,
+                    project: Swift.String? = nil,
+                    target: Swift.String? = nil,
+                    category: Swift.String? = nil,
+                    status: Operations.listXcodeBuildSteps.Input.Query.statusPayload? = nil,
+                    start_ms: Swift.Double? = nil,
+                    end_ms: Swift.Double? = nil,
+                    sort_by: Operations.listXcodeBuildSteps.Input.Query.sort_byPayload? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                    self.search = search
+                    self.project = project
+                    self.target = target
+                    self.category = category
+                    self.status = status
+                    self.start_ms = start_ms
+                    self.end_ms = end_ms
+                    self.sort_by = sort_by
+                }
+            }
+            public var query: Operations.listXcodeBuildSteps.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listXcodeBuildSteps.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listXcodeBuildSteps.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listXcodeBuildSteps.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listXcodeBuildSteps.Input.Path,
+                query: Operations.listXcodeBuildSteps.Input.Query = .init(),
+                headers: Operations.listXcodeBuildSteps.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/availability`.
+                        @frozen public enum availabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case available = "available"
+                            case processing = "processing"
+                            case unavailable = "unavailable"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/availability`.
+                        public var availability: Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload`.
+                        public struct stepsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/category`.
+                            public var category: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/duration_ms`.
+                            public var duration_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/project`.
+                            public var project: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/start_ms`.
+                            public var start_ms: Swift.Double
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/status`.
+                            public var status: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/target`.
+                            public var target: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/stepsPayload/title`.
+                            public var title: Swift.String
+                            /// Creates a new `stepsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - category:
+                            ///   - duration_ms:
+                            ///   - id:
+                            ///   - project:
+                            ///   - start_ms:
+                            ///   - status:
+                            ///   - target:
+                            ///   - title:
+                            public init(
+                                category: Swift.String,
+                                duration_ms: Swift.Double,
+                                id: Swift.String,
+                                project: Swift.String,
+                                start_ms: Swift.Double,
+                                status: Swift.String,
+                                target: Swift.String,
+                                title: Swift.String
+                            ) {
+                                self.category = category
+                                self.duration_ms = duration_ms
+                                self.id = id
+                                self.project = project
+                                self.start_ms = start_ms
+                                self.status = status
+                                self.target = target
+                                self.title = title
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case category
+                                case duration_ms
+                                case id
+                                case project
+                                case start_ms
+                                case status
+                                case target
+                                case title
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/steps`.
+                        public typealias stepsPayload = [Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload.stepsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/json/steps`.
+                        public var steps: Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - availability:
+                        ///   - pagination_metadata:
+                        ///   - steps:
+                        public init(
+                            availability: Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload.availabilityPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            steps: Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload.stepsPayload
+                        ) {
+                            self.availability = availability
+                            self.pagination_metadata = pagination_metadata
+                            self.steps = steps
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case availability
+                            case pagination_metadata
+                            case steps
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/200/content/application\/json`.
+                    case json(Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listXcodeBuildSteps.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listXcodeBuildSteps.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listXcodeBuildSteps.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Recorded steps
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listXcodeBuildSteps.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listXcodeBuildSteps.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listXcodeBuildSteps.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listXcodeBuildSteps.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listXcodeBuildSteps.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listXcodeBuildSteps.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listXcodeBuildSteps.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listXcodeBuildSteps.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listXcodeBuildSteps.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listXcodeBuildSteps.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listXcodeBuildSteps.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listXcodeBuildSteps.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listXcodeBuildSteps.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listXcodeBuildSteps.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listXcodeBuildSteps.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listXcodeBuildSteps.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listXcodeBuildSteps.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listXcodeBuildSteps.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/get(listXcodeBuildSteps)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listXcodeBuildSteps.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listXcodeBuildSteps.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a build by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/{build_id}`.
@@ -20493,6 +22613,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -20620,6 +22756,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -20640,6 +22780,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -20660,6 +22804,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -20681,6 +22829,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -23670,14 +25822,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
@@ -23685,16 +25837,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - page_size: Number of items per page.
                 ///   - page: Page number for pagination.
+                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
                     git_branch: Swift.String? = nil
                 ) {
-                    self.page_size = page_size
                     self.page = page
+                    self.page_size = page_size
                     self.git_branch = git_branch
                 }
             }
@@ -26481,6 +28633,10 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/bundle_id`.
                                 public var bundle_id: Swift.String?
+                                /// Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/dependencies`.
+                                public var dependencies: [Swift.String]?
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/destinationsPayload`.
                                 @frozen public enum destinationsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case iphone = "iphone"
@@ -26741,6 +28897,7 @@ public enum Operations {
                                 /// - Parameters:
                                 ///   - binary_cache_metadata: Binary cache metadata
                                 ///   - bundle_id: Bundle ID of the target
+                                ///   - dependencies: Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
                                 ///   - destinations: Destinations for the target
                                 ///   - name: Name of the target
                                 ///   - product: Product type of the target
@@ -26749,6 +28906,7 @@ public enum Operations {
                                 public init(
                                     binary_cache_metadata: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload? = nil,
                                     bundle_id: Swift.String? = nil,
+                                    dependencies: [Swift.String]? = nil,
                                     destinations: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.destinationsPayload? = nil,
                                     name: Swift.String,
                                     product: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.productPayload? = nil,
@@ -26757,6 +28915,7 @@ public enum Operations {
                                 ) {
                                     self.binary_cache_metadata = binary_cache_metadata
                                     self.bundle_id = bundle_id
+                                    self.dependencies = dependencies
                                     self.destinations = destinations
                                     self.name = name
                                     self.product = product
@@ -26766,6 +28925,7 @@ public enum Operations {
                                 public enum CodingKeys: String, CodingKey {
                                     case binary_cache_metadata
                                     case bundle_id
+                                    case dependencies
                                     case destinations
                                     case name
                                     case product
@@ -28572,6 +30732,466 @@ public enum Operations {
             }
         }
     }
+    /// Get one recorded Xcode build step and its log.
+    ///
+    /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)`.
+    public enum getXcodeBuildStep {
+        public static let id: Swift.String = "getXcodeBuildStep"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// Account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Project handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Build ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// The decimal string ID returned by listXcodeBuildSteps.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/path/step_id`.
+                public var step_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: Account handle.
+                ///   - project_handle: Project handle.
+                ///   - build_id: Build ID.
+                ///   - step_id: The decimal string ID returned by listXcodeBuildSteps.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String,
+                    step_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                    self.step_id = step_id
+                }
+            }
+            public var path: Operations.getXcodeBuildStep.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getXcodeBuildStep.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getXcodeBuildStep.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getXcodeBuildStep.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getXcodeBuildStep.Input.Path,
+                headers: Operations.getXcodeBuildStep.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/category`.
+                        public var category: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/log`.
+                        public var log: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/log_truncated`.
+                        public var log_truncated: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/project`.
+                        public var project: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/start_ms`.
+                        public var start_ms: Swift.Double
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/target`.
+                        public var target: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/json/title`.
+                        public var title: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - category:
+                        ///   - duration_ms:
+                        ///   - id:
+                        ///   - log:
+                        ///   - log_truncated:
+                        ///   - project:
+                        ///   - start_ms:
+                        ///   - status:
+                        ///   - target:
+                        ///   - title:
+                        public init(
+                            category: Swift.String,
+                            duration_ms: Swift.Double,
+                            id: Swift.String,
+                            log: Swift.String,
+                            log_truncated: Swift.Bool,
+                            project: Swift.String,
+                            start_ms: Swift.Double,
+                            status: Swift.String,
+                            target: Swift.String,
+                            title: Swift.String
+                        ) {
+                            self.category = category
+                            self.duration_ms = duration_ms
+                            self.id = id
+                            self.log = log
+                            self.log_truncated = log_truncated
+                            self.project = project
+                            self.start_ms = start_ms
+                            self.status = status
+                            self.target = target
+                            self.title = title
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case category
+                            case duration_ms
+                            case id
+                            case log
+                            case log_truncated
+                            case project
+                            case start_ms
+                            case status
+                            case target
+                            case title
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getXcodeBuildStep.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getXcodeBuildStep.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getXcodeBuildStep.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getXcodeBuildStep.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Step details and log
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getXcodeBuildStep.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getXcodeBuildStep.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getXcodeBuildStep.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getXcodeBuildStep.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid step ID, filters, or time range
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getXcodeBuildStep.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getXcodeBuildStep.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getXcodeBuildStep.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getXcodeBuildStep.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Access denied
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getXcodeBuildStep.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getXcodeBuildStep.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getXcodeBuildStep.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getXcodeBuildStep.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build or step not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getXcodeBuildStep.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getXcodeBuildStep.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getXcodeBuildStep.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getXcodeBuildStep.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getXcodeBuildStep.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getXcodeBuildStep.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}/get(getXcodeBuildStep)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getXcodeBuildStep.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getXcodeBuildStep.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Exchange a CI provider OIDC token for a Tuist access token.
     ///
     /// Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
@@ -29525,7 +32145,7 @@ public enum Operations {
             }
         }
     }
-    /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
+    /// List runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)`.
@@ -29558,7 +32178,7 @@ public enum Operations {
             public var path: Operations.listRuns.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// The name of the run.
+                /// Filter by command name, such as `install` or `generate`.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/name`.
                 public var name: Swift.String?
@@ -29574,6 +32194,27 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/git_commit_sha`.
                 public var git_commit_sha: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// Filter by run status.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/status`.
+                public var status: Operations.listRuns.Input.Query.statusPayload?
+                /// Filter to runs executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Only return runs that ran at or after this Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/from`.
+                public var from: Swift.Int64?
+                /// Only return runs that ran at or before this Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/to`.
+                public var to: Swift.Int64?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page_size`.
@@ -29581,30 +32222,57 @@ public enum Operations {
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/page`.
+                @available(*, deprecated)
                 public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/after`.
+                public var after: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/query/before`.
+                public var before: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - name: The name of the run.
+                ///   - name: Filter by command name, such as `install` or `generate`.
                 ///   - git_ref: The git ref of the run.
                 ///   - git_branch: The git branch of the run.
                 ///   - git_commit_sha: The git commit SHA of the run.
+                ///   - status: Filter by run status.
+                ///   - is_ci: Filter to runs executed on CI (true) or locally (false).
+                ///   - from: Only return runs that ran at or after this Unix timestamp in seconds.
+                ///   - to: Only return runs that ran at or before this Unix timestamp in seconds.
                 ///   - page_size:
                 ///   - page:
+                ///   - after:
+                ///   - before:
                 public init(
                     name: Swift.String? = nil,
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
+                    status: Operations.listRuns.Input.Query.statusPayload? = nil,
+                    is_ci: Swift.Bool? = nil,
+                    from: Swift.Int64? = nil,
+                    to: Swift.Int64? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
+                    page: Swift.Int? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil
                 ) {
                     self.name = name
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
+                    self.status = status
+                    self.is_ci = is_ci
+                    self.from = from
+                    self.to = to
                     self.page_size = page_size
                     self.page = page
+                    self.after = after
+                    self.before = before
                 }
             }
             public var query: Operations.listRuns.Input.Query
@@ -29642,16 +32310,24 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/200/content/json/runs`.
                         public var runs: [Components.Schemas.Run]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - runs:
-                        public init(runs: [Components.Schemas.Run]) {
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            runs: [Components.Schemas.Run]
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.runs = runs
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case runs
                         }
                     }
@@ -29698,6 +32374,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRuns.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRuns.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/get(listRuns)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listRuns.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listRuns.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -32114,6 +34841,302 @@ public enum Operations {
             }
         }
     }
+    /// List the sanitized logs captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/get(listBazelInvocationLogs)`.
+    public enum listBazelInvocationLogs {
+        public static let id: Swift.String = "listBazelInvocationLogs"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - invocation_id: The Bazel invocation identifier.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                }
+            }
+            public var path: Operations.listBazelInvocationLogs.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The maximum number of results to return.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// The page number to return.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page_size: The maximum number of results to return.
+                ///   - page: The page number to return.
+                public init(
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listBazelInvocationLogs.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelInvocationLogs.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listBazelInvocationLogs.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listBazelInvocationLogs.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listBazelInvocationLogs.Input.Path,
+                query: Operations.listBazelInvocationLogs.Input.Query = .init(),
+                headers: Operations.listBazelInvocationLogs.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload`.
+                        public struct logsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/invocation_id`.
+                            public var invocation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/message`.
+                            public var message: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/observed_at`.
+                            public var observed_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/sequence_number`.
+                            public var sequence_number: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logsPayload/stream`.
+                            public var stream: Swift.String
+                            /// Creates a new `logsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - id:
+                            ///   - invocation_id:
+                            ///   - message:
+                            ///   - observed_at:
+                            ///   - sequence_number:
+                            ///   - stream:
+                            public init(
+                                id: Swift.String,
+                                invocation_id: Swift.String,
+                                message: Swift.String,
+                                observed_at: Foundation.Date,
+                                sequence_number: Swift.Int,
+                                stream: Swift.String
+                            ) {
+                                self.id = id
+                                self.invocation_id = invocation_id
+                                self.message = message
+                                self.observed_at = observed_at
+                                self.sequence_number = sequence_number
+                                self.stream = stream
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case id
+                                case invocation_id
+                                case message
+                                case observed_at
+                                case sequence_number
+                                case stream
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logs`.
+                        public typealias logsPayload = [Operations.listBazelInvocationLogs.Output.Ok.Body.jsonPayload.logsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/logs`.
+                        public var logs: Operations.listBazelInvocationLogs.Output.Ok.Body.jsonPayload.logsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - logs:
+                        ///   - pagination_metadata:
+                        public init(
+                            logs: Operations.listBazelInvocationLogs.Output.Ok.Body.jsonPayload.logsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
+                            self.logs = logs
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case logs
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listBazelInvocationLogs.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listBazelInvocationLogs.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelInvocationLogs.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelInvocationLogs.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of Bazel invocation logs
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/get(listBazelInvocationLogs)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listBazelInvocationLogs.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listBazelInvocationLogs.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listBazelInvocationLogs.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listBazelInvocationLogs.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/get(listBazelInvocationLogs)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listBazelInvocationLogs.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listBazelInvocationLogs.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -33979,6 +37002,22 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_bytes`.
+                        public var cas_output_download_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs downloaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_download_count`.
+                        public var cas_output_download_count: Swift.Int
+                        /// Bytes of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_bytes`.
+                        public var cas_output_upload_bytes: Swift.Int
+                        /// Number of content-addressable storage outputs uploaded by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/cas_output_upload_count`.
+                        public var cas_output_upload_count: Swift.Int
                         /// Build category.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/GET/responses/200/content/json/category`.
@@ -34106,6 +37145,10 @@ public enum Operations {
                         ///   - cacheable_task_local_hits_count: Local cache hits.
                         ///   - cacheable_task_remote_hits_count: Remote cache hits.
                         ///   - cacheable_tasks_count: Total cacheable tasks.
+                        ///   - cas_output_download_bytes: Bytes of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_download_count: Number of content-addressable storage outputs downloaded by the build.
+                        ///   - cas_output_upload_bytes: Bytes of content-addressable storage outputs uploaded by the build.
+                        ///   - cas_output_upload_count: Number of content-addressable storage outputs uploaded by the build.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
                         ///   - custom_metadata: Custom metadata for the build run.
@@ -34126,6 +37169,10 @@ public enum Operations {
                             cacheable_task_local_hits_count: Swift.Int,
                             cacheable_task_remote_hits_count: Swift.Int,
                             cacheable_tasks_count: Swift.Int,
+                            cas_output_download_bytes: Swift.Int,
+                            cas_output_download_count: Swift.Int,
+                            cas_output_upload_bytes: Swift.Int,
+                            cas_output_upload_count: Swift.Int,
                             category: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
                             custom_metadata: Operations.getBuild_space__lpar_2_rpar_.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
@@ -34146,6 +37193,10 @@ public enum Operations {
                             self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
                             self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
                             self.cacheable_tasks_count = cacheable_tasks_count
+                            self.cas_output_download_bytes = cas_output_download_bytes
+                            self.cas_output_download_count = cas_output_download_count
+                            self.cas_output_upload_bytes = cas_output_upload_bytes
+                            self.cas_output_upload_count = cas_output_upload_count
                             self.category = category
                             self.configuration = configuration
                             self.custom_metadata = custom_metadata
@@ -34167,6 +37218,10 @@ public enum Operations {
                             case cacheable_task_local_hits_count
                             case cacheable_task_remote_hits_count
                             case cacheable_tasks_count
+                            case cas_output_download_bytes
+                            case cas_output_download_count
+                            case cas_output_upload_bytes
+                            case cas_output_upload_count
                             case category
                             case configuration
                             case custom_metadata
@@ -59926,6 +62981,7 @@ public enum Operations {
                 @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case local_hit = "local_hit"
                     case remote_hit = "remote_hit"
+                    case cache_hit = "cache_hit"
                     case up_to_date = "up_to_date"
                     case executed = "executed"
                     case failed = "failed"
@@ -60022,6 +63078,75 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/duration_ms`.
                             public var duration_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution`.
+                            public struct executionPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/build_path`.
+                                public var build_path: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case cacheable = "cacheable"
+                                    case disabled = "disabled"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                public var cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/incremental`.
+                                public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case hit = "hit"
+                                    case miss = "miss"
+                                    case error = "error"
+                                    case not_requested = "not_requested"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                public var remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution/task_type`.
+                                public var task_type: Swift.String
+                                /// Creates a new `executionPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - build_path:
+                                ///   - cacheability:
+                                ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
+                                ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
+                                ///   - task_type:
+                                public init(
+                                    build_path: Swift.String,
+                                    cacheability: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                    incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
+                                    remote_cache_lookup_outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                    task_type: Swift.String
+                                ) {
+                                    self.build_path = build_path
+                                    self.cacheability = cacheability
+                                    self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                    self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                    self.task_type = task_type
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case build_path
+                                    case cacheability
+                                    case incremental
+                                    case remote_cache_download_duration_ms
+                                    case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
+                                    case task_type
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution`.
+                            public var execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                             /// The task ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/id`.
@@ -60032,6 +63157,7 @@ public enum Operations {
                             @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case local_hit = "local_hit"
                                 case remote_hit = "remote_hit"
+                                case cache_hit = "cache_hit"
                                 case up_to_date = "up_to_date"
                                 case executed = "executed"
                                 case failed = "failed"
@@ -60061,6 +63187,7 @@ public enum Operations {
                             ///   - cache_key: Cache key for cacheable tasks.
                             ///   - cacheable: Whether the task is cacheable.
                             ///   - duration_ms: Task duration in milliseconds.
+                            ///   - execution:
                             ///   - id: The task ID.
                             ///   - outcome: Task outcome.
                             ///   - started_at: When the task started executing.
@@ -60071,6 +63198,7 @@ public enum Operations {
                                 cache_key: Swift.String? = nil,
                                 cacheable: Swift.Bool,
                                 duration_ms: Swift.Int,
+                                execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                                 id: Swift.String,
                                 outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                                 started_at: Foundation.Date? = nil,
@@ -60081,6 +63209,7 @@ public enum Operations {
                                 self.cache_key = cache_key
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
+                                self.execution = execution
                                 self.id = id
                                 self.outcome = outcome
                                 self.started_at = started_at
@@ -60092,6 +63221,7 @@ public enum Operations {
                                 case cache_key
                                 case cacheable
                                 case duration_ms
+                                case execution
                                 case id
                                 case outcome
                                 case started_at
@@ -62815,6 +65945,308 @@ public enum Operations {
             }
         }
     }
+    /// Get one sanitized log captured for a Bazel invocation.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)`.
+    public enum getBazelInvocationLog {
+        public static let id: Swift.String = "getBazelInvocationLog"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The Bazel invocation identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/path/invocation_id`.
+                public var invocation_id: Swift.String
+                /// The invocation log identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/path/invocation_log_id`.
+                public var invocation_log_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - invocation_id: The Bazel invocation identifier.
+                ///   - invocation_log_id: The invocation log identifier.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    invocation_id: Swift.String,
+                    invocation_log_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.invocation_id = invocation_id
+                    self.invocation_log_id = invocation_log_id
+                }
+            }
+            public var path: Operations.getBazelInvocationLog.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelInvocationLog.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getBazelInvocationLog.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getBazelInvocationLog.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getBazelInvocationLog.Input.Path,
+                headers: Operations.getBazelInvocationLog.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/invocation_id`.
+                        public var invocation_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/message`.
+                        public var message: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/observed_at`.
+                        public var observed_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/sequence_number`.
+                        public var sequence_number: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/json/stream`.
+                        public var stream: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id:
+                        ///   - invocation_id:
+                        ///   - message:
+                        ///   - observed_at:
+                        ///   - sequence_number:
+                        ///   - stream:
+                        public init(
+                            id: Swift.String,
+                            invocation_id: Swift.String,
+                            message: Swift.String,
+                            observed_at: Foundation.Date,
+                            sequence_number: Swift.Int,
+                            stream: Swift.String
+                        ) {
+                            self.id = id
+                            self.invocation_id = invocation_id
+                            self.message = message
+                            self.observed_at = observed_at
+                            self.sequence_number = sequence_number
+                            self.stream = stream
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                            case invocation_id
+                            case message
+                            case observed_at
+                            case sequence_number
+                            case stream
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getBazelInvocationLog.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getBazelInvocationLog.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelInvocationLog.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelInvocationLog.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Bazel invocation log
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getBazelInvocationLog.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getBazelInvocationLog.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelInvocationLog.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelInvocationLog.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getBazelInvocationLog.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getBazelInvocationLog.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getBazelInvocationLog.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getBazelInvocationLog.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Bazel invocation log not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/logs/{invocation_log_id}/get(getBazelInvocationLog)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getBazelInvocationLog.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getBazelInvocationLog.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Updates a member in an organization
     ///
     /// Updates a member in a given organization
@@ -65464,8 +68896,16 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/artifact_transforms`.
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        /// Bytes of task outputs downloaded from the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_download_bytes`.
+                        public var cache_download_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
+                        /// Bytes of task outputs uploaded to the remote cache by the build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_upload_bytes`.
+                        public var cache_upload_bytes: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
                         public var cacheable_tasks_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_cache_entry_size`.
@@ -65561,6 +69001,75 @@ public enum Operations {
                             public var cacheable: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/duration_ms`.
                             public var duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution`.
+                            public struct executionPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/build_path`.
+                                public var build_path: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case cacheable = "cacheable"
+                                    case disabled = "disabled"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/cacheability`.
+                                public var cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/incremental`.
+                                public var incremental: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                                public var remote_cache_download_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case hit = "hit"
+                                    case miss = "miss"
+                                    case error = "error"
+                                    case not_requested = "not_requested"
+                                    case unknown = "unknown"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                                public var remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                                public var remote_cache_upload_duration_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution/task_type`.
+                                public var task_type: Swift.String
+                                /// Creates a new `executionPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - build_path:
+                                ///   - cacheability:
+                                ///   - incremental:
+                                ///   - remote_cache_download_duration_ms:
+                                ///   - remote_cache_lookup_outcome:
+                                ///   - remote_cache_upload_duration_ms:
+                                ///   - task_type:
+                                public init(
+                                    build_path: Swift.String,
+                                    cacheability: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                    incremental: Swift.Bool? = nil,
+                                    remote_cache_download_duration_ms: Swift.Int? = nil,
+                                    remote_cache_lookup_outcome: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                    remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                    task_type: Swift.String
+                                ) {
+                                    self.build_path = build_path
+                                    self.cacheability = cacheability
+                                    self.incremental = incremental
+                                    self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                    self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                    self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                    self.task_type = task_type
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case build_path
+                                    case cacheability
+                                    case incremental
+                                    case remote_cache_download_duration_ms
+                                    case remote_cache_lookup_outcome
+                                    case remote_cache_upload_duration_ms
+                                    case task_type
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution`.
+                            public var execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/outcome`.
                             public var outcome: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/remote_cache_miss`.
@@ -65580,6 +69089,7 @@ public enum Operations {
                             ///   - cache_key:
                             ///   - cacheable:
                             ///   - duration_ms:
+                            ///   - execution:
                             ///   - outcome:
                             ///   - remote_cache_miss:
                             ///   - remote_cache_stored:
@@ -65591,6 +69101,7 @@ public enum Operations {
                                 cache_key: Swift.String? = nil,
                                 cacheable: Swift.Bool? = nil,
                                 duration_ms: Swift.Int? = nil,
+                                execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                                 outcome: Swift.String? = nil,
                                 remote_cache_miss: Swift.Bool? = nil,
                                 remote_cache_stored: Swift.Bool? = nil,
@@ -65602,6 +69113,7 @@ public enum Operations {
                                 self.cache_key = cache_key
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
+                                self.execution = execution
                                 self.outcome = outcome
                                 self.remote_cache_miss = remote_cache_miss
                                 self.remote_cache_stored = remote_cache_stored
@@ -65614,6 +69126,7 @@ public enum Operations {
                                 case cache_key
                                 case cacheable
                                 case duration_ms
+                                case execution
                                 case outcome
                                 case remote_cache_miss
                                 case remote_cache_stored
@@ -65626,6 +69139,8 @@ public enum Operations {
                         public typealias tasksPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
                         public var tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_cache_hit_count`.
+                        public var tasks_cache_hit_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_executed_count`.
                         public var tasks_executed_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
@@ -65644,7 +69159,9 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - artifact_transforms:
+                        ///   - cache_download_bytes: Bytes of task outputs downloaded from the remote cache by the build.
                         ///   - cache_hit_rate:
+                        ///   - cache_upload_bytes: Bytes of task outputs uploaded to the remote cache by the build.
                         ///   - cacheable_tasks_count:
                         ///   - configuration_cache_entry_size:
                         ///   - configuration_cache_invalidation_reasons:
@@ -65665,6 +69182,7 @@ public enum Operations {
                         ///   - root_project_name:
                         ///   - status:
                         ///   - tasks:
+                        ///   - tasks_cache_hit_count:
                         ///   - tasks_executed_count:
                         ///   - tasks_failed_count:
                         ///   - tasks_local_hit_count:
@@ -65674,7 +69192,9 @@ public enum Operations {
                         ///   - tasks_up_to_date_count:
                         public init(
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            cache_download_bytes: Swift.Int? = nil,
                             cache_hit_rate: Swift.Double? = nil,
+                            cache_upload_bytes: Swift.Int? = nil,
                             cacheable_tasks_count: Swift.Int? = nil,
                             configuration_cache_entry_size: Swift.Int? = nil,
                             configuration_cache_invalidation_reasons: [Swift.String]? = nil,
@@ -65695,6 +69215,7 @@ public enum Operations {
                             root_project_name: Swift.String? = nil,
                             status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
                             tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
+                            tasks_cache_hit_count: Swift.Int? = nil,
                             tasks_executed_count: Swift.Int? = nil,
                             tasks_failed_count: Swift.Int? = nil,
                             tasks_local_hit_count: Swift.Int? = nil,
@@ -65704,7 +69225,9 @@ public enum Operations {
                             tasks_up_to_date_count: Swift.Int? = nil
                         ) {
                             self.artifact_transforms = artifact_transforms
+                            self.cache_download_bytes = cache_download_bytes
                             self.cache_hit_rate = cache_hit_rate
+                            self.cache_upload_bytes = cache_upload_bytes
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.configuration_cache_entry_size = configuration_cache_entry_size
                             self.configuration_cache_invalidation_reasons = configuration_cache_invalidation_reasons
@@ -65725,6 +69248,7 @@ public enum Operations {
                             self.root_project_name = root_project_name
                             self.status = status
                             self.tasks = tasks
+                            self.tasks_cache_hit_count = tasks_cache_hit_count
                             self.tasks_executed_count = tasks_executed_count
                             self.tasks_failed_count = tasks_failed_count
                             self.tasks_local_hit_count = tasks_local_hit_count
@@ -65735,7 +69259,9 @@ public enum Operations {
                         }
                         public enum CodingKeys: String, CodingKey {
                             case artifact_transforms
+                            case cache_download_bytes
                             case cache_hit_rate
+                            case cache_upload_bytes
                             case cacheable_tasks_count
                             case configuration_cache_entry_size
                             case configuration_cache_invalidation_reasons
@@ -65756,6 +69282,7 @@ public enum Operations {
                             case root_project_name
                             case status
                             case tasks
+                            case tasks_cache_hit_count
                             case tasks_executed_count
                             case tasks_failed_count
                             case tasks_local_hit_count
@@ -66096,6 +69623,148 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/bazel_version`.
+                        public var bazel_version: Swift.String
+                        /// Build metrics reported by Bazel.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics`.
+                        public struct build_metricsPayload: Codable, Hashable, Sendable {
+                            /// Actions Bazel created while analyzing the requested targets.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/actions_created`.
+                            public var actions_created: Swift.Int
+                            /// Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/actions_executed`.
+                            public var actions_executed: Swift.Int
+                            /// Total central processing unit time in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/cpu_time_ms`.
+                            public var cpu_time_ms: Swift.Int
+                            /// Packages Bazel loaded.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/packages_loaded`.
+                            public var packages_loaded: Swift.Int
+                            /// Targets Bazel configured.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics/targets_configured`.
+                            public var targets_configured: Swift.Int
+                            /// Creates a new `build_metricsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - actions_created: Actions Bazel created while analyzing the requested targets.
+                            ///   - actions_executed: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                            ///   - cpu_time_ms: Total central processing unit time in milliseconds.
+                            ///   - packages_loaded: Packages Bazel loaded.
+                            ///   - targets_configured: Targets Bazel configured.
+                            public init(
+                                actions_created: Swift.Int,
+                                actions_executed: Swift.Int,
+                                cpu_time_ms: Swift.Int,
+                                packages_loaded: Swift.Int,
+                                targets_configured: Swift.Int
+                            ) {
+                                self.actions_created = actions_created
+                                self.actions_executed = actions_executed
+                                self.cpu_time_ms = cpu_time_ms
+                                self.packages_loaded = packages_loaded
+                                self.targets_configured = targets_configured
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case actions_created
+                                case actions_executed
+                                case cpu_time_ms
+                                case packages_loaded
+                                case targets_configured
+                            }
+                        }
+                        /// Build metrics reported by Bazel.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_metrics`.
+                        public var build_metrics: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_metricsPayload
+                        /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline`.
+                        public struct build_timelinePayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/duration_ms`.
+                            public var duration_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/lanes`.
+                            public var lanes: [Swift.String]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload`.
+                            public struct spansPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/category`.
+                                @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case analysis = "analysis"
+                                    case execution = "execution"
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/category`.
+                                public var category: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload.categoryPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/description`.
+                                public var description: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/lane`.
+                                public var lane: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spansPayload/start_ms`.
+                                public var start_ms: Swift.Int
+                                /// Creates a new `spansPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - category:
+                                ///   - description:
+                                ///   - duration_ms:
+                                ///   - lane:
+                                ///   - start_ms:
+                                public init(
+                                    category: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload.categoryPayload,
+                                    description: Swift.String,
+                                    duration_ms: Swift.Int,
+                                    lane: Swift.Int,
+                                    start_ms: Swift.Int
+                                ) {
+                                    self.category = category
+                                    self.description = description
+                                    self.duration_ms = duration_ms
+                                    self.lane = lane
+                                    self.start_ms = start_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case category
+                                    case description
+                                    case duration_ms
+                                    case lane
+                                    case start_ms
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spans`.
+                            public typealias spansPayload = [Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline/spans`.
+                            public var spans: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayload
+                            /// Creates a new `build_timelinePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration_ms:
+                            ///   - lanes:
+                            ///   - spans:
+                            public init(
+                                duration_ms: Swift.Int,
+                                lanes: [Swift.String],
+                                spans: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload.spansPayload
+                            ) {
+                                self.duration_ms = duration_ms
+                                self.lanes = lanes
+                                self.spans = spans
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration_ms
+                                case lanes
+                                case spans
+                            }
+                        }
+                        /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/build_timeline`.
+                        public var build_timeline: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache`.
                         public struct cachePayload: Codable, Hashable, Sendable {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache/download_bytes`.
@@ -66139,16 +69808,121 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache`.
                         public var cache: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.cachePayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/cache_endpoint`.
+                        public var cache_endpoint: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/command`.
                         public var command: Swift.String
+                        /// The critical path reported by Bazel, bounded to 32 actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path`.
+                        public struct critical_pathPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload`.
+                            public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload/description`.
+                                public var description: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actionsPayload/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// Creates a new `actionsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - description:
+                                ///   - duration_ms:
+                                public init(
+                                    description: Swift.String,
+                                    duration_ms: Swift.Int
+                                ) {
+                                    self.description = description
+                                    self.duration_ms = duration_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case description
+                                    case duration_ms
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actions`.
+                            public typealias actionsPayload = [Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/actions`.
+                            public var actions: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path/duration_ms`.
+                            public var duration_ms: Swift.Int
+                            /// Creates a new `critical_pathPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - actions:
+                            ///   - duration_ms:
+                            public init(
+                                actions: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload.actionsPayload,
+                                duration_ms: Swift.Int
+                            ) {
+                                self.actions = actions
+                                self.duration_ms = duration_ms
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case actions
+                                case duration_ms
+                            }
+                        }
+                        /// The critical path reported by Bazel, bounded to 32 actions.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/critical_path`.
+                        public var critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/tags`.
+                            public var tags: [Swift.String]
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public var values: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags:
+                            ///   - values:
+                            public init(
+                                tags: [Swift.String],
+                                values: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/custom_metadata`.
+                        public var custom_metadata: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/exit_code`.
                         public var exit_code: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/finished_at`.
                         public var finished_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/invocation_id`.
                         public var invocation_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/started_at`.
                         public var started_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/status`.
@@ -66158,45 +69932,87 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/status`.
                         public var status: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.statusPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/json/target_patterns`.
+                        public var target_patterns: [Swift.String]
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - bazel_version:
+                        ///   - build_metrics: Build metrics reported by Bazel.
+                        ///   - build_timeline: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
                         ///   - cache:
+                        ///   - cache_endpoint:
                         ///   - command:
+                        ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
+                        ///   - custom_metadata:
                         ///   - duration_ms:
                         ///   - exit_code:
                         ///   - finished_at:
+                        ///   - git_branch:
+                        ///   - git_commit_sha:
                         ///   - invocation_id:
+                        ///   - is_ci:
                         ///   - started_at:
                         ///   - status:
+                        ///   - target_patterns:
                         public init(
+                            bazel_version: Swift.String,
+                            build_metrics: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_metricsPayload,
+                            build_timeline: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.build_timelinePayload? = nil,
                             cache: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.cachePayload,
+                            cache_endpoint: Swift.String,
                             command: Swift.String,
+                            critical_path: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.critical_pathPayload? = nil,
+                            custom_metadata: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.custom_metadataPayload,
                             duration_ms: Swift.Int,
                             exit_code: Swift.Int,
                             finished_at: Foundation.Date,
+                            git_branch: Swift.String,
+                            git_commit_sha: Swift.String,
                             invocation_id: Swift.String,
+                            is_ci: Swift.Bool,
                             started_at: Foundation.Date,
-                            status: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.statusPayload
+                            status: Operations.getBazelInvocation.Output.Ok.Body.jsonPayload.statusPayload,
+                            target_patterns: [Swift.String]
                         ) {
+                            self.bazel_version = bazel_version
+                            self.build_metrics = build_metrics
+                            self.build_timeline = build_timeline
                             self.cache = cache
+                            self.cache_endpoint = cache_endpoint
                             self.command = command
+                            self.critical_path = critical_path
+                            self.custom_metadata = custom_metadata
                             self.duration_ms = duration_ms
                             self.exit_code = exit_code
                             self.finished_at = finished_at
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
                             self.invocation_id = invocation_id
+                            self.is_ci = is_ci
                             self.started_at = started_at
                             self.status = status
+                            self.target_patterns = target_patterns
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case bazel_version
+                            case build_metrics
+                            case build_timeline
                             case cache
+                            case cache_endpoint
                             case command
+                            case critical_path
+                            case custom_metadata
                             case duration_ms
                             case exit_code
                             case finished_at
+                            case git_branch
+                            case git_commit_sha
                             case invocation_id
+                            case is_ci
                             case started_at
                             case status
+                            case target_patterns
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}/GET/responses/200/content/application\/json`.
@@ -67688,6 +71504,15 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/outcome`.
                 public var outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/operation`.
+                @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case action_cache = "action_cache"
+                    case cas = "cas"
+                }
+                /// Filter by action cache or content-addressable storage operation.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/query/operation`.
+                public var operation: Operations.listBazelCacheEvents.Input.Query.operationPayload?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -67695,16 +71520,19 @@ public enum Operations {
                 ///   - page: The page number to return.
                 ///   - invocation_id: Filter by Bazel invocation identifier.
                 ///   - outcome: Filter by cache outcome.
+                ///   - operation: Filter by action cache or content-addressable storage operation.
                 public init(
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil,
                     invocation_id: Swift.String? = nil,
-                    outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload? = nil
+                    outcome: Operations.listBazelCacheEvents.Input.Query.outcomePayload? = nil,
+                    operation: Operations.listBazelCacheEvents.Input.Query.operationPayload? = nil
                 ) {
                     self.page_size = page_size
                     self.page = page
                     self.invocation_id = invocation_id
                     self.outcome = outcome
+                    self.operation = operation
                 }
             }
             public var query: Operations.listBazelCacheEvents.Input.Query
@@ -67747,9 +71575,13 @@ public enum Operations {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/action_digest`.
                             public var action_digest: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/action_mnemonic`.
-                            public var action_mnemonic: Swift.String?
+                            public var action_mnemonic: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/cache_endpoint`.
+                            public var cache_endpoint: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/client_kind`.
+                            public var client_kind: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/configuration_id`.
-                            public var configuration_id: Swift.String?
+                            public var configuration_id: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/id`.
@@ -67758,6 +71590,15 @@ public enum Operations {
                             public var inserted_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/invocation_id`.
                             public var invocation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/observed_at`.
+                            public var observed_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/operation`.
+                            @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case action_cache = "action_cache"
+                                case cas = "cas"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/operation`.
+                            public var operation: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.operationPayload
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/outcome`.
                             @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case hit = "hit"
@@ -67769,39 +71610,51 @@ public enum Operations {
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/size`.
                             public var size: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/GET/responses/200/content/json/cache_eventsPayload/target_label`.
-                            public var target_label: Swift.String?
+                            public var target_label: Swift.String
                             /// Creates a new `cache_eventsPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - action_digest:
                             ///   - action_mnemonic:
+                            ///   - cache_endpoint:
+                            ///   - client_kind:
                             ///   - configuration_id:
                             ///   - duration_ms:
                             ///   - id:
                             ///   - inserted_at:
                             ///   - invocation_id:
+                            ///   - observed_at:
+                            ///   - operation:
                             ///   - outcome:
                             ///   - size:
                             ///   - target_label:
                             public init(
                                 action_digest: Swift.String,
-                                action_mnemonic: Swift.String? = nil,
-                                configuration_id: Swift.String? = nil,
+                                action_mnemonic: Swift.String,
+                                cache_endpoint: Swift.String,
+                                client_kind: Swift.String,
+                                configuration_id: Swift.String,
                                 duration_ms: Swift.Int,
                                 id: Swift.String,
                                 inserted_at: Foundation.Date,
                                 invocation_id: Swift.String,
+                                observed_at: Foundation.Date,
+                                operation: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.operationPayload,
                                 outcome: Operations.listBazelCacheEvents.Output.Ok.Body.jsonPayload.cache_eventsPayloadPayload.outcomePayload,
                                 size: Swift.Int,
-                                target_label: Swift.String? = nil
+                                target_label: Swift.String
                             ) {
                                 self.action_digest = action_digest
                                 self.action_mnemonic = action_mnemonic
+                                self.cache_endpoint = cache_endpoint
+                                self.client_kind = client_kind
                                 self.configuration_id = configuration_id
                                 self.duration_ms = duration_ms
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.invocation_id = invocation_id
+                                self.observed_at = observed_at
+                                self.operation = operation
                                 self.outcome = outcome
                                 self.size = size
                                 self.target_label = target_label
@@ -67809,11 +71662,15 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case action_digest
                                 case action_mnemonic
+                                case cache_endpoint
+                                case client_kind
                                 case configuration_id
                                 case duration_ms
                                 case id
                                 case inserted_at
                                 case invocation_id
+                                case observed_at
+                                case operation
                                 case outcome
                                 case size
                                 case target_label
@@ -68512,9 +72369,13 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/action_digest`.
                         public var action_digest: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/action_mnemonic`.
-                        public var action_mnemonic: Swift.String?
+                        public var action_mnemonic: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/cache_endpoint`.
+                        public var cache_endpoint: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/client_kind`.
+                        public var client_kind: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/configuration_id`.
-                        public var configuration_id: Swift.String?
+                        public var configuration_id: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/duration_ms`.
                         public var duration_ms: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/id`.
@@ -68523,6 +72384,15 @@ public enum Operations {
                         public var inserted_at: Foundation.Date
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/invocation_id`.
                         public var invocation_id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/observed_at`.
+                        public var observed_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/operation`.
+                        @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case action_cache = "action_cache"
+                            case cas = "cas"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/operation`.
+                        public var operation: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.operationPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/outcome`.
                         @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case hit = "hit"
@@ -68534,39 +72404,51 @@ public enum Operations {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/size`.
                         public var size: Swift.Int
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/cache-events/{cache_event_id}/GET/responses/200/content/json/target_label`.
-                        public var target_label: Swift.String?
+                        public var target_label: Swift.String
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - action_digest:
                         ///   - action_mnemonic:
+                        ///   - cache_endpoint:
+                        ///   - client_kind:
                         ///   - configuration_id:
                         ///   - duration_ms:
                         ///   - id:
                         ///   - inserted_at:
                         ///   - invocation_id:
+                        ///   - observed_at:
+                        ///   - operation:
                         ///   - outcome:
                         ///   - size:
                         ///   - target_label:
                         public init(
                             action_digest: Swift.String,
-                            action_mnemonic: Swift.String? = nil,
-                            configuration_id: Swift.String? = nil,
+                            action_mnemonic: Swift.String,
+                            cache_endpoint: Swift.String,
+                            client_kind: Swift.String,
+                            configuration_id: Swift.String,
                             duration_ms: Swift.Int,
                             id: Swift.String,
                             inserted_at: Foundation.Date,
                             invocation_id: Swift.String,
+                            observed_at: Foundation.Date,
+                            operation: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.operationPayload,
                             outcome: Operations.getBazelCacheEvent.Output.Ok.Body.jsonPayload.outcomePayload,
                             size: Swift.Int,
-                            target_label: Swift.String? = nil
+                            target_label: Swift.String
                         ) {
                             self.action_digest = action_digest
                             self.action_mnemonic = action_mnemonic
+                            self.cache_endpoint = cache_endpoint
+                            self.client_kind = client_kind
                             self.configuration_id = configuration_id
                             self.duration_ms = duration_ms
                             self.id = id
                             self.inserted_at = inserted_at
                             self.invocation_id = invocation_id
+                            self.observed_at = observed_at
+                            self.operation = operation
                             self.outcome = outcome
                             self.size = size
                             self.target_label = target_label
@@ -68574,11 +72456,15 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case action_digest
                             case action_mnemonic
+                            case cache_endpoint
+                            case client_kind
                             case configuration_id
                             case duration_ms
                             case id
                             case inserted_at
                             case invocation_id
+                            case observed_at
+                            case operation
                             case outcome
                             case size
                             case target_label
@@ -69832,6 +73718,8 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
                             public var status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_cache_hit_count`.
+                            public var tasks_cache_hit_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_executed_count`.
                             public var tasks_executed_count: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_local_hit_count`.
@@ -69861,6 +73749,7 @@ public enum Operations {
                             ///   - requested_tasks:
                             ///   - root_project_name:
                             ///   - status:
+                            ///   - tasks_cache_hit_count:
                             ///   - tasks_executed_count:
                             ///   - tasks_local_hit_count:
                             ///   - tasks_remote_hit_count:
@@ -69884,6 +73773,7 @@ public enum Operations {
                                 requested_tasks: [Swift.String]? = nil,
                                 root_project_name: Swift.String? = nil,
                                 status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload? = nil,
+                                tasks_cache_hit_count: Swift.Int? = nil,
                                 tasks_executed_count: Swift.Int? = nil,
                                 tasks_local_hit_count: Swift.Int? = nil,
                                 tasks_remote_hit_count: Swift.Int? = nil,
@@ -69907,6 +73797,7 @@ public enum Operations {
                                 self.requested_tasks = requested_tasks
                                 self.root_project_name = root_project_name
                                 self.status = status
+                                self.tasks_cache_hit_count = tasks_cache_hit_count
                                 self.tasks_executed_count = tasks_executed_count
                                 self.tasks_local_hit_count = tasks_local_hit_count
                                 self.tasks_remote_hit_count = tasks_remote_hit_count
@@ -69931,6 +73822,7 @@ public enum Operations {
                                 case requested_tasks
                                 case root_project_name
                                 case status
+                                case tasks_cache_hit_count
                                 case tasks_executed_count
                                 case tasks_local_hit_count
                                 case tasks_remote_hit_count
@@ -70585,12 +74477,82 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/duration_ms`.
                         public var duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution`.
+                        public struct executionPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/build_path`.
+                            public var build_path: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/cacheability`.
+                            @frozen public enum cacheabilityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case cacheable = "cacheable"
+                                case disabled = "disabled"
+                                case unknown = "unknown"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/cacheability`.
+                            public var cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/incremental`.
+                            public var incremental: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_download_duration_ms`.
+                            public var remote_cache_download_duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                            @frozen public enum remote_cache_lookup_outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case hit = "hit"
+                                case miss = "miss"
+                                case error = "error"
+                                case not_requested = "not_requested"
+                                case unknown = "unknown"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_lookup_outcome`.
+                            public var remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/remote_cache_upload_duration_ms`.
+                            public var remote_cache_upload_duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution/task_type`.
+                            public var task_type: Swift.String
+                            /// Creates a new `executionPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - build_path:
+                            ///   - cacheability:
+                            ///   - incremental:
+                            ///   - remote_cache_download_duration_ms:
+                            ///   - remote_cache_lookup_outcome:
+                            ///   - remote_cache_upload_duration_ms:
+                            ///   - task_type:
+                            public init(
+                                build_path: Swift.String,
+                                cacheability: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.cacheabilityPayload,
+                                incremental: Swift.Bool? = nil,
+                                remote_cache_download_duration_ms: Swift.Int? = nil,
+                                remote_cache_lookup_outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload.remote_cache_lookup_outcomePayload? = nil,
+                                remote_cache_upload_duration_ms: Swift.Int? = nil,
+                                task_type: Swift.String
+                            ) {
+                                self.build_path = build_path
+                                self.cacheability = cacheability
+                                self.incremental = incremental
+                                self.remote_cache_download_duration_ms = remote_cache_download_duration_ms
+                                self.remote_cache_lookup_outcome = remote_cache_lookup_outcome
+                                self.remote_cache_upload_duration_ms = remote_cache_upload_duration_ms
+                                self.task_type = task_type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case build_path
+                                case cacheability
+                                case incremental
+                                case remote_cache_download_duration_ms
+                                case remote_cache_lookup_outcome
+                                case remote_cache_upload_duration_ms
+                                case task_type
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution`.
+                        public var execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload?
                         /// Task outcome.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/outcome`.
                         @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case local_hit = "local_hit"
                             case remote_hit = "remote_hit"
+                            case cache_hit = "cache_hit"
                             case up_to_date = "up_to_date"
                             case executed = "executed"
                             case failed = "failed"
@@ -70628,6 +74590,7 @@ public enum Operations {
                         ///   - cache_key: Cache key for cacheable tasks.
                         ///   - cacheable: Whether the task is cacheable.
                         ///   - duration_ms: Task duration in milliseconds.
+                        ///   - execution:
                         ///   - outcome: Task outcome.
                         ///   - remote_cache_miss: Whether the remote cache was checked and did not contain the task output.
                         ///   - remote_cache_stored: Whether this build wrote the task output to the remote cache.
@@ -70639,6 +74602,7 @@ public enum Operations {
                             cache_key: Swift.String? = nil,
                             cacheable: Swift.Bool? = nil,
                             duration_ms: Swift.Int? = nil,
+                            execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
                             outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                             remote_cache_miss: Swift.Bool? = nil,
                             remote_cache_stored: Swift.Bool? = nil,
@@ -70650,6 +74614,7 @@ public enum Operations {
                             self.cache_key = cache_key
                             self.cacheable = cacheable
                             self.duration_ms = duration_ms
+                            self.execution = execution
                             self.outcome = outcome
                             self.remote_cache_miss = remote_cache_miss
                             self.remote_cache_stored = remote_cache_stored
@@ -70662,6 +74627,7 @@ public enum Operations {
                             case cache_key
                             case cacheable
                             case duration_ms
+                            case execution
                             case outcome
                             case remote_cache_miss
                             case remote_cache_stored
@@ -71664,6 +75630,148 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload`.
                         public struct invocationsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/bazel_version`.
+                            public var bazel_version: Swift.String
+                            /// Build metrics reported by Bazel.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics`.
+                            public struct build_metricsPayload: Codable, Hashable, Sendable {
+                                /// Actions Bazel created while analyzing the requested targets.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/actions_created`.
+                                public var actions_created: Swift.Int
+                                /// Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/actions_executed`.
+                                public var actions_executed: Swift.Int
+                                /// Total central processing unit time in milliseconds.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/cpu_time_ms`.
+                                public var cpu_time_ms: Swift.Int
+                                /// Packages Bazel loaded.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/packages_loaded`.
+                                public var packages_loaded: Swift.Int
+                                /// Targets Bazel configured.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics/targets_configured`.
+                                public var targets_configured: Swift.Int
+                                /// Creates a new `build_metricsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - actions_created: Actions Bazel created while analyzing the requested targets.
+                                ///   - actions_executed: Actions Bazel executed, including remote cache hits and excluding local action-cache hits.
+                                ///   - cpu_time_ms: Total central processing unit time in milliseconds.
+                                ///   - packages_loaded: Packages Bazel loaded.
+                                ///   - targets_configured: Targets Bazel configured.
+                                public init(
+                                    actions_created: Swift.Int,
+                                    actions_executed: Swift.Int,
+                                    cpu_time_ms: Swift.Int,
+                                    packages_loaded: Swift.Int,
+                                    targets_configured: Swift.Int
+                                ) {
+                                    self.actions_created = actions_created
+                                    self.actions_executed = actions_executed
+                                    self.cpu_time_ms = cpu_time_ms
+                                    self.packages_loaded = packages_loaded
+                                    self.targets_configured = targets_configured
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case actions_created
+                                    case actions_executed
+                                    case cpu_time_ms
+                                    case packages_loaded
+                                    case targets_configured
+                                }
+                            }
+                            /// Build metrics reported by Bazel.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_metrics`.
+                            public var build_metrics: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_metricsPayload
+                            /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline`.
+                            public struct build_timelinePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/lanes`.
+                                public var lanes: [Swift.String]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload`.
+                                public struct spansPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/category`.
+                                    @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case analysis = "analysis"
+                                        case execution = "execution"
+                                    }
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/category`.
+                                    public var category: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload.categoryPayload
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/description`.
+                                    public var description: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/duration_ms`.
+                                    public var duration_ms: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/lane`.
+                                    public var lane: Swift.Int
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spansPayload/start_ms`.
+                                    public var start_ms: Swift.Int
+                                    /// Creates a new `spansPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - category:
+                                    ///   - description:
+                                    ///   - duration_ms:
+                                    ///   - lane:
+                                    ///   - start_ms:
+                                    public init(
+                                        category: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload.categoryPayload,
+                                        description: Swift.String,
+                                        duration_ms: Swift.Int,
+                                        lane: Swift.Int,
+                                        start_ms: Swift.Int
+                                    ) {
+                                        self.category = category
+                                        self.description = description
+                                        self.duration_ms = duration_ms
+                                        self.lane = lane
+                                        self.start_ms = start_ms
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case category
+                                        case description
+                                        case duration_ms
+                                        case lane
+                                        case start_ms
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spans`.
+                                public typealias spansPayload = [Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayloadPayload]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline/spans`.
+                                public var spans: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayload
+                                /// Creates a new `build_timelinePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration_ms:
+                                ///   - lanes:
+                                ///   - spans:
+                                public init(
+                                    duration_ms: Swift.Int,
+                                    lanes: [Swift.String],
+                                    spans: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload.spansPayload
+                                ) {
+                                    self.duration_ms = duration_ms
+                                    self.lanes = lanes
+                                    self.spans = spans
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration_ms
+                                    case lanes
+                                    case spans
+                                }
+                            }
+                            /// A bounded timeline containing the analysis phase and up to the 32 longest published actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/build_timeline`.
+                            public var build_timeline: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache`.
                             public struct cachePayload: Codable, Hashable, Sendable {
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache/download_bytes`.
@@ -71707,16 +75815,121 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache`.
                             public var cache: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.cachePayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/cache_endpoint`.
+                            public var cache_endpoint: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/command`.
                             public var command: Swift.String
+                            /// The critical path reported by Bazel, bounded to 32 actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path`.
+                            public struct critical_pathPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload`.
+                                public struct actionsPayloadPayload: Codable, Hashable, Sendable {
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload/description`.
+                                    public var description: Swift.String
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actionsPayload/duration_ms`.
+                                    public var duration_ms: Swift.Int
+                                    /// Creates a new `actionsPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - description:
+                                    ///   - duration_ms:
+                                    public init(
+                                        description: Swift.String,
+                                        duration_ms: Swift.Int
+                                    ) {
+                                        self.description = description
+                                        self.duration_ms = duration_ms
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case description
+                                        case duration_ms
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actions`.
+                                public typealias actionsPayload = [Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayloadPayload]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/actions`.
+                                public var actions: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayload
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path/duration_ms`.
+                                public var duration_ms: Swift.Int
+                                /// Creates a new `critical_pathPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - actions:
+                                ///   - duration_ms:
+                                public init(
+                                    actions: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload.actionsPayload,
+                                    duration_ms: Swift.Int
+                                ) {
+                                    self.actions = actions
+                                    self.duration_ms = duration_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case actions
+                                    case duration_ms
+                                }
+                            }
+                            /// The critical path reported by Bazel, bounded to 32 actions.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/critical_path`.
+                            public var critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata`.
+                            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/tags`.
+                                public var tags: [Swift.String]
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/values`.
+                                public struct valuesPayload: Codable, Hashable, Sendable {
+                                    /// A container of undocumented properties.
+                                    public var additionalProperties: [String: Swift.String]
+                                    /// Creates a new `valuesPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - additionalProperties: A container of undocumented properties.
+                                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                                        self.additionalProperties = additionalProperties
+                                    }
+                                    public init(from decoder: any Decoder) throws {
+                                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                    }
+                                    public func encode(to encoder: any Encoder) throws {
+                                        try encoder.encodeAdditionalProperties(additionalProperties)
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata/values`.
+                                public var values: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload.valuesPayload
+                                /// Creates a new `custom_metadataPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - tags:
+                                ///   - values:
+                                public init(
+                                    tags: [Swift.String],
+                                    values: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload.valuesPayload
+                                ) {
+                                    self.tags = tags
+                                    self.values = values
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case tags
+                                    case values
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/custom_metadata`.
+                            public var custom_metadata: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/duration_ms`.
                             public var duration_ms: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/exit_code`.
                             public var exit_code: Swift.Int
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/finished_at`.
                             public var finished_at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/git_branch`.
+                            public var git_branch: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/invocation_id`.
                             public var invocation_id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/is_ci`.
+                            public var is_ci: Swift.Bool
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/started_at`.
                             public var started_at: Foundation.Date
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/status`.
@@ -71726,45 +75939,87 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/status`.
                             public var status: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocationsPayload/target_patterns`.
+                            public var target_patterns: [Swift.String]
                             /// Creates a new `invocationsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - bazel_version:
+                            ///   - build_metrics: Build metrics reported by Bazel.
+                            ///   - build_timeline: A bounded timeline containing the analysis phase and up to the 32 longest published actions.
                             ///   - cache:
+                            ///   - cache_endpoint:
                             ///   - command:
+                            ///   - critical_path: The critical path reported by Bazel, bounded to 32 actions.
+                            ///   - custom_metadata:
                             ///   - duration_ms:
                             ///   - exit_code:
                             ///   - finished_at:
+                            ///   - git_branch:
+                            ///   - git_commit_sha:
                             ///   - invocation_id:
+                            ///   - is_ci:
                             ///   - started_at:
                             ///   - status:
+                            ///   - target_patterns:
                             public init(
+                                bazel_version: Swift.String,
+                                build_metrics: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_metricsPayload,
+                                build_timeline: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.build_timelinePayload? = nil,
                                 cache: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.cachePayload,
+                                cache_endpoint: Swift.String,
                                 command: Swift.String,
+                                critical_path: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.critical_pathPayload? = nil,
+                                custom_metadata: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.custom_metadataPayload,
                                 duration_ms: Swift.Int,
                                 exit_code: Swift.Int,
                                 finished_at: Foundation.Date,
+                                git_branch: Swift.String,
+                                git_commit_sha: Swift.String,
                                 invocation_id: Swift.String,
+                                is_ci: Swift.Bool,
                                 started_at: Foundation.Date,
-                                status: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.statusPayload
+                                status: Operations.listBazelInvocations.Output.Ok.Body.jsonPayload.invocationsPayloadPayload.statusPayload,
+                                target_patterns: [Swift.String]
                             ) {
+                                self.bazel_version = bazel_version
+                                self.build_metrics = build_metrics
+                                self.build_timeline = build_timeline
                                 self.cache = cache
+                                self.cache_endpoint = cache_endpoint
                                 self.command = command
+                                self.critical_path = critical_path
+                                self.custom_metadata = custom_metadata
                                 self.duration_ms = duration_ms
                                 self.exit_code = exit_code
                                 self.finished_at = finished_at
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
                                 self.invocation_id = invocation_id
+                                self.is_ci = is_ci
                                 self.started_at = started_at
                                 self.status = status
+                                self.target_patterns = target_patterns
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case bazel_version
+                                case build_metrics
+                                case build_timeline
                                 case cache
+                                case cache_endpoint
                                 case command
+                                case critical_path
+                                case custom_metadata
                                 case duration_ms
                                 case exit_code
                                 case finished_at
+                                case git_branch
+                                case git_commit_sha
                                 case invocation_id
+                                case is_ci
                                 case started_at
                                 case status
+                                case target_patterns
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bazel/invocations/GET/responses/200/content/json/invocations`.

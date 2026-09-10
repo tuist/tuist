@@ -22,6 +22,53 @@ defmodule TuistWeb.API.GradleControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
+    test "execution telemetry survives ingestion and both read APIs", %{conn: conn, user: user, project: project} do
+      execution = %{
+        build_path: ":included",
+        task_type: "JavaCompile",
+        cacheability: "cacheable",
+        incremental: true,
+        remote_cache_lookup_outcome: "miss",
+        remote_cache_upload_duration_ms: 30
+      }
+
+      body = %{
+        duration_ms: 400,
+        status: "success",
+        tasks: [
+          %{
+            task_path: ":core:compile",
+            outcome: "executed",
+            duration_ms: 300,
+            cacheable: true,
+            remote_cache_miss: true,
+            remote_cache_stored: true,
+            execution: execution
+          }
+        ]
+      }
+
+      path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
+
+      id =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(path, JSON.encode!(body))
+        |> json_response(201)
+        |> Map.fetch!("id")
+
+      Buffer.flush()
+      Tuist.Gradle.Task.Buffer.flush()
+      response = conn |> get(path <> "/" <> id) |> json_response(200)
+      assert hd(response["tasks"])["execution"]["incremental"] == true
+
+      tasks =
+        conn |> get("/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{id}/tasks") |> json_response(200)
+
+      assert hd(tasks["tasks"])["execution"]["remote_cache_upload_duration_ms"] == 30
+      assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
+    end
+
     test "creates a build with tasks and returns the build ID", %{conn: conn, user: user, project: project} do
       body = %{
         duration_ms: 15_000,
@@ -464,6 +511,62 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert task["cache_key"] == "key-123"
       assert task["remote_cache_miss"] == false
       assert task["remote_cache_stored"] == nil
+    end
+
+    test "returns the remote cache transfer totals for the build", %{conn: conn, user: user, project: project} do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: [
+            %{
+              task_path: ":app:compileKotlin",
+              outcome: "remote_hit",
+              cacheable: true,
+              cache_artifact_size: 6000
+            },
+            %{
+              task_path: ":lib:compileKotlin",
+              outcome: "remote_hit",
+              cacheable: true,
+              cache_artifact_size: 3000
+            },
+            %{
+              task_path: ":app:processResources",
+              outcome: "executed",
+              cacheable: true,
+              cache_artifact_size: 1000,
+              remote_cache_stored: true
+            }
+          ]
+        )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}")
+
+      assert %{
+               "cache_download_bytes" => 9000,
+               "cache_upload_bytes" => 1000
+             } = json_response(conn, 200)
+    end
+
+    test "returns zeroed remote cache transfer totals for a build with no tasks", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: []
+        )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}")
+
+      assert %{
+               "cache_download_bytes" => 0,
+               "cache_upload_bytes" => 0
+             } = json_response(conn, 200)
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do

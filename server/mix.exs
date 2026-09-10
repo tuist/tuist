@@ -100,6 +100,7 @@ defmodule Tuist.MixProject do
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
       {:telemetry_test, "~> 0.1.2"},
+      {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},

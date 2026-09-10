@@ -34,7 +34,9 @@ use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 use tracing::{info, warn};
 
-use crate::{request_observability::FailureLogThrottle, state::SharedState};
+use crate::{
+    request_observability::FailureLogThrottle, state::SharedState, sync::roles::PublishedRole,
+};
 
 const HEARTBEAT_PATH: &str = "/_internal/kura/mesh/heartbeat";
 const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
@@ -128,6 +130,12 @@ struct MeshHeartbeatResponse {
     peers: Vec<String>,
     #[serde(default)]
     heartbeat_interval_seconds: Option<u64>,
+    /// Roles beside the peer list (design §2.2); an older server sends none.
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
+    /// The account's pull flag (design §5.2); an older server sends none.
+    #[serde(default)]
+    replication_pull: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -136,6 +144,10 @@ struct MeshPeersResponse {
     peers: Vec<String>,
     #[serde(default)]
     refresh_interval_seconds: Option<u64>,
+    #[serde(default)]
+    peer_roles: Vec<PublishedRole>,
+    #[serde(default)]
+    replication_pull: Option<bool>,
 }
 
 pub fn spawn(state: SharedState, config: MeshHeartbeatConfig) {
@@ -173,7 +185,8 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                         "mesh heartbeat recovered"
                     );
                 }
-                apply_peers(&state, payload.peers);
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles, payload.replication_pull).await;
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
                 } else {
@@ -220,7 +233,8 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                         "mesh peer synchronization recovered"
                     );
                 }
-                apply_peers(&state, payload.peers);
+                apply_peers(&state, payload.peers).await;
+                apply_roles(&state, payload.peer_roles, payload.replication_pull).await;
                 // First successful fetch lifts the boot serving gate.
                 state.runtime.mark_peer_view_ready();
                 state.maybe_mark_serving().await;
@@ -367,7 +381,7 @@ impl RecoveryBackoff {
     }
 }
 
-fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
+async fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
     // The server's row order is incidental; compare and store sorted so an
     // unchanged membership never registers as an update.
     peers.sort();
@@ -379,6 +393,29 @@ fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
             peers.len()
         );
         state.dynamic_peers.store(std::sync::Arc::new(peers));
+        state.rebuild_replication_targets().await;
+    }
+}
+
+/// Adopts the control plane's roles and its account pull flag. The flag can
+/// only add to the node's own configuration: `KURA_REPLICATION_PULL=true`
+/// stays on whatever the server says, so an operator can flip a node the
+/// server does not know about.
+async fn apply_roles(
+    state: &SharedState,
+    mut roles: Vec<PublishedRole>,
+    replication_pull: Option<bool>,
+) {
+    roles.sort_by(|a, b| a.url.cmp(&b.url));
+    let current = state.published_roles.load();
+    if **current != roles {
+        info!("mesh peer roles updated: {} role(s)", roles.len());
+        state.published_roles.store(std::sync::Arc::new(roles));
+    }
+    let pull = state.config.replication_pull || replication_pull.unwrap_or(false);
+    if state.set_replication_pull(pull) {
+        info!(pull, "replication pull flag changed by the control plane");
+        state.rebuild_replication_targets().await;
     }
 }
 
@@ -407,17 +444,17 @@ mod tests {
         let ctx = test_context(|_| {}).await;
         let peers = vec!["https://peer-1.test:7443".to_string()];
 
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert_eq!(**ctx.state.dynamic_peers.load(), peers);
 
         let same = ctx.state.dynamic_peers.load_full();
-        apply_peers(&ctx.state, peers.clone());
+        apply_peers(&ctx.state, peers.clone()).await;
         assert!(std::sync::Arc::ptr_eq(
             &same,
             &ctx.state.dynamic_peers.load_full()
         ));
 
-        apply_peers(&ctx.state, Vec::new());
+        apply_peers(&ctx.state, Vec::new()).await;
         assert!(ctx.state.dynamic_peers.load().is_empty());
     }
 
@@ -428,13 +465,15 @@ mod tests {
         apply_peers(
             &ctx.state,
             vec!["https://b.test:7443".into(), "https://a.test:7443".into()],
-        );
+        )
+        .await;
         let stored = ctx.state.dynamic_peers.load_full();
 
         apply_peers(
             &ctx.state,
             vec!["https://a.test:7443".into(), "https://b.test:7443".into()],
-        );
+        )
+        .await;
         assert!(std::sync::Arc::ptr_eq(
             &stored,
             &ctx.state.dynamic_peers.load_full()

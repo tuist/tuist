@@ -6,6 +6,7 @@ defmodule TuistWeb.API.GradleTasksController do
   alias Tuist.Gradle
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.GradleExecution
   alias TuistWeb.API.Schemas.PaginationMetadata
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -45,7 +46,7 @@ defmodule TuistWeb.API.GradleTasksController do
         type: %Schema{
           title: "GradleTaskOutcome",
           type: :string,
-          enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"]
+          enum: ["local_hit", "remote_hit", "cache_hit", "up_to_date", "executed", "failed", "skipped", "no_source"]
         },
         description: "Filter by task outcome."
       ],
@@ -88,11 +89,21 @@ defmodule TuistWeb.API.GradleTasksController do
                  type: :object,
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The task ID."},
+                   execution: GradleExecution.task(),
                    task_path: %Schema{type: :string, description: "Task path (e.g., :app:compileKotlin)."},
                    task_type: %Schema{type: :string, nullable: true, description: "Task type class name."},
                    outcome: %Schema{
                      type: :string,
-                     enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"],
+                     enum: [
+                       "local_hit",
+                       "remote_hit",
+                       "cache_hit",
+                       "up_to_date",
+                       "executed",
+                       "failed",
+                       "skipped",
+                       "no_source"
+                     ],
                      description: "Task outcome."
                    },
                    cacheable: %Schema{type: :boolean, description: "Whether the task is cacheable."},
@@ -167,6 +178,7 @@ defmodule TuistWeb.API.GradleTasksController do
             Enum.map(tasks, fn task ->
               %{
                 id: task.id,
+                execution: Gradle.task_execution_data(task),
                 task_path: task.task_path,
                 task_type: task.task_type,
                 outcome: task.outcome,

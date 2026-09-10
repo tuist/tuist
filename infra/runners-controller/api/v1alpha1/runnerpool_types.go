@@ -340,6 +340,23 @@ type RunnerPoolStatus struct {
 	// replicas and survives a restart mid-rollout.
 	// +optional
 	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
+
+	// UnplaceableSince is when this pool most recently began holding
+	// demand the scheduler could not place, and has held continuously
+	// since. Nil means the pool is placing everything it wants.
+	//
+	// It lives on the pool rather than being derived from Pod ages
+	// because the reaper deletes an unplaced Pod at
+	// `provisioning.startTimeoutSeconds` (300s by default) and the pool
+	// immediately recreates it. A starvation clock read from
+	// `pod.CreationTimestamp` therefore restarts every five minutes and
+	// can never measure a starvation longer than one reap cycle — which
+	// is exactly the window a node reservation needs to converge. The
+	// reservation state machine reads this to decide both when a pool
+	// has waited long enough to be worth draining a host for, and which
+	// of several starved pools on a fleet goes first.
+	// +optional
+	UnplaceableSince *metav1.Time `json:"unplaceableSince,omitempty"`
 }
 
 // +kubebuilder:object:root=true
