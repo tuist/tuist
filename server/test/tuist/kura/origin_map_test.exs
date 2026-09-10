@@ -24,6 +24,22 @@ defmodule Tuist.Kura.OriginMapTest do
       assert ["us-west" | _rest] = OriginMap.candidates("CA-BC")
     end
 
+    test "reads the east of Europe from Warsaw rather than Paris" do
+      for origin <- ~w[FI SE NO DK EE LT LV PL CZ] do
+        assert ["eu-east" | _rest] = OriginMap.candidates(origin)
+      end
+
+      for origin <- ~w[AL BA CY GR HR ME MK RS XK] do
+        assert ["eu-east" | _rest] = OriginMap.candidates(origin)
+      end
+
+      # Ljubljana is 833km from Warsaw against 964 from Paris, which is not the
+      # margin the rest of the boundary is drawn on.
+      assert ["eu-west" | _rest] = OriginMap.candidates("SI")
+      assert ["eu-west" | _rest] = OriginMap.candidates("AT")
+      assert ["eu-west" | _rest] = OriginMap.candidates("IT")
+    end
+
     test "falls back to the country when the subdivision is unmapped" do
       # An unrecognised subdivision still knows which continent it is on, which
       # is the coarser answer rather than a wrong one.
