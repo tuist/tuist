@@ -165,13 +165,13 @@ func schemes() -> [Scheme] {
         ),
     ]
 
-    // What the server deploy cascade runs against the freshly deployed canary before promoting to
-    // production. Deliberately a chosen set rather than the whole acceptance suite: it has to stay
-    // short enough to sit on the promotion path, and broad enough that a change which breaks a
-    // headline feature cannot promote green. Add a target here when a feature is important enough
-    // that shipping it broken is worse than a slower cascade.
+    // What .github/workflows/server-production-deployment.yml runs against the freshly deployed
+    // canary before promoting to production. Deliberately a chosen set rather than the whole
+    // acceptance suite: it has to stay short enough to sit on the promotion path, and broad enough
+    // that a change which breaks a headline feature cannot promote green. Add a target here when a
+    // feature is important enough that shipping it broken is worse than a slower deploy.
     schemes.append(.scheme(
-        name: "TuistCascadeAcceptanceTests",
+        name: "TuistServerProductionDeployAcceptanceTests",
         buildAction: .buildAction(
             targets: [.target(Module.serverAcceptanceTestsTargetName)]
                 + (Module.includeEE() ? [.target("TuistCacheEEAcceptanceTests")] : []),

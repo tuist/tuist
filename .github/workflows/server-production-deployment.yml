@@ -2172,16 +2172,18 @@ jobs:
           mise run build
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
-      # TuistCascadeAcceptanceTests is the cascade's own plan (see Project.swift):
-      # the EE caching and generation suite this job has always run, plus
-      # TuistServerAcceptanceTests, which exercises the freshly deployed canary
-      # end to end. Until the latter existed this job asserted nothing about the
-      # server, which is how a change that killed 100% of build ingestion
-      # promoted to production green on 2026-09-09.
+      # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
+      # (see Project.swift): the EE caching and generation suite this job has
+      # always run, plus TuistServerAcceptanceTests, which exercises the freshly
+      # deployed canary end to end. Until the latter existed this job asserted
+      # nothing about the server, which is how a change that killed 100% of
+      # build ingestion promoted to production green on 2026-09-09.
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCascadeAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
+            -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Backward-compatibility acceptance - runs an OLD CLI against the freshly-
