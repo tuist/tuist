@@ -3,7 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
-- Build CAS-output lookups deduplicate requested node IDs, bind them as a single `Array(String)` per bounded batch, and use multipart requests to avoid ClickHouse URL, form-field count, and form-field value limits. Preserve build scoping and both distinct and non-distinct output semantics across batches.
+- Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 

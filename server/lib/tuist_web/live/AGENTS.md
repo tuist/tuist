@@ -3,6 +3,7 @@
 This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
+- Xcode cache task rows asynchronously preload the first 20 CAS outputs for displayed expandable tasks after the LiveView connects. Successful empty loads remove the disclosure and close the row; failures retain expansion so they can be retried. Collapse retains loaded pages and pending requests for immediate re-expansion; filtering, sorting, task-page changes, tab changes, and build refresh cancel pending loads and clear loaded output pages. Load more appends the next batch while keeping existing outputs visible, prevents duplicate requests, and retries failed batches without skipping them. Expanded rows show loading and error states; failed preloads retry on expansion.
 - Module cache miss widgets, charts, filters, and history share four reasons: Changed, Upstream, Cold, and Evicted. History rows show a reason badge and tooltip; classification and prior remote-hit evidence belong in Builds.Analytics. Test-only runs read Module Cache results from their original build event when their own event has no lookups; the fallback is project scoped and never changes reported counts.
 - Xcode machine metrics with recorded build-relative offsets appear as shared-clock tracks in Timeline; legacy metrics without an offset retain the Machine Metrics tab. Samples travel in a small hook reply independently of the step metadata download.
 - Render LiveView pages and handle UI events.

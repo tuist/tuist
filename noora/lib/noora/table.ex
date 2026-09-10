@@ -40,6 +40,10 @@ defmodule Noora.Table do
   expanded. No `handle_event` is needed. Note that a LiveView re-render of the table (for
   example sorting or searching) resets rows to that initial state.
 
+  For lazy-loaded details, supply `row_toggle={fn row -> JS.push("toggle", value: %{key: row.id}) end}`
+  and update `expanded_rows` in the event handler. The callback replaces the client-side toggle;
+  the server controls both the row state and the disclosure button's accessible expanded state.
+
   ```
   <.table
     id="expandable-table"
@@ -104,6 +108,12 @@ defmodule Noora.Table do
   attr(:expanded_rows, :list,
     default: [],
     doc: "A list of row keys/IDs that are currently expanded."
+  )
+
+  attr(:row_toggle, :fun,
+    default: nil,
+    doc:
+      "Optional function returning the disclosure button's JS command. Use with expanded_rows for server-managed lazy loading."
   )
 
   attr(:expand_label, :string,
@@ -215,10 +225,14 @@ defmodule Noora.Table do
                           aria-controls={"#{row_key}-expanded"}
                           aria-label={@expand_label}
                           phx-click={
-                            JS.toggle_attribute({"data-state", "expanded", "collapsed"},
-                              to: "##{row_key}"
-                            )
-                            |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                            if @row_toggle do
+                              @row_toggle.(row)
+                            else
+                              JS.toggle_attribute({"data-state", "expanded", "collapsed"},
+                                to: "##{row_key}"
+                              )
+                              |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                            end
                           }
                         >
                           <.icon
@@ -255,8 +269,7 @@ defmodule Noora.Table do
                         data-part="row-link-overlay"
                         tabindex="-1"
                         aria-hidden="true"
-                      >
-                      </.link>
+                      ></.link>
                     <% true -> %>
                       {render_slot(col, row)}
                   <% end %>

@@ -23,7 +23,7 @@ defmodule Tuist.Builds do
 
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
-  @cas_output_node_ids_batch_size 1_000
+  @task_cas_outputs_page_size 20
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -393,8 +393,23 @@ defmodule Tuist.Builds do
     ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
-  def list_cacheable_tasks(attrs) do
-    case ClickHouseFlop.validate_and_run(CacheableTask, attrs, for: CacheableTask) do
+  def list_cacheable_tasks(attrs, opts \\ []) do
+    query =
+      if Keyword.get(opts, :include_cas_output_node_ids, true) do
+        CacheableTask
+      else
+        from(t in CacheableTask,
+          select: %{
+            key: t.key,
+            type: t.type,
+            status: t.status,
+            description: t.description,
+            has_cas_outputs: type(fragment("notEmpty(?)", t.cas_output_node_ids), :boolean)
+          }
+        )
+      end
+
+    case ClickHouseFlop.validate_and_run(query, attrs, for: CacheableTask) do
       {:ok, result} -> {:ok, result}
       {:error, %Flop.Meta{errors: errors}} -> {:error, errors}
     end
@@ -404,31 +419,28 @@ defmodule Tuist.Builds do
     ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
-  def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
-    distinct = Keyword.get(opts, :distinct, false)
+  def list_cacheable_task_cas_outputs(build_run_id, task_key, page) when is_integer(page) and page > 0 do
+    node_ids =
+      from(t in CacheableTask,
+        where: t.build_run_id == ^build_run_id and t.key == ^task_key,
+        select: fragment("arrayJoin(?)", t.cas_output_node_ids)
+      )
 
-    # Multipart keeps IDs out of the URL; a single array avoids one form field per ID.
-    # Batch CAS digests to keep each array below ClickHouse's form-field value limit.
-    node_ids
-    |> Enum.uniq()
-    |> Enum.chunk_every(@cas_output_node_ids_batch_size)
-    |> Enum.flat_map(fn node_ids_chunk ->
-      query =
+    # Resolve membership inside ClickHouse so the request never contains the task's ID array.
+    # Group before paginating to keep retried uploads and download/upload pairs on one page.
+    outputs =
+      ClickHouseRepo.all(
         from(c in CASOutput,
-          where:
-            c.build_run_id == ^build_run_id and
-              fragment("? IN (?)", c.node_id, type(^node_ids_chunk, {:array, :string}))
+          where: c.build_run_id == ^build_run_id and c.node_id in subquery(node_ids),
+          group_by: c.node_id,
+          order_by: c.node_id,
+          select: %{node_id: c.node_id, type: min(c.type)},
+          limit: ^(@task_cas_outputs_page_size + 1),
+          offset: ^((page - 1) * @task_cas_outputs_page_size)
         )
+      )
 
-      query =
-        if distinct do
-          from(c in query, distinct: c.node_id)
-        else
-          query
-        end
-
-      ClickHouseRepo.all(query, multipart: true)
-    end)
+    %{outputs: Enum.take(outputs, @task_cas_outputs_page_size), has_next?: length(outputs) > @task_cas_outputs_page_size}
   end
 
   def cas_output_metrics(build_run_id) do
