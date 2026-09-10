@@ -5,6 +5,7 @@ This context owns ops reporting workers.
 ## Responsibilities
 - Schedule Slack reports for daily/hourly business metrics.
 - The hourly sign-up report posts new users and organizations to `#gtm` every day, including weekends. Slack API failures must propagate to Oban for retries.
+- Internal reports authenticate with `TUIST_SLACK_TUIST_TOKEN`, sourced by ESO from `SLACK/tuist_token` in the per-environment `tuist-k8s-<env>` 1Password vault. An `account_inactive` response requires restoring the Slack identity or replacing that credential; code retries cannot repair it. After a secret replacement, ESO must sync and the server pods must reload their environment before validating `auth.test` and channel delivery.
 - Query growth stats for users, orgs, projects, and command events.
 - Provide bounded, read-only ClickHouse queries and schema discovery for internal operations consumers.
 

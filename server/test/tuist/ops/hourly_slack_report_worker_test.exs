@@ -48,10 +48,10 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
       AccountsFixtures.user_fixture()
 
       expect(Slack, :send_message, fn _, [channel: "#gtm"] ->
-        {:error, "Slack API error: not_in_channel"}
+        {:error, "Slack API error: account_inactive"}
       end)
 
-      assert {:error, "Slack API error: not_in_channel"} =
+      assert {:error, "Slack API error: account_inactive"} =
                perform_job(HourlySlackReportWorker, %{})
     end
   end

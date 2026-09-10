@@ -97,7 +97,7 @@ defmodule Tuist.SlackTest do
     test "returns Slack API errors even when the HTTP request succeeds" do
       stub(Environment, :slack_tuist_token, fn -> "token" end)
 
-      for error <- ["invalid_auth", "not_in_channel", "channel_not_found"] do
+      for error <- ["account_inactive", "invalid_auth", "not_in_channel", "channel_not_found"] do
         expect(Req, :post, fn _, [headers: _, body: _] ->
           {:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}
         end)
