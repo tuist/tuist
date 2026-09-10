@@ -928,65 +928,87 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def pricing(conn, _params) do
     faqs = [
-      {dgettext(
-         "marketing",
-         "Why is your pricing model more accessible compared to traditional enterprise models?"
-       ),
+      {dgettext("marketing", "Do you support a seat-based pricing model?"),
        dgettext(
          "marketing",
-         ~S"""
-         <p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with "contact sales" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>
-         <p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>
-         """,
-         read_more: "<a href=\"#{~p"/blog/2024/11/05/our-pricing-philosophy"}\">#{dgettext("marketing", "read more")}</a>"
+         "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
        )},
-      {dgettext("marketing", "How can I estimate the cost of my project?"),
+      {dgettext("marketing", "What payment methods do you accept?"),
+       dgettext("marketing", "We accept credit card payments and wire transfers.")},
+      {dgettext("marketing", "Can I change or cancel my plan at any time?"),
+       dgettext("marketing", "Yes, you can manage your plan at any time through our management interface.")},
+      {dgettext("marketing", "What happens if I exceed my plan limits?"),
        dgettext(
          "marketing",
-         "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+         "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
        )},
-      {dgettext("marketing", "Is there a free trial on paid plans?"),
+      {dgettext("marketing", "Do you offer annual billing discounts?"),
+       dgettext(
+         "marketing",
+         "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+       )},
+      {dgettext("marketing", "Is there a minimum contract length?"),
+       dgettext("marketing", "No, there's no minimum contract length. You're free to cancel at any time.")},
+      {dgettext("marketing", "What support is included with each plan?"),
+       dgettext(
+         "marketing",
+         "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+       )},
+      {dgettext("marketing", "How can I estimate the cost for my project?"),
+       dgettext(
+         "marketing",
+         "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+       )},
+      {dgettext("marketing", "Is there a free trial for paid plans?"),
        dgettext(
          "marketing",
          "We have a generous free tier on every paid plan so you can try out the features before paying any money."
        )},
       {dgettext("marketing", "Do you offer discounts for non-profits and open-source?"),
-       dgettext("marketing", "Yes, we do. Please reach out to oss@tuist.io for more information.")}
+       dgettext("marketing", "Yes, we do. Please reach out to contact@tuist.dev for more information.")}
     ]
 
     plans = Tuist.Billing.get_plans()
 
-    conn
-    |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
-    |> assign(:faqs, faqs)
-    |> assign(:plans, plans)
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.image_path(:marketing,
-            title: dgettext("marketing", "Pricing"),
-            icon: "static/marketing/images/pricing/logo-og.svg"
-          )
+    conn =
+      conn
+      |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
+      |> assign(:faqs, faqs)
+      |> assign(:plans, plans)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(
+          path:
+            OpenGraph.image_path(:marketing,
+              title: dgettext("marketing", "Pricing"),
+              icon: "static/marketing/images/pricing/logo-og.svg"
+            )
+        )
       )
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign_structured_data(get_faq_structured_data(faqs))
-    |> assign_structured_data(get_pricing_plans_structured_data(plans))
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {dgettext("marketing", "Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
-      ])
-    )
-    |> assign(
-      :head_description,
-      dgettext(
-        "marketing",
-        "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(get_faq_structured_data(faqs))
+      |> assign_structured_data(get_pricing_plans_structured_data(plans))
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {dgettext("marketing", "Pricing"), Tuist.Environment.app_url(path: ~p"/pricing")}
+        ])
       )
-    )
-    |> render(:pricing, layout: false)
+      |> assign(
+        :head_description,
+        dgettext(
+          "marketing",
+          "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+        )
+      )
+
+    if Design.new?(conn, :pricing) do
+      conn
+      |> assign(:new_design, true)
+      |> render(:pricing_new, layout: false)
+    else
+      render(conn, :pricing, layout: false)
+    end
   end
 
   def page(conn, _params) do
