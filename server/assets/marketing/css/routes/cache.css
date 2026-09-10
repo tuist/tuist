@@ -1,6 +1,6 @@
 /* Cache feature page (/cache): left-aligned hero card followed by the
    features frame (intro text + 2x2 hairline grid) on the 1200px page frame
-   with 2px seams. The legacy design lives in routes/cache.css. */
+   with 2px seams. */
 #marketing-cache {
   display: flex;
   position: relative;

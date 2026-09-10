@@ -173,14 +173,14 @@
 mountStaticHooks (marketing.js) rather than by LiveView, so they work on
 LiveView pages before the socket has joined; LiveView leaves the subtree
 alone on join. The navbar does the same. --%>
-<footer id="marketing-footer-new" phx-update="ignore">
+<footer id="marketing-footer" phx-update="ignore">
   <div data-part="content">
     <div data-part="main">
       <div data-part="brand">
         <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
-          <%!-- One wordmark for both themes (see wordmark_new/1), so nothing
+          <%!-- One wordmark for both themes (see wordmark/1), so nothing
           depends on a theme rule hiding a second image. --%>
-          <.wordmark_new data-part="logo" role="img" aria-label="Tuist" />
+          <.wordmark data-part="logo" role="img" aria-label="Tuist" />
           <svg data-part="logo-outline" viewBox="0 0 84 32" aria-hidden="true">
             <use href="#footer-wordmark-shape" width="84" height="32" />
           </svg>
@@ -366,7 +366,7 @@ alone on join. The navbar does the same. --%>
       <%!-- The wordmark silhouette the dither hook rasterizes and blurs into
       its density mask, so the logo's edges dissolve into particles instead
       of being clipped hard. Zero-sized: only its paths are read. --%>
-      <.wordmark_new id="footer-wordmark-shape" width="0" height="0" aria-hidden="true" />
+      <.wordmark id="footer-wordmark-shape" width="0" height="0" aria-hidden="true" />
     </div>
   </div>
 </footer>

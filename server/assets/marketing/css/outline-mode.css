@@ -14,14 +14,7 @@
   --marketing-outline-glyph: var(--marketing-illustration-neutral-9);
   --marketing-outline-text: light-dark(var(--noora-purple-500), var(--noora-purple-400));
 
-  &
-    :is(
-      #marketing-navbar *,
-      #marketing-not-found,
-      #marketing-not-found *,
-      #marketing-footer-new,
-      #marketing-footer-new *
-    ) {
+  & :is(#marketing-navbar *, #marketing-not-found, #marketing-not-found *, #marketing-footer, #marketing-footer *) {
     outline: 1px solid var(--marketing-outline-frame);
     outline-offset: -1px;
     box-shadow: none !important;
@@ -92,7 +85,7 @@
      wordmark drawn as glyph strokes. */
   /* (!important: the navbar's and footer's own theme-variant rules for the
      logo pair, and the generic box rule above, are more specific.) */
-  & :is(#marketing-navbar, #marketing-footer-new) [data-part="brand"] {
+  & :is(#marketing-navbar, #marketing-footer) [data-part="brand"] {
     &,
     & > [data-part="tuist"] {
       outline: none !important;
@@ -138,7 +131,7 @@
   /* The footer's big wordmark is a dither canvas shaped by a hidden SVG
      of the logo's paths: the canvas goes, the SVG fills the box instead
      and draws the wordmark as glyph strokes, with no box around it. */
-  & #marketing-footer-new [data-part="wordmark"] {
+  & #marketing-footer [data-part="wordmark"] {
     outline: none !important;
 
     & > [data-part="wordmark-dither"] {

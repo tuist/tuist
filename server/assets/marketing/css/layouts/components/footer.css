@@ -1,4 +1,4 @@
-#marketing-footer-new {
+#marketing-footer {
   display: flex;
   justify-content: center;
 
@@ -45,7 +45,7 @@
     gap: var(--noora-spacing-9);
 
     /* One inline wordmark: the letters follow the label color, the mark's
-       paths carry data-fill="purple" (marketing_new.css). */
+       paths carry data-fill="purple" (marketing.css). */
     & [data-part="logo"] {
       display: block;
       width: 84px;

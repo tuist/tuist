@@ -984,11 +984,11 @@
       <div data-part="marquee">
         <%!-- Mobile: every review in a single row; desktop: two rows. --%>
         <TuistWeb.Marketing.MarketingHomeComponents.testimonial_marquee_row
-          testimonials={List.flatten(@home_new_testimonials)}
+          testimonials={List.flatten(@home_testimonials)}
           data-viewport="mobile"
         />
         <TuistWeb.Marketing.MarketingHomeComponents.testimonial_marquee_row
-          :for={{row, index} <- Enum.with_index(@home_new_testimonials)}
+          :for={{row, index} <- Enum.with_index(@home_testimonials)}
           testimonials={row}
           data-viewport="desktop"
           data-direction={if index == 0, do: "reverse"}

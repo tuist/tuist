@@ -37,8 +37,7 @@ defmodule TuistWeb.Marketing.MarketingCustomerCovers do
   @doc """
   The path of `case_study`'s social image: a path its front matter names,
   else the generated cover-artwork card, else the title-on-template card
-  every page without artwork gets. Also the raster the legacy pages show
-  where they have no inline artwork.
+  every page without artwork gets.
   """
   def og_image_path(case_study) do
     cond do

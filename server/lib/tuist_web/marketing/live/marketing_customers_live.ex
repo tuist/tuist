@@ -16,9 +16,9 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   # with blank cells so its hairlines stay closed (same as the blog index).
   @grid_columns 3
 
-  embed_templates "marketing_customers_live/new/*", suffix: "_new"
+  embed_templates "marketing_customers_live/*"
 
-  def render(assigns), do: customers_new(assigns)
+  def render(assigns), do: customers(assigns)
 
   def mount(_params, _session, socket) do
     socket =

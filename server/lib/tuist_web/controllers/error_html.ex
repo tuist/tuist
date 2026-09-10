@@ -164,7 +164,7 @@ defmodule TuistWeb.ErrorHTML do
       |> Map.put(:head_twitter_card, "summary_large_image")
 
     assigns
-    |> Map.put(:inner_content, MarketingHTML.not_found_new(assigns))
+    |> Map.put(:inner_content, MarketingHTML.not_found(assigns))
     |> Layouts.root()
   end
 

@@ -1,7 +1,6 @@
 /* Pricing page (/pricing): centered hero card followed by the plans frame
    (intro text + 3-up hairline card row), the feature comparison table, and
-   the FAQ — all on the 1200px page frame with 2px seams. The legacy design
-   lives in routes/pricing (legacy bundle). */
+   the FAQ — all on the 1200px page frame with 2px seams. */
 #marketing-pricing {
   display: flex;
   position: relative;

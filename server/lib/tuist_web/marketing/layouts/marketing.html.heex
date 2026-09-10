@@ -6,7 +6,7 @@ wrapper, not on the header: LiveView re-syncs an ignored element's own
 data-* attributes on every patch, which would strip the open state the
 MobileMenu hook keeps on the header. See the navbar template. --%>
 <div id="marketing-navbar-root" phx-update="ignore">
-  <TuistWeb.Marketing.MarketingComponents.navbar_new {assigns} />
+  <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
 </div>
 {render_slot(@inner_block)}
-<TuistWeb.Marketing.MarketingComponents.footer_new {assigns} />
+<TuistWeb.Marketing.MarketingComponents.footer {assigns} />

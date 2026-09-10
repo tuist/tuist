@@ -12,9 +12,9 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
   @page_size 10
 
-  embed_templates "marketing_changelog_live/new/*", suffix: "_new"
+  embed_templates "marketing_changelog_live/*"
 
-  def render(assigns), do: changelog_new(assigns)
+  def render(assigns), do: changelog(assigns)
 
   def mount(params, _session, socket) do
     entries = Changelog.get_entries()

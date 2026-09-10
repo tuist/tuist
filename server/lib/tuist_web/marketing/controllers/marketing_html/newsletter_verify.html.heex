@@ -1,5 +1,4 @@
-<%!-- Redesigned newsletter verify page (/newsletter/verify, behind
-:new_marketing): the newsletter page's hero shell — title, copy
+<%!-- Newsletter verify page (/newsletter/verify): the newsletter page's hero shell — title, copy
 and one action — over the same newspaper stack, in one of three states.
 Confirm: the link from the email landed, the button posts the token back.
 Subscribed: the address is on the list. Failed: the token was missing,
@@ -66,7 +65,7 @@ invalid or older than two days. --%>
         <% end %>
       </div>
       <div data-part="illustration" aria-hidden="true">
-        <.newsletter_stack_new />
+        <.newsletter_stack />
         <div data-part="fade"></div>
       </div>
     </header>
