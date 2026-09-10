@@ -597,7 +597,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       # The ring derives from the account's pinned claim, without a fixed
       # region-wide budget or an envelope that bypasses measured sizing.
-      assert scw_config.storage_size == nil
+      assert scw_config.storage_size == "50Gi"
       assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)

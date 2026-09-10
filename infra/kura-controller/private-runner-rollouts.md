@@ -103,7 +103,10 @@ The enrollment migration immediately pins previously unpinned live runner rows
 to the account's sized claim, or the current plan default if none exists. The
 one-time enrollment is capped at the historical 50Gi: it can release reservations
 but cannot grow them without admission checks. Existing explicit pins stay
-unchanged. This deliberately permits warm-cache eviction to unblock scheduling;
+unchanged. The migration locks only eligible instance rows and validates the
+whole batch before writing. Unsupported claim formats fail explicitly and
+require repair; the 8Gi/16Gi defaults remain frozen for deterministic historical
+replay. This deliberately permits warm-cache eviction to unblock scheduling;
 it does not wait for the ordinary 30-day shrink confirmation. Subsequent sizing
 uses the normal measured policy. Rollback retains the applied pins, because
 restoring 50Gi would reintroduce the blockage without recovering evicted data.
@@ -126,8 +129,10 @@ Memory requests and limits follow the standard plan profiles. CPU requests stay
 measured by the controller; CPU limits follow the same plan profiles. The runner
 hosts do not advertise `tuist.dev/memory-ceiling-mib`, so they must not request
 that extended resource. Their memory floor remains a scheduler reservation;
-kernel MemoryQoS protection depends on the host configuration. The native disk
-reservation continues to count both replicas' full claims against the host.
+kernel MemoryQoS protection depends on the host configuration. Capacity accounting
+without a pin or loaded account retains a conservative 50Gi regional fallback;
+governed provisioning still pins the account claim. The native disk reservation
+continues to count both replicas' full claims against the host.
 
 ## Migration order (no deployment performed by this change)
 

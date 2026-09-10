@@ -501,6 +501,9 @@ defmodule Tuist.Kura.Regions do
       # via the local-path provisioner (`scw-local-nvme` StorageClass,
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
+      # Conservative accounting for legacy rows without a pin or loaded account.
+      # Governed provisioning still uses the account claim, not this fallback.
+      storage_size: "50Gi",
       storage_governed: true,
       memory_governed: true,
       runner_platforms: [:macos],

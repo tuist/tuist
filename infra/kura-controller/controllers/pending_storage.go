@@ -25,6 +25,9 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 	}
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
@@ -34,13 +37,15 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 	// Reconciliation may read through a stale cache. Never delete a pod until
 	// the observed template will recreate it with the intended reservation.
 	templateMatches := false
+	kuraContainers := 0
 	for _, container := range sts.Spec.Template.Spec.Containers {
 		if container.Name == "kura" {
+			kuraContainers++
 			request := container.Resources.Requests[corev1.ResourceEphemeralStorage]
 			templateMatches = request.Cmp(desired) == 0
 		}
 	}
-	if !templateMatches {
+	if kuraContainers != 1 || !templateMatches {
 		return nil
 	}
 	pods := &corev1.PodList{}
@@ -59,7 +64,10 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 			}
 			// Do not delete a pod that the scheduler bound after the observation.
 			err := r.Delete(ctx, pod, &client.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &pod.UID, ResourceVersion: &pod.ResourceVersion}})
-			if err != nil && !apierrors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+				break
+			}
+			if err != nil {
 				return err
 			}
 			log.FromContext(ctx).Info("replacing unscheduled Kura pod after storage decrease", "pod", pod.Name, "from", request.String(), "to", desired.String())
