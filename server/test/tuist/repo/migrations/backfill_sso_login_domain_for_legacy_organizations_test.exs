@@ -1,6 +1,6 @@
 Code.require_file(
   Path.expand(
-    "../../../../priv/repo/migrations/20260905120000_backfill_sso_login_domain_for_legacy_organizations.exs",
+    "../../../../priv/repo/migrations/20260910120000_backfill_sso_login_domain_for_legacy_organizations.exs",
     __DIR__
   )
 )
