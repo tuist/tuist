@@ -1,0 +1,2 @@
+# local `go build ./...` drops the cmd/sandboxd binary here
+/sandboxd
