@@ -19,9 +19,19 @@ defmodule Tuist.Accounts.UserNotifier do
   # non-raising delivery (e.g. Oban workers binding the result to `perform/1`)
   # send via `Mailer.deliver_now/1` while sharing the envelope conventions
   # used by every other notifier function in this module.
-  defp build_email(recipient, subject, body) do
+  # A content map (see html_email/2) is rendered twice: the HTML shell and a
+  # plain-text alternative for text-only clients and deliverability filters.
+  defp build_email(recipient, subject, %{title: _} = content) do
+    build_email(recipient, subject, html_email(content, Environment.email_icon_url()), text_email(content))
+  end
+
+  defp build_email(recipient, subject, html) when is_binary(html), do: build_email(recipient, subject, html, nil)
+
+  defp build_email(recipient, subject, html, text) do
     email =
-      new_email(to: recipient, from: {"Tuist", Environment.mailing_from_address()}, subject: subject, html_body: body)
+      new_email(to: recipient, from: {"Tuist", Environment.mailing_from_address()}, subject: subject, html_body: html)
+
+    email = if text, do: text_body(email, text), else: email
 
     case Environment.mailing_reply_to_address() do
       nil -> email
@@ -94,6 +104,9 @@ defmodule Tuist.Accounts.UserNotifier do
   defp html_email(%{title: title, paragraphs: paragraphs} = content, icon_url) do
     button = Map.get(content, :button)
     note = Map.get(content, :note)
+    # The inbox row's preview line: the first paragraph unless the email
+    # names one.
+    preheader = Map.get(content, :preheader) || List.first(paragraphs)
 
     inner = """
                     <h1 style="margin: 0; font-family: #{@font}; font-size: 24px; line-height: 32px; font-weight: 400; letter-spacing: -0.01em; color: #191a1b;">#{escape(title)}</h1>
@@ -102,7 +115,28 @@ defmodule Tuist.Accounts.UserNotifier do
     #{note_html(note)}
     """
 
-    chrome(title, inner, icon_url, "", "en")
+    chrome(title, inner, icon_url, "", "en", preheader)
+  end
+
+  # The same content as plain text: title, paragraphs, the button as
+  # "label: url", then the note.
+  defp text_email(%{title: title, paragraphs: paragraphs} = content) do
+    button =
+      case Map.get(content, :button) do
+        {label, url} -> "#{label}: #{url}"
+        nil -> nil
+      end
+
+    note =
+      case Map.get(content, :note) do
+        nil -> nil
+        lines when is_list(lines) -> Enum.join(lines, "\n")
+        text -> text
+      end
+
+    [title, Enum.join(paragraphs, "\n\n"), button, note]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n\n")
   end
 
   # Emails that build their own body HTML (the Air usage notifications from
@@ -110,12 +144,18 @@ defmodule Tuist.Accounts.UserNotifier do
   # masthead, content box and footer, and the class rules in @body_styles
   # that their markup relies on.
   defp html_email(body, icon_url, title, locale) when is_binary(body) do
-    chrome(title, body, icon_url, @body_styles, locale)
+    chrome(title, body, icon_url, @body_styles, locale, nil)
   end
 
   # One shell for both forms: the masthead box with the wordmark, the content
-  # box on the tertiary ground, the footer box.
-  defp chrome(title, inner, icon_url, extra_styles, locale) do
+  # box on the tertiary ground, the footer box. Two things keep the design
+  # light in every client: the light-only colour-scheme meta, which clients
+  # that honour it (Apple Mail, Outlook desktop) use to skip their own dark
+  # recolouring; and the .button-primary rules, which pin the button in the
+  # clients that ignore the meta and recolour anyway (Gmail on Android,
+  # Outlook.com's [data-ogsc]/[data-ogsb]). They cover different clients, so
+  # both stay.
+  defp chrome(title, inner, icon_url, extra_styles, locale, preheader) do
     year = Date.utc_today().year
 
     """
@@ -144,6 +184,7 @@ defmodule Tuist.Accounts.UserNotifier do
     #{extra_styles}        </style>
       </head>
       <body style="margin: 0; padding: 0; background: #f7f7f7; font-family: #{@font}; -webkit-font-smoothing: antialiased;">
+    #{preheader_html(preheader)}
         <table role="presentation" width="560" align="center" cellpadding="0" cellspacing="0" style="width: 100% !important; max-width: 560px; padding: 24px 8px 40px; box-sizing: border-box;">
           <tr>
             <td>
@@ -197,6 +238,13 @@ defmodule Tuist.Accounts.UserNotifier do
     """
   end
 
+  # Hidden from the rendered mail, shown by inboxes as the preview line.
+  defp preheader_html(nil), do: ""
+
+  defp preheader_html(text) do
+    ~s(<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">#{escape(text)}</div>)
+  end
+
   defp paragraph(text) do
     ~s(<p style="margin: 12px 0 0; font-family: #{@font}; font-size: 14px; line-height: 20px; color: #191a1b;">#{escape(text)}</p>)
   end
@@ -224,18 +272,15 @@ defmodule Tuist.Accounts.UserNotifier do
     user.email
     |> build_email(
       dgettext("dashboard_account", "Confirmation instructions"),
-      html_email(
-        %{
-          title: dgettext("dashboard_account", "You're Almost Set!"),
-          paragraphs: [dgettext("dashboard_account", "To start using Tuist, verify your email and you are good to go:")],
-          button: {dgettext("dashboard_account", "Confirm your email"), confirmation_url},
-          note: [
-            dgettext("dashboard_account", "You received this email because you recently signed up for a Tuist account."),
-            dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
-          ]
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title: dgettext("dashboard_account", "You're Almost Set!"),
+        paragraphs: [dgettext("dashboard_account", "To start using Tuist, verify your email and you are good to go:")],
+        button: {dgettext("dashboard_account", "Confirm your email"), confirmation_url},
+        note: [
+          dgettext("dashboard_account", "You received this email because you recently signed up for a Tuist account."),
+          dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
+        ]
+      }
     )
     |> Mailer.deliver_now()
   end
@@ -247,25 +292,22 @@ defmodule Tuist.Accounts.UserNotifier do
     deliver(
       user.email,
       dgettext("dashboard_account", "Reset password instructions"),
-      html_email(
-        %{
-          title: dgettext("dashboard_account", "Did you request to reset your password?"),
-          paragraphs: [
-            dgettext("dashboard_account", "Hola %{name}, you can reset your password by clicking the button below:",
-              name: user.account.name
-            )
-          ],
-          button: {dgettext("dashboard_account", "Reset your password"), reset_password_url},
-          note: [
-            dgettext(
-              "dashboard_account",
-              "You received this email because you requested a password reset for your Tuist account."
-            ),
-            dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
-          ]
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title: dgettext("dashboard_account", "Did you request to reset your password?"),
+        paragraphs: [
+          dgettext("dashboard_account", "Hola %{name}, you can reset your password by clicking the button below:",
+            name: user.account.name
+          )
+        ],
+        button: {dgettext("dashboard_account", "Reset your password"), reset_password_url},
+        note: [
+          dgettext(
+            "dashboard_account",
+            "You received this email because you requested a password reset for your Tuist account."
+          ),
+          dgettext("dashboard_account", "If you didn't make this request, feel free to ignore this email.")
+        ]
+      }
     )
   end
 
@@ -276,17 +318,14 @@ defmodule Tuist.Accounts.UserNotifier do
     deliver(
       email,
       "Your Tuist agent sign-in code",
-      html_email(
-        %{
-          title: "View your Tuist sign-in code",
-          paragraphs: [
-            "An agent is requesting access to Tuist on your behalf. Open the secure page below to view the one-time code, then read it back to the agent."
-          ],
-          button: {"View sign-in code", claim_view_url},
-          note: "If you did not ask an agent to connect to Tuist, ignore this email."
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title: "View your Tuist sign-in code",
+        paragraphs: [
+          "An agent is requesting access to Tuist on your behalf. Open the secure page below to view the one-time code, then read it back to the agent."
+        ],
+        button: {"View sign-in code", claim_view_url},
+        note: "If you did not ask an agent to connect to Tuist, ignore this email."
+      }
     )
   end
 
@@ -301,26 +340,23 @@ defmodule Tuist.Accounts.UserNotifier do
     deliver(
       invitee_email,
       dgettext("dashboard_account", "Invitation to %{organization_name}", organization_name: organization_name),
-      html_email(
-        %{
-          title:
-            dgettext(
-              "dashboard_account",
-              "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}",
-              organization_name: organization_name,
-              inviter_email: inviter_email
-            ),
-          paragraphs: [
-            dgettext(
-              "dashboard_account",
-              "Hola %{invitee_email}, you can join the organization by clicking the button below:",
-              invitee_email: invitee_email
-            )
-          ],
-          button: {dgettext("dashboard_account", "Accept invitation"), url}
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title:
+          dgettext(
+            "dashboard_account",
+            "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}",
+            organization_name: organization_name,
+            inviter_email: inviter_email
+          ),
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "Hola %{invitee_email}, you can join the organization by clicking the button below:",
+            invitee_email: invitee_email
+          )
+        ],
+        button: {dgettext("dashboard_account", "Accept invitation"), url}
+      }
     )
   end
 
@@ -346,33 +382,30 @@ defmodule Tuist.Accounts.UserNotifier do
       )
 
     body =
-      html_email(
-        %{
-          title: subject,
-          paragraphs: [
-            dgettext(
-              "dashboard_account",
-              "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).",
-              user_email: user_email,
-              organization_name: organization_name
-            ),
-            dgettext(
-              "dashboard_account",
-              "If you expected this, no action is needed. You can open the organization here:"
-            )
-          ],
-          button:
-            {dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name),
-             organization_url},
-          note:
-            dgettext(
-              "dashboard_account",
-              "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.",
-              organization_name: organization_name
-            )
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title: subject,
+        paragraphs: [
+          dgettext(
+            "dashboard_account",
+            "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).",
+            user_email: user_email,
+            organization_name: organization_name
+          ),
+          dgettext(
+            "dashboard_account",
+            "If you expected this, no action is needed. You can open the organization here:"
+          )
+        ],
+        button:
+          {dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name),
+           organization_url},
+        note:
+          dgettext(
+            "dashboard_account",
+            "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.",
+            organization_name: organization_name
+          )
+      }
 
     user_email |> build_email(subject, body) |> Mailer.deliver_now()
   end
@@ -542,19 +575,16 @@ defmodule Tuist.Accounts.UserNotifier do
     deliver(
       user.email,
       dgettext("dashboard_account", "Update email instructions"),
-      html_email(
-        %{
-          title: dgettext("dashboard_account", "Update your email"),
-          paragraphs: [
-            dgettext("dashboard_account", "Hi %{email}, you can change your email by clicking the button below:",
-              email: user.email
-            )
-          ],
-          button: {dgettext("dashboard_account", "Update your email"), url},
-          note: dgettext("dashboard_account", "If you didn't request this change, please ignore this email.")
-        },
-        Environment.email_icon_url()
-      )
+      %{
+        title: dgettext("dashboard_account", "Update your email"),
+        paragraphs: [
+          dgettext("dashboard_account", "Hi %{email}, you can change your email by clicking the button below:",
+            email: user.email
+          )
+        ],
+        button: {dgettext("dashboard_account", "Update your email"), url},
+        note: dgettext("dashboard_account", "If you didn't request this change, please ignore this email.")
+      }
     )
   end
 end

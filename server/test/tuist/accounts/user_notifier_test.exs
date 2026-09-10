@@ -33,6 +33,21 @@ defmodule Tuist.Accounts.UserNotifierTest do
       refute email.html_body =~ "#622ED4"
     end
 
+    test "carries a preheader and a plain-text alternative", %{user: user} do
+      {:ok, email} =
+        UserNotifier.deliver_confirmation_instructions(%{
+          user: user,
+          confirmation_url: "https://tuist.dev/confirm?token=abc"
+        })
+
+      assert email.html_body =~
+               ~s(<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">To start using Tuist)
+
+      assert email.text_body =~ "You're Almost Set!"
+      assert email.text_body =~ "Confirm your email: https://tuist.dev/confirm?token=abc"
+      refute email.text_body =~ "<"
+    end
+
     test "escapes interpolated values" do
       email =
         UserNotifier.deliver_invitation("guest@example.com", %{
@@ -81,5 +96,6 @@ defmodule Tuist.Accounts.UserNotifierTest do
     assert email.html_body =~ ~s(<table role="presentation")
     assert email.html_body =~ ~s(href="https://tuist.dev/users/settings/confirm_email/abc")
     refute email.html_body =~ "=============================="
+    assert email.text_body =~ "Update your email: https://tuist.dev/users/settings/confirm_email/abc"
   end
 end
