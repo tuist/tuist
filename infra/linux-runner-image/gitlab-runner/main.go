@@ -117,7 +117,10 @@ func execute(job assignment, buildsDir string) error {
 	trace := &jobTrace{JobTrace: upstreamTrace, log: logFile}
 	defer func() {
 		// This is idempotent in GitLab Runner when Build.Run already failed.
-		if !trace.finished {
+		trace.mu.Lock()
+		finished := trace.finished
+		trace.mu.Unlock()
+		if !finished {
 			_ = trace.Success()
 		}
 		trace.mu.Lock()
@@ -148,8 +151,10 @@ func execute(job assignment, buildsDir string) error {
 	trace.SetDebugModeEnabled(build.IsDebugModeEnabled())
 	result := client.UpdateJob(config, credentials, common.UpdateJobInfo{ID: job.Payload.ID, State: common.Running})
 	if result.State == common.UpdateAbort || result.CancelRequested {
+		trace.mu.Lock()
 		trace.cancelled = true
 		trace.exitCode = 1
+		trace.mu.Unlock()
 		trace.Finish()
 		return errors.New("GitLab assignment cancelled")
 	}

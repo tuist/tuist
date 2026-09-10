@@ -248,3 +248,5 @@ The poller stages `<jit>.gitlab.json` with one assigned job and its report token
 Remove Ubuntu's default `.bash_logout` from the runner home: its console
 clearing fails in GitLab's noninteractive login shell before checkout. The
 image build runs a login-shell smoke check as the runner user.
+
+- GitLab staging cleans partial credential files on failure and stages the optional cache endpoint before the job-start marker. `run-job.sh` exports that endpoint before choosing the provider. `gitlab-dispatch_test.sh` exercises the actual Linux/macOS staging branches with synthetic assignments and checks failure cleanup and endpoint inheritance.

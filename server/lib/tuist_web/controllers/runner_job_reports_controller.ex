@@ -77,7 +77,7 @@ defmodule TuistWeb.RunnerJobReportsController do
   retries on a non-2xx.
   """
   def finish(conn, params) do
-    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
+    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id} = identity} <- authenticate(conn),
          {:ok, runner_name} <- JobReports.runner_name_for_job(workflow_job_id, account_id) do
       # The window is measured server-side; only the outcome comes from
       # the job, which could decide it by exiting with that status anyway.
@@ -86,7 +86,7 @@ defmodule TuistWeb.RunnerJobReportsController do
         conclusion: JobReports.conclusion_for(outcome(params))
       }
 
-      provider = if GitLab.get_job_for_account(account_id, workflow_job_id), do: GitLab, else: Buildkite
+      provider = if identity[:provider] == :gitlab, do: GitLab, else: Buildkite
 
       case provider.record_job_finished(runner_name, account_id, report) do
         :ok ->

@@ -12,3 +12,5 @@ with the existing job-scoped Tuist report endpoints. Never print the input.
 Validate with `GOWORK=off go test ./...` and a local fake coordinator execution that covers
 checkout, failure, cancellation and masked variables. Do not use real GitLab or
 staging credentials for local tests.
+
+- All trace outcome and completion state accesses use the trace mutex, including early cancellation and deferred reporting. Exercise cancellation with the race detector.

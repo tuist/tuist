@@ -91,10 +91,10 @@ defmodule Tuist.Runners.GitLabTest do
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
     reject(&Client.request_job/1)
     stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
-    assert {:ok, 0} = GitLab.poll(connection)
+    assert {:ok, :inactive} = GitLab.poll(connection)
     stub(FeatureFlags, :runners_enabled?, fn _ -> true end)
     stub(Allowance, :exhausted?, fn _ -> true end)
-    assert {:ok, 0} = GitLab.poll(connection)
+    assert {:ok, :inactive} = GitLab.poll(connection)
   end
 
   test "one connection routes each job using its own tags", %{connection: connection, account: account} do
@@ -183,8 +183,13 @@ defmodule Tuist.Runners.GitLabTest do
     job = Repo.one!(Job)
     assert job.payload
 
-    expect(Client, :reject_job, fn _, ^payload, _ -> {:error, :transport} end)
+    stub(Client, :reject_job, fn _, _, _ ->
+      send(self(), :upstream_settlement)
+      {:error, :transport}
+    end)
+
     assert :ok = GitLab.delete_connection(account.id, connection.id)
+    refute_received :upstream_settlement
     refute GitLab.get_connection(connection.id).enabled
 
     expect(Client, :reject_job, fn _, ^payload, _ -> {:ok, nil} end)
@@ -192,6 +197,50 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:ok, 0} = GitLab.poll(connection)
     assert is_nil(GitLab.get_job(job.workflow_job_id).payload)
     assert is_nil(GitLab.get_connection(connection.id))
+  end
+
+  test "case variants of the same profile are not ambiguous", %{connection: connection} do
+    payload = put_in(payload(), ["variables"], [%{"key" => "CI_JOB_TAGS", "value" => ~s(["tuist-macos","TUIST-MACOS"])}])
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert Repo.one!(WorkflowJob).requested_dispatch_label == "tuist-macos"
+  end
+
+  test "repository URLs without a path do not fail the assignment", %{connection: connection} do
+    payload = put_in(payload(), ["git_info", "repo_url"], "https://gitlab.com")
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert Repo.one!(Job).project_path == ""
+  end
+
+  test "routing errors survive idle polls and clear after a routable job", %{connection: connection} do
+    GitLab.record_poll_result(connection, {:error, :invalid_job_tags})
+    message = GitLab.get_connection(connection.id).last_error
+    assert message =~ "could not be routed"
+    GitLab.record_poll_result(connection, {:ok, 0})
+    assert GitLab.get_connection(connection.id).last_error == message
+    GitLab.record_poll_result(connection, {:ok, 1})
+    assert is_nil(GitLab.get_connection(connection.id).last_error)
+    GitLab.record_poll_result(connection, {:error, :unauthorized})
+    GitLab.record_poll_result(connection, {:ok, 0})
+    assert is_nil(GitLab.get_connection(connection.id).last_error)
+  end
+
+  test "persistence exceptions are diagnosable without exposing payload values", %{connection: connection} do
+    expect(Client, :request_job, fn _ -> {:ok, payload()} end)
+    expect(WorkflowJobs, :enqueue_many_if_missing, fn _ -> raise "job-secret private-value" end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, :persistence_failed} = GitLab.poll(connection)
+      end)
+
+    assert log =~ "GitLab assignment persistence failed"
+    assert log =~ "RuntimeError"
+    assert log =~ "gitlab.ex"
+    refute log =~ "job-secret"
+    refute log =~ "private-value"
+    assert Repo.aggregate(Job, :count) == 0
   end
 
   test "connection updates are account scoped", %{connection: connection, account: account} do
@@ -242,7 +291,18 @@ defmodule Tuist.Runners.GitLabTest do
     job = Repo.one!(Job)
     assert :ok = GitLab.delete_connection(account.id + 1, connection.id)
     assert GitLab.get_connection(connection.id)
+
+    stub(Client, :update_job, fn _, _, _, _ ->
+      send(self(), :upstream_settlement)
+      {:error, :transport}
+    end)
+
+    assert :ok = GitLab.delete_connection(account.id, connection.id)
+    refute_received :upstream_settlement
+    refute GitLab.get_connection(connection.id).enabled
+    assert :ok = GitLab.delete_connection(account.id, connection.id)
     expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:ok, %{}} end)
+    assert {:ok, 0} = GitLab.poll(connection)
     assert :ok = GitLab.delete_connection(account.id, connection.id)
     assert is_nil(GitLab.get_connection(connection.id))
     assert is_nil(GitLab.get_job(job.workflow_job_id).payload)
@@ -278,10 +338,19 @@ defmodule Tuist.Runners.GitLabTest do
   test "disconnect retains a disabled connection while GitLab is unavailable", %{account: account, connection: connection} do
     expect(Client, :request_job, fn _ -> {:ok, payload()} end)
     assert {:ok, 1} = GitLab.poll(connection)
-    expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:error, :transport} end)
+
+    stub(Client, :update_job, fn _, _, _, _ ->
+      send(self(), :upstream_settlement)
+      {:error, :transport}
+    end)
+
     assert :ok = GitLab.delete_connection(account.id, connection.id)
+    refute_received :upstream_settlement
     refute GitLab.get_connection(connection.id).enabled
     reject(&Client.request_job/1)
+    expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:error, :transport} end)
+    assert {:ok, 0} = GitLab.poll(connection)
+    refute GitLab.get_connection(connection.id).enabled
     expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:ok, %{}} end)
     assert {:ok, 0} = GitLab.poll(connection)
     assert is_nil(GitLab.get_connection(connection.id))

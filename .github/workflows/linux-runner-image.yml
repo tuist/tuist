@@ -57,6 +57,9 @@ jobs:
           bash -n infra/linux-runner-image/metrics-sampler.sh
           bash -n infra/linux-runner-image/gradle-cache-smoke.sh
 
+      - name: Test GitLab assignment staging
+        run: bash infra/linux-runner-image/gitlab-dispatch_test.sh
+
       - name: Test job-start hook
         run: bash infra/linux-runner-image/run-job_test.sh
 

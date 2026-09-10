@@ -1338,6 +1338,13 @@ probe_cache_share
 interval=2
 attempt=0
 
+# Resolve the image's JSON parser independently of launchd's PATH before acquiring a job.
+JQ=/opt/homebrew/bin/jq
+if [ ! -x "${JQ}" ]; then
+  echo "dispatch-poll: GitLab assignment parser is unavailable"
+  exit 1
+fi
+
 while true; do
   attempt=$((attempt + 1))
   # Beat before the request, not after: this says the loop is running,
@@ -1363,19 +1370,22 @@ while true; do
 
   case "${http}" in
     200)
-      # Pure-bash JSON field extraction — keeps the runner image
-      # free of a Python (or jq) dependency. Safe because
-      # `encoded_jit_config` is base64 (no quotes, no backslashes,
-      # no newlines), so the value can't contain a `"` that would
-      # confuse `[^"]*`. The server emits compact JSON; the
-      # optional whitespace lets a future pretty-printer not
-      # break this path.
-      gitlab_job=$(jq -r 'has("gitlab_job")' /tmp/dispatch.json)
-      if [ "${gitlab_job}" = "true" ]; then
-        jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
-          '.gitlab_job + {report_url: $report_url}' /tmp/dispatch.json >/tmp/tuist-gitlab-job.json
-        chmod 0600 /tmp/tuist-gitlab-job.json
+      if ! gitlab_job=$("${JQ}" -r 'has("gitlab_job")' /tmp/dispatch.json); then
+        echo "dispatch-poll: invalid assignment response; aborting"
+        exit 1
       fi
+      if [ "${gitlab_job}" = "true" ]; then
+        gitlab_tmp=$(umask 077; mktemp /tmp/tuist-gitlab-job.XXXXXX) || exit 1
+        if ! { "${JQ}" -e --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.gitlab_job + {report_url: $report_url}' /tmp/dispatch.json >"${gitlab_tmp}" &&
+          mv -f "${gitlab_tmp}" /tmp/tuist-gitlab-job.json; }; then
+          rm -f "${gitlab_tmp}" 2>/dev/null || true
+          echo "dispatch-poll: GitLab assignment could not be staged; aborting"
+          exit 1
+        fi
+      fi
+      # GitHub and Buildkite credentials are opaque ASCII, so their extraction
+      # below does not need to interpret nested JSON or escape sequences.
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       # Buildkite's counterpart. The server sends one credential set or
       # the other, never both, so which key is present is what selects

@@ -269,6 +269,7 @@
           label={dgettext("dashboard_integrations", "Disconnect")}
           variant="secondary"
           phx-click="disconnect-gitlab"
+          disabled={not connection.enabled}
           phx-value-id={connection.id}
         />
       </div>

@@ -18,3 +18,5 @@ This area owns Phoenix controllers for HTML and API endpoints.
 
 - Command event schemas accept effective destinations and individual subhashes, including embedded products, foreign builds, and UI-test device/runtime inputs. Module-cache responses expose null for unavailable typed inputs and omit unavailable subhashes to preserve the existing string-valued map contract.
 - Runner report endpoints accept job-scoped Buildkite and GitLab credentials; billing times are server-observed and log uploads remain bounded.
+
+- Both runner log and finish endpoints select the provider from the verified report-token identity, retaining legacy Buildkite token compatibility.

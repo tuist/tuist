@@ -22,6 +22,21 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+# Optional: route the job's Tuist cache at the account's per-job
+# endpoint when dispatch-poll.sh staged one. The CLI honors
+# TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
+# exec propagates it to the runner process. The job-start hook below
+# also publishes it to GitHub's job environment for container steps.
+# Falls back to default cache resolution when the file is absent.
+CACHE_ENDPOINT_PATH="${JIT_PATH}.cache-endpoint"
+if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
+  cache_endpoint="$(cat "${CACHE_ENDPOINT_PATH}")"
+  if [ -n "${cache_endpoint}" ]; then
+    echo "$(date -u +%FT%TZ) run-job: routing cache to runner-local endpoint ${cache_endpoint}"
+    export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
+  fi
+fi
+
 if [ -s "${JIT_PATH}.gitlab.json" ]; then
   [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
   exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \
@@ -83,20 +98,6 @@ jit="$(cat "${JIT_PATH}")"
 if [ -z "${jit}" ]; then
   echo "$(date -u +%FT%TZ) run-job: JIT at ${JIT_PATH} unreadable/empty; aborting"
   exit 1
-fi
-# Optional: route the job's Tuist cache at the account's per-job
-# endpoint when dispatch-poll.sh staged one. The CLI honors
-# TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
-# exec propagates it to the runner process. The job-start hook below
-# also publishes it to GitHub's job environment for container steps.
-# Falls back to default cache resolution when the file is absent.
-CACHE_ENDPOINT_PATH="${JIT_PATH}.cache-endpoint"
-if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
-  cache_endpoint="$(cat "${CACHE_ENDPOINT_PATH}")"
-  if [ -n "${cache_endpoint}" ]; then
-    echo "$(date -u +%FT%TZ) run-job: routing cache to runner-local endpoint ${cache_endpoint}"
-    export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
-  fi
 fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
 # Forensic vitals for this job's lifetime. Backgrounded so it keeps

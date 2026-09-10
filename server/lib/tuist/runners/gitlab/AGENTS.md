@@ -41,3 +41,7 @@ assignment upstream if persistence fails.
   a trace range conflict on retry means the error was already uploaded.
 - The poller advertises the Linux coordinator's platform; it does not choose a
   machine until it reads the acquired job's tags.
+
+- Poll passes use the dedicated `runner_gitlab` queue and snooze between requests within each cron window. Inactive accounts stop early; rejected jobs do not stop subsequent acquisition. Settlement returns remaining assignments for capacity checks without a second joined query.
+- Disconnect performs only account-scoped database mutations in the request process; background polling settles assignments. Idle deletion is idempotent. Routing alerts survive empty polls until a routable job is acquired.
+- Persistence exceptions log their class and stack locations with argument values omitted; never log the assignment or exception message, which may contain tokens.
