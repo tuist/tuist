@@ -198,10 +198,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
 
   defp image_request do
     path =
-      OpenGraph.image_path(:marketing,
-        title: "About Tuist",
-        icon: "static/marketing/images/about/logo.webp"
-      )
+      OpenGraph.image_path(:marketing, title: "About Tuist")
 
     uri = URI.parse(path)
     key = Path.basename(uri.path, ".jpg")

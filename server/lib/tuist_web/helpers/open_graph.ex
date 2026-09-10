@@ -36,7 +36,7 @@ defmodule TuistWeb.Helpers.OpenGraph do
 
   ## Examples
 
-      image_path(:marketing, title: "About Tuist", icon: "about")
+      image_path(:marketing, title: "About Tuist")
       image_path(:docs, title: "Install Tuist", category: "Guides")
 
   """
