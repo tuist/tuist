@@ -370,6 +370,40 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /newsletter/issues/:issue_number" do
+    test "renders the issue page", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="newsletter-issue")
+      assert html =~ issue.title
+      assert html =~ "Worthy Five: #{issue.interview["interviewee"]}"
+      assert html =~ "/newsletter/issues/#{issue.number - 1}"
+      assert html =~ "This is the latest issue"
+      assert html =~ "All issues"
+      refute html =~ "View in web browser"
+      refute html =~ "{unsubscribe_url}"
+      refute html =~ "#622ed4"
+    end
+
+    test "renders the same page as the email export", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}?email")
+
+      assert response_content_type(conn, :text) =~ "charset=utf-8"
+      body = response(conn, 200)
+      assert body =~ ~s(id="newsletter-issue")
+      assert body =~ issue.title
+      assert body =~ "View in web browser"
+      assert body =~ "{unsubscribe_url}"
+      refute body =~ "@font-face"
+      assert body =~ "[data-ogsc] .button-primary"
+    end
+  end
+
   describe "POST /newsletter" do
     test "successfully sends confirmation email", %{conn: conn} do
       # Given
