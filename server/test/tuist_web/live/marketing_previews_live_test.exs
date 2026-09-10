@@ -8,7 +8,7 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLiveTest do
     test "renders the page with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/previews")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
       assert html =~ "Every change, ready to try"
       assert html =~ "Everything you need to share what you build"
       assert html =~ ~s(<a href="/download" data-part="link">Tuist companion apps</a>)

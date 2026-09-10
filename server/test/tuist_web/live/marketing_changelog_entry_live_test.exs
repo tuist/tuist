@@ -14,7 +14,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
     test "renders the page with the marketing stylesheet", %{conn: conn, entry: entry} do
       {:ok, _lv, html} = live(conn, ~p"/changelog/#{entry.id}")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
   end
 

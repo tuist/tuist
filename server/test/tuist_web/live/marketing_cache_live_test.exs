@@ -8,7 +8,7 @@ defmodule TuistWeb.Marketing.MarketingCacheLiveTest do
     test "renders the page with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/cache")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
       assert html =~ "Never build the"
       assert html =~ "Everything you&#39;d want from a cache"
     end

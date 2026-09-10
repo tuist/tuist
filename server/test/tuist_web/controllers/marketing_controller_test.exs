@@ -132,7 +132,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = get(conn, "/")
 
       html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
 
     test "anonymous responses stay publicly cacheable", %{conn: conn} do
@@ -165,8 +165,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~
                ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
 
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
   end
 
@@ -176,8 +175,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       html = html_response(conn, 200)
       assert html =~ "marketing-tests"
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
   end
 
@@ -234,7 +232,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ ~s(id="marketing-newsletter-form")
       assert html =~ ~s(phx-hook="NewsletterForm")
       assert html =~ "Supercharge your development"
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
 
     test "lists every past issue newest first with the sort control", %{conn: conn} do
@@ -412,7 +410,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = get(conn, "/terms")
 
       html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
   end
 
@@ -437,7 +435,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = get(conn, ~p"/customers/monzo")
 
       html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
       assert html =~ "/open-graph-images/"
     end
   end
@@ -454,7 +452,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Confirm Subscription"
       assert html =~ "Confirm subscription"
       assert html =~ ~s(name="token" value="#{token}")
-      assert html =~ "/marketing/assets/bundle-new.css"
+      assert html =~ "/marketing/assets/bundle.css"
     end
 
     test "renders the failed state for an invalid token", %{conn: conn} do

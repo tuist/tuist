@@ -10,7 +10,7 @@
     Chromium-only; other engines ignore the script. Prefetch rather than
     prerender: Chrome does not rasterize a prerendered page while it is
     hidden, so activating one starts the cross-document view transition
-    (marketing_new.css) on unpainted white tiles, and heavy pages such as
+    (marketing.css) on unpainted white tiles, and heavy pages such as
     the blog and cache pages flash white under the navbar for the
     transition's duration. A prefetched page renders on the normal path,
     where the transition holds the outgoing page until the incoming one
@@ -122,7 +122,7 @@
     <%= for href <- assigns[:head_preload_images] || [] do %>
       <link rel="preload" as="image" href={href} fetchpriority="high" />
     <% end %>
-    <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle-new.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/marketing/assets/bundle.js"}>
     </script>
     <!-- Mermaid (loaded only on pages that contain a diagram) -->
