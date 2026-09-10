@@ -52,6 +52,9 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Development
 
+- [rollout/](rollout/AGENTS.md) gates managed endpoint publication on regional
+  DNS, certificate and serving-path readiness before the server publishes URLs.
+
 - Run tests with `go test ./...` from this directory.
 - Keep generated CRDs in `infra/helm/tuist/crds/` aligned with API changes.
 - Keep the controller independent from the Scaleway Apple Silicon CAPI provider. Kura endpoint lifecycle is a product workload concern, not a macOS node infrastructure concern.
@@ -64,3 +67,5 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate path, with a host-network ingress class and valid nonempty `clientCIDRs`. Private gateways retain their per-instance certificate and do not select the shared public wildcard, even if a legacy publicHost remains. Private client DNS prefers the selected primary's node initially, then retains its healthy published gateway. Pod List order cannot move it. Public peer DNS stays public. Private gateway-backed pods carry `tuist.dev/host-network-gateway=true`; the managed Helm CiliumNetworkPolicy admits only cache-port traffic from host/remote-node identities, while nginx enforces external client CIDRs.
 
 `controllers/client_gateway.go` observes endpoint availability independently of ring completeness. Shared routing and the endpoint observation run before storage maintenance can return early. `endpointLastCheckedAt`, `endpointReason`, and `endpointMessage` describe the observation; `lastReconciledAt` still describes full workload convergence. The server persists the controller observation time and uses one freshness window for activation and dispatch. Ready certificate conditions may omit observedGeneration, but explicit stale generations are rejected and the hostname must match. Gateway discovery is cached per ingress class for 30 seconds; DNS is cached per host for 60 seconds, with five-second negative caching and a two-second deadline. Keep [private-runner-rollouts.md](private-runner-rollouts.md) current. There is no runner-specific rollout policy or pod deletion engine.
+
+Regional peer aliases add SANs to controller-mounted peer certificates. Those files are loaded only at Kura process startup; enrollment hot reload does not watch Kubernetes Secrets. Regional StatefulSet templates therefore hash the leaf certificate to roll pods through the normal readiness/drain path when it changes. Secret metadata changes must not trigger a roll.

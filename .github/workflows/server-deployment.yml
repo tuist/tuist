@@ -679,15 +679,16 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # This ceiling MUST stay above the helm step's own timeout (70m =
-    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
+    # This ceiling MUST stay above the helm step's own timeout plus the ~5-10m
     # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
-    # when helm was bumped from 30m). 80m keeps helm < step < job so a
+    # when helm was bumped from 30m). Keep helm < step < job so a
     # stuck deploy fails via helm's own clean path, not this ceiling.
-    timeout-minutes: 80
+    # Regional publication may first need a preparation upgrade and DNS/TLS
+    # convergence. Keep room for that phase before the normal release budget.
+    timeout-minutes: 120
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -971,15 +972,15 @@ jobs:
         # `--timeout 60m` is generous on purpose: a complex migration
         # (the pre-upgrade hook runs inside this budget) plus the
         # `--wait` rollout can genuinely take a while, and undershooting
-        # would kill a legitimately-slow deploy mid-migration. The 70m
-        # step timeout is helm's 60m plus a ~10m cushion for the
+        # would kill a legitimately-slow deploy mid-migration. The 110m
+        # step budget also covers preparation (20m), readiness (10m), and the
         # in-process `--atomic` rollback. The job's `timeout-minutes`
         # ceiling sits above this (helm < step < job): that ordering is
         # what makes a stuck deploy hit helm's own timeout first (clean
         # rollback + failure diagnostics) instead of the job ceiling
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
-        timeout-minutes: 70
+        timeout-minutes: 110
         run: |
           set -euo pipefail
 
@@ -1127,7 +1128,15 @@ jobs:
           else
             registry_enabled=false
           fi
-          rm -f "$registry_render"
+          # Extract only deployment configuration from the rendered release;
+          # no Secret payload is persisted in the publication plan or logs.
+          regional_resources="$(mktemp)"
+          regional_plan="$(mktemp)"
+          kubectl create --dry-run=client -o json -f "$registry_render" |
+            jq -sc '[.[] | if .kind == "List" then .items[] else . end
+                     | select(.kind == "Deployment")]' > "$regional_resources"
+          python3 infra/kura-controller/rollout/gate.py plan "$regional_resources" --namespace "$NAMESPACE" > "$regional_plan"
+          rm -f "$registry_render" "$regional_resources"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
 
@@ -1285,6 +1294,25 @@ jobs:
             echo "::endgroup::"
           fi
 
+          # On first publication (or a newly added region), prepare the same
+          # release with legacy URL generation. Only DNS/TLS/route convergence
+          # permits the final upgrade to publish regional URLs. Existing regional
+          # aliases stay serving during preparation and rollback.
+          regional_prepare_needed="$(python3 infra/kura-controller/rollout/gate.py needed "$regional_plan")"
+          if [ "$regional_prepare_needed" = "true" ]; then
+            helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+              --namespace "$NAMESPACE" --create-namespace \
+              "${helm_values_args[@]}" \
+              --set server.image.tag="$IMAGE_TAG" \
+              --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+              --set registry.image.tag="$registry_image_tag" \
+              --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+              "${image_sets[@]}" \
+              --set kuraController.regionalRouting.publishEndpoints=false \
+              --atomic --timeout 20m --wait
+          fi
+          python3 infra/kura-controller/rollout/gate.py wait "$regional_plan" --timeout 600
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
@@ -1294,6 +1322,7 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+          rm -f "$regional_plan"
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

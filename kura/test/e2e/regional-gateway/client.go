@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -37,10 +38,20 @@ type sample struct {
 	completedS float64
 }
 
+type bearerToken string
+
+func (token bearerToken) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"authorization": "Bearer " + string(token)}, nil
+}
+
+func (bearerToken) RequireTransportSecurity() bool { return true }
+
 func main() {
 	address := flag.String("address", "", "gateway IP:port")
 	host := flag.String("host", "a.benchmark.test", "TLS SNI and HTTP authority")
 	ca := flag.String("ca", "/tls/tls.crt", "benchmark CA")
+	tokenFile := flag.String("token-file", "", "optional file containing a scoped staging cache token")
+	account := flag.String("account", "", "use the account-scoped Gradle HTTP API with project bench")
 	protocol := flag.String("protocol", "grpc", "grpc or http2")
 	operation := flag.String("operation", "read", "read or write")
 	size := flag.Int("size", 4096, "bytes per blob")
@@ -57,11 +68,21 @@ func main() {
 	if *warmupRequests < 0 || *warmupRequests > 1000 || (*streamFixtures && (*size < 16 || int64(*size)*int64(*concurrency) > 256<<20)) {
 		panic("invalid warmup or fixture budget")
 	}
-	cert, err := os.ReadFile(*ca)
+	pool, err := x509.SystemCertPool()
 	must(err)
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(cert) {
-		panic("invalid CA")
+	if *ca != "" {
+		cert, err := os.ReadFile(*ca)
+		must(err)
+		pool = x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(cert) {
+			panic("invalid CA")
+		}
+	}
+	token := ""
+	if *tokenFile != "" {
+		data, err := os.ReadFile(*tokenFile)
+		must(err)
+		token = strings.TrimSpace(string(data))
 	}
 	if *routingAddresses != "" {
 		must(checkRouting(strings.Split(*routingAddresses, ","), pool))
@@ -69,7 +90,11 @@ func main() {
 		return
 	}
 	tlsConfig := &tls.Config{RootCAs: pool, ServerName: *host, MinVersion: tls.VersionTLS12}
-	conn, err := grpc.NewClient(*address, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithAuthority(*host))
+	options := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithAuthority(*host)}
+	if token != "" {
+		options = append(options, grpc.WithPerRPCCredentials(bearerToken(token)))
+	}
+	conn, err := grpc.NewClient(*address, options...)
 	must(err)
 	defer conn.Close()
 	grpcClient := bs.NewByteStreamClient(conn)
@@ -90,9 +115,16 @@ func main() {
 				method = "PUT"
 				body = bytes.NewReader(p.data)
 			}
-			req, err := http.NewRequestWithContext(ctx, method, "https://"+*host+"/v1/cache/"+p.hash, body)
+			path := "/v1/cache/" + p.hash
+			if *account != "" {
+				path = "/api/cache/gradle/" + p.hash + "?account_handle=" + url.QueryEscape(*account) + "&project_handle=bench"
+			}
+			req, err := http.NewRequestWithContext(ctx, method, "https://"+*host+path, body)
 			if err != nil {
 				return err
+			}
+			if token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
 			}
 			resp, err := httpClient.Do(req)
 			if err != nil {

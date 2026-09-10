@@ -26,6 +26,41 @@ func regionalTestConfig() RegionalRouting {
 	return RegionalRouting{Region: "eu-central", Domain: "eu-central.staging.kura.tuist.dev", IngressClass: "kura-eu-central", IngressNamespace: "platform", IngressDaemonSet: "eu-ingress"}
 }
 
+func TestRegionalPeerCertificateChangesRollPodsWithoutMetadataChurn(t *testing.T) {
+	ctx := context.Background()
+	instance := meshInstance("kura-regional-test", "test")
+	instance.Annotations = map[string]string{regionalPeerHostAnnotation: "test.peer.eu-west.example.com"}
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, Data: map[string][]byte{peerTLSCertFile: []byte("original certificate")}}
+	c := regionalTestClient(t, instance, secret)
+	r := &KuraInstanceReconciler{Client: c, Scheme: c.Scheme()}
+	readTemplate := func() corev1.PodTemplateSpec {
+		t.Helper()
+		if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+			t.Fatal(err)
+		}
+		sts := &appsv1.StatefulSet{}
+		if err := c.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+			t.Fatal(err)
+		}
+		return sts.Spec.Template
+	}
+	initial := readTemplate()
+	secret.Labels = map[string]string{"metadata": "changed"}
+	if err := c.Update(ctx, secret); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(initial, readTemplate()) {
+		t.Fatal("Secret metadata changes must not restart cache pods")
+	}
+	secret.Data[peerTLSCertFile] = []byte("certificate with regional SAN")
+	if err := c.Update(ctx, secret); err != nil {
+		t.Fatal(err)
+	}
+	if reflect.DeepEqual(initial, readTemplate()) {
+		t.Fatal("a changed mounted certificate must restart pods to serve its regional SAN")
+	}
+}
+
 func regionalTestClient(t *testing.T, objects ...client.Object) client.Client {
 	t.Helper()
 	scheme := runtime.NewScheme()

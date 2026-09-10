@@ -3061,6 +3061,15 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			return err
 		}
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
+		if instance.Annotations[regionalPeerHostAnnotation] != "" {
+			secret := &corev1.Secret{}
+			if err := r.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, secret); err != nil {
+				return err
+			}
+			// Mounted Kubernetes certificates are loaded at process startup;
+			// enrollment's hot reload does not watch these Secret files.
+			sts.Spec.Template.Annotations["kura.tuist.dev/peer-tls-certificate-hash"] = fmt.Sprintf("%x", sha256.Sum256(secret.Data[peerTLSCertFile]))
+		}
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {

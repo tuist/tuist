@@ -54,6 +54,8 @@ jobs:
       - name: Vet
         working-directory: infra/kura-controller
         run: go vet ./...
+      - name: Test regional publication gate
+        run: python3 -m unittest discover -s infra/kura-controller/rollout
 
   build:
     needs: test

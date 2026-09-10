@@ -1,0 +1,176 @@
+"""Read-only publication gate for regional Kura endpoints; uses current kubecontext."""
+
+import argparse
+import base64
+import concurrent.futures
+import http.client
+import json
+import os
+from pathlib import Path
+import socket
+import ssl
+import subprocess
+import tempfile
+import time
+
+
+def kube(namespace, kind, name=None):
+    args = ["kubectl", "--request-timeout=15s", "-n", namespace, "get", kind]
+    if os.environ.get("KURA_ROLLOUT_CONTEXT"):
+        args += ["--context", os.environ["KURA_ROLLOUT_CONTEXT"]]
+    if name:
+        args.append(name)
+    result = subprocess.run(args + ["-o", "json"], capture_output=True, text=True, timeout=20)
+    if result.returncode:
+        raise RuntimeError(f"cannot read {namespace}/{kind}/{name or '*'}")
+    return json.loads(result.stdout)
+
+
+def published_domains(deployment):
+    for container in deployment["spec"]["template"]["spec"]["containers"]:
+        for env in container.get("env", []):
+            if env["name"] == "TUIST_KURA_REGIONAL_DNS_DOMAINS":
+                return json.loads(env["value"])
+    return {}
+
+
+def plan(resources, namespace=None):
+    controller = next((r for r in resources if r["kind"] == "Deployment" and
+                       r["metadata"].get("labels", {}).get("app.kubernetes.io/component") == "kura-controller"), None)
+    server = next((r for r in resources if r["kind"] == "Deployment" and
+                   r["metadata"].get("labels", {}).get("app.kubernetes.io/component") == "server"), None)
+    if not server or not published_domains(server):
+        return {}
+    if not controller:
+        raise ValueError("regional publication requires the controller")
+    flags = dict(arg[2:].split("=", 1) for arg in controller["spec"]["template"]["spec"]["containers"][0]["args"] if arg.startswith("--") and "=" in arg)
+    regions = json.loads(flags["regional-routing-config"])
+    domains = published_domains(server)
+    if domains != {r["region"]: r["domain"] for r in regions}:
+        raise ValueError("controller and server regional domains differ")
+    return {"namespace": controller["metadata"]["namespace"], "regions": regions,
+            "serverNamespace": namespace or server["metadata"].get("namespace") or "default", "serverName": server["metadata"]["name"],
+            "certificate": flags["public-tls-secret-name"]}
+
+
+def needs_preparation(config):
+    if not config:
+        return False
+    live = published_domains(kube(config["serverNamespace"], "deployment", config["serverName"]))
+    return any(live.get(r["region"]) != r["domain"] for r in config["regions"])
+
+
+def targets(endpoint, hostname):
+    return {address for record in endpoint.get("spec", {}).get("endpoints", [])
+            if record["dnsName"] == hostname and record["recordType"] in ("A", "AAAA")
+            for address in record["targets"]}
+
+
+def verify_dns(hostname, expected):
+    actual = {result[4][0] for result in socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)}
+    if not expected or actual != expected:
+        raise RuntimeError(f"DNS has not converged for {hostname}")
+
+
+def https_probe(host, address):
+    context = ssl.create_default_context()
+    with socket.create_connection((address, 443), timeout=5) as sock:
+        with context.wrap_socket(sock, server_hostname=host) as tls:
+            tls.sendall(f"GET /up HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
+            response = http.client.HTTPResponse(tls)
+            response.begin()
+            if response.status != 200:
+                raise RuntimeError(f"{host} via {address}: /up returned {response.status}")
+
+
+def peer_probe(host, addresses, secret):
+    data = {key: base64.b64decode(secret["data"][key]) for key in ("ca.pem", "tls.crt", "tls.key")}
+    context = ssl.create_default_context(cadata=data["ca.pem"].decode())
+    with tempfile.TemporaryDirectory(prefix="kura-peer-probe-") as directory:
+        for key, value in data.items():
+            path = Path(directory) / key
+            path.write_bytes(value)
+            os.chmod(path, 0o600)
+        context.load_cert_chain(str(Path(directory) / "tls.crt"), str(Path(directory) / "tls.key"))
+        for address in addresses:
+            with socket.create_connection((address, 7443), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=host):
+                    pass
+
+
+def check(config):
+    namespace = config["namespace"]
+    certificate = kube(namespace, "certificate", config["certificate"])
+    if not any(c["type"] == "Ready" and c["status"] == "True" and
+               c.get("observedGeneration") == certificate["metadata"]["generation"]
+               for c in certificate.get("status", {}).get("conditions", [])):
+        raise RuntimeError("regional wildcard certificate is not Ready")
+    instances = kube(namespace, "kurainstances")["items"]
+    ingresses = {i["metadata"]["name"]: i for i in kube(namespace, "ingresses")["items"]}
+    tasks = []
+    for region in config["regions"]:
+        domain = region["domain"]
+        if "*." + domain not in certificate["spec"]["dnsNames"]:
+            raise RuntimeError(f"certificate does not include {domain}")
+        endpoint = kube(namespace, "dnsendpoint", f"kura-regional-{region['region']}-dns")
+        public = targets(endpoint, "*." + domain)
+        peers = targets(endpoint, "*.peer." + domain)
+        verify_dns("regional-rollout-probe." + domain, public)
+        verify_dns("peer." + domain, public)
+        for instance in instances:
+            spec = instance["spec"]
+            if spec.get("private") or spec.get("region") != region["region"]:
+                continue
+            if not spec.get("publicHostNetwork") or spec.get("ingressClassName") != region["ingressClass"]:
+                raise RuntimeError("instance does not match its regional ingress configuration")
+            name = instance["metadata"]["name"]
+            host = spec["accountHandle"] + "." + domain
+            for ingress_name in (name, name + "-grpc"):
+                ingress = ingresses.get(ingress_name, {})
+                if host not in [r["host"] for r in ingress.get("spec", {}).get("rules", [])]:
+                    raise RuntimeError(f"regional alias missing from {ingress_name}")
+                if ingress["metadata"].get("annotations", {}).get("external-dns.alpha.kubernetes.io/controller") != "kura-controller":
+                    raise RuntimeError(f"individual DNS publication still enabled for {ingress_name}")
+            verify_dns(host, public)
+            for address in public:
+                tasks.append((https_probe, (host, address)))
+            if spec.get("meshPublicPeerHost"):
+                peer_host = spec["accountHandle"] + ".peer." + domain
+                verify_dns(peer_host, peers)
+                secret = kube(namespace, "secret", spec.get("peerTLSSecretName") or name + "-peer-tls")
+                tasks.append((peer_probe, (peer_host, peers, secret)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(function, *args) for function, args in tasks]
+        for future in futures:
+            future.result()
+    return len(tasks)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["plan", "needed", "wait"])
+    parser.add_argument("file")
+    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--namespace", help="Helm server release namespace")
+    args = parser.parse_args()
+    config = json.loads(Path(args.file).read_text())
+    if args.action == "plan":
+        print(json.dumps(plan(config, args.namespace)))
+    elif args.action == "needed":
+        print("true" if needs_preparation(config) else "false")
+    elif config:
+        deadline = time.monotonic() + args.timeout
+        while True:
+            try:
+                count = check(config)
+                print(f"Regional routing ready: {len(config['regions'])} regions, {count} serving-path probes")
+                return
+            except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+                if time.monotonic() >= deadline:
+                    raise SystemExit(f"Regional publication blocked: {error}") from None
+                print(f"Waiting for regional routing: {error}", flush=True)
+                time.sleep(10)
+
+
+if __name__ == "__main__":
+    main()

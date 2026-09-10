@@ -11,22 +11,22 @@ changing the regional DNS answer.
 
 The Tuist chart's `kuraController.regionalRouting.regions` configures a region's
 DNS suffix and its existing ingress DaemonSet. The staging overlay prepares
-Canada first:
+EU West first:
 
 ```yaml
 kuraController:
   regionalRouting:
     publishEndpoints: false
     regions:
-      - region: ca-east
-        domain: ca-east.staging.kura.tuist.dev
-        ingressClass: kura-ca-east
+      - region: eu-west
+        domain: eu-west.staging.kura.tuist.dev
+        ingressClass: kura-eu-west
         ingressNamespace: platform
-        ingressDaemonSet: platform-kura-ca-east-ingress-nginx-controller
+        ingressDaemonSet: platform-kura-eu-west-ingress-nginx-controller
 ```
 
 Use a different domain per environment. Production could use
-`ca-east.kura.tuist.dev`. The region identifier and ingress class must match the
+`eu-west.kura.tuist.dev`. The region identifier and ingress class must match the
 server's region catalog. Only host-network public regions are eligible; private
 runner caches and cloud LoadBalancer regions retain their existing behavior.
 Treat a configured domain as stable once published. Changing or removing it is
@@ -34,13 +34,13 @@ a separate endpoint migration, not a capacity adjustment.
 
 The controller prepares two names for each account:
 
-- `acme.ca-east.staging.kura.tuist.dev` for HTTP and gRPC.
-- `acme.peer.ca-east.staging.kura.tuist.dev` for peer replication over mTLS.
+- `acme.eu-west.staging.kura.tuist.dev` for HTTP and gRPC.
+- `acme.peer.eu-west.staging.kura.tuist.dev` for peer replication over mTLS.
 
-`RegionalDNS` maintains the ownerless `kura-regional-ca-east-dns` DNSEndpoint,
-with `*.ca-east.staging.kura.tuist.dev` and
-`*.peer.ca-east.staging.kura.tuist.dev`. A third shared name,
-`peer.ca-east.staging.kura.tuist.dev`, uses the public ingress addresses: the
+`RegionalDNS` maintains the ownerless `kura-regional-eu-west-dns` DNSEndpoint,
+with `*.eu-west.staging.kura.tuist.dev` and
+`*.peer.eu-west.staging.kura.tuist.dev`. A third shared name,
+`peer.eu-west.staging.kura.tuist.dev`, uses the public ingress addresses: the
 peer namespace otherwise suppresses wildcard resolution for an account named
 `peer` under [DNS wildcard existence rules](https://www.rfc-editor.org/rfc/rfc4592.html#section-2.2).
 Record count still depends on ingress addresses and regions, not
@@ -67,13 +67,38 @@ Ingress only after the shared Secret covers them. A prematurely configured new
 canonical host waits for that Secret instead of ordering an individual
 certificate. The peer certificate retains the account CA and covers both old
 and new peer names. The SNI demux passes TLS through; Kura continues performing
-mutual authentication, and the runtime's existing certificate reload picks up
-the expanded leaf.
+mutual authentication. Kubernetes-mounted peer certificate files are loaded
+at process startup, so the controller hashes the leaf in the StatefulSet pod
+template. A changed leaf rolls replicas through the existing readiness and
+drain path; Secret metadata changes do not restart pods. Enrollment hot reload
+is a separate runtime path and does not watch these mounted Secrets.
 
 Public/gRPC Ingresses in configured regions opt out of external-dns's Ingress
 source. Otherwise their exact hostname rules would recreate the linear record
 population even though a wildcard exists. The CRD source remains responsible
 for both the regional wildcard and retained legacy records.
+
+## Managed deployment gate
+
+`server-deployment.yml` automates the preparation/publication boundary when
+`publishEndpoints: true` is requested. It derives the region map from the
+rendered controller and server Deployments and rejects a mismatch. If the live
+server has not published that map, the workflow first upgrades the same release
+with publication disabled. It then verifies the current-generation shared
+Certificate is Ready, DNS matches the controller's desired address sets, every
+public account has both ingress aliases with individual DNS publication disabled,
+each public address serves the new hostname over verified TLS, and peer endpoints
+serve the new SNI name with account-scoped mutual TLS. Only then does the final
+upgrade publish the new URLs. The normal canary → acceptance → production
+pipeline applies this gate independently to each environment.
+
+The gate fails closed on API errors, stale certificates, DNS disagreement or
+serving-path failures. Its ten-minute timeout does not override an ACME rate
+limit: an issuance failure leaves publication disabled and requires a subsequent
+deployment after issuance succeeds. Preparation may roll peer pods to load
+expanded certificates, so it is a serving change even while URLs remain legacy.
+The deployment gate's health/TLS probes complement the authenticated HTTP/gRPC
+and failover validation below; they do not replace those tests.
 
 ## Migration
 
