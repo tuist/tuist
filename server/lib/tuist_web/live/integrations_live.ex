@@ -54,7 +54,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_enterprise_available?: github_enterprise_available?)
       |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
-      |> assign(buildkite_card_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(runner_integrations_visible?: FeatureFlags.runners_enabled?(selected_account))
       |> assign(buildkite_field_errors: %{})
       |> assign(buildkite_form_error: nil)
       |> assign(buildkite_flash: nil)

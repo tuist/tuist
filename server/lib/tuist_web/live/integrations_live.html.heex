@@ -253,7 +253,7 @@
       </.card_section>
     </div>
   </.card_section>
-  <.card_section :if={@buildkite_card_visible?} data-part="gitlab-card-section">
+  <.card_section :if={@runner_integrations_visible?} data-part="gitlab-card-section">
     <div data-part="header-row">
       <div data-part="header">
         <span data-part="title">{dgettext("dashboard_integrations", "GitLab CI")}</span>
@@ -392,7 +392,7 @@
     </form>
   </.card_section>
 
-  <.card_section :if={@buildkite_card_visible?} data-part="buildkite-card-section">
+  <.card_section :if={@runner_integrations_visible?} data-part="buildkite-card-section">
     <%!-- Connected: the whole card is the save form, with the actions on
           the header line and the fields below. A blank token keeps the
           current one, which is never shown again. --%>
