@@ -672,8 +672,7 @@
               box-sizing: border-box;
               /* Frames the pattern field, closing the outer cells. */
               border: 1px solid var(--marketing-cache-build-grid);
-              background-image:
-                linear-gradient(var(--marketing-cache-build-grid) 1px, transparent 1px),
+              background-image: linear-gradient(var(--marketing-cache-build-grid) 1px, transparent 1px),
                 linear-gradient(90deg, var(--marketing-cache-build-grid) 1px, transparent 1px);
               background-position: calc(50% + var(--cell) / 2) calc(50% + var(--cell) / 2);
               background-size: var(--cell) var(--cell);
@@ -717,8 +716,11 @@
 
           /* The diamond lattice: the square grid rotated 45 degrees. */
           & > [data-part="panel"][data-system="bazel"] > [data-part="grid"] {
-            background-image:
-              repeating-linear-gradient(45deg, var(--marketing-cache-build-grid) 0 1px, transparent 1px var(--cell)),
+            background-image: repeating-linear-gradient(
+                45deg,
+                var(--marketing-cache-build-grid) 0 1px,
+                transparent 1px var(--cell)
+              ),
               repeating-linear-gradient(-45deg, var(--marketing-cache-build-grid) 0 1px, transparent 1px var(--cell));
             background-position: center;
             background-size: auto;
