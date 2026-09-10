@@ -42,6 +42,13 @@ defmodule Tuist.EnvironmentTest do
       assert Environment.kura_placement_automatic_applies_per_day(environment) == %{}
     end
 
+    test "reads `all` as no ceiling for that kind" do
+      environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=all,retire=25"}
+
+      assert Environment.kura_placement_automatic_applies_per_day(environment) ==
+               %{"expand" => :unlimited, "retire" => 25}
+    end
+
     test "drops an unreadable pair without losing the readable ones" do
       environment = %{"TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY" => "expand=2,correct=two,retire=-1"}
 

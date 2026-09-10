@@ -9,6 +9,8 @@ on:
       - server/**
       - cache/**
       - .github/workflows/gradle-cache-acceptance.yml
+      - mise.toml
+      - mise.lock
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +18,8 @@ on:
       - server/**
       - cache/**
       - .github/workflows/gradle-cache-acceptance.yml
+      - mise.toml
+      - mise.lock
   merge_group: {}
 
 permissions:
