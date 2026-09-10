@@ -389,7 +389,11 @@ COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/ru
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
 RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
+# Ubuntu's logout script clears a console that GitLab's login shell does not have.
+RUN rm -f /home/runner/.bash_logout
+
 USER runner
+RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
 # Default CMD is the poll loop, used by the poller init container.
 # The runner main container overrides this with run-job.sh via the
