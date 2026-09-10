@@ -74,8 +74,8 @@
     </.date_picker>
   </div>
 
-  <% analytics_failed = @timeseries.failed || @miss_reasons_series.failed %>
-  <% analytics_ready = @timeseries.ok? and @miss_reasons_series.ok? %>
+  <% analytics_failed = @timeseries.failed || @miss_reasons_series.failed || @module_count.failed %>
+  <% analytics_ready = @timeseries.ok? and @miss_reasons_series.ok? and @module_count.ok? %>
   <% totals =
     if analytics_ready,
       do:

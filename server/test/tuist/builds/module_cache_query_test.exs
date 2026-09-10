@@ -13,6 +13,35 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
     %{project: ProjectsFixtures.project_fixture()}
   end
 
+  test "series reuse includes hit-only modules, deduplicates products and fills empty days", %{project: project} do
+    first = event(project, "first", ~N[2024-04-01 10:00:00], git_branch: "main", is_ci: true)
+    last = event(project, "last", ~N[2024-04-03 10:00:00], git_branch: "feature", is_ci: false)
+    target(first, "Core", [], product: "framework", binary_cache_hit: :remote)
+    target(first, "Core", [], product: "staticLibrary", binary_cache_hit: :local)
+    target(first, "Miss", [])
+    target(last, "Core", [])
+    target(last, "NotCacheable", [], binary_cache_hash: nil)
+
+    for filters <- [[], [git_branch: "main"], [is_ci: false], [name: "Core"]] do
+      opts =
+        Keyword.merge(
+          [project_id: project.id, start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-03 23:59:59Z]],
+          filters
+        )
+
+      series = opts |> Analytics.module_invalidation_breakdown() |> Analytics.module_timeseries_from_breakdown(opts)
+      assert series.timeseries == Analytics.module_invalidation_timeseries(opts)
+
+      if !Keyword.has_key?(filters, :name) do
+        assert series.modules_series == Analytics.modules_timeseries(opts)
+      end
+
+      assert Enum.at(series.timeseries.invalidations, 1) == 0
+      assert Enum.at(series.timeseries.reuses, 1) == 0
+      assert Enum.at(series.modules_series.counts, 1) == 0
+    end
+  end
+
   test "batches independent names while retaining the full window and event filters", %{project: project} do
     names = Enum.map(1..257, &"Module#{String.pad_leading(Integer.to_string(&1), 3, "0")}")
 

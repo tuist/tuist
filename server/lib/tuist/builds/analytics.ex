@@ -2611,6 +2611,42 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
+  @doc """
+  Daily hits, misses and distinct module names from an already loaded breakdown.
+  Includes modules with no misses and counts a name once across its products.
+  """
+  def module_timeseries_from_breakdown(breakdown, opts) do
+    start_datetime = Keyword.fetch!(opts, :start_datetime)
+    end_datetime = Keyword.fetch!(opts, :end_datetime)
+
+    by_day =
+      breakdown
+      |> Enum.group_by(& &1.day)
+      |> Map.new(fn {day, rows} ->
+        {day,
+         %{
+           invalidations: Enum.sum(Enum.map(rows, & &1.misses)),
+           reuses: Enum.sum(Enum.map(rows, &(&1.appearances - &1.misses))),
+           modules: rows |> MapSet.new(& &1.name) |> MapSet.size()
+         }}
+      end)
+
+    dates = Date.range(DateTime.to_date(start_datetime), DateTime.to_date(end_datetime))
+    labels = Enum.map(dates, &Date.to_iso8601/1)
+
+    %{
+      timeseries: %{
+        dates: labels,
+        invalidations: Enum.map(dates, &(get_in(by_day, [&1, :invalidations]) || 0)),
+        reuses: Enum.map(dates, &(get_in(by_day, [&1, :reuses]) || 0))
+      },
+      modules_series: %{
+        dates: labels,
+        counts: Enum.map(dates, &(get_in(by_day, [&1, :modules]) || 0))
+      }
+    }
+  end
+
   # Returns the latest edges per module across builds of the newest commit with
   # edges in the requested window and filters. Older commits cannot keep removed
   # modules in the graph. Empty when no build carries edges yet.

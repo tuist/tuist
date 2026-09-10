@@ -10,6 +10,40 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
+  test "history filters reuse analytics and branch choices after the clock advances", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :cache_branches, fn _opts -> [] end)
+    reject(&Analytics.module_invalidation_timeseries/1)
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, 2000)
+
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+
+    expect(Analytics, :module_build_history, fn opts ->
+      assert opts[:git_branch] == "main"
+      assert opts[:end_datetime] == ~U[2024-04-30 10:00:00Z]
+
+      %{
+        rows: [],
+        has_previous_page: false,
+        has_next_page: false,
+        start_cursor: nil,
+        end_cursor: nil
+      }
+    end)
+
+    render_patch(lv, path <> "?builds-branch=main")
+    render_async(lv, 2000)
+    render_patch(lv, path <> "?builds-branch=main&miss-reason=cold")
+    render_async(lv, 2000)
+  end
+
   test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core?miss-reason=unknown")

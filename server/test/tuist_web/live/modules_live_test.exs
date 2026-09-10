@@ -12,6 +12,70 @@ defmodule TuistWeb.ModulesLiveTest do
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.ModulesLive
 
+  test "table and widget patches reuse the loaded snapshot after the clock advances", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+    expect(Analytics, :module_invalidation_breakdown, fn _opts -> [] end)
+    expect(Analytics, :module_count, fn _opts -> 0 end)
+    reject(&Analytics.module_invalidation_timeseries/1)
+    reject(&Analytics.modules_timeseries/1)
+
+    path = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules"
+    {:ok, lv, _html} = live(conn, path)
+    render_async(lv, 2000)
+
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+
+    for query <- [
+          "sort-by=hit_rate&sort-order=asc",
+          "q=Core",
+          "after=Core",
+          "analytics-selected-widget=modules",
+          "miss-reason=cold"
+        ] do
+      render_patch(lv, path <> "?" <> query)
+      render_async(lv, 2000)
+    end
+
+    expect(Analytics, :module_invalidation_breakdown, fn opts ->
+      assert opts[:start_datetime] == ~U[2024-04-23 11:00:00Z]
+      []
+    end)
+
+    expect(Analytics, :module_count, fn _opts -> 0 end)
+    render_patch(lv, path <> "?analytics-date-range=last-7-days")
+    render_async(lv, 2000)
+
+    expect(Analytics, :module_invalidation_breakdown, fn opts ->
+      assert opts[:is_ci]
+      assert opts[:start_datetime] == ~U[2024-04-23 11:00:00Z]
+      []
+    end)
+
+    expect(Analytics, :module_count, fn _opts -> 0 end)
+    render_patch(lv, path <> "?analytics-date-range=last-7-days&analytics-environment=ci")
+    render_async(lv, 2000)
+
+    stub(DateTime, :utc_now, fn -> ~U[2024-04-30 12:00:00Z] end)
+
+    expect(Analytics, :module_invalidation_breakdown, fn opts ->
+      assert opts[:end_datetime] == ~U[2024-04-30 12:00:00Z]
+      []
+    end)
+
+    expect(Analytics, :module_count, fn _opts -> 0 end)
+
+    render_hook(lv, "analytics_period_changed", %{
+      "value" => %{"start" => "2024-04-23", "end" => "2024-04-30"},
+      "preset" => "last-7-days"
+    })
+
+    render_async(lv, 2000)
+  end
+
   test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules?miss-reason=unknown")

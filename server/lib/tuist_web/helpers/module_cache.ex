@@ -2,6 +2,30 @@ defmodule TuistWeb.Helpers.ModuleCache do
   @moduledoc false
   use Gettext, backend: TuistWeb.Gettext
 
+  alias TuistWeb.Helpers.DatePicker
+
+  # Relative presets are a snapshot for this page. Recomputing "now" on a
+  # table patch changes the query window and defeats reuse of loaded analytics.
+  def analytics_period_assigns(params, assigns) do
+    preset = params["analytics-date-range"] || "last-30-days"
+
+    selection =
+      if preset == "custom" do
+        {preset, params["analytics-start-date"], params["analytics-end-date"]}
+      else
+        preset
+      end
+
+    period =
+      if assigns[:module_cache_date_selection] == selection do
+        assigns.analytics_period
+      else
+        DatePicker.date_picker_params(params, "analytics").period
+      end
+
+    %{analytics_preset: preset, analytics_period: period, module_cache_date_selection: selection}
+  end
+
   def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold evicted), do: reason
   def normalize_miss_reason(_), do: "all"
 

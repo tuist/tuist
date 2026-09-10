@@ -10,7 +10,7 @@ defmodule TuistWeb.ModulesLive do
   import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
-  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.ModuleCache
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
@@ -75,7 +75,10 @@ defmodule TuistWeb.ModulesLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
+    {:noreply,
+     socket
+     |> assign(:module_cache_date_selection, nil)
+     |> push_patch(to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
   def handle_event("select_miss_reason", %{"type" => type}, %{assigns: assigns} = socket)
@@ -123,12 +126,10 @@ defmodule TuistWeb.ModulesLive do
     analytics_environment = params["analytics-environment"] || "any"
     sort_by = if params["sort-by"] in @sort_options, do: params["sort-by"], else: "invalidations"
     sort_order = if params["sort-order"] in ~w(asc desc), do: params["sort-order"], else: default_sort_order(sort_by)
-    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
     socket =
       socket
-      |> assign(:analytics_preset, preset)
-      |> assign(:analytics_period, period)
+      |> assign(ModuleCache.analytics_period_assigns(params, socket.assigns))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
@@ -148,22 +149,20 @@ defmodule TuistWeb.ModulesLive do
     else
       socket
       |> assign(:modules_opts, opts)
-      |> assign_async([:modules, :miss_reasons_series], fn ->
+      |> assign_async([:modules, :miss_reasons_series, :timeseries, :modules_series], fn ->
         breakdown = Analytics.module_invalidation_breakdown(opts)
+        series = Analytics.module_timeseries_from_breakdown(breakdown, opts)
 
         {:ok,
          %{
            modules: Analytics.module_invalidations_from_breakdown(breakdown, Keyword.put(opts, :limit, @max_modules)),
-           miss_reasons_series: Analytics.miss_reasons_timeseries_from_breakdown(breakdown, opts)
+           miss_reasons_series: Analytics.miss_reasons_timeseries_from_breakdown(breakdown, opts),
+           timeseries: with_hit_rates(series.timeseries),
+           modules_series: series.modules_series
          }}
       end)
-      |> assign_async([:timeseries, :modules_series, :module_count], fn ->
-        {:ok,
-         %{
-           timeseries: opts |> Analytics.module_invalidation_timeseries() |> with_hit_rates(),
-           modules_series: Analytics.modules_timeseries(opts),
-           module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))
-         }}
+      |> assign_async(:module_count, fn ->
+        {:ok, %{module_count: Analytics.module_count(Keyword.put(opts, :git_branch, default_branch))}}
       end)
     end
   end

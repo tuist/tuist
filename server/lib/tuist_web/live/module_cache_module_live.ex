@@ -11,7 +11,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
-  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.ModuleCache
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -78,9 +78,9 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       end
 
     {:noreply,
-     push_patch(socket,
-       to: "/#{account.name}/#{project.name}/module-cache/modules/#{module_name}?#{query_params}"
-     )}
+     socket
+     |> assign(:module_cache_date_selection, nil)
+     |> push_patch(to: "/#{account.name}/#{project.name}/module-cache/modules/#{module_name}?#{query_params}")}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -136,12 +136,9 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
     selected_miss_reason = normalize_miss_reason(params["miss-reason"])
 
-    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
-
     socket =
       socket
-      |> assign(:analytics_preset, preset)
-      |> assign(:analytics_period, period)
+      |> assign(ModuleCache.analytics_period_assigns(params, socket.assigns))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:selected_miss_reason, selected_miss_reason)
@@ -152,13 +149,27 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     history_opts = build_history_opts(opts, name, params, socket.assigns)
 
     project_id = socket.assigns.selected_project.id
-    {start_datetime, end_datetime} = period
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
 
     socket =
-      assign_async(socket, [:build_history, :cache_branches], fn ->
+      if history_opts == socket.assigns[:history_opts] do
+        socket
+      else
+        socket
+        |> assign(:history_opts, history_opts)
+        |> assign_async(:build_history, fn ->
+          {:ok, %{build_history: Analytics.module_build_history(history_opts)}}
+        end)
+      end
+
+    if opts == socket.assigns[:module_opts] do
+      socket
+    else
+      socket
+      |> assign(:module_opts, opts)
+      |> assign_async(:cache_branches, fn ->
         {:ok,
          %{
-           build_history: Analytics.module_build_history(history_opts),
            cache_branches:
              Analytics.cache_branches(
                project_id: project_id,
@@ -167,7 +178,11 @@ defmodule TuistWeb.ModuleCacheModuleLive do
              )
          }}
       end)
+      |> assign_module_analytics(opts, name)
+    end
+  end
 
+  defp assign_module_analytics(socket, opts, name) do
     assign_async(
       socket,
       [:module, :timeseries, :dependents_series, :miss_reasons_series],
@@ -179,11 +194,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         breakdown = Analytics.module_invalidation_breakdown(module_opts)
         row = breakdown |> Analytics.module_invalidations_from_breakdown(module_opts) |> List.first()
 
-        timeseries =
-          opts
-          |> Keyword.put(:name, name)
-          |> Analytics.module_invalidation_timeseries()
-          |> with_hit_rates()
+        timeseries = with_hit_rates(Analytics.module_timeseries_from_breakdown(breakdown, module_opts).timeseries)
 
         module = build_module(row, name, timeseries, opts)
 

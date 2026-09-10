@@ -4,6 +4,7 @@ This area owns helper functions for views, forms, and UI utilities.
 
 ## Responsibilities
 - Provide helpers for formatting, rendering, and UI convenience.
+- `ModuleCache.analytics_period_assigns/2` keeps a page's relative date snapshot stable across presentation-only patches and reparses custom bounds when the date selection changes.
 - Build deterministic signed Open Graph image URLs from template variables supplied by controllers and LiveViews.
 
 ## Boundaries
