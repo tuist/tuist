@@ -83,6 +83,45 @@ defmodule Tuist.ReapiCache do
               ),
             download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
             upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0),
+            # Split by operation as well as blended. An action-cache hit returns
+            # an ActionResult, a CAS hit returns a build output, and summing them
+            # into one "downloads" figure hides which is which: a build can read
+            # 15.8 MB of action metadata and 137 KB of actual content and report
+            # 16 MB of "downloads".
+            action_download_bytes:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'action_cache' AND ? = 'hit', ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.size
+                  )
+                ),
+                0
+              ),
+            content_download_bytes:
+              coalesce(
+                sum(fragment("if(? = 'cas' AND ? = 'hit', ?, 0)", event.operation, event.outcome, event.size)),
+                0
+              ),
+            action_upload_bytes:
+              coalesce(
+                sum(
+                  fragment(
+                    "if(? = 'action_cache' AND ? = 'write', ?, 0)",
+                    event.operation,
+                    event.outcome,
+                    event.size
+                  )
+                ),
+                0
+              ),
+            content_upload_bytes:
+              coalesce(
+                sum(fragment("if(? = 'cas' AND ? = 'write', ?, 0)", event.operation, event.outcome, event.size)),
+                0
+              ),
             read_duration_us: coalesce(sum(fragment("if(? != 'write', ?, 0)", event.outcome, event.duration_us)), 0),
             read_count: coalesce(sum(fragment("if(? != 'write', 1, 0)", event.outcome)), 0),
             write_duration_us: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.duration_us)), 0),
@@ -631,7 +670,17 @@ defmodule Tuist.ReapiCache do
                 0
               ),
             download_bytes: coalesce(sum(fragment("if(? = 'hit', ?, 0)", event.outcome, event.size)), 0),
-            upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0)
+            upload_bytes: coalesce(sum(fragment("if(? = 'write', ?, 0)", event.outcome, event.size)), 0),
+            content_download_bytes:
+              coalesce(
+                sum(fragment("if(? = 'cas' AND ? = 'hit', ?, 0)", event.operation, event.outcome, event.size)),
+                0
+              ),
+            content_upload_bytes:
+              coalesce(
+                sum(fragment("if(? = 'cas' AND ? = 'write', ?, 0)", event.operation, event.outcome, event.size)),
+                0
+              )
           }
         )
       )
@@ -647,7 +696,15 @@ defmodule Tuist.ReapiCache do
   end
 
   def empty_summary do
-    %{hits: 0, misses: 0, download_bytes: 0, upload_bytes: 0, hit_rate: nil}
+    %{
+      hits: 0,
+      misses: 0,
+      download_bytes: 0,
+      upload_bytes: 0,
+      content_download_bytes: 0,
+      content_upload_bytes: 0,
+      hit_rate: nil
+    }
   end
 
   defp cache_event_query(project_id, opts) do

@@ -383,20 +383,26 @@ defmodule TuistWeb.BazelInvocationLive do
         />
         <.widget
           id={@widget_id_prefix <> "-downloads"}
-          title={dgettext("dashboard_projects", "Cache downloads")}
+          title={dgettext("dashboard_projects", "Content downloaded")}
           description={
-            dgettext("dashboard_projects", "Total size of data downloaded from the remote cache.")
+            dgettext(
+              "dashboard_projects",
+              "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
+            )
           }
-          value={ByteFormatter.format_bytes(@cache.download_bytes)}
+          value={ByteFormatter.format_bytes(@cache.content_download_bytes)}
           empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-uploads"}
-          title={dgettext("dashboard_projects", "Cache uploads")}
+          title={dgettext("dashboard_projects", "Content uploaded")}
           description={
-            dgettext("dashboard_projects", "Total size of data uploaded to the remote cache.")
+            dgettext(
+              "dashboard_projects",
+              "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
+            )
           }
-          value={ByteFormatter.format_bytes(@cache.upload_bytes)}
+          value={ByteFormatter.format_bytes(@cache.content_upload_bytes)}
           empty={cache_summary_empty?(@cache)}
         />
       </.card_section>
@@ -754,7 +760,8 @@ defmodule TuistWeb.BazelInvocationLive do
   # "0 / 0 / No data yet / 0 B / 0 B" - the inconsistency read as a broken
   # widget rather than an absence of data.
   defp cache_summary_empty?(cache) do
-    cache.hits + cache.misses == 0 and cache.download_bytes == 0 and cache.upload_bytes == 0
+    cache.hits + cache.misses == 0 and cache.content_download_bytes == 0 and
+      cache.content_upload_bytes == 0
   end
 
   defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
