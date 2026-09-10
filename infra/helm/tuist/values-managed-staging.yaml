@@ -32,10 +32,10 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
-  # Prepare the active public-region wildcard and aliases before handing the URLs to clients.
-  # Follow infra/kura-controller/REGIONAL_ROUTING.md to verify and publish.
+  # The deployment workflow prepares DNS/TLS/routes and gates publication.
+  # See infra/kura-controller/REGIONAL_ROUTING.md for validation and rollback.
   regionalRouting:
-    publishEndpoints: false
+    publishEndpoints: true
     regions:
       - region: eu-west
         domain: eu-west.staging.kura.tuist.dev

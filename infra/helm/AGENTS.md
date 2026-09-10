@@ -35,6 +35,9 @@ This node covers Helm assets under `infra/helm/`.
   `tuist/values.yaml`. Keep controller domains and server endpoint domains
   derived from the same region list. See
   [`../kura-controller/REGIONAL_ROUTING.md`](../kura-controller/REGIONAL_ROUTING.md).
+  Managed deployment prepares unpublished regions with publication disabled,
+  then verifies certificate, DNS, workload rollout and serving readiness before
+  applying the requested publication setting.
 
 ## Related Context
 - Parent infra context: `infra/AGENTS.md`

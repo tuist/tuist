@@ -64,6 +64,44 @@ class PublicationGateTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "certificate"):
                 gate.check(config)
 
+    def test_serving_gate_waits_for_rollout_and_probes_all_addresses(self):
+        self.regions[0]["ingressClass"] = "kura-eu-west"
+        config = gate.plan([self.server, self.controller])
+        config["regions"] = self.regions
+        domain = self.regions[0]["domain"]
+        host = "acme." + domain
+        workload = {"metadata": {"name": "kura-acme", "generation": 2}, "spec": {"replicas": 2},
+                    "status": {"readyReplicas": 2, "updatedReplicas": 2, "observedGeneration": 2,
+                               "currentRevision": "new", "updateRevision": "new"}}
+        resources = {
+            "certificate": {"metadata": {"generation": 2}, "spec": {"dnsNames": ["*." + domain]},
+                            "status": {"conditions": [{"type": "Ready", "status": "True", "observedGeneration": 2}]}},
+            "kurainstances": {"items": [{"metadata": {"name": "kura-acme"}, "spec": {
+                "accountHandle": "acme", "region": "eu-west", "publicHostNetwork": True,
+                "ingressClassName": "kura-eu-west", "meshPublicPeerHost": "old.example"}}]},
+            "ingresses": {"items": [{"metadata": {"name": name, "annotations": {
+                "external-dns.alpha.kubernetes.io/controller": "kura-controller"}},
+                "spec": {"rules": [{"host": host}]}} for name in ("kura-acme", "kura-acme-grpc")]},
+            "statefulsets": {"items": [workload]},
+            "dnsendpoint": {"spec": {"endpoints": [{"dnsName": "*." + domain,
+                "recordType": "A", "targets": ["203.0.113.1", "203.0.113.2"]}, {
+                "dnsName": "*.peer." + domain, "recordType": "A", "targets": ["203.0.113.3"]}]}},
+            "secret": {},
+        }
+        with patch.object(gate, "kube", side_effect=lambda ns, kind, name=None: resources[kind]), \
+                patch.object(gate, "verify_dns"), patch.object(gate, "https_probe") as public, \
+                patch.object(gate, "peer_probe") as peer:
+            self.assertEqual(gate.check(config), 3)
+            self.assertEqual(public.call_count, 2)
+            peer.assert_called_once()
+            workload["status"]["currentRevision"] = "old"
+            with self.assertRaisesRegex(RuntimeError, "rollout incomplete"):
+                gate.check(config)
+            workload["status"]["currentRevision"] = "new"
+            peer.side_effect = OSError("peer still serves old certificate")
+            with self.assertRaisesRegex(OSError, "old certificate"):
+                gate.check(config)
+
 
 if __name__ == "__main__":
     unittest.main()

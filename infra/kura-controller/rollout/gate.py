@@ -94,8 +94,14 @@ def peer_probe(host, addresses, secret):
         context.load_cert_chain(str(Path(directory) / "tls.crt"), str(Path(directory) / "tls.key"))
         for address in addresses:
             with socket.create_connection((address, 7443), timeout=5) as sock:
-                with context.wrap_socket(sock, server_hostname=host):
-                    pass
+                with context.wrap_socket(sock, server_hostname=host) as tls:
+                    # TLS 1.3 can report a rejected client certificate only on
+                    # the first read, after wrap_socket has already returned.
+                    tls.sendall(f"GET /_internal/status HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
+                    response = http.client.HTTPResponse(tls)
+                    response.begin()
+                    if response.status != 200:
+                        raise RuntimeError(f"{host} via {address}: peer status returned {response.status}")
 
 
 def check(config):
@@ -107,6 +113,7 @@ def check(config):
         raise RuntimeError("regional wildcard certificate is not Ready")
     instances = kube(namespace, "kurainstances")["items"]
     ingresses = {i["metadata"]["name"]: i for i in kube(namespace, "ingresses")["items"]}
+    workloads = {s["metadata"]["name"]: s for s in kube(namespace, "statefulsets")["items"]}
     tasks = []
     for region in config["regions"]:
         domain = region["domain"]
@@ -124,6 +131,15 @@ def check(config):
             if not spec.get("publicHostNetwork") or spec.get("ingressClassName") != region["ingressClass"]:
                 raise RuntimeError("instance does not match its regional ingress configuration")
             name = instance["metadata"]["name"]
+            workload = workloads.get(name, {})
+            status = workload.get("status", {})
+            replicas = workload.get("spec", {}).get("replicas", 1)
+            if (status.get("readyReplicas", 0) != replicas or
+                    status.get("updatedReplicas", 0) != replicas or
+                    status.get("observedGeneration") != workload.get("metadata", {}).get("generation") or
+                    not status.get("updateRevision") or
+                    status.get("currentRevision") != status["updateRevision"]):
+                raise RuntimeError(f"peer certificate rollout incomplete for {name}")
             host = spec["accountHandle"] + "." + domain
             for ingress_name in (name, name + "-grpc"):
                 ingress = ingresses.get(ingress_name, {})
