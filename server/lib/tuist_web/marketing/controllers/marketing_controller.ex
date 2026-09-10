@@ -1011,6 +1011,38 @@ defmodule TuistWeb.Marketing.MarketingController do
     end
   end
 
+  # The compute page only exists in the redesign, so instead of falling back
+  # to a legacy template when the flag is off, it stays hidden behind a 404
+  # until :new_marketing_compute flips.
+  def compute(conn, _params) do
+    if !Design.new?(conn, :compute) do
+      raise NotFoundError, dgettext("errors", "Page not found")
+    end
+
+    conn
+    |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
+    |> assign(
+      :head_image,
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Compute")))
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
+      )
+    )
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
+      ])
+    )
+    |> assign(:new_design, true)
+    |> render(:compute_new, layout: false)
+  end
+
   def page(conn, _params) do
     request_path = Localization.path_without_locale(conn.request_path)
 
