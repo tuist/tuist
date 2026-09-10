@@ -58,3 +58,5 @@ public enum CoreDataVersionExtractorError: FatalError, Equatable {
         }
     }
 }
+
+// Cache probe: exercises the macOS runner cache path; branch is deleted after the run.
