@@ -363,7 +363,7 @@ public enum Module: String, CaseIterable {
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand,
+             .registryCommand, .generateCommand,
              .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
@@ -421,6 +421,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -1204,6 +1206,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
+                    .external(name: "Command"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1593,7 +1596,7 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-                 .registryCommand, .buildCommand, .generateCommand,
+                 .registryCommand, .generateCommand,
                  .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
@@ -1628,6 +1631,15 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .buildCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
                 ]
             case .testCommand:
                 [
@@ -1679,8 +1691,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -2210,6 +2224,8 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
+            resources: self == .bazelCommand && product == .unitTests
+                ? [.folderReference(path: "cli/Tests/Fixtures/JUnitIdentity")] : nil,
             buildableFolders: [
                 .folder(
                     buildableFolderPath,

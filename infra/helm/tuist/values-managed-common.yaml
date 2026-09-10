@@ -37,11 +37,17 @@ kuraController:
   image:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
-  # chart. The controller uses it for the per-Kura public HTTPS and gRPC
-  # certificates consumed by the regional Kura ingress layer.
+  # chart. The controller uses it for the shared wildcard below, and for the
+  # per-instance certificate of any instance that wildcard does not cover.
   tlsClusterIssuer: "letsencrypt-cloudflare"
+  publicWildcardCertificate:
+    enabled: true
+    dnsNames:
+      - "*.kura.tuist.dev"
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+  analytics:
+    enabled: true
   sharedSecrets:
     kuraIntrospection:
       enabled: true

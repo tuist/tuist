@@ -54,6 +54,18 @@ defmodule Tuist.FeatureFlags do
     Environment.turnstile_required?() and not FunWithFlags.enabled?(:turnstile_kill_switch)
   end
 
+  @doc """
+  Whether the account's Kura nodes replicate by pulling from their peers
+  instead of pushing through the outbox (kura/docs/replication-design.md
+  §5.2). Per account so one mesh can be flipped and watched before the rest:
+  the provisioner renders it into every managed instance's spec and the mesh
+  view publishes it, so managed pods and enrolled self-hosted nodes flip
+  together. Off by default; enabled per actor via /ops/flags.
+  """
+  def kura_replication_pull_enabled?(account) do
+    FunWithFlags.enabled?(:kura_replication_pull, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

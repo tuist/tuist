@@ -1028,6 +1028,65 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
   end
 
+  describe "free tier" do
+    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      assert html =~ "Free tier"
+      assert html =~ "42 of 200"
+      assert html =~ "Never"
+    end
+
+    test "warns only when the account is actually cut off", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      refute has_element?(lv, "#free-tier-blocked-alert")
+
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Repo.update!()
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert has_element?(lv, "#free-tier-blocked-alert")
+    end
+
+    test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      user.account
+      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Repo.update!()
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      assert has_element?(lv, "#free-tier-blocked-alert")
+
+      html = lv |> element("button", "Reset free tier") |> render_click()
+
+      refute has_element?(lv, "#free-tier-blocked-alert")
+      assert html =~ "starts over from now"
+
+      account = Repo.reload!(user.account)
+      assert account.current_month_remote_cache_hits_count == 0
+      assert account.free_tier_reset_at
+    end
+
+    test "the reset survives the nightly recount by moving the counting window", %{conn: conn, user: user} do
+      # Zeroing the counter alone would be recomputed straight back over
+      # the threshold, so the timestamp is the half that matters.
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      lv |> element("button", "Reset free tier") |> render_click()
+
+      account = Repo.reload!(user.account)
+      assert DateTime.after?(account.free_tier_reset_at, DateTime.add(DateTime.utc_now(), -60, :second))
+    end
+  end
+
   describe "claim sizing proposals" do
     setup %{user: user} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)

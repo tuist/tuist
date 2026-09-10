@@ -173,6 +173,54 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       assert PlacementProposals.open_proposal_for(account) == nil
     end
 
+    test "leaves an account whose primary is a region the catalog does not name alone" do
+      # The rows can name a region this code has never heard of for the length
+      # of a deploy that renames one. An account is only looked at through an
+      # instance in a region that is known, so it takes a second region to get
+      # here at all, and that is the account a drain could actually proceed on.
+      # Read as a misplacement, the unknown primary would be moved off an
+      # instance that is serving it.
+      account = paid_account()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: "https://#{account.name}-atlantis-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      insert_server!(account, "us-east")
+      {:ok, _primary} = PlacerRegions.put_primary(account, "atlantis")
+      seed_runs(account, "FR", 30, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
+    test "leaves an account whose live instance is in a region the catalog does not name alone, without placement rows" do
+      # Without placement rows the sweep reads the live instances, and a live
+      # region the catalog does not name has to count there too, or the account
+      # is placed as if it held only its known region.
+      account = paid_account()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "atlantis",
+        status: :active,
+        url: "https://#{account.name}-atlantis-1.kura.tuist.dev",
+        current_image_tag: "0.5.2",
+        provisioner_node_ref: "kura-#{account.name}-atlantis-1"
+      })
+
+      insert_server!(account, "us-east")
+      seed_runs(account, "FR", 30, 20)
+
+      assert {:ok, %{evaluated: 1, open: 0}} = PlacementProposals.sweep(@today)
+      assert PlacementProposals.open_proposal_for(account) == nil
+    end
+
     test "refreshes the evidence on an unchanged recommendation rather than churning rows" do
       account = paid_account()
       insert_server!(account, "us-east")
@@ -395,7 +443,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 0
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 0, relocate: 0, expand: 0, retire: 0}
     end
 
     test "counts an automatic apply" do
@@ -409,7 +457,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       since = DateTime.add(DateTime.utc_now(), -3600, :second)
 
-      assert PlacementProposals.automatic_applies_since(since) == 1
+      assert PlacementProposals.automatic_applies_since(since) == %{correct: 1, relocate: 0, expand: 0, retire: 0}
     end
   end
 

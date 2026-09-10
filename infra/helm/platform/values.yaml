@@ -255,6 +255,80 @@ kura-ap-southeast-ingress-nginx:
     metrics:
       enabled: true
 
+# Declared while the region is gated off everywhere, for the same reason
+# kura-ap-southeast is: a region whose ingress class no controller declares has
+# its Ingresses go unclaimed the moment it is switched on.
+kura-sa-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-sa-west-ingress-nginx-leader
+    ingressClass: kura-sa-west
+    ingressClassResource:
+      name: kura-sa-west
+      controllerValue: k8s.io/kura-sa-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-eu-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-east-ingress-nginx-leader
+    ingressClass: kura-eu-east
+    ingressClassResource:
+      name: kura-eu-east
+      controllerValue: k8s.io/kura-eu-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-central-ingress-nginx-leader
+    ingressClass: kura-us-central
+    ingressClassResource:
+      name: kura-us-central
+      controllerValue: k8s.io/kura-us-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Lets the regional Kura gateways above reach Kura pods on the other boxes of a
+# multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
+# host-network; see templates/kura-gateway-network-policy.yaml for why the
+# per-instance NetworkPolicy cannot express this on its own.
+kuraGatewayNetworkPolicy:
+  enabled: false
+  # Namespace kura-controller creates KuraInstance workloads in
+  # (`kuraController.namespace` in the tuist chart).
+  namespace: kura
+  port: 4000
+
 external-dns:
   enabled: true
   provider: cloudflare

@@ -9,7 +9,9 @@ defmodule Tuist.Kura.OriginMapTest do
       assert ["eu-central" | _rest] = OriginMap.candidates("DE")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("SG")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("AU")
-      assert ["us-east" | _rest] = OriginMap.candidates("BR")
+      assert ["sa-west" | _rest] = OriginMap.candidates("BR")
+      assert ["sa-west" | _rest] = OriginMap.candidates("CL")
+      assert ["sa-west" | _rest] = OriginMap.candidates("AR")
       assert ["eu-central" | _rest] = OriginMap.candidates("ZA")
     end
 

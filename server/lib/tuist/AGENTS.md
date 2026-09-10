@@ -3,12 +3,21 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
+- `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
 - Ecto schemas, contexts, and domain services.
+- `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
+- External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.
 - Business rules for accounts, projects, bundles, previews, and analytics.
+- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected by default for every processed Xcode build, for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The metadata response derives its distinct project/target count from the fetched intervals without a second query. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
+
+- Build ingestion no longer reads `feature_flags`. Its processor read grant in
+  `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
+  with older processor releases during rolling deployments and rollbacks.
 
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
   Its query options suppress application SQL logging without overriding managed
@@ -20,6 +29,8 @@ This directory contains the core business logic and domain modules for the serve
   `System.cmd` in a timed task, collecting the parser's inherited stderr without
   MuonTrap's output acknowledgement protocol. This avoids `:epipe` on fast exits
   while retaining process cleanup when the task times out or its caller dies.
+- `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
+  so Oban retries them and the final attempt marks the build as `failed_processing`.
 
 ## Related Context (Downlinks)
 

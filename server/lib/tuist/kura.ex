@@ -96,6 +96,27 @@ defmodule Tuist.Kura do
   @doc "Seconds a draining server keeps serving before teardown."
   def drain_seconds, do: @drain_seconds
 
+  # How long a provisioning attempt may go without producing a routable
+  # endpoint before the wait stops being a startup delay and starts being a
+  # stall. Every wait the reconciler treats as benign (DNS that has not
+  # propagated, a workload whose endpoint is not serving yet) is benign for
+  # seconds, not for hours: instances reach `:active` in about two minutes, so
+  # this sits far enough past that to never fire on a slow start and close
+  # enough to surface a stall inside a build cycle.
+  #
+  # The clock is the open deployment's `inserted_at`, not the server's
+  # `updated_at`. A stalled server is precisely one nothing writes to, so its
+  # `updated_at` is frozen at the moment the attempt began and cannot say how
+  # long the attempt has run. Exactly one deployment is open per server at a
+  # time (`ensure_no_open_deployment/1`), it is inserted when the attempt
+  # starts (a first provision and a cold return out of `:archived` both go
+  # through `insert_initial_deployment/3`), and it closes when the server
+  # activates, which makes it the one clock that measures the attempt itself.
+  @provisioning_stall_seconds 900
+
+  @doc "Seconds a provisioning attempt may run without a routable endpoint before it counts as stalled."
+  def provisioning_stall_seconds, do: @provisioning_stall_seconds
+
   # How long a client may hold an endpoint answer before it has to ask again.
   # Lives here rather than on the controller that sets the header because the
   # drain below has to outlast it, and two numbers that must agree should not
@@ -331,7 +352,7 @@ defmodule Tuist.Kura do
   def managed_cache_endpoint_urls(%Account{id: account_id}, origin) do
     Server
     |> where([s], s.account_id == ^account_id and s.status == :active)
-    |> where([s], s.region in ^public_region_ids())
+    |> where([s], s.region not in ^private_catalog_region_ids())
     |> select([s], %{url: s.url, region: s.region})
     |> Repo.all()
     |> order_by_origin(origin)
@@ -349,12 +370,15 @@ defmodule Tuist.Kura do
 
   # The CLI cannot reach a private region: its URL is in-cluster Service DNS,
   # and runner builds get it through `runner_cache_endpoint_url/2` instead.
-  # Read from `all/0` rather than `available/0` so an instance in a region that
-  # has been dropped from the environment's catalog keeps serving the account
-  # until teardown actually removes it.
-  defp public_region_ids do
+  # Excluding what is known to be private, rather than including what is known
+  # to be public, is what keeps an instance serving through a region rename: a
+  # deploy rolls pods one at a time, so for its length the rows name a region
+  # the old code has never heard of, and that instance is still the account's
+  # cache. The same reading keeps an instance in a region dropped from the
+  # environment's catalog serving until teardown actually removes it.
+  defp private_catalog_region_ids do
     Regions.all()
-    |> Enum.reject(&Regions.private?/1)
+    |> Enum.filter(&Regions.private?/1)
     |> Enum.map(& &1.id)
   end
 
@@ -1047,11 +1071,29 @@ defmodule Tuist.Kura do
   self-hosted nodes an address nothing answers on.
   """
   def server_regions_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> select([s], s.region)
+    |> Repo.all()
+  end
+
+  @doc """
+  The account's live steady-state servers without their deployment history:
+  the same rows `server_regions_for_account/1` reduces to regions, for the
+  mesh view that has to address each region's backing resource (the peer
+  roles are read off the `KuraInstance` status, so it needs the
+  `provisioner_node_ref` beside the region).
+  """
+  def mesh_servers_for_account(account_id) do
+    account_id
+    |> live_steady_state_servers_query()
+    |> Repo.all()
+  end
+
+  defp live_steady_state_servers_query(account_id) do
     Server
     |> where([s], s.account_id == ^account_id and s.status not in [:destroyed, :archived] and s.move_phase == :none)
     |> order_by([s], asc: s.region)
-    |> select([s], s.region)
-    |> Repo.all()
   end
 
   @doc "Fetches a server scoped to the given account."
@@ -1340,7 +1382,7 @@ defmodule Tuist.Kura do
   defp managed_cli_endpoint_servers(%Account{id: account_id}) do
     Server
     |> where([s], s.account_id == ^account_id and s.status == :active)
-    |> where([s], s.region in ^public_region_ids())
+    |> where([s], s.region not in ^private_catalog_region_ids())
     |> order_by(asc: :region)
     |> Repo.all()
   end
@@ -1502,6 +1544,25 @@ defmodule Tuist.Kura do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Records the replication roles the reconciler read off a server's backing
+  `KuraInstance` (`status.peerRoles`). The mesh view publishes roles from
+  this column rather than reading each region's apiserver on the request
+  path, so `/peers` is a Postgres read again and one slow regional cluster
+  can no longer push a node's peer-view fetch past its own request deadline.
+
+  An empty list is a value, not a no-op: it is how a controller that has
+  published no roles yet (or an instance whose pods went away) clears the
+  ones a previous tick stored. No lock and no broadcast — the reconciler is
+  the only writer and no view renders the column — and an unchanged list
+  writes nothing, so a steady-state fleet costs one read per tick.
+  """
+  def record_peer_roles(%Server{} = server, roles) when is_list(roles) do
+    server
+    |> Server.peer_roles_changeset(%{peer_roles: roles})
+    |> Repo.update()
   end
 
   @doc """
@@ -2088,6 +2149,36 @@ defmodule Tuist.Kura do
     |> where([s], s.status in ^@unroutable_statuses and s.region in ^region_ids)
     |> group_by([s], s.region)
     |> select([s], {s.region, count(s.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @open_deployment_statuses [:pending, :running]
+
+  @doc """
+  Counts, per region, the instances whose provisioning attempt has run past
+  `provisioning_stall_seconds/0` without producing a routable endpoint.
+
+  The subset of `unroutable_instance_counts/1` that is actually wrong. That
+  count includes every instance still starting, so it is only readable as "how
+  long did it persist"; this one excludes them by construction, because a
+  healthy attempt closes its deployment in about two minutes and leaves. A
+  fleet with nothing stuck reads zero, which is what makes it alertable on the
+  value rather than on the duration.
+
+  Counting the deployment rather than the server status is deliberate: it
+  covers a stall in any of the non-serving states, `:replicating` included,
+  without depending on which one the projection last derived.
+  """
+  def stalled_instance_counts(region_ids) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@provisioning_stall_seconds, :second)
+
+    Server
+    |> join(:inner, [s], d in Deployment, on: d.kura_server_id == s.id)
+    |> where([s, d], s.status in ^@unroutable_statuses and s.region in ^region_ids)
+    |> where([_s, d], d.status in ^@open_deployment_statuses and d.inserted_at <= ^cutoff)
+    |> group_by([s], s.region)
+    |> select([s], {s.region, count(s.id, :distinct)})
     |> Repo.all()
     |> Map.new()
   end

@@ -30,6 +30,7 @@ mod runtime;
 mod segment;
 mod state;
 mod store;
+mod sync;
 mod telemetry;
 mod usage;
 mod utils;

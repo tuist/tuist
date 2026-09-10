@@ -10,11 +10,11 @@ defmodule Tuist.ClickHouseRetry do
   half-dead socket surface as `:timeout`. Both clear within
   milliseconds and are safe to retry on idempotent reads/writes.
 
-  `with_result_retry/2` additionally retries ClickHouse's memory-limit
-  error (code 241). Both the per-user budget and the process-wide ceiling
-  raise it, and both clear on their own once the queries holding the
-  memory finish, so the write is worth re-attempting rather than failing
-  the caller. The code is matched directly: the message wording differs
+  Both functions also retry ClickHouse's memory-limit error (code 241).
+  Both the per-user budget and the process-wide ceiling raise it, and both
+  clear on their own once the queries holding the memory finish, so the
+  call is worth re-attempting rather than failing the caller. The code is
+  matched directly: the message wording differs
   between the two limits and has changed across ClickHouse releases, so
   matching on it silently stops recognising the error.
 
@@ -31,19 +31,59 @@ defmodule Tuist.ClickHouseRetry do
   @max_retries 3
   @max_memory_retries 8
 
-  def with_retry(fun, retries_left \\ @max_retries) do
+  def with_retry(fun, opts \\ [])
+
+  def with_retry(fun, transport_retries) when is_integer(transport_retries),
+    do: with_retry(fun, transport_retries: transport_retries)
+
+  def with_retry(fun, opts) when is_list(opts) do
+    transport_retries = Keyword.get(opts, :transport_retries, @max_retries)
+    memory_retries = Keyword.get(opts, :memory_retries, @max_retries)
+
+    with_retry(fun, transport_retries, transport_retries, memory_retries, memory_retries)
+  end
+
+  defp with_retry(fun, transport_retries_left, initial_transport_retries, memory_retries_left, initial_memory_retries) do
     fun.()
   rescue
     e in [Mint.TransportError, DBConnection.ConnectionError] ->
-      if retries_left > 0 do
-        delay = Integer.pow(2, @max_retries - retries_left) * 100
+      if transport_retries_left > 0 do
+        delay = retry_delay(initial_transport_retries, transport_retries_left)
 
         Logger.warning(
-          "ClickHouse operation failed (#{Exception.message(e)}), retrying in #{delay}ms (#{retries_left} retries left)"
+          "ClickHouse operation failed (#{Exception.message(e)}), retrying in #{delay}ms (#{transport_retries_left} retries left)"
         )
 
         Process.sleep(delay)
-        with_retry(fun, retries_left - 1)
+
+        with_retry(
+          fun,
+          transport_retries_left - 1,
+          initial_transport_retries,
+          memory_retries_left,
+          initial_memory_retries
+        )
+      else
+        reraise e, __STACKTRACE__
+      end
+
+    e in Ch.Error ->
+      if memory_limit_error?(e) and memory_retries_left > 0 do
+        delay = retry_delay(initial_memory_retries, memory_retries_left, 2_000)
+
+        Logger.warning(
+          "ClickHouse is over its memory budget, retrying in #{delay}ms (#{memory_retries_left} retries left)"
+        )
+
+        Process.sleep(delay)
+
+        with_retry(
+          fun,
+          transport_retries_left,
+          initial_transport_retries,
+          memory_retries_left - 1,
+          initial_memory_retries
+        )
       else
         reraise e, __STACKTRACE__
       end

@@ -25,7 +25,7 @@ registry:
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
-  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # Keep terminate-then-replace on the canary pool. The chart default
   # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
   # while every other Deployment in the release is surging too, so the extra
   # Pods queue behind each other on FailedScheduling and whichever waits past
@@ -150,7 +150,7 @@ server:
     tlsSecretName: tuist-tls-cloudflare-origin
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
-  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # alongside the live pod on the canary nodepool. Steady-state
   # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
@@ -162,7 +162,7 @@ server:
 
   # The migration hook runs before Helm can roll any workload pods, so it
   # must fit next to the steady-state canary server, processor, Redis, and
-  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # telemetry pods on the canary cluster. `Tuist.Release.migrate` only
   # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
   # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
   # canary server's request so the hook fits whenever the server fits;
@@ -235,6 +235,14 @@ server:
     # interim-paced ordering here; kept aligned with production.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Matches production so the cascade runs the automatic-apply path before
+    # production gets it. What it proves is bounded: this environment has one
+    # public region and its accounts are acceptance-test accounts reclaimed the
+    # next day, so the sweep has nowhere to move anything to and no history to
+    # move it on. It exercises the parse, the per-kind budget and the sweep
+    # under a non-empty value, not a real transition.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -250,36 +258,112 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
+  # The in-cluster ClickHouse (spec #73). On: both AX42-1 are installed and
+  # Ready in the `clickhouse` pool, each with `/data` as XFS on its 2x512 GB
+  # mirror.
   #
-  # Turning it on is step 2 of the rollout plan in the pull request, and the
-  # steps after it are `shadowWrites.enabled`, then `migration` with the
-  # backfill in the background, then the read flag. Each is its own deploy, and
-  # each has a gate.
+  # This is step 2 of the rollout plan, and it brings the server up empty and
+  # nothing more. The steps after it are the schema clone, then
+  # `shadowWrites.enabled`, then `migration` with the backfill in the
+  # background, then the read flag. Each is its own deploy, and each has a
+  # gate.
   managed:
-    enabled: false
+    enabled: true
     # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
     # mirror, so this is sized for the environment's own data. What canary is
     # for is the shape production will run — a second replica and a
     # three-member quorum, neither of which staging exercises.
     #
-    # Both are still 1 here, because two replicas need a volume per replica and
-    # a database initialised on each of them, and neither exists yet. Raise
-    # them together once they do.
-    #
-    # The volume per replica is what gates `enabled: true` above, not just this
-    # count: the pool is two nodes and the local PersistentVolume binds on the
-    # pool label rather than a node name, so even one pod can be scheduled onto
-    # the node that does not hold the data.
+    # Both are still 1. Two replicas need a database initialised on each of
+    # them, which the init Job does not do: it reaches whichever pod the
+    # Service picks. The volume half is solved, by `nodeName` below, so raising
+    # these is now gated on the init alone.
     replicas: 1
     persistence:
       size: 200Gi
+      localVolume:
+        # The pool has two nodes, so this names which one holds the data. See
+        # the `nodeName` comment in values.yaml for why it is a hostname and
+        # not the pool label. The second box is joined, tainted and idle until
+        # the two-replica work lands.
+        nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads from the in-cluster
+    # server yet, so a mirrored write that fails costs a metric and not a
+    # request: inserts are handed to a bounded Task.Supervisor rather than
+    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
+    # cannot overtake the inserts it is meant to erase.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow pool
+    # is not ready for the first seconds of its life, which is what the retry
+    # covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
     keeper:
       replicas: 1
     backup:
       enabled: true
+    # One step of the migration, run as a Job by the chart. The sequence is
+    # advanced by changing `task` and deploying, so each step is a reviewed
+    # change in the release history rather than a command typed at a database.
+    #
+    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
+    # deploy that first introduced the workload, this one has somewhere to
+    # clone to. The Job is a post-upgrade hook, so it runs once the release is
+    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
+    # the destination from already exists.
+    #
+    # Gate: table, view and migration-version counts match the source. Engines
+    # need no assertion, because `database_replicated_allow_only_replicated_engine`
+    # makes the destination reject a non-replicated table, so creation
+    # succeeding is the proof.
+    #
+    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
+    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
+    # one enabled re-runs it on every deploy. That was harmless for the clone,
+    # which creates what is missing and leaves the rest alone, and it is not
+    # harmless for what comes next.
+    #
+    # `name` and `task` are the step this would run if it were enabled, which
+    # is why they name the *next* one rather than the last that ran.
+    #
+    # `cutoff` is deliberately absent, and arming the backfill without it fails
+    # loudly rather than copying to a stale timestamp. Set it to a moment after
+    # the deploy that turns dual writes on above has finished rolling out: the
+    # backfill covers everything before it, the mirror covers everything after,
+    # and naming the boundary is what stops the two from leaving a gap.
+    # Off. Arming this failed three canary releases in a row and rolled each
+    # one back, because helm 4 waits on ordinary Jobs:
+    #
+    #   Error: UPGRADE FAILED: release tuist failed, and has been rolled back
+    #   due to rollback-on-failure being set: resource
+    #   Job/tuist-canary/tuist-tuist-clickhouse-backfill-r894 not ready.
+    #   status: Failed, message: Job Failed. failed: 1/1
+    #
+    # `background: true` was written for helm 3, where `--wait` covered pods
+    # and workloads but not Jobs, so an ordinary Job really did run beside the
+    # release. Under helm 4 it does not: the release waits for the Job, and a
+    # Job that fails fails the release. That inverts the whole reason the
+    # setting exists, and on a production-sized copy it would hold the release
+    # for hours and then roll it back on the deadline, which is exactly the
+    # outcome it was meant to prevent.
+    #
+    # So the backfill needs a way to run that helm does not wait on before it
+    # can be armed again, here or anywhere. Until then this stays off, and
+    # `name` and `task` keep naming the step it would run.
+    migration:
+      enabled: false
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -355,17 +439,20 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
-# replica), 10Gi per instance. Matches the cluster's general-purpose
-# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
-# requires one CNPG instance per host, so a 3-instance cluster would
-# leave the third pod permanently Pending until md-0 was scaled up.
+# replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
+# on separate hosts. The general-purpose pool has three workers so hooks
+# and rolling updates have headroom; keep CNPG at two instances rather
+# than consuming that capacity with another database replica.
 # Canary is a soak environment, not an HA-shape one; production keeps
 # the 3-instance design on its 3-worker pool. Each instance is a
 # streaming replica holding the whole DB, so the size is per-replica

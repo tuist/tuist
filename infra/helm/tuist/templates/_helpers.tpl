@@ -110,6 +110,10 @@ green-field cluster.
 {{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.rackFleetName" -}}
+{{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
+{{- end -}}
+
 {{- define "tuist.buildersFleetName" -}}
 {{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
 {{- end -}}

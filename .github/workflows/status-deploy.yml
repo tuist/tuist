@@ -21,7 +21,6 @@ defaults:
     working-directory: status
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   # Install only this project's tools and stop mise auto-installing the rest of the
   # merged root toolset when `mise run` executes (which would hit the GitHub API).
@@ -37,7 +36,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "node aube npm:wrangler"
           working-directory: status
       - uses: 1password/install-cli-action@v2

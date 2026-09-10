@@ -954,36 +954,67 @@ sum by (pod, result) (rate(kura_artifact_reads_total_total{result=~"error"}[5m])
 - `kura_multipart_parts_total{result="capacity_exceeded"}` is decisive but covers
   `/api/cache/module/part` only. `/start` and `/complete` have no counter of
   their own.
-- **`kura_multipart_uploads` is not the reservation counter.** It is the count of
-  *persisted* multipart records (`Store::snapshot` ->
-  `count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)`), while admission guards a
-  separate atomic. It legitimately reads above the cap — 207 against a cap of
-  128 during the incident. Read it as shed pressure, not as the quantity being
-  compared to the limit.
+- **`kura_multipart_uploads` reports exact occupied slots** on versions exporting
+  `kura_multipart_upload_capacity`. Earlier versions use a RocksDB estimated key
+  count that can include overwritten or deleted entries until compaction; a
+  high reading alone does not prove an orphaned backlog.
 - `/api/cache/module/start` has a **second 503 that looks identical**:
   `artifact_exists` failing answers "Failed to inspect artifact". Nothing on the
   route separates the two. What argues for the shed is
   `kura_artifact_reads_total{result=~"error"}` staying empty while
   `/api/cache/module/{id}` keeps serving 200/404.
 
-**The multipart cap is always 128.** `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` is set
-nowhere in `kura/ops/` or `infra/kura-controller/`, so every managed instance
-runs `DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS` regardless of how large the instance
-is. A bigger node does not get a bigger upload budget.
+**The multipart cap scales with memory and pressure.** Unless
+`KURA_MULTIPART_MAX_ACTIVE_UPLOADS` pins a fixed override, the limit is one slot
+per MiB of transient headroom: normal pressure includes elastic capacity,
+constrained pressure uses the smaller of the base pool and half the full
+headroom, and critical pressure closes new session admission. Compare
+`kura_multipart_uploads` with `kura_multipart_upload_capacity`; occupancy may
+remain above a reduced cap while existing sessions finish. With default
+watermarks, a 4 GiB ceiling permits 1,024 sessions at normal pressure.
+Busy starts wait up to one second behind a FIFO admission turn; younger arrivals
+cannot bypass queued requests. Only the queue head listens for releases and
+pressure-tier changes. Critical pressure reports zero capacity even with a fixed
+override. The queue accepts at most the current session cap; overflow and deadline
+expiry still shed, with retry hints expanding as the queue fills.
+
+Compare `kura_multipart_upload_waiters` with the effective capacity to see queue
+saturation. `kura_multipart_upload_admissions_total_total{outcome="waited"}` counts
+successful admission after waiting; `timeout`, `queue_full`, and `critical` count
+rejected admission, while `cancelled` counts dropped waiting futures and
+`immediate` counts immediate admission. The admission-duration histogram shows
+the latency cost. These outcomes end when a slot is reserved, before the record
+write or payload transfer, so successful admission does not prove artifact
+completion. Requests rejected by the outer memory-pressure or outbox gate do
+not enter these admission counters; keep using the cache-write shedding panel
+for those. Older versions only expose the aggregate
+`kura_memory_actions_total_total{action="multipart_upload_admission_wait"}` entry
+counter; versions without the capacity gauge default to 128 sessions.
+
+Session slots do not reserve disk bytes: `/start` supplies no expected artifact
+size. `KURA_MULTIPART_MAX_STORED_BYTES` still defaults to the staging-directory
+byte cap (8 GiB unless configured otherwise). A larger session budget can expose
+`multipart_storage` sheds at `/part`; raising memory alone cannot solve disk
+saturation. Size the byte cap against available staging disk and inspect abandoned
+parts before increasing it. Async record creation retains its slot while a
+cancelled start's record is removed; cleanup failure keeps the record and slot
+for the janitor instead of allowing accounting to undercount.
 
 **An orphaned backlog can outlive the restart that caused it.** Startup seeds the
 admission atomic from persisted state, and when that lands over the limit it logs
 *"persisted multipart usage starts above its configured limits; rejecting growth
 until the janitor reclaims it"*. The janitor runs every 10 minutes, but
 `DEFAULT_MULTIPART_UPLOAD_TTL_MS` is **24 hours**, so a node that died mid-wave
-can come back already wedged and shed every new upload for up to a day. Grep the
+can come back already wedged and shed new uploads until expiry and the bounded
+sweep reclaim enough slots. Larger session budgets may require several scan
+batches after the 24-hour TTL. Grep the
 container's startup log for that line before assuming a fresh pod is clean. A
 restart cleared it on 2026-08-24, so the day-long wedge is a latent mode, not an
 observed one.
 
-Worth watching before it pages: a pod sitting at a non-zero resting
-`kura_multipart_uploads` while the rest of the fleet sits at 0 is leaking uploads
-toward the same cap.
+On versions with exact occupancy, a sustained non-zero resting
+`kura_multipart_uploads` warrants checking abandoned sessions. Confirm starts,
+completions, and janitor activity before concluding the pod is leaking uploads.
 
 
 ### Kura cache pod restart loop
@@ -1611,7 +1642,10 @@ says so, which matters once a region has boxes with different budgets.
 
 ```promql
 count by (instance) (
-  node_load1{job="tuist-macos-node-exporter"}
+  node_load1{
+    job="tuist-macos-node-exporter",
+    instance!~".*-rack-fleet-.*"
+  }
 )
 unless
 count by (instance) (
@@ -1621,6 +1655,17 @@ count by (instance) (
   }
 )
 ```
+
+The instance exclusion is load-bearing, not noise suppression. A
+`RackAppleSiliconMachine` is a Mac mini in a rack we operate, with no Scaleway
+Private Network and no prospect of one, so it correctly has no `vlan` device.
+Without the exclusion every rack host pages as critical from the moment it
+joins, which is what happened on 2026-09-09 when the first one did.
+
+When BER1 gains its in-rack kura region, the cache path there is in-rack L2
+rather than a Scaleway PN. Checking it is a NEW rule keyed on whatever that path
+exposes, not a widening of this one. Removing the exclusion to "cover the rack"
+only restores the false positive.
 
 - Pending period: 10 minutes (a legitimate re-attachment recreates the
   interface, so don't fire on the gap)
@@ -1644,6 +1689,23 @@ drift loop keys on desired config, not live host state.
 the same job works. The `unless` yields one series per host that is scraping but
 has no VLAN, and nothing at all in the healthy case, which is why **No Data**
 must be **Normal** here.
+
+Rack-owned Macs have no Scaleway Private Network, so the instance exclusion
+must remain. Their cache path needs a separate check when it is introduced.
+
+Both sides of this query must survive metric filtering. On 2026-09-09 the
+non-production remote-write allow-list retained `node_load1` but dropped
+`node_network_transmit_bytes_total`, falsely firing for both canary Macs.
+The destination rules retain VLAN transmit series from
+`job="tuist-macos-node-exporter"` specifically to preserve this check without
+restoring every network interface's metrics.
+
+Before re-running bootstrap, compare Grafana's result with the host's raw
+`http://<Node InternalIP>:9100/metrics` over the tailnet. If it exports
+`node_network_transmit_bytes_total{device="vlan0"}` and
+`node_scrape_collector_success{collector="netdev"} 1` but Grafana has no VLAN
+series, investigate Alloy's scrape and remote-write filters. A missing series
+in Grafana alone does not prove the device is absent on the host.
 
 Residual gap, deliberately not covered: a VLAN that exists but has lost its DHCP
 address also has no PN route and is invisible to both rules. node_exporter runs
@@ -2305,6 +2367,122 @@ The limit is a gauge rather than a constant in the expression because it
 is per environment: production runs `queueConcurrency: 6`, and the
 in-code default is 4.
 
+### Ingestion jobs being discarded
+
+Rule uids `dfkmt5dtpx43kb` (`process_build`) and `cfl2e4b9eg8aoc`
+(`process_xcresult`), folder `Alerts`, group `Server`.
+
+A discarded job has exhausted every retry attempt. Oban prunes discarded
+rows, so each one is permanently lost customer data once pruning catches
+up with it. On 2026-09-09 build ingestion failed for 3.4 hours, 1,629
+jobs were discarded, and roughly 30 were pruned before recovery.
+
+```promql
+max by (queue) (
+  tuist_oban_queue_length_count{env="production", queue="process_build", state="discarded"}
+) > 25
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- No Data: **Alerting**, which is the opposite of most rules in this
+  document. See below.
+
+Threshold, measured over the 14 days to 2026-09-09 on production:
+
+| queue | p50 | p95 | p99 | outage peak |
+| --- | --- | --- | --- | --- |
+| `process_build` | 0 | 3 | 7 | 1,650 |
+| `process_xcresult` | 0 | 0 | 0 | 0 |
+
+25 sits about 3.5x above the `process_build` p99 and was crossed by
+roughly 11:10 UTC during the outage, about 15 minutes after the first
+error. `process_xcresult` never discards in normal operation, so its
+threshold matches its sibling rather than sitting near any noise floor.
+
+**Both rules were dead for nearly three months and this is the lesson of
+the section.** They previously read `tuist_oban_jobs_recent_terminal_count`,
+a metric emitted nowhere in the codebase and never present in Prometheus.
+They sat in `Normal (NoData)` from 2026-06-19, and because No Data mapped
+to OK that silence was indistinguishable from health. They were therefore
+dead through the whole 2026-09-09 outage. The rule looked specified,
+carried a good description, was unpaused, and could not fire. Run a new
+expression and confirm it returns a series before saving it.
+
+That is why No Data is Alerting here. The gauge is polled from the shared
+`oban_jobs` table by every node running `Tuist.Oban.PromExPlugin`, so it
+is present whenever any server pod is up, and the plugin emits an explicit
+zero for a queue that drains. Its absence means the telemetry broke rather
+than that the queue is clean. The 10 minute pending period is what keeps a
+deploy roll from paging.
+
+**Do not rewrite either rule onto `rate()` or `increase()`.** The Oban job
+counters (`tuist_oban_job_exception_attempts_count` and its siblings) are
+subject to Grafana Cloud adaptive metrics, which aggregates away `instance`
+and `pod`. Measured on 2026-09-09 at 5m, 15m, 1h and 6h windows, and again
+evaluated at a timestamp inside the outage, `rate()` and `increase()` over
+those aggregated counters return an **empty result rather than an error**,
+while an instant `sum by` over the same selector returns correct values.
+A rule built on them is silently dead in exactly the way these two were.
+The polled gauges are not counters and do not have this problem.
+
+### Build ingestion queue not draining
+
+Rule uid `ffxqtj0ye58g0b`, folder `Alerts`, group `Server`.
+
+The leading indicator for the same failure. It turns positive as soon as
+work stops draining, roughly an hour before retries are exhausted and the
+discarded-jobs rule above can see anything.
+
+```promql
+max by (queue) (
+  tuist_oban_queue_oldest_available_age_seconds{env="production", queue="process_build"}
+) > 300
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- No Data: OK, because the paired discarded-jobs rule above already runs
+  with No Data set to Alerting over the same plugin. A telemetry failure
+  should be loud once, not twice.
+
+For `process_build` this gauge had p50 0, p95 0 and p99 60 seconds over
+the same 14 days, so 300 is 5x p99. During the outage it crossed 300 at
+roughly 12:20 UTC and reached 690 seconds by the time the incident was
+mitigated by hand.
+
+**Scope this per queue and never fleet-wide.** Over that window the
+`default` queue sat at an oldest-available age of about 61 days as a
+matter of course, and `process_xcresult` had a p95 of roughly 5 hours
+because it legitimately runs long backlogs. One shared threshold across
+queues is either permanently firing or useless. A sibling rule for
+another queue needs its own baseline.
+
+`available` age rather than queue depth: this measures how long the
+oldest job that is ready to run has been waiting, so a backlog being
+worked through steadily does not fire, while a queue whose consumer has
+stopped completing does.
+
+Expect this to read high for a while after any recovery. Draining a
+backlog leaves the oldest job waiting behind newer higher-priority work,
+so the age climbs at wall-clock rate until the front of the queue is
+reached.
+
+### Why request-level alerting cannot see any of this
+
+The 2026-09-09 outage is the reference case. The CLI uploaded builds and
+received 2xx responses throughout; production HTTP counts for 200, 201,
+202 and 204 climbed normally for the entire window with no growth in any
+error status. The data was destroyed afterwards, inside an Oban job. HTTP
+error rate, latency and availability SLOs therefore all stayed green while
+100 percent of build ingestion was failing.
+
+No request-level rule can cover this class of outage. Any pipeline whose
+work is acknowledged synchronously and performed asynchronously needs a
+rule on the asynchronous half, and the three rules above are that cover
+for build and test ingestion.
+
+
 ### Swift registry catalog coverage deferred
 
 Same shape as the queue rule above, for the writer rather than a
@@ -2787,8 +2965,11 @@ max by (cluster, region, pod, kind) (
   upload_memory, memory_pressure_write, reapi_write_decode,
   reapi_materialization: the transient memory budget derived from the pod's
   ceiling is exhausted, the lever is the account's memory profile.
-  tmp_staging, multipart_storage, multipart_uploads: staging disk or the fixed
-  128-upload cap; an orphaned backlog can survive a restart for up to a day.`
+  tmp_staging, multipart_storage, multipart_uploads: staging disk or the
+  multipart session cap (compare kura_multipart_uploads with
+  kura_multipart_upload_capacity on current versions; older versions default to
+  128). Orphaned sessions survive restarts until the 24-hour TTL and janitor
+  sweep reclaim them.`
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
@@ -2863,6 +3044,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   floor rather than loss. If that proves to be steady state on an instance,
   raise the floor or move those two kinds to a rate-based tier; do not raise
   the bar for the HTTP kinds, which are loss.
+  - `reapi_materialization` on the batch-read path now waits up to a second for
+    the pool before it sheds, so a shed there means the pool stayed full for a
+    whole second rather than that it was full at one instant. The wait shows
+    up as
+    `kura_memory_actions_total{action="response_materialization_admission_wait"}`,
+    which rises long before any shed does and is the earlier signal that an
+    instance's floor is too small for its read concurrency. Sheds without a
+    matching rise in that counter come from the other materialization sites,
+    which stay try-only: they are reached holding admission from another path,
+    so waiting there would be hold-and-wait on the pool they are waiting for.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
     Write decoding borrows the ceiling headroom above the floor-derived budget
     while pressure is normal, so a shed means the pod exhausted its floor *and*
@@ -2876,13 +3067,12 @@ limit in the summary, which is what the on-call needs to pick the lever:
     where the budget is already the whole headroom.
 - `tmp_staging`: the per-upload staging reserve on disk.
 - `multipart_storage`, `multipart_uploads`: the on-disk multipart budget and
-  the fixed 128-upload cap every instance runs regardless of size. An orphaned
-  backlog can outlive the restart that caused it for up to a day, so a fresh
-  pod firing this is not clean (see **Kura cache read faults**). One
-  production pod carries a standing trickle of `multipart_uploads` sheds
-  today, so this kind fires on creation; a pod resting at non-zero
-  `kura_multipart_uploads` while the fleet sits at 0 is leaking uploads toward
-  the cap, and that is a finding, not noise.
+  memory-derived session cap (or an explicit fixed override). Compare occupied
+  slots with `kura_multipart_upload_capacity` and check pressure at the time of
+  the shed. Bursts can fill every slot and then drain normally; distinguish
+  these from durable orphaned uploads that survive restarts until expiry and
+  the janitor sweep. On older versions without the capacity gauge, the occupancy metric is
+  a RocksDB estimate and cannot establish that a backlog exists.
 
 #### Triage
 
@@ -3243,7 +3433,7 @@ on which is authoritative.
 ### Kura instance provisioned but not serving
 
 ```promql
-sum(tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
+max by (region) (tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
 ```
 
 - Threshold: `> 0`, so the alert value is how many instances are unroutable
@@ -3251,15 +3441,37 @@ sum(tuist_kura_lifecycle_unroutable_instances_count{cluster="tuist-production"})
 - Severity: warning
 - Production only. Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
-- Summary: `{{ $values.A.Value }} Kura instance(s) have been provisioned but
-  are not serving their account`
-- Description: `Cache resolution offers an account only its active instances,
-  so an instance that never reaches active is one the account is allocated,
-  is paying for, and is not being routed to; it keeps building against the
-  legacy cache lane and nothing errors. Read the instance status on /ops/kura
-  and the reconciler log for "could not converge server". Instances pass
-  through provisioning for a minute or two on creation, so a count that clears
-  on its own is normal and this fires only on one that does not.`
+- Live: rule `dfxnedzs40i68f`, created 2026-09-08.
+- Summary and description: see the deployed rule, which carries the full
+  triage text.
+
+**This rule was documented here for weeks before it existed.** It was written
+up in this file and never created in Grafana, so the 2026-09-08 stall ran for
+over three hours against a rule that looked specified and was not deployed.
+That is the reason nothing fired. Treat a section in this file as a claim
+about intent, not as evidence a rule exists: check
+`alerting_manage_rules` before concluding a rule is broken or missing, and
+record the uid here when one is created.
+
+**Read it with `max`, not `sum`.** Adaptive Metrics has aggregated `instance`
+and `pod` away from this gauge, which a bare selector now reports as an error
+rather than silently. `region` and `cluster` both survive. Every
+`tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
+has to be one that collapses identical values rather than adding them.
+Measured on 2026-09-08 against a ground truth of two stuck instances in
+us-east and one in eu-central:
+
+| query | us-east | eu-central |
+| --- | --- | --- |
+| `sum by (region)` | 10 | 5 |
+| `max by (region)` | 2 | 1 |
+| Postgres | 2 | 1 |
+
+`sum` returns the truth multiplied by the five web replicas, so it tracks
+replica count rather than anything about the fleet. `max` is exact. No
+Adaptive Metrics change is needed for this: the aggregation keeps a max
+variant and rewrites the query onto it, so the correct reducer recovers the
+correct number today.
 
 **Summed rather than read per region.** The gauge carries a `region` label and
 the underlying series is per region, but Adaptive Metrics has already
@@ -3290,6 +3502,65 @@ clean.
 unroutable for as long as about 52 days while their pods answered `/up` the
 whole time. Nothing errored, no queue grew, and no existing rule moved, so it
 was found by reading the database rather than by an alert.
+
+**Nothing in `values.yaml` is involved, and nothing needs excluding.** The
+first instinct on finding an inflated count is to look for a drop or
+aggregation rule in `infra/helm/k8s-monitoring/values.yaml`. There is none that
+touches this metric: the drop rules there are anchored on `_bucket`, which a
+gauge never matches, and the `labeldrop` list is
+`container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid`, which does not
+include `pod`. The deployed `k8s-monitoring-alloy-metrics` configmap does not
+mention the metric either, so editing that file would ship a no-op. The
+aggregation is Adaptive Metrics, on the Grafana Cloud side, and the fix is the
+reducer in the query rather than any change to the aggregation. See the
+measured comparison under the rule at the top of this section.
+
+### Kura instance stalled in provisioning
+
+```promql
+max by (region) (tuist_kura_lifecycle_stalled_instances_count{cluster="tuist-production"})
+```
+
+- Threshold: `> 0`
+- Pending period: 5 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Alerting**, **Error: Alerting**.
+- **Not deployed yet.** The metric ships with the reconciler stall escalation;
+  create the rule once a release carrying it is in production, or it evaluates
+  No Data and pages immediately. Record its uid here when you do.
+- Summary: `A Kura instance in {{ $labels.region }} has been provisioning for
+  over 15 minutes without a routable endpoint`
+- Description: `The instance holds an allocation its account cannot use and is
+  building against the legacy cache lane. The reconciler has already marked the
+  server failed and captured the reason to Sentry under "Kura provisioning
+  stalled"; read it there for which of DNS, the public endpoint or the
+  node-port chain never came up, and check the account's Certificate in the
+  kura namespace, which is the usual cause.`
+
+**Why this exists next to the rule above.** The unroutable gauge counts every
+instance that is not `:active`, so a healthy cold provision is in it for a
+couple of minutes and the rule can only ask how long a count persisted, which
+is what the 30-minute pending period is buying. This gauge counts only
+instances whose open deployment has run past
+`Tuist.Kura.provisioning_stall_seconds/0`, so a fleet with nothing stuck reads
+zero and the question becomes whether the value is non-zero at all. That is
+also what makes it survive the aggregation described above: a threshold that
+only asks non-zero does not care what the true count is multiplied by.
+
+**Why 5 minutes.** The 15-minute stall threshold is already the patience, and
+it is measured against a fleet whose instances reach `:active` in about 105
+seconds on average. A second long pending period on top would only delay a
+signal that has already waited seven times the normal provisioning time.
+
+**What it would have caught.** The 2026-09-08 stall, where one account's
+instance sat in `:provisioning` for over three hours with its `updated_at`
+byte-identical to its `inserted_at`. Let's Encrypt had refused the certificate
+for its host under the 50-per-registered-domain weekly rate limit, so the
+ingress served its default self-signed certificate, the reconciler's `/up`
+probe failed TLS verification every tick, and the endpoint-not-ready branch
+logged at info and returned `:ok` without writing anything. The instance was
+indistinguishable from one thirty seconds old.
 
 ### Kura region has room for one more instance
 
@@ -4906,11 +5177,43 @@ Two rules of thumb fall out. `ttfb` far exceeding `requestTime + responseTime`
 with every connection phase at zero means client-side queueing. Every network
 phase at zero under a large `duration` means a restored document.
 
-Automated browsers are no longer instrumented: `shared/js/analytics.js` skips
-Faro entirely when `navigator.webdriver` is set, so these samples stop at the
-source rather than being filtered per rule. That flag only catches automation
-that does not hide itself. To check whether it worked, watch the fingerprint
-directly — it should fall to roughly zero:
+`shared/js/analytics.js` skips Faro when `navigator.webdriver` is set. This
+does not catch every crawler: on September 8, the six-hour window ending at
+06:35 UTC still contained 40 LCP samples matching the Linux fingerprint and
+nine identifying themselves as `meta-externalagent`, out of 232 samples. The
+current production bundle contained the WebDriver guard, but telemetry does
+not identify each client's loaded bundle or WebDriver flag.
+
+The Cloudflare rule in
+`infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
+verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
+management-cluster operator reconciles it into the zone's WAF ruleset. It
+blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
+true, so crawlers can still read public pages. This uses the same verified-bot
+signal as the existing crawler rate-limit rules and does not require granular
+Enterprise Bot Management scores. There is no browser-version or viewport
+denylist and no challenge on the collector's background requests.
+
+**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+`cf.client.bot` does not mean human. We have not correlated the Linux cohort
+with Cloudflare's classification, so disappearance of that cohort is a
+post-deployment check, not an established result. If it persists, inspect
+Cloudflare's request classification and available Bot Management entitlement
+before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+After merge, use the management-cluster context to inspect
+`kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
+Require a current `status.observedGeneration`, `Ready=True`, and a populated
+`status.ruleId`. The Flux Kustomization uses `wait: false`, so Flux being ready
+alone does not establish that Cloudflare accepted the rule. Inspect that rule's
+matches in Cloudflare Security Events and check that ordinary-browser
+collector submissions still succeed and emit new LCP samples. WAF blocking
+returns an error response, rather than a successful discarded submission;
+this change does not introduce a Worker.
+
+Watch fresh samples from both crawler cohorts after rollout. Existing samples
+remain in the six- and 24-hour alert windows until they age out; do not treat
+an immediately firing alert as proof the new rule failed. The Linux query is:
 
 ```logql
 count(sum by (session_id) (
@@ -4929,6 +5232,12 @@ count(sum by (session_id) (
   )
 ))
 ```
+
+For the explicitly identified Meta cohort, use the same measurement selector
+with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
+OS and viewport filters. To roll back the edge filter, set `enabled: false`
+in its Kubernetes manifest and let Flux and the operator reconcile; editing
+the rule in the Cloudflare dashboard would be reverted by the operator.
 
 **D scales with traffic**, which is worth remembering before reading a rise as a
 regression. It is an absolute count over 24h and it tracked the weekly cycle

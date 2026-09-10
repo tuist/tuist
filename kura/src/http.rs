@@ -37,7 +37,8 @@ use crate::{
         MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_PEER_PAGE_ITEMS,
         MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, REPLICATION_BATCH_MAX_BYTES,
         REPLICATION_BATCH_MAX_ITEMS, RESPONSE_STREAM_MIN_CHUNK_BYTES,
-        RESPONSE_STREAM_SEND_BUFFER_BYTES, response_stream_chunk_bytes,
+        RESPONSE_STREAM_SEND_BUFFER_BYTES, SYNC_LONG_POLL_MAX_SECS, SYNC_LONG_POLL_RECHECK_MS,
+        response_stream_chunk_bytes,
     },
     io::is_fd_pool_exhausted_error,
     memory::{
@@ -53,16 +54,17 @@ use crate::{
         log_request_completion, request_id, scope_request,
     },
     runtime::{HttpTrafficClass, InflightGuard},
-    state::SharedState,
+    state::{BackfillBodiesSlotRejection, SharedState},
     store::{
-        ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage, StagedArtifactPath,
-        backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
+        ApplyProvenance, ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage,
+        StagedArtifactPath, backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
         is_outbox_full_error, manifest_version_ms,
     },
+    sync::feed::{SyncFeedRow, SyncPosition},
     telemetry::{attach_parent_context, record_trace_context, trace_export_active},
     utils::{
         BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyStaging,
-        TempFileCleanup, TmpReservation, action_cache_key, blob_key, module_key,
+        TempFileCleanup, TmpReservation, action_cache_key, blob_key, module_key, now_ms,
         read_request_to_temp, temp_file_path,
     },
 };
@@ -97,9 +99,10 @@ const ROUTE_INTERNAL_BACKFILL_ARTIFACT: &str = "/_internal/backfill/artifacts/{a
 const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_ARTIFACTS: &str = "/_internal/replicate/artifacts";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
+const ROUTE_INTERNAL_SYNC_FORWARD: &str = "/_internal/sync/forward";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 17] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -116,6 +119,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 16] = [
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_ARTIFACTS,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
+    ROUTE_INTERNAL_SYNC_FORWARD,
 ];
 
 const DYNAMIC_ROUTE_TEMPLATES: [&str; 7] = [
@@ -308,6 +312,7 @@ fn internal_routes() -> Router<SharedState> {
             ROUTE_INTERNAL_REPLICATE_NAMESPACE,
             delete(internal_delete_namespace),
         )
+        .route(ROUTE_INTERNAL_SYNC_FORWARD, get(internal_sync_forward))
 }
 
 const NX_NAMESPACE_ID: &str = "nx";
@@ -451,6 +456,9 @@ struct ReplicateArtifactQuery {
     /// entry before.
     branch: Option<String>,
     trunk: Option<String>,
+    /// The region that first accepted the write (design §4.1); an older
+    /// sender omits it and the record applies with an unknown origin.
+    origin_region: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -481,6 +489,14 @@ struct BlobPutSpec<'a> {
 struct BackfillEntriesQuery {
     after: Option<Vec<u8>>,
     limit: usize,
+    /// `order=asc`: the forward region read (design §4.1), ascending from
+    /// `from_version_ms` inclusive, bounded by the settle guard, filtered to
+    /// `origin_region` when given, long-polling for `wait` seconds when
+    /// caught up.
+    ascending: bool,
+    from_version_ms: u64,
+    origin_region: Option<String>,
+    wait: Option<Duration>,
 }
 
 impl BackfillEntriesQuery {
@@ -508,11 +524,31 @@ impl BackfillEntriesQuery {
         if limit == 0 {
             return Err("Invalid limit: must be greater than 0".to_owned());
         }
+        let ascending = match params.get("order").map(String::as_str) {
+            None | Some("desc") => false,
+            Some("asc") => true,
+            Some(other) => return Err(format!("Invalid order: {other}")),
+        };
+        let from_version_ms = optional_u64_param(params, "from_version_ms")?.unwrap_or(0);
+        let origin_region = params
+            .get("origin_region")
+            .filter(|value| !value.is_empty())
+            .cloned();
+        let wait = optional_u64_param(params, "wait")?
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| Duration::from_secs(seconds.min(SYNC_LONG_POLL_MAX_SECS)));
+        if !ascending && (wait.is_some() || origin_region.is_some() || from_version_ms > 0) {
+            return Err("from_version_ms, origin_region and wait need order=asc".to_owned());
+        }
         // Clamped rather than rejected: the ceiling bounds one response's
         // work, and a requester asking for more just pages more often.
         Ok(Self {
             after,
             limit: limit.min(MAX_PEER_PAGE_ITEMS),
+            ascending,
+            from_version_ms,
+            origin_region,
+            wait,
         })
     }
 }
@@ -525,6 +561,10 @@ impl BackfillEntriesQuery {
 pub struct BackfillEntriesPage {
     pub entries: Vec<BackfillEntry>,
     pub next_after: Option<String>,
+    /// The serving node's wall clock when the page was built (design §4.6);
+    /// absent from an older peer's page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub now: Option<u64>,
 }
 
 /// One backfill index tuple on the wire. `record_kind` is a
@@ -553,6 +593,7 @@ impl From<BackfillIndexPage> for BackfillEntriesPage {
                 })
                 .collect(),
             next_after: page.next_after.map(hex::encode),
+            now: Some(now_ms()),
         }
     }
 }
@@ -647,6 +688,10 @@ pub struct BackfillBodyManifestMeta {
     pub content_type: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    /// Additive (design §4.1): an older peer sends none and the record
+    /// applies with an unknown origin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_region: Option<String>,
 }
 
 impl BackfillBodyManifestMeta {
@@ -657,6 +702,7 @@ impl BackfillBodyManifestMeta {
             key: manifest.key.clone(),
             content_type: manifest.content_type.clone(),
             branch: manifest.branch.clone(),
+            origin_region: manifest.origin_region.clone(),
         }
     }
 
@@ -680,6 +726,8 @@ pub struct ReplicateBatchItemMeta {
     pub branch: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trunk: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_region: Option<String>,
 }
 
 /// Per-item result of a batched replication request, in request order. An
@@ -981,6 +1029,7 @@ impl ReplicateArtifactQuery {
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
             branch: param_value(params, "branch").cloned(),
             trunk: param_value(params, "trunk").cloned(),
+            origin_region: param_value(params, "origin_region").cloned(),
         })
     }
 }
@@ -1630,6 +1679,24 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
     nodes.push(state.config.node_url.clone());
     nodes.sort();
 
+    let sync_links: Vec<serde_json::Value> = state
+        .sync
+        .link_statuses()
+        .into_iter()
+        .map(|link| {
+            serde_json::json!({
+                "kind": link.kind.as_str(),
+                "peer": link.peer,
+                "region": link.region,
+                "phase": link.phase.as_str(),
+                "settled": link.settled,
+                "lag_entries": link.lag_entries,
+                "frontier": link.frontier.as_str(),
+                "frontier_ms": link.frontier.reported_ms(),
+            })
+        })
+        .collect();
+
     Json(serde_json::json!({
         "status": "ok",
         "generation": cluster.generation,
@@ -1642,6 +1709,25 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
+        "pulling": state.replication_pull(),
+        "gateway": state.sync.own_gateway(),
+        "sync_links": sync_links,
+        "feed": {
+            "enabled": state.store.sync_feed().enabled(),
+            "head": state.store.sync_feed().head(),
+            "floor": state.store.sync_feed().floor(),
+            "consumers": state
+                .store
+                .sync_feed()
+                .consumers()
+                .into_iter()
+                .map(|(peer, consumer)| serde_json::json!({
+                    "peer": peer,
+                    "cursor": consumer.cursor,
+                    "pinned": consumer.pinned,
+                }))
+                .collect::<Vec<_>>(),
+        },
     }))
 }
 
@@ -2177,19 +2263,30 @@ async fn start_module_upload(
         Ok(true) => {
             Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
         }
-        Ok(false) => match state.store.start_multipart_upload(
-            &query.namespace.tenant_id,
-            &query.namespace.namespace_id,
-            &query.cache_category,
-            &query.hash,
-            &query.name,
-        ) {
+        Ok(false) => match state
+            .store
+            .start_multipart_upload(
+                &query.namespace.tenant_id,
+                &query.namespace.namespace_id,
+                &query.cache_category,
+                &query.hash,
+                &query.name,
+            )
+            .await
+        {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
-            Err(error) if is_multipart_capacity_error(&error) => capacity_shed_response(
-                &state.metrics,
-                "multipart_uploads",
-                "server is limiting active multipart uploads",
-            ),
+            Err(error) if is_multipart_capacity_error(&error) => {
+                let mut response = capacity_shed_response(
+                    &state.metrics,
+                    "multipart_uploads",
+                    "server is limiting active multipart uploads",
+                );
+                retry_after(
+                    &mut response,
+                    state.store.multipart_upload_retry_after_seconds(),
+                );
+                response
+            }
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -2446,10 +2543,24 @@ async fn internal_status(
         _ => state.config.node_url.clone(),
     };
 
+    // The membership view this node holds (design §11.2): a pusher takes a
+    // pulling peer off its push targets only once that peer's view names the
+    // pusher, which is what tells a node it can be dialled back.
+    let peers: Vec<String> = state
+        .peer_views
+        .load()
+        .iter()
+        .map(|view| view.url.clone())
+        .collect();
+
     Json(serde_json::json!({
         "region": state.config.region.clone(),
         "tenant_id": state.config.tenant_id.clone(),
         "node_url": node_url,
+        "traffic_state": state.runtime.traffic_state().as_str(),
+        "pulling": state.replication_pull(),
+        "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),
+        "peers": peers,
     }))
 }
 
@@ -2572,6 +2683,9 @@ async fn internal_backfill_entries(
             .into_response();
     }
 
+    if query.ascending {
+        return internal_backfill_entries_ascending(&state, &query).await;
+    }
     match state
         .store
         .backfill_index_page(query.after.as_deref(), query.limit)
@@ -2581,6 +2695,285 @@ async fn internal_backfill_entries(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to list backfill entries: {error}"),
         ),
+    }
+}
+
+/// The forward region read: ascending from the requester's watermark, never
+/// past the point where a lower version could still arrive here, long-polling
+/// while caught up (design §4.1).
+async fn internal_backfill_entries_ascending(
+    state: &SharedState,
+    query: &BackfillEntriesQuery,
+) -> Response {
+    let deadline = query.wait.map(|wait| Instant::now() + wait);
+    let settle = query
+        .wait
+        .map_or(0, |_| state.config.sync_region_settle_ms)
+        .max(state.config.sync_region_settle_ms);
+    loop {
+        let notified = state.store.sync_feed().notified();
+        tokio::pin!(notified);
+        // Re-read every iteration: a replica apply that lands during the
+        // long poll both notifies and moves the bound (D-24).
+        let max_version_ms = now_ms()
+            .saturating_sub(settle)
+            .min(state.sync.listing_bound(state));
+        let page = match state.store.backfill_index_page_ascending(
+            query.from_version_ms,
+            query.after.as_deref(),
+            query.limit,
+            max_version_ms,
+            query.origin_region.as_deref(),
+        ) {
+            Ok(page) => page,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to list backfill entries: {error}"),
+                );
+            }
+        };
+        let caught_up = page.entries.is_empty() && page.next_after.is_none();
+        let Some(deadline) = deadline.filter(|_| caught_up) else {
+            return Json(BackfillEntriesPage::from(page)).into_response();
+        };
+        let now = Instant::now();
+        let deadline = if state.runtime.is_draining() {
+            deadline.min(now + Duration::from_millis(250))
+        } else {
+            deadline
+        };
+        if now >= deadline {
+            return Json(BackfillEntriesPage::from(page)).into_response();
+        }
+        let recheck = Duration::from_millis(SYNC_LONG_POLL_RECHECK_MS).min(deadline - now);
+        let _ = tokio::time::timeout(recheck, notified).await;
+    }
+}
+
+// ---- The arrival feed (design §3.1) ----
+
+/// One arrival-feed row on the wire.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncForwardEntry {
+    pub seq: u64,
+    /// A [`crate::utils::BackfillRecordKind::as_str`] name, or `watermark`.
+    pub kind: String,
+    pub record_id: String,
+    pub version_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    pub arrived_at_ms: u64,
+}
+
+impl From<SyncFeedRow> for SyncForwardEntry {
+    fn from(row: SyncFeedRow) -> Self {
+        Self {
+            seq: row.seq,
+            kind: row.kind.as_str().to_owned(),
+            record_id: row.record_id,
+            version_ms: row.version_ms,
+            size: row.size,
+            arrived_at_ms: row.arrived_at_ms,
+        }
+    }
+}
+
+/// `GET /_internal/sync/forward` with `after`: rows above the cursor, the
+/// position to ask from next, and the source's head.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncForwardPage {
+    pub incarnation: String,
+    pub entries: Vec<SyncForwardEntry>,
+    pub next: u64,
+    pub head: u64,
+    pub now: u64,
+    /// The instant below which every allocation on this feed has committed
+    /// (design §4.1). Additive: a peer that predates it sends nothing and
+    /// the reader falls back to the rows' own stamps.
+    #[serde(default)]
+    pub frontier_ms: u64,
+}
+
+/// `GET /_internal/sync/forward` without `after`: the snapshot a
+/// bootstrapping sibling takes, with the region watermark map (design §4.3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncForwardHead {
+    pub incarnation: String,
+    pub head: u64,
+    pub floor: u64,
+    #[serde(default)]
+    pub watermarks: BTreeMap<String, u64>,
+    pub now: u64,
+    /// As on [`SyncForwardPage`]: the link's frontier at the snapshot.
+    #[serde(default)]
+    pub frontier_ms: u64,
+}
+
+/// The `410 Gone` body: the cursor names rows this node no longer has
+/// (`floor`), a store that no longer exists (`incarnation`), or a position
+/// above the head, which only a lost tail can produce (`ahead`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncForwardGone {
+    pub error: String,
+    pub incarnation: String,
+    pub floor: u64,
+    pub head: u64,
+}
+
+pub const SYNC_GONE_FLOOR: &str = "floor";
+pub const SYNC_GONE_INCARNATION: &str = "incarnation";
+pub const SYNC_GONE_AHEAD: &str = "ahead";
+
+async fn internal_sync_forward(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let Some(peer) = params.get("peer").filter(|value| !value.is_empty()) else {
+        return error_response(StatusCode::BAD_REQUEST, "Missing peer");
+    };
+    match params.get("region") {
+        Some(region) if region == &state.config.region => {}
+        Some(_) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "the arrival feed is served to same-region peers only",
+            );
+        }
+        None => return error_response(StatusCode::BAD_REQUEST, "Missing region"),
+    }
+    let limit = match optional_u64_param(&params, "limit") {
+        Ok(limit) => limit
+            .unwrap_or(MAX_PEER_PAGE_ITEMS as u64)
+            .clamp(1, MAX_PEER_PAGE_ITEMS as u64) as usize,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+    let wait = match optional_u64_param(&params, "wait") {
+        Ok(wait) => wait
+            .filter(|seconds| *seconds > 0)
+            .map(|seconds| Duration::from_secs(seconds.min(SYNC_LONG_POLL_MAX_SECS))),
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+    let feed = state.store.sync_feed().clone();
+    let incarnation = format!("{:016x}", feed.incarnation());
+
+    let Some(after) = params.get("after").filter(|value| !value.is_empty()) else {
+        // Activation and snapshot are one event (design §3.1): the feed is
+        // on before the head is read, so nothing committed after the
+        // snapshot can miss its row.
+        if let Err(error) = state.store.sync_feed_activate().await {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to activate the arrival feed: {error}"),
+            );
+        }
+        let (head, frontier_ms) = feed.head_and_frontier();
+        feed.note_consumer_snapshot(peer, head);
+        let watermarks = match state.store.sync_watermarks() {
+            Ok(watermarks) => watermarks,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to read region watermarks: {error}"),
+                );
+            }
+        };
+        return Json(SyncForwardHead {
+            incarnation,
+            head,
+            floor: feed.floor(),
+            watermarks,
+            now: now_ms(),
+            frontier_ms,
+        })
+        .into_response();
+    };
+    let position = match SyncPosition::parse(after) {
+        Ok(position) => position,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+    let gone = |error: &str| {
+        (
+            StatusCode::GONE,
+            Json(SyncForwardGone {
+                error: error.to_owned(),
+                incarnation: incarnation.clone(),
+                floor: feed.floor(),
+                head: feed.head(),
+            }),
+        )
+            .into_response()
+    };
+    if position.incarnation != feed.incarnation() {
+        return gone(SYNC_GONE_INCARNATION);
+    }
+    if !feed.enabled() {
+        // A sibling that kept a cursor across this node's deactivation
+        // holds rows that were dropped with it.
+        return gone(SYNC_GONE_FLOOR);
+    }
+    if position.seq < feed.floor() {
+        return gone(SYNC_GONE_FLOOR);
+    }
+    if position.seq > feed.head() {
+        return gone(SYNC_GONE_AHEAD);
+    }
+    feed.note_consumer(peer, position.seq);
+    if let Err(error) = state.store.sync_feed_trim_below_consumers().await {
+        tracing::warn!("arrival feed trim failed: {error}");
+    }
+    let deadline = wait.map(|wait| Instant::now() + wait);
+    loop {
+        let notified = feed.notified();
+        tokio::pin!(notified);
+        // One head for the scan and for the response: reporting a head the
+        // scan did not cover would hide the rows in between (D-26).
+        let (head, frontier_ms) = feed.head_and_frontier();
+        let rows = match state.store.sync_feed_page_to(position.seq, limit, head) {
+            Ok(rows) => rows,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to read the arrival feed: {error}"),
+                );
+            }
+        };
+        let now = Instant::now();
+        // While draining, hold at most briefly: the departing node is
+        // waiting for this reader's cursor, and the reader re-asks at once.
+        let deadline = deadline.map(|deadline| {
+            if state.runtime.is_draining() {
+                deadline.min(now + Duration::from_millis(250))
+            } else {
+                deadline
+            }
+        });
+        let waiting = rows.is_empty() && deadline.is_some_and(|deadline| now < deadline);
+        if !waiting {
+            // A page short of the limit exhausted the scan, so it reached
+            // the head: every seq at or below the contiguous head has
+            // resolved, and one with no row is an allocation that was
+            // aborted before staging and will never appear. Reporting the
+            // head rather than the last row's seq is what stops such a gap
+            // from pinning the requester's cursor — and its frontier —
+            // below the head until the next write (D-26).
+            let next = match rows.last() {
+                Some(row) if rows.len() >= limit => row.seq,
+                _ => head,
+            };
+            return Json(SyncForwardPage {
+                incarnation,
+                entries: rows.into_iter().map(SyncForwardEntry::from).collect(),
+                next,
+                head,
+                now: now_ms(),
+                frontier_ms,
+            })
+            .into_response();
+        }
+        let recheck = Duration::from_millis(SYNC_LONG_POLL_RECHECK_MS)
+            .min(deadline.expect("waiting implies a deadline") - now);
+        let _ = tokio::time::timeout(recheck, notified).await;
     }
 }
 
@@ -2661,14 +3054,27 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
                 .backfill_bodies_peer_slots
                 .try_acquire(identity.0.clone())
             {
-                Some(slot) => Some(slot),
-                None => {
+                Ok(slot) => Some(slot),
+                // Both limits reject rather than queue (design §11.1) and
+                // share the `peer_busy` error so an older requester keeps
+                // classifying the answer as retryable; only the metric label
+                // separates a greedy peer from a saturated node.
+                Err(BackfillBodiesSlotRejection::PeerBusy) => {
                     state
                         .metrics
                         .record_backfill_bodies_peer_request(&peer_label, "rejected_busy");
                     return backfill_unavailable_response(
                         BACKFILL_ERROR_PEER_BUSY,
-                        "another bodies request from this peer identity is in flight; retry shortly",
+                        "this peer identity holds all of its bodies slots; retry shortly",
+                    );
+                }
+                Err(BackfillBodiesSlotRejection::NodeBusy) => {
+                    state
+                        .metrics
+                        .record_backfill_bodies_peer_request(&peer_label, "rejected_node_busy");
+                    return backfill_unavailable_response(
+                        BACKFILL_ERROR_PEER_BUSY,
+                        "this node is serving its maximum of concurrent bodies requests; retry shortly",
                     );
                 }
             }
@@ -3064,7 +3470,11 @@ async fn internal_replicate_artifacts(
 
         match state
             .store
-            .apply_replicated_inline_artifact_from_bytes(
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: meta.origin_region.as_deref(),
+                    sync_feed_row: true,
+                },
                 producer,
                 &meta.namespace_id,
                 &meta.key,
@@ -3163,7 +3573,11 @@ async fn internal_replicate_artifact(
 
         return match state
             .store
-            .apply_replicated_inline_artifact_from_bytes(
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: query.origin_region.as_deref(),
+                    sync_feed_row: true,
+                },
                 producer,
                 &query.namespace_id,
                 &query.key,
@@ -3252,7 +3666,11 @@ async fn internal_replicate_artifact(
 
     let result = state
         .store
-        .apply_replicated_artifact_from_path(
+        .apply_replicated_artifact_from_path_with(
+            ApplyProvenance {
+                origin_region: query.origin_region.as_deref(),
+                sync_feed_row: true,
+            },
             producer,
             &query.namespace_id,
             &query.key,
@@ -5502,7 +5920,11 @@ mod tests {
                 .expect("defaults should be accepted"),
             BackfillEntriesQuery {
                 after: None,
-                limit: 256
+                limit: 256,
+                ascending: false,
+                from_version_ms: 0,
+                origin_region: None,
+                wait: None,
             }
         );
         BackfillEntriesQuery::from_params(&HashMap::from([("limit".to_owned(), "0".to_owned())]))
@@ -6029,6 +6451,108 @@ mod tests {
         }));
     }
 
+    // A-26 (design §11.1): the per-peer slot count is configuration, not a
+    // hard-coded one.
+    #[tokio::test]
+    async fn backfill_bodies_honour_the_configured_slots_per_peer() {
+        let context = test_context(|config| {
+            config.sync_peer_bodies_slots_per_peer = 2;
+            config.sync_peer_serving_max_inflight = Some(8);
+        })
+        .await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        let first = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        let second = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(
+            second.status(),
+            StatusCode::OK,
+            "the second slot of the same identity is configured open"
+        );
+
+        let busy = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            busy.headers().contains_key(axum::http::header::RETRY_AFTER),
+            "cap rejection must be marked retryable"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(busy).await).expect("typed busy body");
+        assert_eq!(unavailable.error, BACKFILL_ERROR_PEER_BUSY);
+
+        drop(second);
+        let after_release = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(after_release.status(), StatusCode::OK);
+        drop(first);
+        drop(after_release);
+
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-a\"")
+                && line.contains("outcome=\"rejected_busy\"")
+        }));
+    }
+
+    // A-26: the node-wide aggregate refuses the request no per-peer count
+    // would have caught, and says so in its own label.
+    #[tokio::test]
+    async fn backfill_bodies_cap_concurrent_requests_across_peer_identities() {
+        let context = test_context(|config| {
+            config.sync_peer_bodies_slots_per_peer = 1;
+            config.sync_peer_serving_max_inflight = Some(2);
+        })
+        .await;
+        put_backfill_inline_body(&context.state, "ios", "artifact", b"artifact-body", 500).await;
+        let record_id =
+            artifact_storage_id(ArtifactProducer::Xcode, "test-tenant", "ios", "artifact");
+        let entries = [bodies_entry("inline_artifact", &record_id, 500)];
+
+        let first = post_backfill_bodies(&context.state, &entries, Some("peer-a")).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        let second = post_backfill_bodies(&context.state, &entries, Some("peer-b")).await;
+        assert_eq!(second.status(), StatusCode::OK);
+
+        let node_busy = post_backfill_bodies(&context.state, &entries, Some("peer-c")).await;
+        assert_eq!(node_busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            node_busy
+                .headers()
+                .contains_key(axum::http::header::RETRY_AFTER),
+            "the aggregate rejection is retryable backpressure like the per-peer one"
+        );
+        let unavailable: BackfillUnavailable =
+            serde_json::from_str(&response_text(node_busy).await).expect("typed busy body");
+        assert_eq!(
+            unavailable.error, BACKFILL_ERROR_PEER_BUSY,
+            "the error code stays the one an older requester classifies as retryable"
+        );
+
+        drop(first);
+        let after_release = post_backfill_bodies(&context.state, &entries, Some("peer-c")).await;
+        assert_eq!(after_release.status(), StatusCode::OK);
+        drop(second);
+        drop(after_release);
+
+        let rendered = context.state.metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total")
+                && line.contains("peer=\"peer-c\"")
+                && line.contains("outcome=\"rejected_node_busy\"")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_backfill_bodies_peer_requests_total")
+                    && line.contains("outcome=\"rejected_busy\"")
+            }),
+            "no identity exceeded its own slot count"
+        );
+    }
+
     #[tokio::test]
     async fn backfill_bodies_reclaim_spool_files_after_the_response_completes() {
         let context = test_context(|_| {}).await;
@@ -6444,6 +6968,7 @@ mod tests {
             key: "artifact".to_owned(),
             content_type: "application/octet-stream".to_owned(),
             branch: Some("feature".to_owned()),
+            origin_region: None,
         };
         let meta_bytes = meta.to_wire_bytes().expect("encode meta");
         let mut stream = encode_backfill_body_frame_header(
@@ -7646,8 +8171,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn multipart_http_admission_scales_with_memory_and_recovers_from_pressure() {
+        let context = test_context(|config| {
+            config.memory_hard_limit_bytes = config.memory_soft_limit_bytes + 256 * 1024 * 1024;
+        })
+        .await;
+        let app = router(context.state.clone());
+        let start = |index: usize| {
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=burst-{index}&name=Module&cache_category=builds"
+                ))
+                .body(Body::empty())
+                .expect("start request should build")
+        };
+        for index in 0..129 {
+            let response = app
+                .clone()
+                .oneshot(start(index))
+                .await
+                .expect("request should complete");
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        context
+            .state
+            .memory
+            .observe(context.state.config.memory_soft_limit_bytes + 1);
+        tokio::time::pause();
+        let shed = app
+            .clone()
+            .oneshot(start(129))
+            .await
+            .expect("request should complete");
+        assert_eq!(shed.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_retryable_hint(&shed, backpressure::retry_after_ceiling_seconds(1, 128));
+        tokio::time::resume();
+        context.state.memory.observe(0);
+        let recovered = app
+            .oneshot(start(129))
+            .await
+            .expect("request should complete");
+        assert_eq!(recovered.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn the_multipart_upload_cap_sheds_with_backpressure_not_a_server_error() {
-        let context = test_context(|config| config.multipart_max_active_uploads = 1).await;
+        let context = test_context(|config| config.multipart_max_active_uploads = Some(1)).await;
         let app = router(context.state.clone());
 
         let start = |hash: &str| {
@@ -7674,7 +8244,7 @@ mod tests {
             .expect("second start request failed");
 
         assert_eq!(shed.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_retryable_hint(&shed, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
+        assert_retryable_hint(&shed, backpressure::SATURATED_RETRY_AFTER_CEILING_SECONDS);
 
         let metrics = context.state.metrics.render();
         assert!(
@@ -7901,7 +8471,7 @@ mod tests {
         let upload_id = context
             .state
             .store
-            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .try_start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
             .expect("failed to start multipart upload");
         let query_text = format!("upload_id={upload_id}&part_number=1");
         let query = AuthorizationQuery::parse(Some(&query_text));
@@ -8794,6 +9364,7 @@ mod tests {
             version_ms: 200,
             branch: Some("main".to_owned()),
             trunk: None,
+            origin_region: None,
         };
         let second = ReplicateBatchItemMeta {
             key: "entry-2".to_owned(),
@@ -8831,6 +9402,7 @@ mod tests {
             version_ms: 1,
             branch: None,
             trunk: None,
+            origin_region: None,
         };
         let meta_bytes = serde_json::to_vec(&meta).expect("meta should encode");
         let frame =

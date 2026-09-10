@@ -6,6 +6,7 @@ defmodule TuistWeb.BuildRunLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.CommandEvents
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
@@ -19,6 +20,289 @@ defmodule TuistWeb.BuildRunLiveTest do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
     %{conn: conn, user: user}
+  end
+
+  test "loads timeline intervals when opening the timeline tab", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    event = %{
+      event_id: 1,
+      title: "Compile <App>.swift",
+      log: "EmitSwiftModule normal arm64\ncd /workspace",
+      log_truncated: false,
+      target: "App",
+      project: "Workspace",
+      category: "swiftCompilation",
+      start_ms: 100.0,
+      duration_ms: 250.0,
+      status: "success"
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, build_steps: [event])
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}")
+    refute has_element?(lv, "#build-timeline")
+    lv |> element("a", "Timeline") |> render_click()
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[phx-hook=BuildTimeline]")
+    assert has_element?(lv, ".noora-card", "Build Timeline")
+    assert has_element?(lv, ".noora-text-input [data-control=search]")
+    refute has_element?(lv, "#timeline-category")
+    refute has_element?(lv, "#timeline-status")
+    refute has_element?(lv, "[data-control=zoom-in]")
+    refute has_element?(lv, "[data-control=pan]")
+    refute has_element?(lv, "#build-timeline[data-events]")
+    refute render(lv) =~ "Compile &lt;App&gt;.swift"
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    version = String.to_integer(version)
+    bootstrap = %{duration: build.duration, machine_metrics: []}
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{__changed__: %{}, timeline_version: version, timeline: AsyncResult.ok(bootstrap)}
+    }
+
+    assert {:reply, %{timeline: ^bootstrap}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version}, socket)
+
+    assert {:reply, %{error: true}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version - 1}, socket)
+
+    assert has_element?(lv, "#build-timeline[data-url$='/#{build.id}/timeline.json']")
+
+    render_hook(lv, "load-timeline-step", %{
+      request_id: 22,
+      event_id: nil,
+      direction: "last",
+      search: ""
+    })
+
+    render_async(lv)
+    assert_push_event(lv, "timeline-step", %{request_id: 22, step: %{event_id: 1}})
+
+    render_hook(lv, "load-timeline-log", %{"event_id" => 1, "request_id" => 1, "build_run_id" => Ecto.UUID.generate()})
+    render_async(lv)
+
+    assert_push_event(lv, "timeline-log", %{
+      request_id: 1,
+      log: %{log: "EmitSwiftModule normal arm64\ncd /workspace", log_truncated: false}
+    })
+
+    assert {:reply, %{error: true}, ^socket} =
+             TuistWeb.BuildRunLive.handle_event("load-timeline-log", %{"event_id" => -1}, socket)
+
+    render_patch(
+      lv,
+      ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
+    )
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[data-version='#{version}']")
+  end
+
+  @tag :capture_log
+  test "completion refresh loads new machine metrics and reopening reloads released metadata", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, status: "processing")
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "#build-timeline")
+
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      offset_ms: 250.0,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, _} =
+      RunsFixtures.build_fixture(
+        id: build.id,
+        project_id: project.id,
+        inserted_at: build.inserted_at,
+        machine_metrics: [metric]
+      )
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    assert String.to_integer(reopened) > String.to_integer(version)
+    render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
+    assert has_element?(lv, "#build-timeline")
+  end
+
+  test "log loading stays asynchronous and superseded requests do not update the inspector", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+
+    render_async(lv)
+    owner = self()
+
+    stub(Tuist.Builds, :build_step_log, fn _, id ->
+      if id == 1 do
+        send(owner, {:log_started, self()})
+
+        receive do
+          :release -> %{log: "Stale", log_truncated: false}
+        end
+      else
+        %{log: "Latest", log_truncated: false}
+      end
+    end)
+
+    render_hook(lv, "load-timeline-log", %{event_id: 1, request_id: 11})
+    assert_receive {:log_started, task}
+    monitor = Process.monitor(task)
+
+    render_patch(
+      lv,
+      ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline&latency-percentile=p90"
+    )
+
+    render_hook(lv, "load-timeline-log", %{event_id: 2, request_id: 12})
+    assert_receive {:DOWN, ^monitor, :process, ^task, _}
+    render_async(lv)
+    assert_push_event(lv, "timeline-log", %{request_id: 12, log: %{log: "Latest", log_truncated: false}})
+    refute_push_event(lv, "timeline-log", %{request_id: 11})
+  end
+
+  @tag :capture_log
+  test "aligned machine samples join the timeline and old metric links still work", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      offset_ms: 250.0,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, machine_metrics: [metric])
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=machine-metrics")
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-metric=cpu]")
+    assert has_element?(lv, "[data-metric=memory]")
+    refute has_element?(lv, "a", "Machine Metrics")
+    assert has_element?(lv, "[data-part=empty][hidden]")
+    refute has_element?(lv, "#build-timeline[data-machine-metrics]")
+  end
+
+  test "legacy machine samples keep the standalone metrics view", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    metric = %{
+      timestamp: 1_700_000_000.25,
+      cpu_usage_percent: 42.0,
+      memory_used_bytes: 8_000_000_000,
+      memory_total_bytes: 16_000_000_000,
+      network_bytes_in: 100,
+      network_bytes_out: 200,
+      disk_bytes_read: 300,
+      disk_bytes_written: 400
+    }
+
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, machine_metrics: [metric])
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=machine-metrics")
+
+    assert has_element?(lv, "a", "Machine Metrics")
+    assert has_element?(lv, "#cpu-usage-chart")
+    refute has_element?(lv, "#build-timeline")
+  end
+
+  test "timeline mounts without loading steps or analytics for other tabs", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+    reject(Tuist.Builds, :build_timeline, 2)
+    reject(Tuist.Builds, :list_build_files, 1)
+    reject(Tuist.Builds, :list_build_targets, 1)
+    reject(Tuist.Builds, :list_cacheable_tasks, 1)
+    reject(Tuist.Builds, :list_cas_outputs, 1)
+    reject(Tuist.Builds, :cas_output_metrics, 1)
+    reject(Tuist.Builds, :cacheable_task_latency_metrics, 1)
+    reject(CommandEvents, :module_cache_output_metrics, 1)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-part=payload-loading]")
+    assert has_element?(lv, "[data-part=empty][hidden]")
+  end
+
+  test "loads only the selected breakdown and cache subtab after leaving timeline", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [%{type: :swift, status: :hit_remote, key: "key"}]
+      )
+
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+
+    for {query, function} <- [
+          {"?tab=overview&breakdown-tab=module", :list_build_targets},
+          {"?tab=overview&breakdown-tab=file", :list_build_files},
+          {"?tab=xcode-cache&cache-tab=cacheable-tasks", :list_cacheable_tasks},
+          {"?tab=xcode-cache&cache-tab=cas-outputs", :list_cas_outputs}
+        ] do
+      test_pid = self()
+
+      for name <- [:list_build_targets, :list_build_files, :list_cacheable_tasks, :list_cas_outputs] do
+        stub(Tuist.Builds, name, fn options ->
+          send(test_pid, {:loaded, name})
+          Mimic.call_original(Tuist.Builds, name, [options])
+        end)
+      end
+
+      render_patch(lv, path <> query)
+      assert_receive {:loaded, ^function}
+      refute_receive {:loaded, _}
+    end
   end
 
   test "shows details of a build run", %{

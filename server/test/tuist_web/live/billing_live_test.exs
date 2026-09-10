@@ -36,9 +36,9 @@ defmodule TuistWeb.BillingLiveTest do
       end)
     end
 
-    stub(Billing, :get_subscription_current_period_end, fn _ ->
-      "UTC" |> DateTime.now!() |> DateTime.shift(day: 3)
-    end)
+    # The fixture account has no subscription row, so it has no cycle to
+    # read. Tests that give it one say so themselves.
+    stub(Billing, :current_billing_period, fn _account -> nil end)
 
     stub(Billing, :get_payment_method_by_id, fn _ ->
       %{
@@ -109,8 +109,8 @@ defmodule TuistWeb.BillingLiveTest do
         }
       end)
 
-      stub(Billing, :get_subscription_current_period_end, fn _ ->
-        ~U[2024-01-15 14:30:00Z]
+      stub(Billing, :current_billing_period, fn _account ->
+        {~U[2023-12-15 14:30:00Z], ~U[2024-01-15 14:30:00Z]}
       end)
 
       # When
@@ -218,6 +218,90 @@ defmodule TuistWeb.BillingLiveTest do
 
       # When/Then
       assert {:ok, _lv, _html} = live(conn, ~p"/#{account.name}/billing")
+    end
+  end
+
+  describe "remote cache hits" do
+    setup %{account: account} do
+      # The upgrade case: the hits landed earlier in the calendar month,
+      # before the subscription opened, so they sit on no invoice at all.
+      Repo.update!(Ecto.Changeset.change(account, current_month_remote_cache_hits_count: 241))
+
+      :ok
+    end
+
+    test "keeps the calendar month for an account with no subscription", %{conn: conn, account: account} do
+      # Air has no cycle to read, its free tier really does reset on the
+      # first, and the denormalized counter is the very figure its cache
+      # gate is enforced against.
+      reject(&Tuist.CommandEvents.remote_cache_hits_count_for_customer/3)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert lv |> element("#remote-cache-hits-progress [data-part='value']") |> render() =~ "241"
+      assert render(lv) =~ "Free tier exceeded"
+    end
+
+    test "counts the subscription's period rather than the calendar month", %{conn: conn, account: account} do
+      # Usage from before the cycle opened was invoiced against the plan
+      # the account was on then, so pricing it against this plan's free
+      # tier shows a charge the customer is never sent.
+      period_start = DateTime.shift(DateTime.utc_now(), day: -1)
+      subscribe_to_pro(period_start)
+
+      # Only the subscription's own window is answered, so reading any
+      # other one raises rather than quietly reporting a number.
+      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn "customer_id", ^period_start, _period_end ->
+        0
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      value = lv |> element("#remote-cache-hits-progress [data-part='value']") |> render()
+      assert value =~ ~r/>\s*0\s*</
+      refute value =~ "241"
+      refute render(lv) =~ "Free tier exceeded"
+    end
+
+    test "prices the estimate off the period the invoice covers", %{conn: conn, account: account} do
+      period_start = DateTime.shift(DateTime.utc_now(), day: -1)
+      subscribe_to_pro(period_start)
+
+      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn _customer_id, _from, _to -> 0 end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # 241 against the calendar month priced 41 hits at $0.50; the
+      # invoice the label points at came to nothing.
+      assert lv |> element("[data-part='next-payment']") |> render() =~ "0.00"
+      refute lv |> element("[data-part='next-payment']") |> render() =~ "20.50"
+    end
+
+    test "labels the charge date with the period it counted", %{conn: conn, account: account} do
+      period_start = ~U[2026-09-08 10:00:00Z]
+      subscribe_to_pro(period_start, ~U[2026-10-08 10:00:00Z])
+
+      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn _customer_id, _from, _to -> 0 end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      assert has_element?(lv, "[data-part='next-charge-date']", "charged on October 8")
+    end
+
+    defp subscribe_to_pro(period_start, period_end \\ nil) do
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(Billing, :current_billing_period, fn _account ->
+        {period_start, period_end || DateTime.shift(period_start, month: 1)}
+      end)
     end
   end
 

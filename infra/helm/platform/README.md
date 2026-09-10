@@ -14,6 +14,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
+| `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
@@ -38,6 +39,11 @@ ingress-nginx config. The production `values-tuist.yaml` overlay also enables
 three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
+
+Those gateways are host-network DaemonSets, one nginx per cache box. A region
+running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
+gateway can only serve the Kura pods that happen to share its box and answers
+504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable

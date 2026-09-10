@@ -697,6 +697,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/stress-new-tests/plan", StressNewTestsController, :plan
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
 
@@ -742,6 +743,8 @@ defmodule TuistWeb.Router do
         scope "/xcode" do
           scope "/builds" do
             get "/", BuildsController, :index
+            get "/:build_id/steps", BuildStepsController, :index
+            get "/:build_id/steps/:step_id", BuildStepsController, :show
             get "/:build_id/targets", BuildTargetsController, :index
             get "/:build_id/files", BuildFilesController, :index
             get "/:build_id/issues", BuildIssuesController, :index
@@ -1268,8 +1271,10 @@ defmodule TuistWeb.Router do
       live "/gradle-cache", GradleCacheLive
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
+      live "/bazel-cache", BazelCacheLive
       live "/connect", ConnectLive
-      live "/invocations", BazelInvocationsLive
+      get "/invocations", RedirectPlug, to: "/builds"
+      live "/invocations/:invocation_id", BazelBuildInvocationLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
       live "/bundles", BundlesLive
@@ -1278,11 +1283,13 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
+      live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
+      get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,

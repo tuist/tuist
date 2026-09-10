@@ -192,11 +192,53 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
+      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # What the placement sweep may apply on its own, per kind per day. Unset
+    # until 2026-09-09, which left placement proposing and an operator
+    # applying every time.
+    #
+    # Per kind because the kinds do not cost the same thing. An `expand` opens
+    # a region and leaves every cache the account already has where it is; the
+    # others give a region up, and what they spend is the refill of whatever
+    # was warm in it. `relocate` is the lowest because it is the only kind that
+    # can abandon a region an account has held long enough to have filled.
+    # `correct` replaces a first placement while it is still days old, so what
+    # it abandons is a cache that was barely warm and was chosen by a guess.
+    #
+    # Small on purpose: the numbers drain the backlog that had accumulated by
+    # the time this was set over several days rather than in one pass, so the
+    # first unattended moves are watched rather than found afterwards.
+    #
+    # `all` means no fleet-wide ceiling on that kind, which is the setting for
+    # every kind whose mistake is recoverable. What bounds those is the policy,
+    # asked per account: expansion stops at the plan's region count, relocation
+    # runs once a quarter, correction fires once in an account's life. Those
+    # scale with the fleet because they are per account. A fleet-wide count does
+    # not, and one sitting in front of a queue that grows with the account count
+    # only ever falls further behind.
+    #
+    # Falling behind is not merely slow here. A correction stops being available
+    # once the placement it replaces is a fortnight old, so a queue that runs
+    # long silently turns corrections into relocations, which need a quarter.
+    # The first day this ran capped, the whole fleet's allowance went in the
+    # first second: five applies, then eleven accounts waiting a full day.
+    #
+    # `retire` keeps a ceiling because it is the only kind whose mistake cannot
+    # be taken back: the instance stops serving within a minute and the volume
+    # is deleted an hour later with no cancel path. The per-account limits say
+    # nothing about how many accounts move at once, so a rung deciding wrongly
+    # for the whole fleet has nothing else in front of it.
+    #
+    # 25 is a stop, not a throttle. Retirement is rare by construction (a region
+    # held 90 days, a full history window, under the floor, and not earning its
+    # place), so this should never bind on a real day; what it bounds is a
+    # fleet-wide misfire, to one day's worth of regions rather than all of them.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -351,11 +393,14 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -820,6 +865,71 @@ dediboxFleet:
     enabled: true
     item: DEDIBOX_FLEET_SSH
 
+# Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
+# all have no presence there, which is what put a fourth provider in the fleet.
+vultrFleet:
+  externalSecrets:
+    item: VULTR_API
+
+vultrFleets:
+  # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
+  # in the US interior; the plan and shape match sa-west exactly, so the machine
+  # kind, the disk conversion and the fleet wiring are the ones already proven
+  # there.
+  #
+  # Disabled until the box is ordered and converted. The self-join refuses a box
+  # whose /data cannot enforce project quotas, and an enabled fleet with no
+  # adoptable box wedges `helm --wait` for every production deploy.
+  us-central:
+    enabled: false
+    replicas: 1
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
+  # South America West (Santiago), on Vultr because no other provider in the
+  # fleet sells bare metal in South America.
+  #
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # sa-west's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
+  sa-west:
+    enabled: true
+    replicas: 1
+    nodePool: kura-sa-west
+    machine:
+      # The env boundary. One Vultr account holds every env's boxes, and
+      # region+plan repeat across envs.
+      adoptTag: tuist-kura-vultr-production
+      region: scl
+      # Exact, not a prefix: the SSD variant of this plan has the same core count
+      # and a cache adopting it would be a silent downgrade to SATA-class disks.
+      plan: vbm-6c-32gb-amd
+      # Ubuntu 24.04 LTS x64. Recorded rather than requested: the reinstall
+      # endpoint takes no OS argument and reimages whatever the box carries.
+      osID: 2284
+      # The plan meters a 10 TB/month transfer quota, so the quota rather than
+      # the 25 Gbit/s the NIC links at is what binds. Provisional until the
+      # region serves enough traffic to measure.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
+
 # Shared OVH config holder. The singular ovhFleet stays disabled in production
 # (it is the ca-east validation fleet); production's OVH regions are the us-east /
 # us-west map fleets below. The shared OVH IAM ExternalSecret + reconciler read
@@ -845,6 +955,26 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
+  # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
+  # metered provider where an unmetered one is available.
+  #
+  # Disabled until a box is ordered, prepped and marked. An enabled fleet with no
+  # adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy, not just this region.
+  eu-east:
+    enabled: false
+    replicas: 1
+    nodePool: kura-eu-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
+      offer: advance-1
+      datacenter: waw
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   us-east:
     enabled: true
     replicas: 2
@@ -936,11 +1066,11 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Four boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
-    # chart's 1 vCPU / 4 GB slot size, so 128 in total. Slots and threads are 1:1
+    # Six boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 192 in total. Slots and threads are 1:1
     # on this shape, so there is no oversubscription headroom to absorb a burst;
     # capacity grows by box count rather than by packing slots tighter.
-    replicas: 4
+    replicas: 6
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single

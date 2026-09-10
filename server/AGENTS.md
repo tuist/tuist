@@ -128,6 +128,7 @@ mise run dev
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
 - Assets pipeline: `server/assets/AGENTS.md`

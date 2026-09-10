@@ -28,6 +28,8 @@ h2 = "0.4"
 hyper = "1"
 prost = "0.14.1"
 sha2 = "0.10"
+fastcdc = "3.2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
 # Analytics parity with the Swift `CASAnalyticsDatabase`: the proxy writes
 # cas_analytics.db, read by the server's xcactivitylog NIF. `bundled` compiles
