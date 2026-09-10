@@ -1,6 +1,6 @@
 defmodule Tuist.Ops.HourlySlackReportWorker do
   @moduledoc """
-  A worker that notifies us in Slack about the new organizations and users created in the last hour.
+  A worker that notifies #gtm in Slack about the new organizations and users created in the last hour.
   """
   use Oban.Worker
 
@@ -14,7 +14,9 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
     organizations_and_users =
       Accounts.new_organizations_in_last_hour() ++ Accounts.new_users_in_last_hour()
 
-    if organizations_and_users != [] do
+    if organizations_and_users == [] do
+      :ok
+    else
       bullet_list =
         Enum.map_join(organizations_and_users, "\n", fn
           %Organization{account: account} ->
@@ -24,18 +26,21 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
             "• User: #{account.name} - #{user.email}"
         end)
 
-      Slack.send_message([
-        %{
-          type: "section",
-          text: %{
-            type: "plain_text",
-            text: ~s"""
-            The following organizations and users have been created in #{Tuist.Environment.env()}:
-            #{bullet_list}
-            """
+      Slack.send_message(
+        [
+          %{
+            type: "section",
+            text: %{
+              type: "plain_text",
+              text: ~s"""
+              The following organizations and users have been created in #{Tuist.Environment.env()}:
+              #{bullet_list}
+              """
+            }
           }
-        }
-      ])
+        ],
+        channel: "#gtm"
+      )
     end
   end
 end

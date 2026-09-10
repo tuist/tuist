@@ -187,7 +187,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-west,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -874,11 +874,19 @@ vultrFleets:
   # kind, the disk conversion and the fleet wiring are the ones already proven
   # there.
   #
-  # Disabled until the box is ordered and converted. The self-join refuses a box
-  # whose /data cannot enforce project quotas, and an enabled fleet with no
-  # adoptable box wedges `helm --wait` for every production deploy.
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
   us-central:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-us-central
     machine:
@@ -956,11 +964,17 @@ ovhFleets:
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.
   #
-  # Disabled until a box is ordered, prepped and marked. An enabled fleet with no
-  # adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
-  # deploy, not just this region.
+  # Every box counted by replicas must already be prepped (`mise run
+  # baremetal:prep-ovh`) and carry the adoptDisplayNamePrefix, or the fleet sits
+  # at MD 0/1 and wedges `helm --wait` for every production deploy rather than
+  # just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # eu-east's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
   eu-east:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-eu-east
     machine:

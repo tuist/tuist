@@ -5,6 +5,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 ## Key Boundaries
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
+- Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol and reader-first rollout. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
 - Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. Generate the fixture with Tuist's `Project.swift` and `Tuist.swift` manifests, not another project generator. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
@@ -37,6 +38,8 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
+- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
+- The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so

@@ -1,5 +1,4 @@
 use std::{
-    future::Future,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
     time::Duration,
@@ -34,6 +33,7 @@ use crate::{
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task, spawn_supervised},
     runtime::{DataDirLock, RuntimeState},
+    startup::{Bootstrap, Phase, RecoveryError},
     state::{AppState, ReadinessState, SharedState},
     store::Store,
     telemetry::{init_tracing, log_context_span},
@@ -123,13 +123,53 @@ async fn run_with_config(
     node_location: crate::node_location::NodeLocation,
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
+    let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+    metrics.record_node_geo(&node_location);
+    let runtime = RuntimeState::new();
+    let mut bootstrap = Bootstrap::start(
+        SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)),
+        metrics.clone(),
+        runtime.clone(),
+    )
+    .await?;
+    run_with_bootstrap(config, enrollment, metrics, runtime, &mut bootstrap).await
+}
+
+async fn run_with_bootstrap(
+    config: Config,
+    enrollment: Option<crate::enrollment::EnrollmentOutcome>,
+    metrics: Metrics,
+    runtime: Arc<RuntimeState>,
+    bootstrap: &mut Bootstrap,
+) -> Result<(), String> {
+    match initialize_and_serve(config, enrollment, metrics, runtime, bootstrap).await {
+        Ok(()) => Ok(()),
+        Err(RecoveryError::Interrupted) => {
+            info!(
+                event.name = "kura.startup.interrupted",
+                "startup recovery stopped after a shutdown request"
+            );
+            Ok(())
+        }
+        Err(RecoveryError::Failed(error)) => {
+            bootstrap.recovery.set_phase(Phase::Failed);
+            Err(error)
+        }
+    }
+}
+
+async fn initialize_and_serve(
+    config: Config,
+    enrollment: Option<crate::enrollment::EnrollmentOutcome>,
+    metrics: Metrics,
+    runtime: Arc<RuntimeState>,
+    bootstrap: &mut Bootstrap,
+) -> Result<(), RecoveryError> {
     config
         .ensure_data_dir_for_lock()
         .await
         .map_err(|error| format!("failed to create data directory: {error}"))?;
 
-    let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
-    metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
@@ -181,7 +221,25 @@ async fn run_with_config(
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let store = Arc::new(Store::open(&config, io.clone(), memory.clone())?);
+    bootstrap.recovery.check_running()?;
+    bootstrap.recovery.set_phase(Phase::OpeningStore);
+    // Keep the writer lock with the blocking operation even if its waiter
+    // is cancelled. A second process must never open a still-writing store.
+    let (mut store, config, data_dir_lock) = tokio::task::spawn_blocking({
+        let io = io.clone();
+        let memory = memory.clone();
+        let span = tracing::Span::current();
+        move || {
+            span.in_scope(|| {
+                Store::open(&config, io, memory).map(|store| (store, config, data_dir_lock))
+            })
+        }
+    })
+    .await
+    .map_err(|error| format!("store open task failed: {error}"))??;
+    bootstrap.recovery.check_running()?;
+    store.set_startup_recovery(bootstrap.recovery.clone());
+    let store = Arc::new(store);
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
@@ -194,11 +252,14 @@ async fn run_with_config(
     )
     .map_err(|error| format!("failed to initialize Bazel test-artifact delivery: {error}"))?;
     let tmp_staging_budget = store.tmp_staging_budget();
-    match store.sweep_orphaned_segments().await {
-        Ok(0) => {}
-        Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
-        Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
-    }
+    bootstrap.recovery.set_phase(Phase::CleaningSegments);
+    let swept = store
+        .sweep_orphaned_segments()
+        .await
+        .map_err(|error| error.context("failed to sweep orphaned segments"))?;
+    tracing::info!(swept, "removed orphaned segment files");
+    bootstrap.recovery.check_running()?;
+    bootstrap.recovery.set_phase(Phase::Configuring);
     establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
@@ -207,7 +268,6 @@ async fn run_with_config(
         Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
         None => None,
     };
-    let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
         config.replication_public_latency_target_ms,
@@ -262,6 +322,7 @@ async fn run_with_config(
         published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
         sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
+    bootstrap.attach_state(&state);
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
     info!(
@@ -272,6 +333,7 @@ async fn run_with_config(
         "request observability configured"
     );
 
+    bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     Usage::spawn_tasks(state.clone());
@@ -285,7 +347,6 @@ async fn run_with_config(
     spawn_snapshot_task(state.clone());
     spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
-    spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
@@ -415,9 +476,12 @@ async fn run_with_config(
     let router = cohosted_router(state.clone());
     let public_shutdown_state = state.clone();
     let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
+    let mut termination = bootstrap.termination();
     tokio::spawn(
         async move {
-            shutdown_signal().await;
+            if !*termination.borrow() {
+                let _ = termination.wait_for(|terminated| *terminated).await;
+            }
             let budget = ShutdownBudget::new(drain_completion_timeout);
             let _ = shutdown_budget_tx.send(budget);
             let _ = public_shutdown_state.enter_draining();
@@ -465,9 +529,9 @@ async fn run_with_config(
     // requests fall through to hyper — with the fixed gRPC-sized HTTP/2 windows
     // so co-hosted REAPI uploads run at full speed. When acceleration is
     // disabled every connection takes the hyper path of the same loop.
-    let public_listener = tokio::net::TcpListener::bind(address)
-        .await
-        .map_err(|error| format!("failed to bind public HTTP listener: {error}"))?;
+    let public_listener = bootstrap.take_listener().await?;
+    bootstrap.recovery.check_running()?;
+    bootstrap.recovery.set_phase(Phase::Complete);
     accelerated_file_serving::serve_public_http(
         public_listener,
         router,
@@ -592,24 +656,6 @@ fn configure_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        let _ = tokio::signal::ctrl_c().await;
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        let mut signal = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler");
-        signal.recv().await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    wait_for_shutdown_signal(ctrl_c, terminate).await;
 }
 
 // Drains the store's read-path promotion queue: artifacts served from an
@@ -1295,30 +1341,6 @@ fn raise_nofile_soft_to_hard() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn spawn_drain_signal_task(state: Arc<AppState>) {
-    tokio::spawn(
-        async move {
-            let mut signal =
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
-                    .expect("failed to install SIGUSR1 handler");
-            loop {
-                if signal.recv().await.is_none() {
-                    return;
-                }
-                if state.enter_draining() {
-                    state.sync_runtime_metrics().await;
-                    info!("received SIGUSR1, entering draining state");
-                }
-            }
-        }
-        .in_current_span(),
-    );
-}
-
-#[cfg(not(unix))]
-fn spawn_drain_signal_task(_state: Arc<AppState>) {}
-
 #[derive(Clone, Copy, Debug)]
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
@@ -1399,17 +1421,6 @@ fn parse_status_memory_kib(status: &str, field: &str) -> Option<u64> {
         .and_then(|value| value.parse::<u64>().ok())
 }
 
-async fn wait_for_shutdown_signal<C, T>(ctrl_c: C, terminate: T)
-where
-    C: Future<Output = ()>,
-    T: Future<Output = ()>,
-{
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-}
-
 async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -> bool {
     loop {
         let inflight_changed = state.runtime.inflight_changed();
@@ -1457,13 +1468,175 @@ async fn wait_for_task_shutdown<T>(
 mod tests {
     use std::{pin::Pin, task::Poll};
 
-    use tokio::{sync::oneshot, time::timeout};
-
     use super::*;
     use crate::{
         constants::{RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES},
         test_support::test_context,
     };
+
+    #[tokio::test]
+    async fn startup_cleanup_failure_does_not_activate_the_service() {
+        let context = test_context(|_| {}).await;
+        let crate::test_support::TestContext { _temp_dir, state } = context;
+        let config = state.config.clone();
+        drop(state);
+        // An orphan which cannot be unlinked used to be silently ignored,
+        // allowing the service to activate with unfinished recovery.
+        std::fs::create_dir(config.data_dir.join("segments/unremovable.seg")).unwrap();
+        let error = tokio::time::timeout(
+            Duration::from_secs(10),
+            run_with_config(config, crate::node_location::NodeLocation::default(), None),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        assert!(
+            error.contains("failed to sweep orphaned segments"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn startup_drain_process_child() {
+        let Ok(signal) = std::env::var("KURA_TEST_APP_STARTUP_SIGNAL") else {
+            return;
+        };
+        tracing_subscriber::fmt().with_ansi(false).init();
+        let context = test_context(|_| {}).await;
+        let crate::test_support::TestContext { _temp_dir, state } = context;
+        let config = state.config.clone();
+        drop(state);
+        std::fs::write(config.data_dir.join("segments/orphan.seg"), b"orphan").unwrap();
+        let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+        let runtime = RuntimeState::new();
+        let mut bootstrap = Bootstrap::start(
+            "127.0.0.1:0".parse().unwrap(),
+            metrics.clone(),
+            runtime.clone(),
+        )
+        .await
+        .unwrap();
+        let mut running = Box::pin(run_with_bootstrap(
+            config.clone(),
+            None,
+            metrics.clone(),
+            runtime.clone(),
+            &mut bootstrap,
+        ));
+        // Stop polling the application at the real cleanup phase, while the
+        // bootstrap signal task continues to run. No timing race with a fast disk.
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            std::future::poll_fn(|cx| {
+                if let Poll::Ready(result) = running.as_mut().poll(cx) {
+                    panic!("application exited before recovery: {result:?}");
+                }
+                if metrics
+                    .render()
+                    .lines()
+                    .any(|line| line == "kura_startup_recovery_phase 2")
+                {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            unsafe { libc::kill(std::process::id() as libc::pid_t, signal.parse().unwrap()) },
+            0
+        );
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !runtime.is_draining() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        tokio::time::timeout(Duration::from_secs(10), &mut running)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(running);
+        assert!(
+            metrics
+                .render()
+                .lines()
+                .any(|line| line == "kura_startup_recovery_phase 2")
+        );
+        // Successful interruption must close the store and release its writer lock.
+        let _lock = DataDirLock::acquire(&config.data_dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn startup_drain_exits_cleanly_without_reporting_a_failure() {
+        for signal in [libc::SIGUSR1, libc::SIGTERM, libc::SIGINT] {
+            let log = tempfile::NamedTempFile::new().unwrap();
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "app::tests::startup_drain_process_child",
+                    "--nocapture",
+                ])
+                .env("KURA_TEST_APP_STARTUP_SIGNAL", signal.to_string())
+                .stdout(log.as_file().try_clone().unwrap())
+                .stderr(log.as_file().try_clone().unwrap())
+                .spawn()
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let status = loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    break status;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!(
+                        "startup drain child timed out for signal {signal}: {}",
+                        std::fs::read_to_string(log.path()).unwrap()
+                    );
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            };
+            let logs = std::fs::read_to_string(log.path()).unwrap();
+            assert!(status.success(), "signal {signal}: {logs}");
+            assert!(logs.contains("kura.startup.interrupted"), "{logs}");
+            assert!(!logs.contains("kura.runtime.failed"), "{logs}");
+            assert!(!logs.contains("phase=Failed"), "{logs}");
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_failure_is_not_hidden_by_a_pending_drain() {
+        let context = test_context(|_| {}).await;
+        // Retain the first writer's lock so startup really fails even though a
+        // shutdown is also pending. Only an explicit interruption is successful.
+        let config = context.state.config.clone();
+        let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
+        let runtime = RuntimeState::new();
+        let mut bootstrap = Bootstrap::start(
+            "127.0.0.1:0".parse().unwrap(),
+            metrics.clone(),
+            runtime.clone(),
+        )
+        .await
+        .unwrap();
+        runtime.request_drain();
+        let error = run_with_bootstrap(config, None, metrics.clone(), runtime, &mut bootstrap)
+            .await
+            .unwrap_err();
+        assert!(error.contains("writer"), "{error}");
+        assert!(
+            metrics
+                .render()
+                .lines()
+                .any(|line| line == "kura_startup_recovery_phase 5")
+        );
+    }
 
     #[test]
     fn http_builder_accepts_http1_and_http2() {
@@ -2129,52 +2302,6 @@ mod tests {
 
         shutdown_tx.send(true).expect("signal shutdown");
         let _ = server.await;
-    }
-
-    #[tokio::test]
-    async fn wait_for_shutdown_signal_returns_when_ctrl_c_resolves() {
-        let (ctrl_c_tx, ctrl_c_rx) = oneshot::channel::<()>();
-        let (_terminate_tx, terminate_rx) = oneshot::channel::<()>();
-
-        let waiter = tokio::spawn(wait_for_shutdown_signal(
-            async move {
-                let _ = ctrl_c_rx.await;
-            },
-            async move {
-                let _ = terminate_rx.await;
-            },
-        ));
-
-        ctrl_c_tx.send(()).expect("ctrl-c sender should be open");
-
-        timeout(Duration::from_secs(1), waiter)
-            .await
-            .expect("shutdown waiter should return after ctrl-c")
-            .expect("shutdown waiter task should finish cleanly");
-    }
-
-    #[tokio::test]
-    async fn wait_for_shutdown_signal_returns_when_terminate_resolves() {
-        let (_ctrl_c_tx, ctrl_c_rx) = oneshot::channel::<()>();
-        let (terminate_tx, terminate_rx) = oneshot::channel::<()>();
-
-        let waiter = tokio::spawn(wait_for_shutdown_signal(
-            async move {
-                let _ = ctrl_c_rx.await;
-            },
-            async move {
-                let _ = terminate_rx.await;
-            },
-        ));
-
-        terminate_tx
-            .send(())
-            .expect("terminate sender should be open");
-
-        timeout(Duration::from_secs(1), waiter)
-            .await
-            .expect("shutdown waiter should return after terminate")
-            .expect("shutdown waiter task should finish cleanly");
     }
 
     #[tokio::test]

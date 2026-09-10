@@ -98,7 +98,7 @@ defmodule TuistWeb.Marketing.Components.StickyVolumeLab do
 
       [data-part="sticky-volume-lab"] [data-part="volume"][data-variant="feature"] {
         opacity: 0;
-        fill: var(--noora-purple-100);
+        fill: var(--marketing-tint-purple);
         stroke: var(--noora-button-primary-background);
         stroke-width: 2;
       }
@@ -133,7 +133,7 @@ defmodule TuistWeb.Marketing.Components.StickyVolumeLab do
 
       [data-part="sticky-volume-lab"] [data-part="fork-label-surface"] {
         opacity: 0;
-        fill: var(--noora-purple-100);
+        fill: var(--marketing-tint-purple);
         stroke: var(--noora-button-primary-background);
         stroke-width: 1;
       }
@@ -164,7 +164,7 @@ defmodule TuistWeb.Marketing.Components.StickyVolumeLab do
       }
 
       [data-part="sticky-volume-lab"][data-step="0"] [data-stage="main"] [data-part="volume"] {
-        fill: var(--noora-purple-100);
+        fill: var(--marketing-tint-purple);
         stroke: var(--noora-button-primary-background);
       }
 
@@ -209,7 +209,7 @@ defmodule TuistWeb.Marketing.Components.StickyVolumeLab do
       [data-part="sticky-volume-lab"][data-step="2"] [data-part="mobile-step"][data-stage="branch"] {
         transform: translateY(calc(0px - var(--noora-spacing-1)));
         border-color: var(--noora-button-primary-background);
-        background: var(--noora-purple-100);
+        background: var(--marketing-tint-purple);
       }
 
       @keyframes sticky-volume-lab-main-flow {

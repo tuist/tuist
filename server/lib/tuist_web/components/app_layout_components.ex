@@ -624,12 +624,7 @@ defmodule TuistWeb.AppLayoutComponents do
     <header class="headerbar">
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
-          <img
-            src={~p"/images/tuist_dashboard.png"}
-            alt={dgettext("dashboard", "Tuist Icon")}
-            class="headerbar__logo"
-            decoding="async"
-          />
+          <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
         </.link>
         <span :if={@title} data-part="title">{@title}</span>
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
@@ -667,12 +662,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <div data-part="first-row">
         <div data-part="left-section">
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
-            <img
-              src={~p"/images/tuist_dashboard.png"}
-              alt={dgettext("dashboard", "Tuist Icon")}
-              class="headerbar__logo"
-              decoding="async"
-            />
+            <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
           </.link>
           <span :if={@title} data-part="title">{@title}</span>
         </div>

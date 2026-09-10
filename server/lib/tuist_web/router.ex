@@ -74,6 +74,21 @@ defmodule TuistWeb.Router do
     ]
   end
 
+  # Preview pages can be embedded in iframes on other sites (a pull request
+  # description, a wiki, a design tool). Framing is governed by the content
+  # security policy's frame-ancestors, which :browser_app sets to 'self'; this
+  # pipeline re-issues the policy with it open, so it has to run after
+  # :browser_app. Session cookies are SameSite=Lax, so an embedded page renders
+  # signed out: only previews the visitor could open anyway show, and nothing
+  # in the frame acts with the visitor's session.
+  pipeline :embeddable do
+    plug :allow_embedding
+  end
+
+  def allow_embedding(conn, _opts) do
+    put_content_security_policy(conn, Keyword.put(csp_opts(conn), :frame_ancestors, "*"))
+  end
+
   pipeline :browser_app do
     plug :put_request_kind, "page_load"
     plug :accepts, ["html"]
@@ -180,6 +195,7 @@ defmodule TuistWeb.Router do
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
+    plug TuistWeb.Marketing.Preferences
   end
 
   pipeline :browser_docs do
@@ -348,26 +364,6 @@ defmodule TuistWeb.Router do
              metadata: @marketing_route_metadata,
              private: private
 
-        live Path.join(locale_path_prefix, "/build-insights"),
-             TuistWeb.Marketing.MarketingBuildInsightsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/selective-testing"),
-             TuistWeb.Marketing.MarketingSelectiveTestingLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/flaky-tests"),
-             TuistWeb.Marketing.MarketingFlakyTestsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
-        live Path.join(locale_path_prefix, "/test-insights"),
-             TuistWeb.Marketing.MarketingTestInsightsLive,
-             metadata: @marketing_route_metadata,
-             private: private
-
         live Path.join(locale_path_prefix, "/previews"),
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: @marketing_route_metadata,
@@ -386,6 +382,18 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/pricing"),
           MarketingController,
           :pricing,
+          metadata: @marketing_route_metadata,
+          private: private
+
+      get Path.join(locale_path_prefix, "/compute"),
+          MarketingController,
+          :compute,
+          metadata: @marketing_route_metadata,
+          private: private
+
+      get Path.join(locale_path_prefix, "/tests"),
+          MarketingController,
+          :tests,
           metadata: @marketing_route_metadata,
           private: private
 
@@ -413,7 +421,11 @@ defmodule TuistWeb.Router do
         metadata: @marketing_route_metadata,
         private: private
 
-      get Path.join(locale_path_prefix, "/support"), MarketingController, :support,
+      get Path.join(locale_path_prefix, "/brand"), MarketingController, :brand,
+        metadata: @marketing_route_metadata,
+        private: private
+
+      get Path.join(locale_path_prefix, "/download"), MarketingController, :download,
         metadata: @marketing_route_metadata,
         private: private
 
@@ -985,6 +997,8 @@ defmodule TuistWeb.Router do
       pipe_through [:browser_app]
 
       forward "/sent_emails", Bamboo.SentEmailViewerPlug
+      # Every Open Graph image on one page while the cards are redesigned.
+      get "/og-gallery", TuistWeb.OpsOpenGraphGalleryController, :index
     end
   end
 
@@ -1129,7 +1143,8 @@ defmodule TuistWeb.Router do
       :browser_app,
       :require_authenticated_user_for_previews,
       :mark_public_preview_page,
-      :analytics
+      :analytics,
+      :embeddable
     ]
 
     get "/download", PreviewController, :download_preview
@@ -1143,8 +1158,6 @@ defmodule TuistWeb.Router do
       live "/", PreviewLive
     end
   end
-
-  get "/download", TuistWeb.DownloadController, :download
 
   # Dashboards a public account exposes to signed-out visitors. Each
   # LiveView here re-checks `:account_dashboard_read`, which is what
