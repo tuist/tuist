@@ -437,7 +437,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:3
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:239
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:514
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:115
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:113
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:290
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:311
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:58
@@ -500,7 +500,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:37
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:191
 #: lib/tuist_web/marketing/controllers/marketing_html/new/case_study.html.heex:125
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:679
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:677
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:29
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1019
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:13
@@ -1074,7 +1074,7 @@ msgid "Successfully Subscribed!"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:840
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:677
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:675
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1017
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:348
 #, elixir-autogen, elixir-format
@@ -1112,7 +1112,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:44
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:197
 #: lib/tuist_web/marketing/controllers/marketing_html/new/case_study.html.heex:131
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:685
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:683
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:36
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1025
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:482
@@ -2148,7 +2148,7 @@ msgstr ""
 msgid "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:109
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:107
 #: lib/tuist_web/marketing/live/marketing_build_insights_live.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:29
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:52
@@ -3125,7 +3125,7 @@ msgid "Upload artifacts"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/case_study.html.heex:122
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:676
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:674
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:1016
 #: lib/tuist_web/marketing/live/marketing_blog_post_live/new/blog_post.html.heex:93
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:347
@@ -3596,37 +3596,37 @@ msgstr ""
 msgid "via Slack and email"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:309
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:307
 #, elixir-autogen, elixir-format
 msgid "Built into your build platform"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:468
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "Cache-ready by default"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:117
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Compute without the infrastructure work"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:596
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Connect to a running machine through your terminal or VNC and investigate failures in the environment where they actually happened."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:594
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "Debug where it failed"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:481
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Everything else, built in"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:120
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Fast macOS and Linux runners that scale with your workloads and plug directly into the rest of the Tuist platform."
 msgstr ""
@@ -3636,42 +3636,42 @@ msgstr ""
 msgid "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:311
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:309
 #, elixir-autogen, elixir-format
 msgid "Go from a CI job to the Xcode or Gradle build behind it, with build performance, cache activity, and machine metrics connected in one place."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:470
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Persistent volumes and colocated caching keep build data close to your runners for faster reads, writes, and repeat jobs."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:553
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Powerful compute, ready"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:555
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:553
 #, elixir-autogen, elixir-format
 msgid "Run CI and agent workloads on M4 Pro Macs today, with M5 Pro coming soon, or choose Linux machines sized for the job."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:644
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "Run your workflows on current Xcode and macOS versions without maintaining images or installing toolchains yourself."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:513
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:511
 #, elixir-autogen, elixir-format
 msgid "Scale without the queue"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:515
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:513
 #, elixir-autogen, elixir-format
 msgid "Spin up runners in seconds and scale with your team and your agents without managing your own fleet."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:642
+#: lib/tuist_web/marketing/controllers/marketing_html/new/compute.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "Stay current with Apple"
 msgstr ""
