@@ -82,14 +82,20 @@ defmodule TuistWeb.TestRunLive do
         fn -> Tests.get_test_run_failures_count(run.id) end
       ])
 
+    binary_cache_event = binary_cache_command_event(run, command_event)
+
     socket =
       socket
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:binary_cache_command_event, binary_cache_event)
       |> assign(:ci_run_url, ci_run_url)
       |> assign(:ci_context, ci_context)
-      |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
+      |> assign(
+        :module_cache_metrics,
+        binary_cache_event && CommandEvents.module_cache_output_metrics(binary_cache_event.id)
+      )
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
@@ -106,7 +112,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
-      |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
+      |> assign(:has_binary_cache_data, not is_nil(binary_cache_event))
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}
@@ -121,6 +127,21 @@ defmodule TuistWeb.TestRunLive do
     end
 
     {:ok, socket}
+  end
+
+  # Read the original build's lookups without attributing them to this test command.
+  defp binary_cache_command_event(run, command_event) do
+    if command_event && Xcode.has_binary_cache_data?(command_event) do
+      command_event
+    else
+      with build_run_id when not is_nil(build_run_id) <- run.build_run_id,
+           {:ok, event} <- CommandEvents.get_command_event_by_build_run_id(build_run_id, project_id: run.project_id),
+           true <- Xcode.has_binary_cache_data?(event) do
+        event
+      else
+        _ -> nil
+      end
+    end
   end
 
   # The gate's verdict rides the badge on each stressed test case. Its findings need
@@ -550,8 +571,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "module-cache", params) do
-    if socket.assigns.command_event do
-      {analytics, meta} = load_binary_cache_data(socket.assigns.command_event, params)
+    if socket.assigns.binary_cache_command_event do
+      {analytics, meta} = load_binary_cache_data(socket.assigns.binary_cache_command_event, params)
       assign_binary_cache_data(socket, analytics, meta, params)
     else
       socket |> assign_binary_cache_defaults() |> assign_param_defaults(params)

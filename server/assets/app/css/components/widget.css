@@ -70,6 +70,10 @@
       width: 6px;
       height: 16px;
 
+      &[data-color="amber"] {
+        background-color: var(--noora-chart-flaky);
+      }
+
       &[data-color="primary"] {
         background-color: var(--noora-chart-primary);
       }
@@ -226,6 +230,10 @@
     border-radius: 50%;
     width: 8px;
     height: 8px;
+
+    &[data-color="amber"] {
+      background-color: var(--noora-chart-flaky);
+    }
 
     &[data-color="primary"] {
       background-color: var(--noora-chart-primary);
