@@ -196,6 +196,10 @@
           overflow: hidden;
 
           & > [data-part="column"] {
+            /* Overridden inline per column: the entrance stagger and the
+               height the cost bar collapses to. */
+            --delay: 0ms;
+            --box-height: 0px;
             display: flex;
             position: relative;
             flex-direction: column;
@@ -632,6 +636,9 @@
              CacheBuildDecks hook on click): 0 = front, deeper positions
              sit higher and narrower, peeking only their header rows. */
           & > [data-part="panel"] {
+            /* Overridden by the depth states below while the stack cycles. */
+            --stack-y: 0px;
+            --stack-s: 1;
             display: flex;
             position: absolute;
             bottom: -16px;
@@ -641,7 +648,7 @@
                scale) so cycling runs on the compositor — animating
                bottom/width forced a re-layout every frame and stuttered
                whenever the main thread was busy. */
-            transform: translate(-50%, var(--stack-y, 0px)) scale(var(--stack-s, 1));
+            transform: translate(-50%, var(--stack-y)) scale(var(--stack-s));
             transform-origin: bottom center;
             transition:
               transform 0.45s var(--ease-out-cubic),
