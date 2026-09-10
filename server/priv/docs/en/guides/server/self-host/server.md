@@ -91,52 +91,27 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
-#### Multi-replica ClickHouse {#multi-replica-clickhouse}
+#### ClickHouse replication topology {#clickhouse-replication-topology}
 
-Both single-replica and multi-replica ClickHouse topologies are supported. Multi-replica (one shard, N replicas, Keeper quorum) is the shape Tuist runs in production and is what the chart's `clickhouse.managed` mode provisions.
+Self-hosted ClickHouse is supported at **one shard, one replica** today. That covers the embedded chart mode, the Docker Compose setup, and external ClickHouse pointed at either a single-node self-managed ClickHouse or ClickHouse Cloud. External ClickHouse pointed at a **multi-replica self-managed OSS cluster is not supported**.
 
-Every ingest migration hardcodes a plain `MergeTree` (or one of the `AggregatingMergeTree`, `ReplacingMergeTree`, `SummingMergeTree` variants). This is intentional. The migrations don't know how many replicas they will land on, so they rely on ClickHouse to rewrite each engine to its `Replicated*` counterpart at CREATE time. That rewrite only happens inside a database whose engine is `Replicated`, and only when the server profile is configured to require it.
+Every ingest migration creates its table with a plain `MergeTree` engine (or one of the `AggregatingMergeTree`, `ReplacingMergeTree`, or `SummingMergeTree` variants). Data replication in ClickHouse is a property of the table engine, not the database: only `Replicated*` engines replicate rows through Keeper. So on a multi-replica OSS cluster the current migrations end up in one of two states, neither of which is what you want:
 
-For an external multi-replica ClickHouse to work with Tuist, the operator has to arrange three things in the cluster before the migrations run:
+- With `database_replicated_allow_only_replicated_engine=0` on the connecting user, the CREATE succeeds on the replica the migration ran against and produces a per-replica local table. Ingest then silently splits across replicas at write time, and `tuist.schema_migrations` diverges: the migration chain can restart on a replica with no record of it and fail with `TABLE_ALREADY_EXISTS`.
+- With `database_replicated_allow_only_replicated_engine=1` on, the CREATE is rejected outright with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` The migration halts before the schema is applied.
 
-1. Create the application database with the `Replicated` engine, passing a Keeper path and the standard `{shard}` and `{replica}` macros:
+ClickHouse Cloud avoids both because a plain `MergeTree` there is transparently a `SharedMergeTree`, so the same migrations produce a replicated table on any number of Cloud replicas. On self-managed OSS there is no such layer.
 
-   ```sql
-   CREATE DATABASE tuist ENGINE = Replicated('/clickhouse/databases/tuist', '{shard}', '{replica}');
-   ```
+The `clickhouse.managed` mode in the chart provisions a `Replicated` database and three `database_replicated_*` profile flags anyway. That is not a general multi-replica OSS recipe. It is the shape a schema *cloned out of ClickHouse Cloud* lands in: Cloud emits DDL that carries explicit `ReplicatedMergeTree` engines with `('/clickhouse/tables/{uuid}/{shard}', '{replica}', ...)` arguments, and the flags accept those cloned statements without rewriting them. See the users.xml comment in [`clickhouse-managed.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/templates/clickhouse-managed.yaml) for what each flag actually accepts.
 
-2. Define the `{shard}` and `{replica}` macros on every server in the cluster, in a `macros.xml` drop-in:
+For self-hosters today:
 
-   ```xml
-   <clickhouse>
-     <macros>
-       <shard>01</shard>
-       <replica from_env="HOSTNAME"></replica>
-     </macros>
-   </clickhouse>
-   ```
+- **Embedded chart mode:** the chart runs one ClickHouse pod and one Keeper. Supported.
+- **Docker Compose:** one ClickHouse container and one Keeper. Supported.
+- **External ClickHouse on ClickHouse Cloud:** any Cloud replica count works, because Cloud's `SharedMergeTree` handles replication under the plain `MergeTree` DDL the migrations emit.
+- **External ClickHouse on a self-managed OSS cluster:** run one shard with one replica. A multi-replica OSS setup will produce split ingest or a rejected schema depending on which side of `allow_only_replicated_engine` the connecting user is on.
 
-3. Apply three profile flags to the user Tuist connects as:
-
-   ```xml
-   <profiles>
-     <default>
-       <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>
-       <database_replicated_allow_replicated_engine_arguments>2</database_replicated_allow_replicated_engine_arguments>
-       <database_replicated_allow_heavy_create>1</database_replicated_allow_heavy_create>
-     </default>
-   </profiles>
-   ```
-
-`database_replicated_allow_only_replicated_engine=1` is the guard. Without it, a plain `MergeTree` CREATE succeeds and produces a table whose data lives on one replica only, invisible until a second replica exists and disagrees. With it, ClickHouse rewrites `MergeTree` to `ReplicatedMergeTree` (and the family variants to their `Replicated*` counterparts) so both DDL and rows replicate. ClickHouse Cloud defaults this setting to `1` for the same reason.
-
-`database_replicated_allow_replicated_engine_arguments=2` accepts an explicit Keeper path and replica argument on any DDL and substitutes the server defaults instead of honouring them.
-
-`database_replicated_allow_heavy_create=1` permits `CREATE MATERIALIZED VIEW ... POPULATE`, which several ingest migrations use to backfill a view against the base table's existing rows.
-
-The chart's `clickhouse.managed` mode configures all of this for you. It creates the `Replicated` database in a post-install hook, sets the three profile flags on the `default` user, and defines the `{shard}`/`{replica}` macros. The [`clickhouse-managed.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/templates/clickhouse-managed.yaml) template in the chart is a copyable reference if you run ClickHouse under a Kubernetes operator or another provisioning tool.
-
-Symptoms of a multi-replica cluster that skipped one of these steps: `tuist.schema_migrations` holds different row counts on different replicas, migrations fail with `TABLE_ALREADY_EXISTS` after a restart of the migration chain, and ingest silently splits across replicas at write time. All three go away once the guard is on and the database is recreated with `ENGINE = Replicated`.
+Making the ingest engine configurable so a self-hoster can select `ReplicatedMergeTree` per table is on the list. Until that ships, a multi-replica self-managed ClickHouse behind Tuist is not a supported topology.
 
 #### Capping operational log retention {#capping-operational-log-retention}
 
