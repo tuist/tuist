@@ -32,7 +32,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
           assert query =~ "e.git_branch = {branch:String}"
           assert params.branch == "main"
           send(self(), {:batch, batch})
-          %{rows: Enum.map(batch, &[~D[2024-04-02], &1, "framework", 3, 2, 1, 0])}
+          %{rows: Enum.map(batch, &[~D[2024-04-02], &1, "framework", 3, 2, 1, 0, 1])}
 
         _ ->
           assert query =~ "GROUP BY xt.name"
@@ -51,7 +51,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
       )
 
     assert Enum.map(breakdown, & &1.name) == names
-    assert Enum.all?(breakdown, &(&1.appearances == 3 and &1.changed == 1))
+    assert Enum.all?(breakdown, &(&1.appearances == 3 and &1.changed == 1 and &1.evicted == 1))
     assert_received {:batch, first}
     assert first == Enum.take(names, 256)
     assert_received {:batch, ["Module257"]}
@@ -84,7 +84,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
 
     expect(ClickHouseRepo, :query!, fn _query, %{names: names} ->
       assert length(names) == 256
-      %{rows: [[~D[2024-04-02], "Module001", "framework", 3, 2, 1, 0]]}
+      %{rows: [[~D[2024-04-02], "Module001", "framework", 3, 2, 1, 0, 1]]}
     end)
 
     expect(ClickHouseRepo, :query!, fn _query, %{names: ["Module257"]} ->
@@ -110,7 +110,8 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
           appearances: 10,
           misses: index,
           changed: 1,
-          upstream: 0
+          upstream: 0,
+          evicted: 0
         }
       end)
 
@@ -128,7 +129,16 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
 
   test "a module missing from the latest graph has an unknown radius", %{project: project} do
     breakdown = [
-      %{day: ~D[2024-04-02], name: "Gone", product: "framework", appearances: 4, misses: 2, changed: 1, upstream: 0}
+      %{
+        day: ~D[2024-04-02],
+        name: "Gone",
+        product: "framework",
+        appearances: 4,
+        misses: 2,
+        changed: 1,
+        upstream: 0,
+        evicted: 0
+      }
     ]
 
     expect(ClickHouseRepo, :query!, fn _query, _params -> %{rows: [["latest"]]} end)
