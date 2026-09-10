@@ -8,9 +8,20 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Marketing.Design
+
+  on_mount {TuistWeb.Authentication, :mount_current_user}
+
+  embed_templates "marketing_changelog_entry_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (changelog_entry_new/1) distinct from the legacy changelog_entry/1.
+  embed_templates "marketing_changelog_entry_live/new/*", suffix: "_new"
+
+  def render(%{new_design: true} = assigns), do: changelog_entry_new(assigns)
+  def render(assigns), do: changelog_entry(assigns)
 
   def mount(_params, _session, socket) do
-    {:ok, socket}
+    {:ok, assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :changelog_entry))}
   end
 
   def handle_params(%{"id" => id}, _url, socket) do
@@ -74,15 +85,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
     end
   end
 
-  defp generated_changelog_image_url(entry, date) do
-    Tuist.Environment.app_url(
-      path:
-        OpenGraph.image_path(:changelog_entry,
-          title: entry.title,
-          description: entry.description,
-          date: date,
-          pull_request: entry.pull_request
-        )
-    )
+  # The same title-on-template card blog posts without a cover get.
+  defp generated_changelog_image_url(entry, _date) do
+    Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing_text, title: entry.title))
   end
 end

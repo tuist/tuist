@@ -2,7 +2,7 @@
 title: "The build system you already have"
 category: "engineering"
 tags: ["engineering", "build-systems", "bazel", "gradle", "rust"]
-excerpt: "Underneath the surface syntax, every build system is the same graph. After years building remote caching for them, we got curious about what actually makes one tick, and what a build system would look like if you designed it today for coding harnesses."
+excerpt: "Every build system is a graph. After years of remote caching, we explored what one built for coding harnesses could look like today."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/06/30/og.png
 ---

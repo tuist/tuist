@@ -392,7 +392,7 @@ defmodule Tuist.ReapiCache do
            read_latency_ms: latency_ms(numeric(row.read_duration_us), numeric(row.read_count)),
            write_latency_ms: latency_ms(numeric(row.write_duration_us), numeric(row.write_count)),
            latency_ms:
-             divide(
+             latency_ms(
                numeric(row.read_duration_us) + numeric(row.write_duration_us),
                numeric(row.read_count) + numeric(row.write_count)
              ),

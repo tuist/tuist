@@ -1212,7 +1212,8 @@ defmodule TuistWeb.BuildRunLive do
   #
   # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
   # list with a SHA-256 flop_params fragment rather than a tuple with
-  # a phash2.
+  # a phash2, and for why `locking: false` is required to keep the
+  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
   defp cached_build_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :build_run_flop,
@@ -1221,7 +1222,11 @@ defmodule TuistWeb.BuildRunLive do
       :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
     ]
 
-    Tuist.KeyValueStore.get_or_update(cache_key, [ttl: to_timeout(second: 30)], func)
+    Tuist.KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(second: 30), locking: false],
+      func
+    )
   end
 
   defp cacheable_tasks_filters(run, params, available_filters, search) do

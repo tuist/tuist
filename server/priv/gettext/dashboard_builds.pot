@@ -330,7 +330,7 @@ msgstr ""
 msgid "Compressed Size"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.ex:1317
+#: lib/tuist_web/live/build_run_live.ex:1322
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
 msgstr ""
@@ -391,7 +391,7 @@ msgstr ""
 msgid "Device"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.ex:1290
+#: lib/tuist_web/live/build_run_live.ex:1295
 #: lib/tuist_web/live/build_run_live.html.heex:1417
 #: lib/tuist_web/live/build_run_live.html.heex:1570
 #, elixir-autogen, elixir-format
@@ -609,12 +609,12 @@ msgid "Headers"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:240
-#: lib/tuist_web/live/build_run_live.ex:1265
-#: lib/tuist_web/live/build_run_live.ex:1501
+#: lib/tuist_web/live/build_run_live.ex:1270
+#: lib/tuist_web/live/build_run_live.ex:1506
 #: lib/tuist_web/live/build_run_live.html.heex:1234
 #: lib/tuist_web/live/run_detail_live.ex:336
 #: lib/tuist_web/live/run_detail_live.ex:369
-#: lib/tuist_web/live/test_run_live.ex:1376
+#: lib/tuist_web/live/test_run_live.ex:1392
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -648,13 +648,13 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:250
 #: lib/tuist_web/components/runs/module_cache_tab.ex:545
-#: lib/tuist_web/live/build_run_live.ex:1269
-#: lib/tuist_web/live/build_run_live.ex:1506
+#: lib/tuist_web/live/build_run_live.ex:1274
+#: lib/tuist_web/live/build_run_live.ex:1511
 #: lib/tuist_web/live/build_run_live.html.heex:1023
 #: lib/tuist_web/live/build_run_live.html.heex:1237
 #: lib/tuist_web/live/run_detail_live.ex:341
 #: lib/tuist_web/live/run_detail_live.ex:374
-#: lib/tuist_web/live/test_run_live.ex:1381
+#: lib/tuist_web/live/test_run_live.ex:1397
 #: lib/tuist_web/live/xcode_builds_live.ex:387
 #: lib/tuist_web/live/xcode_builds_live.ex:390
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
@@ -675,13 +675,13 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:256
 #: lib/tuist_web/components/runs/module_cache_tab.ex:571
-#: lib/tuist_web/live/build_run_live.ex:1271
-#: lib/tuist_web/live/build_run_live.ex:1507
+#: lib/tuist_web/live/build_run_live.ex:1276
+#: lib/tuist_web/live/build_run_live.ex:1512
 #: lib/tuist_web/live/build_run_live.html.heex:1051
 #: lib/tuist_web/live/build_run_live.html.heex:1249
 #: lib/tuist_web/live/run_detail_live.ex:342
 #: lib/tuist_web/live/run_detail_live.ex:375
-#: lib/tuist_web/live/test_run_live.ex:1382
+#: lib/tuist_web/live/test_run_live.ex:1398
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
@@ -849,13 +849,13 @@ msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:244
 #: lib/tuist_web/components/runs/module_cache_tab.ex:558
-#: lib/tuist_web/live/build_run_live.ex:1270
-#: lib/tuist_web/live/build_run_live.ex:1505
+#: lib/tuist_web/live/build_run_live.ex:1275
+#: lib/tuist_web/live/build_run_live.ex:1510
 #: lib/tuist_web/live/build_run_live.html.heex:1037
 #: lib/tuist_web/live/build_run_live.html.heex:1243
 #: lib/tuist_web/live/run_detail_live.ex:340
 #: lib/tuist_web/live/run_detail_live.ex:373
-#: lib/tuist_web/live/test_run_live.ex:1380
+#: lib/tuist_web/live/test_run_live.ex:1396
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
@@ -914,7 +914,7 @@ msgstr ""
 msgid "Size"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.ex:1309
+#: lib/tuist_web/live/build_run_live.ex:1314
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr ""
@@ -942,7 +942,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:219
 #: lib/tuist_web/live/build_run_live.ex:1119
-#: lib/tuist_web/live/build_run_live.ex:1286
+#: lib/tuist_web/live/build_run_live.ex:1291
 #: lib/tuist_web/live/build_run_live.html.heex:251
 #: lib/tuist_web/live/build_run_live.html.heex:1567
 #: lib/tuist_web/live/generate_runs_live.ex:268
@@ -1102,8 +1102,8 @@ msgid "Tuist version"
 msgstr ""
 
 #: lib/tuist_web/components/build_timeline.ex:246
-#: lib/tuist_web/live/build_run_live.ex:1252
-#: lib/tuist_web/live/build_run_live.ex:1299
+#: lib/tuist_web/live/build_run_live.ex:1257
+#: lib/tuist_web/live/build_run_live.ex:1304
 #: lib/tuist_web/live/build_run_live.html.heex:697
 #: lib/tuist_web/live/build_run_live.html.heex:1254
 #: lib/tuist_web/live/build_run_live.html.heex:1581
@@ -1144,7 +1144,7 @@ msgstr ""
 msgid "Unknown scheme"
 msgstr ""
 
-#: lib/tuist_web/live/build_run_live.ex:1291
+#: lib/tuist_web/live/build_run_live.ex:1296
 #: lib/tuist_web/live/build_run_live.html.heex:1434
 #: lib/tuist_web/live/build_run_live.html.heex:1576
 #, elixir-autogen, elixir-format
