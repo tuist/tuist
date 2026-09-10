@@ -6,11 +6,13 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorker do
   use Oban.Worker
 
   alias Tuist.Accounts
+  alias Tuist.Billing.AirUsageNotifications
+  alias Tuist.Time
 
   @impl Oban.Worker
 
-  def perform(%Oban.Job{args: %{"account_id" => account_id, "updated_at" => updated_at_string}}) do
-    {:ok, updated_at, _} = DateTime.from_iso8601(updated_at_string)
+  def perform(%Oban.Job{args: %{"account_id" => account_id}}) do
+    updated_at = Time.utc_now()
 
     Accounts.update_account_current_month_usage(
       account_id,
@@ -18,6 +20,7 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorker do
       updated_at: updated_at
     )
 
+    AirUsageNotifications.enqueue(account_id, updated_at)
     :ok
   end
 end
