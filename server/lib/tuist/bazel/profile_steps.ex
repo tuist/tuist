@@ -80,7 +80,7 @@ defmodule Tuist.Bazel.ProfileSteps do
       {:ok,
        %{
          steps: steps,
-         availability: "available",
+         availability: if(count > 0 or ClickHouseRepo.exists?(base), do: "available", else: "unavailable"),
          coverage: "trace_profile",
          time_origin: "profile_start",
          pagination_metadata: RunnerTools.pagination_metadata(opts.page, opts.page_size, count)

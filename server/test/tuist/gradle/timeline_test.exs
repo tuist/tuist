@@ -2,6 +2,7 @@ defmodule Tuist.Gradle.TimelineTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Builds.RecordedSteps
+  alias Tuist.ClickHouseRepo
   alias Tuist.Gradle
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Gradle.Timeline
@@ -9,6 +10,62 @@ defmodule Tuist.Gradle.TimelineTest do
   alias TuistTestSupport.Fixtures.GradleFixtures
 
   @start ~U[2026-09-09 10:00:00.123000Z]
+
+  test "zero-duration task outcomes are retained in the timeline and step API" do
+    outcomes = ~w(cache_hit up_to_date skipped no_source)
+    tasks = Enum.map(outcomes, &Map.put(task(":#{&1}", &1, @start), :duration_ms, 0))
+    id = GradleFixtures.build_fixture(started_at: @start, tasks: tasks)
+    {:ok, build} = Gradle.get_build(id)
+    assert Timeline.load(build).total_count == 4
+
+    for outcome <- outcomes do
+      assert {:ok, %{steps: [%{status: ^outcome, duration_ms: 0} = step]}} = RecordedSteps.list(build, %{status: outcome})
+      assert {:ok, %{status: ^outcome, duration_ms: 0}} = RecordedSteps.get(build, step.id)
+    end
+  end
+
+  test "step offsets preserve microseconds at the build boundary" do
+    id =
+      GradleFixtures.build_fixture(
+        started_at: @start,
+        tasks: [
+          task(":at-start", "executed", @start),
+          task(":one-microsecond", "executed", DateTime.add(@start, 1, :microsecond))
+        ]
+      )
+
+    {:ok, build} = Gradle.get_build(id)
+
+    assert {:ok, %{steps: [%{start_ms: first}, %{start_ms: second}]}} =
+             RecordedSteps.list(build, %{sort_by: "start_ms"})
+
+    assert first == 0
+    assert second == 0.001
+  end
+
+  test "an empty legacy origin cannot turn later arrivals into epoch-sized offsets" do
+    id = GradleFixtures.build_fixture()
+    {:ok, build} = Gradle.get_build(id)
+    query_before_arrival = Timeline.step_query(build)
+
+    IngestRepo.insert_all(ConfigurationOperation, [
+      %{
+        id: Ecto.UUID.generate(),
+        gradle_build_id: id,
+        project_id: build.project_id,
+        phase: "settings",
+        build_path: ":",
+        project_path: ":",
+        started_at: DateTime.to_naive(@start),
+        duration_ms: 100,
+        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      }
+    ])
+
+    assert ClickHouseRepo.all(query_before_arrival) == []
+    assert {:ok, %{steps: [%{start_ms: offset}]}} = RecordedSteps.list(build, %{})
+    assert offset == 0
+  end
 
   test "loads all operations, scopes project data and aligns metrics with the reported build clock" do
     id =
@@ -100,6 +157,11 @@ defmodule Tuist.Gradle.TimelineTest do
     bootstrap = Timeline.bootstrap(build)
     assert bootstrap.time_origin == "first_recorded_timestamp"
     assert bootstrap.machine_metrics == Timeline.load(build).machine_metrics
+    metadata = Timeline.load(build, include_metrics: false)
+    assert metadata.events == Timeline.load(build).events
+    assert metadata.duration == Timeline.load(build).duration
+    assert metadata.has_metrics
+    refute Map.has_key?(metadata, :machine_metrics)
     assert [%{offset_ms: offset}] = bootstrap.machine_metrics
     assert_in_delta offset, 1000, 0.001
     refute Map.has_key?(bootstrap, :events)

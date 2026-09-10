@@ -67,8 +67,14 @@ defmodule Tuist.Builds.RecordedSteps do
 
   def get(%Bazel.Invocation{} = build, id) when is_binary(id) and byte_size(id) <= 128 do
     case Bazel.Profile.steps_version(build) do
-      version when is_binary(version) and version != "" -> Bazel.ProfileSteps.get(build, version, id)
-      _ -> get_recorded(build, id)
+      version when is_binary(version) and version != "" ->
+        case Bazel.ProfileSteps.get(build, version, id) do
+          {:error, :not_found} -> get_retained(build, id)
+          result -> result
+        end
+
+      _ ->
+        get_recorded(build, id)
     end
   end
 
@@ -85,8 +91,20 @@ defmodule Tuist.Builds.RecordedSteps do
 
   def get(_build, _id), do: {:error, :invalid_step_id}
 
+  defp get_retained(build, id) do
+    if Regex.match?(~r/^\d+$/, id) do
+      find_step(build, Bazel.Timeline.retained_summary(build), id)
+    else
+      {:error, :not_found}
+    end
+  end
+
   defp get_recorded(build, id) do
-    case Enum.find(load(build).events, &(&1.event_id == id)) do
+    find_step(build, load(build), id)
+  end
+
+  defp find_step(build, timeline, id) do
+    case Enum.find(timeline.events, &(&1.event_id == id)) do
       nil -> {:error, :not_found}
       step -> {:ok, Map.merge(serialize(step), step_log(build, step))}
     end

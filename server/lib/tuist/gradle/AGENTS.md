@@ -23,3 +23,6 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - Step API/MCP queries normalize the three operation tables through a ClickHouse union with database filtering, ordering and pagination; detail lookups do not load the full timeline or machine samples. Legacy origins are computed from scalar minimum timestamps. The dashboard still loads all operations for the interactive timeline.
 
 - Timeline metric bootstrapping queries samples separately from step metadata. For legacy builds, scalar timestamp minima keep bootstrap and downloaded operations on exactly the same origin without loading all operations into LiveView.
+
+- Preserve zero-duration operations, including cached/skipped/no-source tasks, in both dashboard metadata and paginated step queries. If a legacy origin is absent, the captured query returns no steps; a subsequent request can discover a newly arrived origin instead of emitting epoch-sized offsets.
+- Full dashboard metadata retains every operation for local navigation but omits sample-row reads; scalar metric bounds preserve origin, duration and availability. Bootstrap reads samples without loading operation rows, and API/MCP step endpoints remain paginated.

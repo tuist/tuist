@@ -35,3 +35,5 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - `Tools.BuildStep` owns shared step input/output schemas. Bazel keeps the same account/project/invocation addressing and project authorization as other Bazel tools because invocation IDs are caller-supplied and project-scoped. Gradle/Xcode retain their Tuist build UUID/dashboard-URL addressing. Do not add an unscoped Bazel invocation lookup merely to match those signatures.
 
 - The Bazel comparison prompt honors step-list coverage: trace profiles contain all recorded intervals; retained summaries have at most 32 actions plus setup. Recommend step detail tools for published action outcomes/logs and invocation logs for broader output; unknown or absent diagnostics never imply success.
+
+- Numeric retained Bazel IDs stay readable across profile publication; missing indexed rows report unavailable rather than an empty available timeline. Gradle step tools include zero-duration cache and skip outcomes.

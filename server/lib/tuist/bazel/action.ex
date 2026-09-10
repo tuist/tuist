@@ -91,7 +91,7 @@ defmodule Tuist.Bazel.Action do
     %{timeline | events: events, logs_available: Enum.any?(events, &(&1.status != "unknown"))}
   end
 
-  defp matching_actions(actions, step, origin) when is_number(origin) do
+  defp matching_actions(actions, step, origin) when is_number(origin) and origin > 0 do
     # BEP uses integer epoch milliseconds; profile times retain microseconds.
     first = origin + step.start_ms
     last = first + step.duration_ms

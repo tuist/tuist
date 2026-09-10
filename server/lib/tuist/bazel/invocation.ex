@@ -49,16 +49,16 @@ defmodule Tuist.Bazel.Invocation do
 
   def timeline_spans(invocation) do
     [
+      invocation.build_timeline_span_lanes,
       invocation.build_timeline_span_start_ms,
       invocation.build_timeline_span_durations_ms,
       invocation.build_timeline_span_categories,
       invocation.build_timeline_span_descriptions
     ]
     |> Enum.zip()
-    |> Enum.with_index()
-    |> Enum.map(fn {{start_ms, duration_ms, category, description}, index} ->
+    |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
       %{
-        lane: Enum.at(invocation.build_timeline_span_lanes, index, 0),
+        lane: lane,
         start_ms: start_ms,
         duration_ms: duration_ms,
         category: category,

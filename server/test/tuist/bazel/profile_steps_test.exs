@@ -7,7 +7,71 @@ defmodule Tuist.Bazel.ProfileStepsTest do
   alias Tuist.Bazel.ProfileDecoder
   alias Tuist.Bazel.ProfileSteps
   alias Tuist.Builds.RecordedSteps
+  alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  test "retained IDs remain readable after the indexed profile is published" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+
+    build = %Invocation{
+      project_id: project.id,
+      invocation_id: "boundary",
+      duration_ms: 100,
+      build_timeline_span_lanes: [0],
+      build_timeline_span_start_ms: [0],
+      build_timeline_span_durations_ms: [100],
+      build_timeline_span_categories: ["execution"],
+      build_timeline_span_descriptions: ["Retained action"]
+    }
+
+    assert {:ok, %{steps: [%{id: id}]}} = RecordedSteps.list(build, %{})
+
+    compressed =
+      :zlib.gzip(
+        JSON.encode!(%{
+          otherData: %{build_id: "boundary"},
+          traceEvents: [%{ph: "X", name: "Profile action", ts: 0, dur: 1000}]
+        })
+      )
+
+    assert :ok = Profile.ingest(project, "boundary", compressed)
+    assert {:ok, %{title: "Retained action", id: ^id}} = RecordedSteps.get(build, id)
+    assert {:ok, %{title: "Profile action"}} = RecordedSteps.get(build, "profile:0")
+    assert {:error, :not_found} = RecordedSteps.get(build, "profile:999")
+    assert {:error, :not_found} = RecordedSteps.get(build, "999")
+
+    assert {:ok, %{steps: [], availability: "available"}} = RecordedSteps.list(build, %{search: "no match"})
+
+    ClickHouseRepo.query!(
+      "ALTER TABLE bazel_profile_steps DELETE WHERE project_id = {$0:Int64} AND invocation_id = {$1:String} SETTINGS mutations_sync = 1",
+      [project.id, "boundary"]
+    )
+
+    assert {:ok, %{steps: [], availability: "unavailable"}} = RecordedSteps.list(build, %{})
+  end
+
+  test "legacy action correlation treats a zero profile epoch as unavailable" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+    build = %Invocation{project_id: project.id, invocation_id: "zero-origin"}
+
+    assert :ok =
+             Action.ingest(project, %{
+               "invocation_id" => "zero-origin",
+               "primary_output" => "out.o",
+               "started_at_ms" => 1_700_000_000_000,
+               "success" => true,
+               "log" => "matched",
+               "log_truncated" => false
+             })
+
+    timeline = %{
+      events: [%{primary_output: "out.o", start_ms: 0, duration_ms: 1000, status: "unknown"}],
+      profile_started_at_ms: 0,
+      logs_available: false
+    }
+
+    assert %{events: [%{status: "success"}]} = Action.enrich(timeline, build)
+  end
 
   test "indexed pagination, status filters and detail logs distinguish repeated executions" do
     project = ProjectsFixtures.project_fixture(build_system: :bazel)

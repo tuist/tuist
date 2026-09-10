@@ -20,10 +20,10 @@ defmodule Tuist.Bazel.Profile do
   # CollectLocalResourceUsage aggregates counters into one-second TimeSeries buckets.
   @metric_bucket_ms 1000
   @metric_names %{
-    "CPU usage (total)" => {:cpu_usage_cores, 1},
-    "Memory usage (total)" => {:memory_used_bytes, 1024 * 1024},
-    "Network Up usage (total)" => {:network_bytes_out, 1_000_000 / 8},
-    "Network Down usage (total)" => {:network_bytes_in, 1_000_000 / 8}
+    "CPU usage (total)" => {:cpu_usage_cores, 1, "system cpu"},
+    "Memory usage (total)" => {:memory_used_bytes, 1024 * 1024, "system memory"},
+    "Network Up usage (total)" => {:network_bytes_out, 1_000_000 / 8, "system network up (Mbps)"},
+    "Network Down usage (total)" => {:network_bytes_in, 1_000_000 / 8, "system network down (Mbps)"}
   }
 
   @payload_keys Map.new(
@@ -171,7 +171,7 @@ defmodule Tuist.Bazel.Profile do
        events: steps,
        total_count: length(steps),
        duration: duration,
-       target_count: steps |> Enum.map(& &1.target) |> Enum.reject(&(&1 == "")) |> Enum.uniq() |> length(),
+       target_count: steps |> Enum.reject(&(&1.target == "")) |> Enum.uniq_by(&{&1.project, &1.target}) |> length(),
        machine_metrics: samples,
        has_metrics: samples != [],
        local_navigation: true,
@@ -220,7 +220,7 @@ defmodule Tuist.Bazel.Profile do
     |> Enum.reverse()
     |> Enum.drop_while(fn sample ->
       sample[:memory_used_bytes] == 0 and
-        Enum.all?(@metric_names, fn {_name, {field, _multiplier}} -> Map.get(sample, field, 0) == 0 end)
+        Enum.all?(@metric_names, fn {_name, {field, _multiplier, _key}} -> Map.get(sample, field, 0) == 0 end)
     end)
     |> Enum.reverse()
   end
@@ -248,8 +248,8 @@ defmodule Tuist.Bazel.Profile do
 
   defp metric(%{"ph" => "C", "name" => name, "ts" => ts, "args" => args}, samples)
        when is_number(ts) and ts >= 0 and is_map(args) do
-    with {field, multiplier} <- @metric_names[name],
-         [value] when is_number(value) and value >= 0 <- Map.values(args) do
+    with {field, multiplier, key} <- @metric_names[name],
+         value when is_number(value) and value >= 0 <- args[key] do
       offset = ts / 1000
       sample = samples |> Map.get(offset, %{offset_ms: offset}) |> Map.put(field, value * multiplier)
       Map.put(samples, offset, sample)

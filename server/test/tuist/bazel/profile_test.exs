@@ -18,9 +18,14 @@ defmodule Tuist.Bazel.ProfileTest do
         }
       end) ++
         [
-          %{"ph" => "C", "name" => "CPU usage (total)", "ts" => 10_000, "args" => %{"cpu" => 4.5}},
-          %{"ph" => "C", "name" => "Memory usage (total)", "ts" => 10_000, "args" => %{"memory" => 1024}},
-          %{"ph" => "C", "name" => "Network Down usage (total)", "ts" => 10_000, "args" => %{"Mbps" => 8}}
+          %{"ph" => "C", "name" => "CPU usage (total)", "ts" => 10_000, "args" => %{"system cpu" => 4.5}},
+          %{"ph" => "C", "name" => "Memory usage (total)", "ts" => 10_000, "args" => %{"system memory" => 1024}},
+          %{
+            "ph" => "C",
+            "name" => "Network Down usage (total)",
+            "ts" => 10_000,
+            "args" => %{"system network down (Mbps)" => 8}
+          }
         ]
 
     assert {:ok, timeline} = Profile.normalize(profile(events), "build-1", "app")
@@ -41,7 +46,7 @@ defmodule Tuist.Bazel.ProfileTest do
   test "counter buckets cover short builds and clip only the final bucket of longer builds" do
     counters =
       Enum.map([8000, 1_008_000], fn ts ->
-        %{"ph" => "C", "name" => "CPU usage (total)", "ts" => ts, "args" => %{"cpu" => 1.8}}
+        %{"ph" => "C", "name" => "CPU usage (total)", "ts" => ts, "args" => %{"system cpu" => 1.8}}
       end)
 
     short = %{"ph" => "X", "name" => "Compile", "ts" => 0, "dur" => 403_000}
@@ -217,18 +222,43 @@ defmodule Tuist.Bazel.ProfileTest do
     assert nil == Profile.load(%{invocation | project_id: project.id + 1})
   end
 
+  test "native resource keys survive additional counter metadata" do
+    events = [
+      %{"ph" => "C", "name" => "CPU usage (total)", "ts" => 0, "args" => %{"system cpu" => 2, "metadata" => 999}},
+      %{
+        "ph" => "C",
+        "name" => "Memory usage (total)",
+        "ts" => 0,
+        "args" => %{"system memory" => 1024, "metadata" => "added"}
+      },
+      %{
+        "ph" => "C",
+        "name" => "Network Up usage (total)",
+        "ts" => 0,
+        "args" => %{"system network up (Mbps)" => 8, "metadata" => "added"}
+      },
+      %{"ph" => "C", "name" => "Network Down usage (total)", "ts" => 0, "args" => %{"metadata" => 42}}
+    ]
+
+    assert {:ok, %{machine_metrics: [sample]}} = Profile.normalize(profile(events), "build-1", "app")
+    assert sample.cpu_usage_cores == 2
+    assert sample.memory_used_bytes == 1_073_741_824
+    assert sample.network_bytes_out == 1_000_000
+    refute Map.has_key?(sample, :network_bytes_in)
+  end
+
   defp profile(events), do: %{"otherData" => %{"build_id" => "build-1"}, "traceEvents" => events}
 
   defp counter_events(sample) do
     Enum.flat_map(
       [
-        {:cpu_usage_cores, "CPU usage (total)"},
-        {:memory_used_bytes, "Memory usage (total)"},
-        {:network_bytes_in, "Network Down usage (total)"}
+        {:cpu_usage_cores, "CPU usage (total)", "system cpu"},
+        {:memory_used_bytes, "Memory usage (total)", "system memory"},
+        {:network_bytes_in, "Network Down usage (total)", "system network down (Mbps)"}
       ],
-      fn {field, name} ->
+      fn {field, name, key} ->
         case Map.fetch(sample, field) do
-          {:ok, value} -> [%{"ph" => "C", "name" => name, "ts" => sample.offset_ms * 1000, "args" => %{"value" => value}}]
+          {:ok, value} -> [%{"ph" => "C", "name" => name, "ts" => sample.offset_ms * 1000, "args" => %{key => value}}]
           :error -> []
         end
       end

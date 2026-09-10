@@ -38,7 +38,7 @@ defmodule TuistWeb.BuildController do
   defp timeline_build(_project, _params), do: {:error, :not_found}
 
   defp timeline_metadata(%Builds.Build{} = build), do: Builds.build_timeline(build.id, duration: build.duration)
-  defp timeline_metadata(%Gradle.Build{} = build), do: build |> Gradle.Timeline.load() |> Map.delete(:machine_metrics)
+  defp timeline_metadata(%Gradle.Build{} = build), do: Gradle.Timeline.load(build, include_metrics: false)
   defp timeline_metadata(%Bazel.Invocation{} = build), do: build |> Bazel.Timeline.load() |> Map.delete(:machine_metrics)
 
   def download(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "build_run_id" => build_id}) do

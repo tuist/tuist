@@ -15,6 +15,7 @@ class MachineMetricsCollector(
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
 
     private var previousSampleTimestamp: Double? = null
+    private var sessionSampleCount = 0
     private var previousNetworkBytesIn = 0L
     private var previousNetworkBytesOut = 0L
     private var previousDiskBytesRead = 0L
@@ -25,6 +26,7 @@ class MachineMetricsCollector(
         if (running) return
         running = true
         previousSampleTimestamp = null
+        sessionSampleCount = 0
         collectSample()
 
         thread = Thread({
@@ -48,19 +50,20 @@ class MachineMetricsCollector(
         running = false
         thread?.interrupt()
         thread?.join(2000)
-        if (thread?.isAlive != true) collectSample()
+        if (thread?.isAlive != true) collectSample(minimumElapsedMs = if (sessionSampleCount > 1) 200 else 0)
         return synchronized(samples) { samples.toList() }
     }
 
-    private fun collectSample() {
+    private fun collectSample(minimumElapsedMs: Long = 0) {
         val timestamp = currentTimeMillis() / 1000.0
+        val elapsedSeconds = previousSampleTimestamp?.let { timestamp - it } ?: 0.0
+        if (elapsedSeconds * 1000 < minimumElapsedMs) return
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
         val network = withoutInputTracking { readNetworkBytes() }
         val disk = withoutInputTracking { readDiskBytes() }
 
-        val elapsedSeconds = previousSampleTimestamp?.let { timestamp - it } ?: 0.0
         fun rate(current: Long, previous: Long): Long =
             if (elapsedSeconds > 0) (maxOf(0L, current - previous) / elapsedSeconds).toLong() else 0L
 
@@ -69,6 +72,7 @@ class MachineMetricsCollector(
         val diskRead = rate(disk.first, previousDiskBytesRead)
         val diskWritten = rate(disk.second, previousDiskBytesWritten)
         previousSampleTimestamp = timestamp
+        sessionSampleCount++
 
         previousNetworkBytesIn = network.first
         previousNetworkBytesOut = network.second

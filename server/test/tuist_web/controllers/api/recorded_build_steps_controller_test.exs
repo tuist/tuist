@@ -44,6 +44,7 @@ defmodule TuistWeb.API.RecordedBuildStepsControllerTest do
         duration_ms: 500,
         target_patterns: [],
         cache_endpoint: "",
+        build_timeline_span_lanes: [0],
         build_timeline_span_start_ms: [0],
         build_timeline_span_durations_ms: [100],
         build_timeline_span_categories: ["execution"],

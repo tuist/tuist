@@ -298,6 +298,8 @@ The same operations are available over the HTTP API at `GET /api/projects/{accou
 
 Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
 
+Bazel step IDs returned from retained summaries remain readable if a full profile arrives between listing and fetching a step. An indexed profile whose step data has expired reports unavailable. Gradle step lists include zero-duration cached and skipped operations.
+
 #### Bazel invocations
 
 | Tool | Description | Required parameters |

@@ -19,7 +19,7 @@ defmodule Tuist.Bazel.Timeline do
     ])
   end
 
-  defp retained_summary(invocation) do
+  def retained_summary(invocation) do
     events =
       invocation
       |> Invocation.timeline_spans()

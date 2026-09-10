@@ -9,6 +9,7 @@ defmodule Tuist.Bazel.TimelineTest do
     build = %Invocation{
       project_handle: "app",
       duration_ms: 5000,
+      build_timeline_span_lanes: [0, 1, 2, 3],
       build_timeline_span_start_ms: [0, 100, 100, 400],
       build_timeline_span_durations_ms: [100, 200, 300, 0],
       build_timeline_span_categories: ["analysis", "execution", "execution", "execution"],
@@ -28,6 +29,20 @@ defmodule Tuist.Bazel.TimelineTest do
 
     assert {:ok, %{log: nil, log_truncated: false}} = RecordedSteps.get(build, "1")
     assert {:error, :not_found} = RecordedSteps.get(%Invocation{duration_ms: 100}, "1")
+  end
+
+  test "span arrays truncate to complete rows including their lanes" do
+    build = %Invocation{
+      duration_ms: 100,
+      build_timeline_span_lanes: [2],
+      build_timeline_span_start_ms: [0, 1],
+      build_timeline_span_durations_ms: [0, 1],
+      build_timeline_span_categories: ["setup", "execution"],
+      build_timeline_span_descriptions: ["Setup", "Incomplete"]
+    }
+
+    assert [%{lane: 2, duration_ms: 0}] = Invocation.timeline_spans(build)
+    assert Invocation.timeline_spans(%{build | build_timeline_span_lanes: []}) == []
   end
 
   test "legacy invocations expose absent recordings without synthetic execution" do

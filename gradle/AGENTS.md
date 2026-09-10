@@ -22,3 +22,5 @@ Related: `server/lib/tuist/gradle/AGENTS.md`.
 - Timestamp machine samples and report fallbacks with Gradle’s operation clock (`Time.currentTimeMillis`), not the system wall clock; long-lived daemons can have different offsets between those clocks.
 
 - Report time bounds cover the recorded operations and machine measurements, rather than unrelated internal callbacks. Keep earlier recorded operations intact, and include the final measurement in the reported duration. The reporter owns the early collector until its completion queue drains; the sampler’s independent Gradle close hook must not stop it prematurely.
+
+- After a periodic reading, omit a stop-time sample less than 200 ms later to avoid unstable rates from a tiny final interval. Preserve start/stop readings when no periodic sample was collected, including short builds.

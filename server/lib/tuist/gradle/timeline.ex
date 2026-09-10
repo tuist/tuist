@@ -20,7 +20,7 @@ defmodule Tuist.Gradle.Timeline do
     :disk_bytes_written
   ]
 
-  def load(build) do
+  def load(build, opts \\ []) do
     tasks = rows(Task, build, [:id, :task_path, :build_path, :task_type, :outcome, :started_at, :duration_ms])
 
     configuration =
@@ -36,8 +36,25 @@ defmodule Tuist.Gradle.Timeline do
         :duration_ms
       ])
 
-    metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
-    normalize(build, tasks, configuration, transforms, metrics)
+    if Keyword.get(opts, :include_metrics, true) do
+      metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
+      normalize(build, tasks, configuration, transforms, metrics)
+    else
+      origin = timestamp(build.started_at) || recorded_origin(build)
+
+      last_sample =
+        ClickHouseRepo.one(
+          from(m in BuildMachineMetric,
+            where: m.gradle_build_id == ^build.id,
+            select: fragment("maxOrNull(?)", m.timestamp)
+          )
+        )
+
+      timeline = normalize(build, tasks, configuration, transforms, [], origin)
+      has_metrics = is_number(origin) and is_number(last_sample) and last_sample * 1000 >= origin
+      duration = if has_metrics, do: max(timeline.duration, last_sample * 1000 - origin), else: timeline.duration
+      timeline |> Map.merge(%{duration: duration, has_metrics: has_metrics}) |> Map.delete(:machine_metrics)
+    end
   end
 
   def bootstrap(build) do
@@ -51,6 +68,8 @@ defmodule Tuist.Gradle.Timeline do
 
   def step_query(build) do
     origin = timestamp(build.started_at) || recorded_origin(build)
+    origin_available = not is_nil(origin)
+    origin_microseconds = round((origin || 0) * 1000)
 
     tasks =
       from(row in Task,
@@ -61,7 +80,7 @@ defmodule Tuist.Gradle.Timeline do
           project: row.build_path,
           target: row.task_path,
           category: fragment("if(empty(?), 'task', ?)", row.task_type, row.task_type),
-          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          start_ms: fragment("(toUnixTimestamp64Micro(?) - ?) / 1000", row.started_at, ^origin_microseconds),
           duration_ms: row.duration_ms,
           status:
             fragment(
@@ -82,7 +101,7 @@ defmodule Tuist.Gradle.Timeline do
           project: row.build_path,
           target: row.project_path,
           category: "configuration",
-          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          start_ms: fragment("(toUnixTimestamp64Micro(?) - ?) / 1000", row.started_at, ^origin_microseconds),
           duration_ms: row.duration_ms,
           status: "unknown"
         }
@@ -97,14 +116,14 @@ defmodule Tuist.Gradle.Timeline do
           project: ^(build.root_project_name || ""),
           target: row.consumer_project_path,
           category: "transform",
-          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          start_ms: fragment("(toUnixTimestamp64Micro(?) - ?) / 1000", row.started_at, ^origin_microseconds),
           duration_ms: row.duration_ms,
           status: "unknown"
         }
       )
 
     rows = tasks |> union_all(^configuration) |> union_all(^transforms)
-    from(row in subquery(rows), where: row.start_ms >= 0 and row.duration_ms > 0)
+    from(row in subquery(rows), where: ^origin_available and row.start_ms >= 0 and row.duration_ms >= 0)
   end
 
   defp recorded_origin(build) do
@@ -126,7 +145,7 @@ defmodule Tuist.Gradle.Timeline do
         )
       )
 
-    [metric | operations] |> Enum.reject(&is_nil/1) |> Enum.min(fn -> 0 end)
+    [metric | operations] |> Enum.reject(&is_nil/1) |> Enum.min(fn -> nil end)
   end
 
   defp rows(schema, build, fields) do
@@ -166,7 +185,7 @@ defmodule Tuist.Gradle.Timeline do
 
     events =
       operations
-      |> Enum.filter(&(is_number(&1.timestamp) and &1.timestamp >= origin and &1.duration_ms > 0))
+      |> Enum.filter(&(is_number(&1.timestamp) and &1.timestamp >= origin and &1.duration_ms >= 0))
       |> Enum.map(&(&1 |> Map.put(:start_ms, &1.timestamp - origin) |> Map.delete(:timestamp)))
       |> Enum.sort_by(&{&1.start_ms, &1.event_id})
 

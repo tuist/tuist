@@ -1,12 +1,35 @@
 package dev.tuist.gradle
 
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MachineMetricsCollectorTest {
 
     private fun createCollector() = MachineMetricsCollector(sampleIntervalMs = 50)
+
+    @Test
+    fun `stop skips a sample immediately after a periodic reading`() {
+        val periodicReading = CountDownLatch(1)
+        val readings = AtomicInteger()
+        val collector = MachineMetricsCollector(sampleIntervalMs = 1000, currentTimeMillis = {
+            when (readings.getAndIncrement()) {
+                0 -> 2000L
+                1 -> { periodicReading.countDown(); 3000L }
+                else -> 3050L
+            }
+        })
+        collector.start()
+        try {
+            assertTrue(periodicReading.await(5, TimeUnit.SECONDS))
+        } finally {
+            val samples = collector.stop()
+            assertEquals(listOf(2.0, 3.0), samples.map { it.timestamp })
+        }
+    }
 
     @Test
     fun `uses the supplied operation clock for boundary timestamps`() {
