@@ -123,6 +123,37 @@ body {
   outline-offset: 2px;
 }
 
+/* Present to assistive tech only: the skip link and the live region. The
+   skip link shows itself while focused, as the first thing on the page. */
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
+a.visually-hidden:focus {
+  position: fixed;
+  top: var(--noora-spacing-4);
+  left: var(--noora-spacing-4);
+  clip: auto;
+  z-index: 1;
+  margin: 0;
+  border-radius: var(--noora-radius-medium, 8px);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-3) var(--noora-spacing-5);
+  width: auto;
+  height: auto;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  text-decoration: none;
+}
+
 /* Brand marks: purple petals (500 on light, 400 on dark, like the navbar's
    two SVG variants) and a label-colored wordmark. */
 [data-part="petals"] {
@@ -340,6 +371,7 @@ main {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);
+    margin: 0;
     min-width: 0;
 
     & > [data-part="title"] {
@@ -348,6 +380,7 @@ main {
     }
 
     & > [data-part="description"] {
+      margin: 0;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
@@ -431,6 +464,8 @@ main {
         white-space: nowrap;
       }
 
+      /* The markdown paragraphs are direct children of the body, so the
+         first one runs on inline after the status label. */
       & > [data-part="body"] {
         min-width: 0;
 
@@ -439,34 +474,38 @@ main {
           font-weight: var(--noora-font-weight-medium);
         }
 
-        & > [data-part="markdown"] {
-          display: contents;
+        & > p {
+          margin: var(--noora-spacing-3) 0 0;
+        }
 
-          & > p {
-            margin: var(--noora-spacing-3) 0 0;
-          }
+        & > p:first-of-type {
+          display: inline;
+          margin: 0;
+        }
 
-          & > p:first-child {
-            display: inline;
-            margin: 0;
-          }
+        & > h4,
+        & > h5,
+        & > h6 {
+          margin: var(--noora-spacing-3) 0 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
 
-          & > ul,
-          & > ol {
-            margin: var(--noora-spacing-3) 0 0;
-            padding-left: var(--noora-spacing-7);
-          }
+        & > ul,
+        & > ol {
+          margin: var(--noora-spacing-3) 0 0;
+          padding-left: var(--noora-spacing-7);
+        }
 
-          & a {
-            color: inherit;
-            text-decoration: underline;
-            text-underline-position: from-font;
-            overflow-wrap: anywhere;
-          }
+        & a {
+          color: inherit;
+          text-decoration: underline;
+          text-underline-position: from-font;
+          overflow-wrap: anywhere;
+        }
 
-          & code {
-            font-family: var(--noora-font-code);
-          }
+        & code {
+          font-family: var(--noora-font-code);
         }
       }
     }

@@ -81,6 +81,10 @@ const OVERALL_HEADLINES: Record<ComponentStatus, string> = {
   under_maintenance: "Scheduled maintenance in progress",
 };
 
+// Overall states the live region announces assertively (interrupting the
+// reader) rather than politely.
+const URGENT_STATUSES: ComponentStatus[] = ["partial_outage", "major_outage"];
+
 const SEVERITY_LABEL: Record<IncidentSeverity, string> = {
   minor: "Minor",
   major: "Major",
@@ -158,10 +162,13 @@ const ALERT_ICONS: Record<NooraAlertStatus, string> = {
 };
 
 // The hero's overall state as a medium Noora alert (Noora.Alert, secondary
-// type): status icon plus the state label.
+// type): status icon plus the state label. Purely visual: status changes are
+// announced through the page's live region (see liveScript), because a live
+// region only announces mutations inside an existing node, and the refresh
+// replaces this whole block.
 function overallAlert(status: ComponentStatus): Renderable {
   const alert = COMPONENT_STATUS_TO_ALERT[status];
-  return html`<div class="noora-alert" data-type="secondary" data-status="${alert}" data-size="medium" role="status">
+  return html`<div class="noora-alert" data-type="secondary" data-status="${alert}" data-size="medium">
     <div data-part="icon">${raw(ALERT_ICONS[alert])}</div>
     <span data-part="title">${COMPONENT_STATUS_LABEL[status]}</span>
   </div>`;
@@ -192,13 +199,15 @@ function stateBadge(status: ComponentStatus): Renderable {
   </span>`;
 }
 
+// The name and its description are a term/definition pair, so assistive
+// tech reads the description as belonging to the name.
 function componentRow(component: Component): Renderable {
   return html`<li>
     <div class="status-component">
-      <div data-part="name">
-        <span data-part="title">${component.name}</span>
-        <span data-part="description">${component.description}</span>
-      </div>
+      <dl data-part="name">
+        <dt data-part="title">${component.name}</dt>
+        <dd data-part="description">${component.description}</dd>
+      </dl>
       ${statusBadge(component.status)}
     </div>
   </li>`;
@@ -218,17 +227,25 @@ function incidentToComponentStatus(i: Incident): ComponentStatus {
   }
 }
 
+// Incident bodies sit under the incident's <h3>, so any heading an author
+// types in Grafana (a stray "##") is pushed below it instead of breaking the
+// page outline: h1 becomes h4, h2 becomes h5, everything deeper h6.
+export function downshiftHeadings(markup: string): string {
+  return markup.replace(/<(\/?)h([1-6])(?=[\s>])/g, (_match, slash: string, level: string) => {
+    return `<${slash}h${Math.min(Number(level) + 3, 6)}`;
+  });
+}
+
 function incidentBlock(incident: Incident): Renderable {
   const updates = incident.updates.map((u) => {
     const title = u.title?.trim() || INCIDENT_STATUS_LABEL[u.status];
     const punctuation = /[.!?]$/.test(title) ? "" : ".";
-    const body = micromark(u.body, { allowDangerousHtml: false, allowDangerousProtocol: false });
+    const body = downshiftHeadings(micromark(u.body, { allowDangerousHtml: false, allowDangerousProtocol: false }));
+    // The paragraphs land directly in the body (no wrapper) so the first one
+    // can sit inline after the status label without display: contents.
     return html`<li>
       <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
-      <div data-part="body">
-        <span data-part="status">${title}${punctuation}</span>
-        <div data-part="markdown">${raw(body)}</div>
-      </div>
+      <div data-part="body"><span data-part="status">${title}${punctuation}</span> ${raw(body)}</div>
     </li>`;
   });
   return html`<li>
@@ -299,19 +316,36 @@ const THEME_SCRIPT = `
     root.setAttribute("data-theme", resolved);
     var options = document.querySelectorAll("[data-theme-option]");
     for (var i = 0; i < options.length; i++) {
-      if (options[i].getAttribute("data-theme-option") === theme) options[i].setAttribute("data-selected", "");
+      var selected = options[i].getAttribute("data-theme-option") === theme;
+      if (selected) options[i].setAttribute("data-selected", "");
       else options[i].removeAttribute("data-selected");
+      options[i].setAttribute("aria-checked", selected ? "true" : "false");
     }
+  }
+  function choose(option) {
+    try {
+      localStorage.setItem("preferred-theme", option.getAttribute("data-theme-option"));
+    } catch (e) {}
+    apply();
   }
   apply();
   systemDark.addEventListener("change", apply);
   document.addEventListener("click", function (event) {
     var target = event.target instanceof Element ? event.target.closest("[data-theme-option]") : null;
+    if (target) choose(target);
+  });
+  // The switcher is a radio group: arrow keys move between (and select) the
+  // options, as they do in a native radio group.
+  document.addEventListener("keydown", function (event) {
+    var target = event.target instanceof Element ? event.target.closest("[data-theme-option]") : null;
     if (!target) return;
-    try {
-      localStorage.setItem("preferred-theme", target.getAttribute("data-theme-option"));
-    } catch (e) {}
-    apply();
+    var step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    var options = Array.prototype.slice.call(document.querySelectorAll("[data-theme-option]"));
+    var next = options[(options.indexOf(target) + step + options.length) % options.length];
+    next.focus();
+    choose(next);
   });
 })();
 `;
@@ -327,9 +361,21 @@ function liveScript(): string {
 (function () {
   var POLL_MS = ${LIVE_POLL_MS};
   var WAVE_STATE = ${JSON.stringify(WAVE_STATE)};
+  var HEADLINES = ${JSON.stringify(OVERALL_HEADLINES)};
+  var URGENT = ${JSON.stringify(URGENT_STATUSES)};
   var stage = document.querySelector(".status-stage");
   var canvas = stage && stage.querySelector("canvas[data-wave]");
+  var announcer = document.getElementById("status-announcer");
   if (!stage || !canvas || typeof fetch !== "function") return;
+
+  // Screen readers announce text written into an existing live region, not
+  // regions that get replaced, so the new status is spoken from here in
+  // prose; outages interrupt (assertive), everything else waits its turn.
+  function announce(overall) {
+    if (!announcer) return;
+    announcer.setAttribute("aria-live", URGENT.indexOf(overall) === -1 ? "polite" : "assertive");
+    announcer.textContent = "Status changed: " + (HEADLINES[overall] || overall) + ".";
+  }
 
   function refresh(overall) {
     return fetch("/", { cache: "no-store" })
@@ -342,10 +388,15 @@ function liveScript(): string {
         var fresh = next.querySelectorAll("[data-live]");
         for (var i = 0; i < fresh.length; i++) {
           var current = document.querySelector('[data-live="' + fresh[i].getAttribute("data-live") + '"]');
-          if (current) current.replaceWith(fresh[i]);
+          if (!current || current.isEqualNode(fresh[i])) continue;
+          // Swapping a region the reader is in would drop their focus onto
+          // <body>; that region catches up on the next change instead.
+          if (current.contains(document.activeElement)) continue;
+          current.replaceWith(fresh[i]);
         }
         stage.setAttribute("data-overall", overall);
         canvas.setAttribute("data-wave", WAVE_STATE[overall] || "operational");
+        announce(overall);
       });
   }
   var busy = false;
@@ -404,14 +455,16 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
         </style>
       </head>
       <body>
+        <a class="visually-hidden" data-part="skip" href="#status-overall">Skip to content</a>
+        <p id="status-announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></p>
         <header class="status-navbar">
           <div data-part="bar">
             <a data-part="brand" href="/">
               ${raw(TUIST_MARK_SVG)}
               <span data-part="title">${title}</span>
             </a>
-            <div data-part="subscribe">
-              <span data-part="label">Subscribe for updates</span>
+            <div data-part="subscribe" role="group" aria-label="Subscribe for updates">
+              <span data-part="label" aria-hidden="true">Subscribe for updates</span>
               <a
                 class="noora-button"
                 data-variant="secondary"
@@ -419,7 +472,6 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
                 data-icon-only
                 href="/feed.atom"
                 aria-label="Atom feed"
-                title="Atom feed"
                 >${raw(ICON_ATOM)}</a
               >
               <a
@@ -429,13 +481,12 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
                 data-icon-only
                 href="/feed.rss"
                 aria-label="RSS feed"
-                title="RSS feed"
                 >${raw(ICON_RSS)}</a
               >
             </div>
           </div>
         </header>
-        <main>
+        <main aria-labelledby="status-overall">
           <!-- Status wave (Figma: 1200x96): the particle field's shape and
                ink ramp follow the overall status. -->
           <div class="status-frame status-stage" aria-hidden="true" data-overall="${overall}">
@@ -443,7 +494,7 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
           </div>
           <section class="status-frame status-hero" data-live="hero" aria-labelledby="status-overall">
             <span data-part="eyebrow">Current status</span>
-            <h1 data-part="title" id="status-overall">${OVERALL_HEADLINES[overall]}</h1>
+            <h1 data-part="title" id="status-overall" tabindex="-1">${OVERALL_HEADLINES[overall]}</h1>
             ${overallAlert(overall)}
             <p data-part="meta">Updated ${formatDate(snapshot.fetchedAt)}</p>
           </section>
@@ -487,35 +538,38 @@ export function statusPage({ title, snapshot }: PageOptions): Renderable {
               </div>
             </div>
             <div data-part="bar">
-              <div class="noora-button-group" data-size="small" role="group" aria-label="Theme">
+              <div class="noora-button-group" data-size="small" role="radiogroup" aria-label="Theme">
                 <button
                   class="noora-button-group-item"
                   type="button"
+                  role="radio"
+                  aria-checked="true"
                   data-icon-only
                   data-theme-option="system"
                   data-selected
                   aria-label="System theme"
-                  title="System theme"
                 >
                   ${raw(ICON_DEVICE_DESKTOP)}
                 </button>
                 <button
                   class="noora-button-group-item"
                   type="button"
+                  role="radio"
+                  aria-checked="false"
                   data-icon-only
                   data-theme-option="light"
                   aria-label="Light theme"
-                  title="Light theme"
                 >
                   ${raw(ICON_SUN_HIGH)}
                 </button>
                 <button
                   class="noora-button-group-item"
                   type="button"
+                  role="radio"
+                  aria-checked="false"
                   data-icon-only
                   data-theme-option="dark"
                   aria-label="Dark theme"
-                  title="Dark theme"
                 >
                   ${raw(ICON_MOON)}
                 </button>
