@@ -13,6 +13,10 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ## Exportable Data
 
+### Error Diagnostics
+
+- Failed ClickHouse reads attach the query template (up to 16,384 characters), repository name, and execution, decoding, and pool-wait timings to the existing error event under `extra.database_query`. Bound parameter values and query results are not included. Reports use the configured Sentry-compatible destination, including Hive, and its existing retention policy. Where an event is associated with an account or project through its existing context, its diagnostic data can be retrieved with that event for an export.
+
 ### Account & User Data
 - User profiles (email, active/inactive status, account settings, preferred locale)
 - User account lifecycle timestamps (`users` table): `last_sign_in_at`, the moment the user most recently authenticated by any means, recorded on session sign-in, application programming interface token use, and remember-me resumption, and written at most once every twelve hours per user; and `disabled_at`, the moment the account was suspended, which is set only for suspended accounts and is what the inactivity control measures its retirement window from. Both are exportable and are retained for the life of the account.
