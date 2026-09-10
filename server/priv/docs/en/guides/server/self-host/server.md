@@ -91,6 +91,53 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
+#### Multi-replica ClickHouse {#multi-replica-clickhouse}
+
+Both single-replica and multi-replica ClickHouse topologies are supported. Multi-replica (one shard, N replicas, Keeper quorum) is the shape Tuist runs in production and is what the chart's `clickhouse.managed` mode provisions.
+
+Every ingest migration hardcodes a plain `MergeTree` (or one of the `AggregatingMergeTree`, `ReplacingMergeTree`, `SummingMergeTree` variants). This is intentional. The migrations don't know how many replicas they will land on, so they rely on ClickHouse to rewrite each engine to its `Replicated*` counterpart at CREATE time. That rewrite only happens inside a database whose engine is `Replicated`, and only when the server profile is configured to require it.
+
+For an external multi-replica ClickHouse to work with Tuist, the operator has to arrange three things in the cluster before the migrations run:
+
+1. Create the application database with the `Replicated` engine, passing a Keeper path and the standard `{shard}` and `{replica}` macros:
+
+   ```sql
+   CREATE DATABASE tuist ENGINE = Replicated('/clickhouse/databases/tuist', '{shard}', '{replica}');
+   ```
+
+2. Define the `{shard}` and `{replica}` macros on every server in the cluster, in a `macros.xml` drop-in:
+
+   ```xml
+   <clickhouse>
+     <macros>
+       <shard>01</shard>
+       <replica from_env="HOSTNAME"></replica>
+     </macros>
+   </clickhouse>
+   ```
+
+3. Apply three profile flags to the user Tuist connects as:
+
+   ```xml
+   <profiles>
+     <default>
+       <database_replicated_allow_only_replicated_engine>1</database_replicated_allow_only_replicated_engine>
+       <database_replicated_allow_replicated_engine_arguments>2</database_replicated_allow_replicated_engine_arguments>
+       <database_replicated_allow_heavy_create>1</database_replicated_allow_heavy_create>
+     </default>
+   </profiles>
+   ```
+
+`database_replicated_allow_only_replicated_engine=1` is the guard. Without it, a plain `MergeTree` CREATE succeeds and produces a table whose data lives on one replica only, invisible until a second replica exists and disagrees. With it, ClickHouse rewrites `MergeTree` to `ReplicatedMergeTree` (and the family variants to their `Replicated*` counterparts) so both DDL and rows replicate. ClickHouse Cloud defaults this setting to `1` for the same reason.
+
+`database_replicated_allow_replicated_engine_arguments=2` accepts an explicit Keeper path and replica argument on any DDL and substitutes the server defaults instead of honouring them.
+
+`database_replicated_allow_heavy_create=1` permits `CREATE MATERIALIZED VIEW ... POPULATE`, which several ingest migrations use to backfill a view against the base table's existing rows.
+
+The chart's `clickhouse.managed` mode configures all of this for you. It creates the `Replicated` database in a post-install hook, sets the three profile flags on the `default` user, and defines the `{shard}`/`{replica}` macros. The [`clickhouse-managed.yaml`](https://github.com/tuist/tuist/blob/main/infra/helm/tuist/templates/clickhouse-managed.yaml) template in the chart is a copyable reference if you run ClickHouse under a Kubernetes operator or another provisioning tool.
+
+Symptoms of a multi-replica cluster that skipped one of these steps: `tuist.schema_migrations` holds different row counts on different replicas, migrations fail with `TABLE_ALREADY_EXISTS` after a restart of the migration chain, and ingest silently splits across replicas at write time. All three go away once the guard is on and the database is recreated with `ENGINE = Replicated`.
+
 #### Capping operational log retention {#capping-operational-log-retention}
 
 Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
