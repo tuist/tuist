@@ -38,6 +38,36 @@ pub enum Phase {
     Failed = 5,
 }
 
+#[derive(Debug)]
+pub enum RecoveryError {
+    Interrupted,
+    Failed(String),
+}
+
+impl RecoveryError {
+    pub fn context(self, context: &str) -> Self {
+        match self {
+            Self::Interrupted => Self::Interrupted,
+            Self::Failed(error) => Self::Failed(format!("{context}: {error}")),
+        }
+    }
+}
+
+impl From<String> for RecoveryError {
+    fn from(error: String) -> Self {
+        Self::Failed(error)
+    }
+}
+
+impl std::fmt::Display for RecoveryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Interrupted => formatter.write_str("startup recovery interrupted by shutdown"),
+            Self::Failed(error) => formatter.write_str(error),
+        }
+    }
+}
+
 pub struct Recovery {
     progress: Mutex<(Phase, Instant)>,
     metrics: Metrics,
@@ -71,14 +101,14 @@ impl Recovery {
         );
     }
 
-    pub fn check_running(&self) -> Result<(), String> {
+    pub fn check_running(&self) -> Result<(), RecoveryError> {
         if self.runtime.is_draining() {
-            return Err("startup recovery interrupted by shutdown".into());
+            return Err(RecoveryError::Interrupted);
         }
         Ok(())
     }
 
-    pub fn completed_work(&self, committed: bool) -> Result<(), String> {
+    pub fn completed_work(&self, committed: bool) -> Result<(), RecoveryError> {
         let mut progress = self.progress.lock().expect("startup progress poisoned");
         if progress.0 != Phase::CleaningSegments {
             return Ok(());
@@ -189,14 +219,14 @@ impl Bootstrap {
         self.termination.clone()
     }
 
-    pub async fn take_listener(&mut self) -> Result<TcpListener, String> {
+    pub async fn take_listener(&mut self) -> Result<TcpListener, RecoveryError> {
         self.recovery.check_running()?;
         self.stop.send_replace(true);
         self.listener
             .take()
-            .ok_or("startup listener already transferred")?
+            .ok_or_else(|| "startup listener already transferred".to_owned())?
             .await
-            .map_err(|error| format!("startup listener failed: {error}"))
+            .map_err(|error| RecoveryError::Failed(format!("startup listener failed: {error}")))
     }
 }
 

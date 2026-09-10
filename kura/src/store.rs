@@ -61,6 +61,7 @@ use crate::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
     },
+    startup::RecoveryError,
     sync::feed::{
         SYNC_META_ENABLED, SYNC_META_FLOOR, SYNC_META_INCARNATION, SYNC_WM_PREFIX, SyncFeedKind,
         SyncFeedRow, SyncFeedState, SyncFeedTicket, SyncPosition, decode_sync_feed_row,
@@ -4171,7 +4172,10 @@ impl Store {
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
         for segment in evicted_segments {
             let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
-            let artifact_count = self.evict_segment(&segment.segment_id).await?;
+            let artifact_count = self
+                .evict_segment(&segment.segment_id)
+                .await
+                .map_err(|error| error.to_string())?;
             self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
@@ -4255,7 +4259,7 @@ impl Store {
         self.startup_recovery = Some(recovery);
     }
 
-    fn recovery_progress(&self, committed: bool) -> Result<(), String> {
+    fn recovery_progress(&self, committed: bool) -> Result<(), RecoveryError> {
         if let Some(recovery) = &self.startup_recovery {
             recovery.completed_work(committed)?;
         }
@@ -4270,7 +4274,7 @@ impl Store {
         column: &'static str,
         prefix: &str,
         after: Option<&[u8]>,
-    ) -> Result<Vec<Vec<u8>>, String> {
+    ) -> Result<Vec<Vec<u8>>, RecoveryError> {
         let db = self.db.clone();
         let prefix = prefix.as_bytes().to_vec();
         let start = after.map_or_else(
@@ -4356,7 +4360,7 @@ impl Store {
         .map_err(|e| format!("eviction candidate task failed: {e}"))?
     }
 
-    async fn evict_segment(&self, segment_id: &str) -> Result<u64, String> {
+    async fn evict_segment(&self, segment_id: &str) -> Result<u64, RecoveryError> {
         let prefix = segment_artifact_index_prefix(segment_id);
         let mut batch = WriteBatch::default();
         let mut saw_entries = false;
@@ -4513,7 +4517,7 @@ impl Store {
         batch: WriteBatch,
         removed_artifact_ids: &mut Vec<String>,
         cascade: &mut CascadeProgress,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         // An empty batch still carries a 12-byte header, so `size_in_bytes()`
         // is never zero and a small budget can trip the check before anything
         // is staged. Skip the write rather than spend a WAL append on nothing;
@@ -4626,7 +4630,7 @@ impl Store {
         cascade: &mut CascadeProgress,
         removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
         let mut cursor: Option<Vec<u8>> = None;
         loop {
@@ -4708,7 +4712,7 @@ impl Store {
         cascade: &mut CascadeProgress,
         removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         let chunk_artifact_id = &chunk_manifest.artifact_id;
         let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
         let mut cursor: Option<Vec<u8>> = None;
@@ -4733,21 +4737,24 @@ impl Store {
                     )
                     .await?;
                 }
-                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                 if cascade.seen_recipes.contains(&recipe_id) {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                     continue;
                 }
                 let (recipe_manifest, recipe_bytes) =
                     self.eviction_candidate(&recipe_id, true).await?;
                 let Some(recipe_manifest) = recipe_manifest else {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                     continue;
                 };
                 if recipe_manifest.producer != ArtifactProducer::Reapi
                     || !is_recipe_key(&recipe_manifest.key)
                 {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                     continue;
                 }
                 let Some(recipe_bytes) = recipe_bytes else {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                     continue;
                 };
                 if !self
@@ -4759,6 +4766,7 @@ impl Store {
                     .iter()
                     .any(|id| id == chunk_artifact_id)
                 {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                     continue;
                 }
 
@@ -4792,6 +4800,10 @@ impl Store {
                         .await?;
                     }
                 }
+                // Nested action-cache cascades may commit and stop recovery.
+                // Keep the recipe discoverable until its own deletion commits
+                // atomically with this last reverse pointer.
+                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
                 self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
                 cascade.seen_recipes.insert(recipe_id.clone());
                 cascade.recipe_total += 1;
@@ -4883,7 +4895,7 @@ impl Store {
     /// path left to reclaim them. Must run at startup, under the data-dir
     /// writer lock and before any traffic, so it cannot race a rotation
     /// creating a segment whose state entry is not yet visible.
-    pub async fn sweep_orphaned_segments(&self) -> Result<usize, String> {
+    pub async fn sweep_orphaned_segments(&self) -> Result<usize, RecoveryError> {
         let segments_dir = self.data_dir.join("segments");
         let mut entries = match tokio::fs::read_dir(&segments_dir).await {
             Ok(entries) => entries,
@@ -4892,7 +4904,8 @@ impl Store {
                 return Err(format!(
                     "failed to list segments directory {}: {error}",
                     segments_dir.display()
-                ));
+                )
+                .into());
             }
         };
 
@@ -20691,22 +20704,59 @@ mod tests {
 
     #[tokio::test]
     async fn startup_recovery_resumes_committed_chunks_after_repeated_interruptions() {
+        for chunked in [false, true] {
+            assert_startup_recovery_resumes(chunked, 1024, 20, 3).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_recovery_resumes_recipe_cascade_at_production_batch_budget() {
+        assert_startup_recovery_resumes(true, SEGMENT_EVICTION_MAX_BATCH_BYTES, 6000, 1).await;
+    }
+
+    async fn assert_startup_recovery_resumes(
+        chunked: bool,
+        batch_budget: usize,
+        entry_count: usize,
+        interruptions: usize,
+    ) {
         let (_temp_dir, config, mut store) = temp_store();
-        store.eviction_batch_budget_bytes = 1024;
+        store.eviction_batch_budget_bytes = batch_budget;
         let digest = reapi_digest(1, 5);
         let blob = persist_reapi_blob(&store, "recovery", &digest, b"hello").await;
+        let logical_digest = if chunked {
+            reapi_digest(2, 5)
+        } else {
+            digest.clone()
+        };
+        let recipe = if chunked {
+            Some(persist_chunk_recipe(&store, "recovery", &logical_digest, vec![digest]).await)
+        } else {
+            None
+        };
+        let logical_blob_id = artifact_storage_id(
+            ArtifactProducer::Reapi,
+            &store.tenant_id,
+            "recovery",
+            &blob_key(&format!(
+                "{}/{}",
+                logical_digest.hash, logical_digest.size_bytes
+            )),
+        );
         let mut entries = Vec::new();
-        for marker in 0..20 {
+        for marker in 0..entry_count {
             entries.push(
-                persist_action_cache_entry(
-                    &store,
-                    "recovery",
-                    marker,
-                    &action_result_referencing(&[&digest]),
-                    1,
-                )
-                .await
-                .artifact_id,
+                store
+                    .persist_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "recovery",
+                        &crate::utils::action_cache_key(&format!("{marker:064x}/0")),
+                        "application/octet-stream",
+                        &action_result_referencing(&[&logical_digest]),
+                    )
+                    .await
+                    .unwrap()
+                    .artifact_id,
             );
         }
         let segment_id = blob.segment_id.clone().unwrap();
@@ -20715,7 +20765,7 @@ mod tests {
         store.save_segment_state(&ring).unwrap();
 
         let mut previous_remaining = entries.len();
-        for _ in 0..3 {
+        for _ in 0..interruptions {
             let runtime = crate::runtime::RuntimeState::new();
             let recovery =
                 crate::startup::Recovery::new(store.io.metrics().clone(), runtime.clone());
@@ -20724,13 +20774,10 @@ mod tests {
             store.eviction_commits.lock().unwrap().after_commit = Some(Arc::new(move || {
                 runtime.request_drain();
             }));
-            assert!(
-                store
-                    .sweep_orphaned_segments()
-                    .await
-                    .unwrap_err()
-                    .contains("interrupted")
-            );
+            assert!(matches!(
+                store.sweep_orphaned_segments().await,
+                Err(RecoveryError::Interrupted)
+            ));
             let remaining = entries
                 .iter()
                 .filter(|id| store.manifest_from_db(id).unwrap().is_some())
@@ -20743,13 +20790,26 @@ mod tests {
                 store.manifest_from_db(&blob.artifact_id).unwrap().is_some(),
                 "the blob must outlive its remaining referrers"
             );
+            if let Some(recipe) = &recipe {
+                assert!(
+                    store
+                        .manifest_from_db(&recipe.artifact_id)
+                        .unwrap()
+                        .is_some()
+                );
+                assert_eq!(
+                    chunk_ref_recipe_ids(&store, &blob.artifact_id),
+                    vec![recipe.artifact_id.clone()],
+                    "a surviving recipe must remain discoverable after a nested cascade commit"
+                );
+            }
             assert!(store.segment_path(&segment_id).exists());
             previous_remaining = remaining;
             let io = store.io.clone();
             let memory = store.memory.clone();
             drop(store);
             store = Store::open(&config, io, memory).unwrap();
-            store.eviction_batch_budget_bytes = 1024;
+            store.eviction_batch_budget_bytes = batch_budget;
         }
         let recovery = crate::startup::Recovery::new(
             store.io.metrics().clone(),
@@ -20760,6 +20820,16 @@ mod tests {
         assert_eq!(store.sweep_orphaned_segments().await.unwrap(), 1);
         assert!(!store.segment_path(&segment_id).exists());
         assert!(store.manifest_from_db(&blob.artifact_id).unwrap().is_none());
+        if let Some(recipe) = recipe {
+            assert!(
+                store
+                    .manifest_from_db(&recipe.artifact_id)
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(chunk_ref_recipe_ids(&store, &blob.artifact_id).is_empty());
+        }
+        assert!(blob_ref_entry_ids(&store, &logical_blob_id).is_empty());
         for id in entries {
             assert!(store.manifest_from_db(&id).unwrap().is_none());
         }

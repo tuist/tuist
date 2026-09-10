@@ -1119,7 +1119,12 @@ kubelet can recover it. The restart rule remains the durable signal after the
 process and its recovery metrics reset. Phase 4 means recovery completed;
 normal readiness may still be waiting on discovery/backfill. Phase 5 records
 startup failure before process exit; use the logs and restart alert for those
-short-lived failures.
+short-lived failures. A requested SIGUSR1/SIGTERM/SIGINT shutdown during
+recovery instead logs `kura.startup.interrupted` at INFO and exits 0, retaining
+the last recovery phase rather than setting phase 5. A coincident real startup
+error still fails. Exit 0 alone does not prove a healthy rollout: preStop also
+runs for probe-triggered restarts, so correlate the shutdown with pod-UID-matched
+kubelet events to identify why termination was requested.
 
 ### Kura cache telemetry missing
 
