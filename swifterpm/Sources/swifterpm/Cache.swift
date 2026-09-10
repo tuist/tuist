@@ -46,14 +46,14 @@ struct Cache: Sendable {
                 .appendingPathComponent("sources")
                 .appendingPathComponent(SafePathComponent.make(pin.identity))
                 .appendingPathComponent(
-                    SafePathComponent.make("\(version)-\(Hashing.shortRevision(pin.revision()))"))
+                    SafePathComponent.make("\(version)-\(pin.revision())"))
     }
 
     func archivePath(url: String, revision: String) -> URL {
         root
             .appendingPathComponent("archives")
             .appendingPathComponent(
-                "\(Hashing.stable(url))-\(Hashing.shortRevision(revision)).tar.gz")
+                "\(Hashing.stable(url))-\(revision).tar.gz")
     }
 
     func registrySourcePath(
