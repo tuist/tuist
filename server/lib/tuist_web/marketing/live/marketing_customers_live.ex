@@ -6,19 +6,33 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Customers
+  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
 
   @cases_per_page 9
+  # Columns of the redesigned case grid on desktop, used to pad the last row
+  # with blank cells so its hairlines stay closed (same as the blog index).
+  @grid_columns 3
+
+  embed_templates "marketing_customers_live/*"
+  # The redesigned template lives in new/; the suffix keeps its function name
+  # (customers_new/1) distinct from the legacy customers/1.
+  embed_templates "marketing_customers_live/new/*", suffix: "_new"
+
+  def render(%{new_design: true} = assigns), do: customers_new(assigns)
+  def render(assigns), do: customers(assigns)
 
   def mount(_params, _session, socket) do
     socket =
       socket
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :customers))
       |> assign(:search_query, "")
       |> assign(:current_page, 1)
       |> assign(:total_pages, 1)
       |> assign(:filtered_cases, [])
+      |> assign(:row_fillers, 0)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -59,6 +73,7 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
     socket =
       socket
       |> assign(:filtered_cases, paginated_cases)
+      |> assign(:row_fillers, rem(@grid_columns - rem(length(paginated_cases), @grid_columns), @grid_columns))
       |> assign(:search_query, search_query)
       |> assign(:current_page, page)
       |> assign(:total_pages, total_pages)
