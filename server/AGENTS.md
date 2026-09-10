@@ -80,6 +80,15 @@ mise run dev
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
 
+## Marketing Redesign Rollout
+
+The marketing site redesign ships page by page behind per-page FunWithFlags booleans (`:new_marketing_home`, ...), decided by `TuistWeb.Marketing.Design`. Anonymous traffic follows a page's global flag; authenticated users can preview a page before the flip by enabling its flag for their user as a FunWithFlags actor (their responses are marked `private, no-store` so shared caches never store a previewed variant). Rules while the rollout is in progress:
+
+- Redesigned page templates live in `new/` directories next to the legacy ones (`marketing_html/new/home.html.heex`, `marketing_layout_components/new/navbar.html.heex`), embedded with `embed_templates(..., suffix: "_new")` so the function names stay `home_new/1`, `navbar_new/1`, etc.; the controller action picks the template via `Design.new?(conn, page)` and assigns `:new_design` so the root layout links `bundle-new.css` (built from `assets/marketing/marketing_new.css`) instead of `bundle.css`.
+- Old and new designs restyle the same selectors, so their CSS must stay in separate bundles: legacy page styles in `marketing.css` imports, redesigned page styles under `assets/marketing/css/new/` imported from `marketing_new.css`. Never import a page's old and new CSS into the same bundle.
+- JS hooks, tokens, and components are shared between both designs — additions are fine, but do not rewrite shared files in place if the change would alter how legacy pages render.
+- When a page's flag has been on in production and the legacy version is no longer needed, delete the legacy template/CSS, move the `new/` files into place, and remove the flag.
+
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
 - `mix.exs` - Elixir project configuration

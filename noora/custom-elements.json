@@ -5268,7 +5268,7 @@
         },
         {
           "kind": "class",
-          "description": "Provides a low-emphasis compact control.",
+          "description": "Provides a low-emphasis compact control, either icon-only or with a text label.",
           "name": "NooraNeutralButton",
           "tagName": "noora-neutral-button",
           "customElement": true,
@@ -5277,6 +5277,16 @@
             "package": "lit"
           },
           "members": [
+            {
+              "kind": "field",
+              "name": "label",
+              "description": "Sets the visible label. When set, the default slot is replaced by the label and the icon-left/icon-right slots.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "label",
+              "default": "\"\""
+            },
             {
               "kind": "field",
               "name": "size",
@@ -5308,6 +5318,15 @@
             }
           ],
           "attributes": [
+            {
+              "name": "label",
+              "description": "Sets the visible label. When set, the default slot is replaced by the label and the icon-left/icon-right slots.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "label",
+              "default": "\"\""
+            },
             {
               "name": "size",
               "description": "Controls the dimensions.",
@@ -5344,7 +5363,15 @@
           ],
           "slots": [
             {
-              "description": "The complete control content."
+              "description": "The complete control content when no label is set."
+            },
+            {
+              "name": "icon-left",
+              "description": "An icon before the label. Only rendered when a label is set."
+            },
+            {
+              "name": "icon-right",
+              "description": "An icon after the label. Only rendered when a label is set."
             }
           ],
           "cssParts": [
