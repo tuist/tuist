@@ -827,10 +827,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     "/changelog",
     "/customers",
     "/cache",
-    "/flaky-tests",
-    "/test-insights",
+    "/tests",
+    "/compute",
     "/previews",
+    "/download",
     "/about",
+    "/brand",
     "/newsletter"
   ]
 
