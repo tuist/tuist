@@ -21,7 +21,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn, entry: entry} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_changelog_entry -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -38,7 +38,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_changelog_entry, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -52,7 +52,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
   describe "GET /changelog/:id (new design)" do
     setup do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_changelog_entry -> true
+        :new_marketing -> true
         _ -> false
       end)
 

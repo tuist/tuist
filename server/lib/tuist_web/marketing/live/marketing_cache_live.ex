@@ -36,7 +36,7 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
       # enforced against the initial response's header).
       |> assign(:csp_nonce, get_csp_nonce())
 
-    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user], :cache))
+    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user]))
 
     {:ok, socket}
   end

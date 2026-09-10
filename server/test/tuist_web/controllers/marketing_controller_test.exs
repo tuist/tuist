@@ -132,7 +132,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_home -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -150,7 +150,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_home, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -200,7 +200,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_compute -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -231,7 +231,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_tests -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -269,7 +269,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_download -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
@@ -289,7 +289,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_download -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
@@ -309,7 +309,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(AppStore, :get_latest_ios_app_version, fn -> nil end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_download -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
@@ -333,7 +333,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the redesigned newsletter page when the flag is on", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_newsletter -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
@@ -349,7 +349,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "lists every past issue newest first with the sort control when the flag is on", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_newsletter -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
@@ -488,7 +488,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_page -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -506,7 +506,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_page, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -558,7 +558,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_case_study -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -578,7 +578,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_case_study, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -593,7 +593,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   describe "GET /newsletter/verify with the redesign flag on" do
     setup do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_newsletter -> true
+        :new_marketing -> true
         _flag -> false
       end)
 
