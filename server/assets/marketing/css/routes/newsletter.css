@@ -1,9 +1,8 @@
-/* Newsletter page (/newsletter, behind new_marketing): one
+/* Newsletter page (/newsletter): one
    centered hero card on the 1200px page shell — title, description and the
    inline subscribe form — over a 300px illustration slot flush with the
    card's bottom edge, then the closing CTA between two dithered divider
-   bands; the same skeleton as routes/previews.css. The legacy design lives
-   in routes/newsletter.css. The verify page (/newsletter/verify) is the same
+   bands; the same skeleton as routes/previews.css. The verify page (/newsletter/verify) is the same
    hero card with a single action instead of the form, so it shares every
    rule here. */
 #marketing-newsletter,

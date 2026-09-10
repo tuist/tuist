@@ -1,8 +1,8 @@
 /*
  * Newsletter page: submits the subscribe form in place.
  *
- * The form posts as JSON-returning multipart to /newsletter (the same
- * endpoint the legacy page used) and shows the server's message in the
+ * The form posts as JSON-returning multipart to /newsletter and shows the
+ * server's message in the
  * status line under the row — success or error — instead of navigating.
  * The button is disabled while the request is in flight; a network
  * failure falls back to the translated message the form carries in

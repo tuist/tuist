@@ -43,8 +43,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       SocialCards.image_url("home")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:home_new_testimonials, get_home_new_testimonials())
-    |> render(:home_new, layout: false)
+    |> assign(:home_testimonials, get_home_testimonials())
+    |> render(:home, layout: false)
   end
 
   # The new home's testimonial marquee: two rows in the design's order,
@@ -54,7 +54,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   # marquee loop, so two can't share the ~3-card viewport — "2nd last" would
   # wrap around next to the 1st at the loop seam), and the two rows' pairs
   # are staggered against each other to keep cross-row coincidences rare.
-  @home_new_testimonial_rows [
+  @home_testimonial_rows [
     [:junyoung, "Alon Zilbershtein", "Shahzad Majeed", "Kai Oelfke", :hyojun, :openai, :yusuf, :wojtek],
     [
       "Garnik Harutyunyan",
@@ -69,10 +69,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     ]
   ]
 
-  defp get_home_new_testimonials do
+  defp get_home_testimonials do
     testimonials = List.flatten(get_english_testimonial_columns())
 
-    Enum.map(@home_new_testimonial_rows, fn row ->
+    Enum.map(@home_testimonial_rows, fn row ->
       Enum.map(row, fn
         :openai -> get_openai_testimonial()
         :fetch -> get_fetch_testimonial()
@@ -362,7 +362,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:head_title, "About Tuist")
 
-    render(conn, :about_new, layout: false)
+    render(conn, :about, layout: false)
   end
 
   def brand(conn, _params) do
@@ -387,7 +387,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
     )
     |> assign(:head_title, dgettext("marketing", "Brand guidelines"))
-    |> render(:brand_new, layout: false)
+    |> render(:brand, layout: false)
   end
 
   def download(conn, _params) do
@@ -438,7 +438,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:hero_version, hero_version)
     |> assign(:macos_download_url, macos_download_url)
     |> assign(:ios_download_url, Tuist.AppStore.ios_app_url())
-    |> render(:download_new, layout: false)
+    |> render(:download, layout: false)
   end
 
   defp macos_app_dmg_url(nil), do: nil
@@ -487,7 +487,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   defp render_newsletter(conn) do
     conn
     |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
-    |> render(:newsletter_new, layout: false)
+    |> render(:newsletter, layout: false)
   end
 
   def newsletter_signup(conn, %{"email" => email}) do
@@ -823,7 +823,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           |> assign(:case_study, case_study)
           |> assign(:related_case_studies, related_case_studies)
 
-        render(conn, :case_study_new, layout: false)
+        render(conn, :case_study, layout: false)
     end
   end
 
@@ -897,7 +897,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         )
       )
 
-    render(conn, :pricing_new, layout: false)
+    render(conn, :pricing, layout: false)
   end
 
   def compute(conn, _params) do
@@ -921,7 +921,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
       ])
     )
-    |> render(:compute_new, layout: false)
+    |> render(:compute, layout: false)
   end
 
   def tests(conn, _params) do
@@ -945,7 +945,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
       ])
     )
-    |> render(:tests_new, layout: false)
+    |> render(:tests, layout: false)
   end
 
   def page(conn, _params) do
@@ -979,7 +979,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:page, page)
 
-    render(conn, :page_new, layout: false)
+    render(conn, :page, layout: false)
   end
 
   def assign_default_head_tags(conn, _params) do
@@ -1024,7 +1024,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp render_newsletter_verify(conn) do
-    render(conn, :newsletter_verify_new, layout: false)
+    render(conn, :newsletter_verify, layout: false)
   end
 
   defp put_agent_discovery_links(conn, _opts) do

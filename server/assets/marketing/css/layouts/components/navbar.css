@@ -989,7 +989,7 @@
   & [data-part="resource"] {
     /* The panel clips its content (overflow: hidden for the rounded
        corners) and these cards sit flush against its edges — pull the
-       global focus ring (see marketing_new.css) inward so the clip can't
+       global focus ring (see marketing.css) inward so the clip can't
        shave it. */
     &:focus-visible {
       outline-offset: -2px;

@@ -7,9 +7,9 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
 
   alias TuistWeb.Marketing.SocialCards
 
-  embed_templates "marketing_previews_live/new/*", suffix: "_new"
+  embed_templates "marketing_previews_live/*"
 
-  def render(assigns), do: previews_new(assigns)
+  def render(assigns), do: previews(assigns)
 
   def mount(_params, session, socket) do
     socket =

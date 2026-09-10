@@ -7,7 +7,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
 
   import TuistWeb.Marketing.MarketingIllustrations
 
-  embed_templates "marketing_layout_components/new/*", suffix: "_new"
+  embed_templates "marketing_layout_components/*"
 
   @doc """
   The Tuist wordmark as inline SVG (84x32 viewBox): the mark's paths carry
@@ -17,7 +17,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
   """
   attr :rest, :global, include: ~w(role aria-label aria-hidden width height)
 
-  def wordmark_new(assigns) do
+  def wordmark(assigns) do
     ~H"""
     <svg viewBox="0 0 84 32" xmlns="http://www.w3.org/2000/svg" fill="none" {@rest}>
       <path

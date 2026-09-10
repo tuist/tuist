@@ -1,8 +1,7 @@
 /* Previews feature page (/previews): centered hero card over a full-width
    illustration slot, followed by the features frame (intro text + 2x2
    hairline grid) on the 1200px page frame with 2px seams — the same
-   skeleton as routes/cache.css. The legacy design lives in
-   routes/previews.css. */
+   skeleton as routes/cache.css. */
 #marketing-previews {
   display: flex;
   position: relative;

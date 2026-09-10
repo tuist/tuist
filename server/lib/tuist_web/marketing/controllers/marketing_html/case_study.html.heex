@@ -67,7 +67,7 @@
     >
       <h2 id="read-next-title" data-part="title">{dgettext("marketing", "Read next")}</h2>
       <%!-- Same card anatomy as the customers index grid (see
-      css/new/routes/customers.css), so the two pages read as one system. --%>
+      css/routes/customers.css), so the two pages read as one system. --%>
       <ul data-part="cases">
         <li :for={related <- @related_case_studies} data-part="case-item">
           <.link

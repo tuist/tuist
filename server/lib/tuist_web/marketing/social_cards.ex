@@ -1,12 +1,10 @@
 defmodule TuistWeb.Marketing.SocialCards do
   @moduledoc """
-  The redesigned marketing pages' Open Graph images: one designed card per
-  page, shipped as a static 1920x1080 PNG under
-  `priv/static/marketing/images/og/`, instead of the runtime-rendered
-  title cards the legacy pages use.
+  The marketing pages' Open Graph images: one designed card per page,
+  shipped as a static 1920x1080 PNG under `priv/static/marketing/images/og/`.
 
-  A page with a card always uses it, on either design; pages without one
-  keep their rendered title card. Per-item pages (blog posts, changelog
+  A page with a card always uses it; pages without one keep their rendered
+  title card. Per-item pages (blog posts, changelog
   entries, case studies, newsletter issues, docs pages) keep their
   generated images; the docs card is the docs landing page's only.
   """

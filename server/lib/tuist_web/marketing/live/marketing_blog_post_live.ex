@@ -15,9 +15,9 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
-  embed_templates "marketing_blog_post_live/new/*", suffix: "_new"
+  embed_templates "marketing_blog_post_live/*"
 
-  def render(assigns), do: blog_post_new(assigns)
+  def render(assigns), do: blog_post(assigns)
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :csp_nonce, get_csp_nonce())}

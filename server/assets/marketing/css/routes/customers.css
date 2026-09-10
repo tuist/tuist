@@ -1,8 +1,8 @@
 /*
- * Same page skeleton as the new blog index: blocks are 1200px bordered boxes
+ * Same page skeleton as the blog index: blocks are 1200px bordered boxes
  * separated by 2px seams. The header box holds the title and subtitle, and
  * the case grid is a single bordered box whose cells are divided by 1px
- * hairlines instead of card shadows (the legacy design in routes/customers.css).
+ * hairlines instead of card shadows.
  */
 #marketing-customers {
   display: flex;

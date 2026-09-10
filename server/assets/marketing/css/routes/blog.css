@@ -1,8 +1,8 @@
 /*
- * Same page skeleton as the new home/about: blocks are 1200px bordered boxes
+ * Same page skeleton as the home/about: blocks are 1200px bordered boxes
  * separated by 2px seams. The header box holds the title and the filters bar,
  * and the posts grid is a single bordered box whose cells are divided by 1px
- * hairlines instead of card shadows (the legacy design in routes/blog.css).
+ * hairlines instead of card shadows.
  */
 #marketing-blog {
   display: flex;

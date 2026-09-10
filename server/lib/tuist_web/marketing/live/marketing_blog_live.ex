@@ -21,9 +21,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   # that fills a screen without a wall of scrolling.
   @posts_per_page %{"grid" => 9, "list" => 20}
 
-  embed_templates "marketing_blog_live/new/*", suffix: "_new"
+  embed_templates "marketing_blog_live/*"
 
-  def render(assigns), do: blog_new(assigns)
+  def render(assigns), do: blog(assigns)
 
   def mount(_params, session, socket) do
     all_entries = Content.get_entries(current_locale())

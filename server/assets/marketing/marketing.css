@@ -2,8 +2,8 @@
  * Entry point for the marketing site's stylesheet, served as bundle.css and
  * built together with bundle.js from marketing.js.
  *
- * Page styles live under css/new/routes/ and the layout's under
- * css/new/layouts/; css/shared/ holds the tokens and the page skeleton.
+ * Page styles live under css/routes/ and the layout's under css/layouts/;
+ * css/shared/ holds the tokens and the page skeleton.
  */
 
 /* Self-hosted fonts (loaded before noora to provide font definitions) */
@@ -16,29 +16,29 @@
 /* Colocated style blocks (TuistWeb.ColocatedCSS) from LiveView components,
    e.g. the blog posts' interactive labs. */
 @import "phoenix-colocated/tuist/colocated.css";
-@import "css/new/routes/home.css";
-@import "css/new/routes/about.css";
-@import "css/new/routes/home-hero.css";
-@import "css/new/routes/blog.css";
-@import "css/new/routes/blog-post.css";
-@import "css/new/routes/changelog.css";
-@import "css/new/routes/changelog-entry.css";
-@import "css/new/routes/customers.css";
-@import "css/new/routes/case-study.css";
-@import "css/new/routes/page.css";
-@import "css/new/routes/brand.css";
-@import "css/new/routes/cache.css";
-@import "css/new/routes/pricing.css";
-@import "css/new/routes/compute.css";
-@import "css/new/routes/tests.css";
-@import "css/new/routes/download.css";
-@import "css/new/routes/previews.css";
-@import "css/new/routes/not-found.css";
-@import "css/new/routes/newsletter.css";
-@import "css/new/outline-mode.css";
-@import "css/new/layouts/components/dropdown.css";
-@import "css/new/layouts/components/navbar.css";
-@import "css/new/layouts/components/footer.css";
+@import "css/routes/home.css";
+@import "css/routes/about.css";
+@import "css/routes/home-hero.css";
+@import "css/routes/blog.css";
+@import "css/routes/blog-post.css";
+@import "css/routes/changelog.css";
+@import "css/routes/changelog-entry.css";
+@import "css/routes/customers.css";
+@import "css/routes/case-study.css";
+@import "css/routes/page.css";
+@import "css/routes/brand.css";
+@import "css/routes/cache.css";
+@import "css/routes/pricing.css";
+@import "css/routes/compute.css";
+@import "css/routes/tests.css";
+@import "css/routes/download.css";
+@import "css/routes/previews.css";
+@import "css/routes/not-found.css";
+@import "css/routes/newsletter.css";
+@import "css/outline-mode.css";
+@import "css/layouts/components/dropdown.css";
+@import "css/layouts/components/navbar.css";
+@import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/agent-prompt.css";
 @import "../shared/css/code-group.css";
@@ -174,11 +174,11 @@
   stroke: var(--noora-surface-background-tertiary);
 }
 
-/* One focus treatment for the whole redesign, noora components included:
+/* One focus treatment for the whole site, noora components included:
    Tuist purple, flipped per scheme (500 needs the light background, 300 the
    dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
    flush against a clipping container pull the ring inward with an
-   outline-offset override (see the mega-menu cards in css/new/layouts/components/navbar.css);
+   outline-offset override (see the mega-menu cards in css/layouts/components/navbar.css);
    everything else floats it 2px out. */
 :focus-visible {
   outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));

@@ -9,9 +9,9 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   alias Tuist.Marketing.Stats
   alias TuistWeb.Marketing.SocialCards
 
-  embed_templates "marketing_cache_live/new/*", suffix: "_new"
+  embed_templates "marketing_cache_live/*"
 
-  def render(assigns), do: cache_new(assigns)
+  def render(assigns), do: cache(assigns)
 
   def mount(_params, session, socket) do
     if connected?(socket), do: Stats.subscribe()

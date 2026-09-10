@@ -11,9 +11,9 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
-  embed_templates "marketing_changelog_entry_live/new/*", suffix: "_new"
+  embed_templates "marketing_changelog_entry_live/*"
 
-  def render(assigns), do: changelog_entry_new(assigns)
+  def render(assigns), do: changelog_entry(assigns)
 
   def mount(_params, _session, socket) do
     {:ok, socket}
