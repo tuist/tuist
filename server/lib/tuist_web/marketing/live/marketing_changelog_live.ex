@@ -6,20 +6,15 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.SocialCards
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
   @page_size 10
 
-  embed_templates "marketing_changelog_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (changelog_new/1) distinct from the legacy changelog/1.
   embed_templates "marketing_changelog_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: changelog_new(assigns)
-  def render(assigns), do: changelog(assigns)
+  def render(assigns), do: changelog_new(assigns)
 
   def mount(params, _session, socket) do
     entries = Changelog.get_entries()
@@ -35,7 +30,6 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
-      |> assign(:new_design, Design.new?(socket.assigns[:current_user]))
       |> assign(:entries, paginated_entries)
       |> assign(:all_entries, filtered_entries)
       |> assign(:categories, categories)
