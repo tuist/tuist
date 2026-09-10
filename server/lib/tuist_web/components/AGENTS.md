@@ -3,7 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- Widget legends and breakdown dots support a neutral color for aggregate choices such as All; category colors identify individual chart series.
+- Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors, as well as neutral for other uses.
 - Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
 - Provide reusable UI components (navigation, auth components, forms).
 - Bazel projects use the shared Flaky Tests and Quarantined Tests navigation alongside their test runs and cases.

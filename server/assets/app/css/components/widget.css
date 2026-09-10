@@ -74,6 +74,10 @@
         background-color: var(--noora-surface-label-secondary);
       }
 
+      &[data-color="amber"] {
+        background-color: light-dark(var(--noora-yellow-600), var(--noora-yellow-400));
+      }
+
       &[data-color="primary"] {
         background-color: var(--noora-chart-primary);
       }
@@ -233,6 +237,10 @@
 
     &[data-color="neutral"] {
       background-color: var(--noora-surface-label-secondary);
+    }
+
+    &[data-color="amber"] {
+      background-color: light-dark(var(--noora-yellow-600), var(--noora-yellow-400));
     }
 
     &[data-color="primary"] {
