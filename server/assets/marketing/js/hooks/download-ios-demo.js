@@ -29,16 +29,17 @@
  * refreshed on each minute boundary like the macOS menu bar.
  */
 
-const REST_MS = 2200;
+const FIRST_REST_MS = 2620; // on mount: the list shows before the first tap
+const REST_MS = 1500; // between rounds, after the list has held
 const TAP_MS = 180;
 const PUSH_MS = 520;
-const DETAIL_HOLD_MS = 3200;
+const DETAIL_HOLD_MS = 2100;
 const TILE_SHOW_MS = 320; // into the close: the tile is placed under the shrinking window
 const INSTALL_START_MS = 560; // after that: the window has faded and the tile is the logo
-const INSTALL_MS = 4200;
+const INSTALL_MS = 2420;
 const INSTALL_SETTLE_MS = 700;
 const OPEN_MS = 560;
-const LIST_HOLD_MS = 1200;
+const LIST_HOLD_MS = 560;
 
 const INSTALLING_LABEL = "Installing…";
 const APP_NAME = "Tuist";
@@ -58,17 +59,27 @@ export const DownloadIosDemo = {
     this.pie = this.tile && this.tile.querySelector('[data-part="app-progress-pie"]');
     const section = this.el.closest('[data-section="ios"]');
     this.lines = section ? Array.from(section.querySelectorAll('[data-part="line"]')) : [];
+    this.loader = section ? section.querySelector('[data-part="line-progress"]') : null;
+    this.loaderFill = this.loader ? this.loader.querySelector('[data-part="line-progress-fill"]') : null;
     this.startClock();
     if (!this.screen || !this.shell || !this.home || !this.pages || !this.row || !this.run || !this.back) return;
     if (!this.tile || !this.tileLabel || !this.pie) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (this.motionQuery.matches) return;
+    // Turning on Reduce Motion while the page is open pauses the demo the
+    // same way scrolling it out of view does; turning it off resumes it.
+    this.onMotionChange = () => this.sync();
+    this.motionQuery.addEventListener("change", this.onMotionChange);
 
     this.visible = false;
     this.pending = null;
     this.animations = new Set();
 
     this.scene.setAttribute("data-animated", "");
-    this.setStep(0);
+    this.setStep(0, FIRST_REST_MS + TAP_MS);
+    // Wrapping changes the lines' offsets; keep the ring on the active line.
+    this.onResize = () => this.placeLoader();
+    window.addEventListener("resize", this.onResize);
 
     this.observer = new IntersectionObserver(
       ([entry]) => {
@@ -79,10 +90,12 @@ export const DownloadIosDemo = {
     );
     this.observer.observe(this.scene);
 
-    this.wait(REST_MS, () => this.round());
+    this.wait(FIRST_REST_MS, () => this.round());
   },
 
   destroyed() {
+    if (this.onResize) window.removeEventListener("resize", this.onResize);
+    if (this.motionQuery && this.onMotionChange) this.motionQuery.removeEventListener("change", this.onMotionChange);
     if (this.observer) this.observer.disconnect();
     if (this.pending && this.pending.id) window.clearTimeout(this.pending.id);
     if (this.clock) window.clearTimeout(this.clock);
@@ -92,11 +105,11 @@ export const DownloadIosDemo = {
   round() {
     this.tap(this.row, () => {
       this.pages.setAttribute("data-screen", "detail");
-      this.setStep(1);
+      this.setStep(1, PUSH_MS + DETAIL_HOLD_MS + TAP_MS);
       this.wait(PUSH_MS + DETAIL_HOLD_MS, () => {
         this.tap(this.run, () => {
           this.closeApp();
-          this.setStep(2);
+          this.setStep(2, TILE_SHOW_MS + INSTALL_START_MS + INSTALL_MS + INSTALL_SETTLE_MS);
           this.wait(TILE_SHOW_MS, () => {
             this.setTile("installing", true);
             this.wait(INSTALL_START_MS, () => {
@@ -105,7 +118,7 @@ export const DownloadIosDemo = {
                 this.wait(INSTALL_SETTLE_MS, () => {
                   this.resetPages();
                   this.openApp();
-                  this.setStep(0);
+                  this.setStep(0, OPEN_MS + LIST_HOLD_MS + REST_MS + TAP_MS);
                   this.wait(OPEN_MS, () => {
                     this.setTile(null);
                     this.wait(LIST_HOLD_MS + REST_MS, () => this.round());
@@ -195,8 +208,26 @@ export const DownloadIosDemo = {
 
   // Light the stanza line for the current step; the others fall back to
   // tertiary via CSS.
-  setStep(index) {
+  // Lights the stanza line for the step and runs the ring loader ahead of
+  // it for exactly as long as the step takes on the phone (the timings the
+  // choreography waits through), so the ring completes as the next step
+  // starts and the CSS transition then slides it down to that line.
+  setStep(index, durationMs) {
+    this.step = index;
     this.lines.forEach((line, i) => line.toggleAttribute("data-active", i === index));
+    this.placeLoader();
+    if (!this.loaderFill || !durationMs) return;
+    if (this.sweep) this.sweep.cancel();
+    this.sweep = this.animate(this.loaderFill, [{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }], {
+      duration: durationMs,
+      easing: "linear",
+      fill: "forwards",
+    });
+  },
+  placeLoader() {
+    const line = this.lines[this.step];
+    if (!this.loader || !line) return;
+    this.loader.style.setProperty("--line-offset", `${line.offsetTop - this.lines[0].offsetTop}px`);
   },
 
   startClock() {
@@ -215,7 +246,11 @@ export const DownloadIosDemo = {
         .map((part) => part.value)
         .join("")
         .trim();
-      for (const el of timeEls) el.textContent = text;
+      const datetime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      for (const el of timeEls) {
+        el.textContent = text;
+        el.setAttribute("datetime", datetime);
+      }
       const untilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
       this.clock = window.setTimeout(tick, untilNextMinute + 50);
     };
@@ -237,6 +272,7 @@ export const DownloadIosDemo = {
       if (done) done();
     };
     animation.oncancel = () => this.animations.delete(animation);
+    return animation;
   },
 
   // One pending timer at a time; leaving the viewport banks the time left
@@ -247,7 +283,7 @@ export const DownloadIosDemo = {
   },
 
   sync() {
-    const running = this.visible;
+    const running = this.visible && !this.motionQuery.matches;
     const pending = this.pending;
     if (pending) {
       if (running && !pending.id) {

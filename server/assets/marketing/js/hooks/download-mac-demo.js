@@ -79,7 +79,12 @@ export const DownloadMacDemo = {
       };
     });
     if (this.apps.some((app) => !app.tray || !app.tile || !app.label || !app.pie)) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (this.motionQuery.matches) return;
+    // Turning on Reduce Motion while the page is open pauses the demo the
+    // same way scrolling it out of view does; turning it off resumes it.
+    this.onMotionChange = () => this.sync();
+    this.motionQuery.addEventListener("change", this.onMotionChange);
 
     this.visible = false;
     this.pending = null;
@@ -103,6 +108,7 @@ export const DownloadMacDemo = {
   },
 
   destroyed() {
+    if (this.motionQuery && this.onMotionChange) this.motionQuery.removeEventListener("change", this.onMotionChange);
     if (this.observer) this.observer.disconnect();
     if (this.pending && this.pending.id) window.clearTimeout(this.pending.id);
     for (const animation of this.animations) animation.cancel();
@@ -262,7 +268,7 @@ export const DownloadMacDemo = {
   },
 
   running() {
-    return this.visible;
+    return this.visible && !this.motionQuery.matches;
   },
 
   sync() {

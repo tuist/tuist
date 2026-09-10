@@ -14,6 +14,7 @@
             href={@hero_download_url}
             label={dgettext("marketing", "Download on iPhone")}
             size="large"
+            aria-describedby={@hero_version && "hero-version"}
           >
             <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
           </.button>
@@ -22,11 +23,12 @@
             href={@hero_download_url}
             label={dgettext("marketing", "Download for macOS")}
             size="large"
+            aria-describedby={@hero_version && "hero-version"}
           >
             <:icon_left><Noora.Icon.icon name="brand_apple" /></:icon_left>
           </.button>
         <% end %>
-        <span :if={@hero_version} data-part="version">
+        <span :if={@hero_version} id="hero-version" data-part="version">
           {dgettext("marketing", "Version %{version}", version: @hero_version)}
         </span>
       </div>
@@ -209,7 +211,12 @@
               src={~p"/marketing/images/download/menubar/menu.svg"}
               alt=""
             />
-            <time data-part="menubar-clock" id="download-macos-clock" phx-hook="MenubarClock">
+            <time
+              data-part="menubar-clock"
+              id="download-macos-clock"
+              datetime="2024-06-10T09:41"
+              phx-hook="MenubarClock"
+            >
               <span data-part="date">Mon Jun 10</span>
               <span data-part="time">9:41 AM</span>
             </time>
@@ -243,7 +250,7 @@
         <div data-part="phone">
           <div data-part="home-screen">
             <div data-part="status-bar">
-              <span data-part="status-time">9:41</span>
+              <time data-part="status-time" datetime="09:41">9:41</time>
               <span data-part="status-levels">
                 <img
                   decoding="async"
@@ -488,9 +495,26 @@
         </.button>
       </div>
       <%!-- Three steps; the current one (data-active) reads in primary,
-        the others in tertiary. Static on the first step until the phone
-        demo steps through them. --%>
+        the others in tertiary. One ring loader sits in the gutter ahead of
+        the current line: DownloadIosDemo sweeps it over exactly the time the
+        step takes on the phone, then slides it down to the next line. Static
+        on the first step (empty ring) until the demo steps through them. --%>
       <p data-part="lines">
+        <span data-part="line-progress" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle
+              data-part="line-progress-fill"
+              cx="12"
+              cy="12"
+              r="9.75"
+              stroke-width="1.5"
+              pathLength="100"
+              stroke-dasharray="100"
+              stroke-dashoffset="100"
+              transform="rotate(-90 12 12)"
+            />
+          </svg>
+        </span>
         <span data-part="line" data-active>
           {dgettext("marketing", "Brings your latest previews together,")}
         </span>
@@ -518,7 +542,7 @@
               home screen, scaled to this bezel by CSS. --%>
             <div data-part="home-screen">
               <div data-part="status-bar">
-                <span data-part="status-time">9:41</span>
+                <time data-part="status-time" datetime="09:41">9:41</time>
                 <span data-part="status-levels">
                   <img
                     loading="lazy"
@@ -723,7 +747,7 @@
                 height="132"
               />
               <div data-part="status-bar">
-                <span data-part="status-time">9:41</span>
+                <time data-part="status-time" datetime="09:41">9:41</time>
                 <%!-- Painted through CSS masks so they take the label colour
                   on the app's light and dark surfaces. --%>
                 <span data-part="status-levels">
@@ -1155,7 +1179,7 @@
         {dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}
       </span>
       <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
-      <nav data-part="actions" aria-label="Primary actions">
+      <div data-part="actions" role="group" aria-labelledby="cta-title">
         <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
         <.button
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
@@ -1164,7 +1188,7 @@
           variant="secondary"
           label={dgettext("marketing", "Talk to us")}
         />
-      </nav>
+      </div>
     </section>
 
     <div data-part="features-divider" aria-hidden="true">
