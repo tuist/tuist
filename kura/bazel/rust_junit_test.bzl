@@ -25,10 +25,25 @@ See kura/bazel/tools/rust_libtest_junit.sh for the parser.
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
+# The wrapper serializes tests (--test-threads=1) so consecutive output
+# lines correspond to consecutive per-test wall-clock windows and each case
+# gets a real duration in JUnit. That trades the harness's default
+# parallelism for the timing signal, so even a "small" suite may need the
+# medium (300s) timeout that Bazel's default "small" (60s) does not give.
+_MIN_TIMEOUT_ORDER = {"small": 0, "medium": 1, "large": 2, "enormous": 3}
+
+def _effective_size(size):
+    if _MIN_TIMEOUT_ORDER.get(size, 0) < _MIN_TIMEOUT_ORDER["medium"]:
+        return "medium"
+    return size
+
 def rust_junit_test(name, tags = None, size = "medium", **kwargs):
     binary_name = name + ".binary"
     inner_tags = ["manual"] + (tags or [])
 
+    # The underlying rust_test is only ever built, never executed, so its
+    # `size` never gates a timeout. The wrapper sh_test carries the real
+    # per-test runtime and needs the enlarged budget.
     rust_test(
         name = binary_name,
         tags = inner_tags,
@@ -42,5 +57,5 @@ def rust_junit_test(name, tags = None, size = "medium", **kwargs):
         args = ["$(rootpath :" + binary_name + ")"],
         data = [":" + binary_name],
         tags = tags,
-        size = size,
+        size = _effective_size(size),
     )

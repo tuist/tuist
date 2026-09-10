@@ -37,10 +37,23 @@ raw=${TEST_TMPDIR:-/tmp}/${suite}.raw.log
 # --format=pretty is the libtest default and is what emits one
 # "test <name> ... <result>" line per case; --format=terse (which I first
 # tried) only prints a dot per pass, which leaves the parser with nothing to
-# match. Threading is left at the harness default: libtest writes one full
-# line per case atomically, so parallel runs are safe to parse.
+# match. --test-threads=1 forces serial execution so consecutive output
+# lines correspond to consecutive test wall-clock windows: with parallel
+# tests, lines interleave and per-case timing collapses. The runtime cost
+# vs. the default parallelism is real (roughly 4x on kura's ~1000-case
+# suite) but is worth it for populated per-case duration percentiles in
+# Tuist Test Insights, since stable libtest does not expose --report-time.
+#
+# Each stdout line is prefixed with the wall-clock second at which the
+# wrapper observed it. The Python parser derives per-case duration from the
+# gap between a case's completion line and the previous one, and the "running
+# N tests" line seeds the first case.
 set +e
-"$binary" --format=pretty "$@" | tee "$raw"
+"$binary" --format=pretty --test-threads=1 "$@" 2>&1 | python3 -u -c '
+import sys, time
+for line in sys.stdin:
+    sys.stdout.write(f"{time.time():.6f} {line}")
+' | tee "$raw"
 status=${PIPESTATUS[0]}
 set -e
 
@@ -51,48 +64,70 @@ from xml.sax.saxutils import escape
 
 suite, raw_path, xml_path = sys.argv[1:]
 
+ts_re = re.compile(r"^(?P<ts>\d+\.\d+) (?P<rest>.*)$")
 case_re = re.compile(r"^test (?P<name>.+?) \.\.\. (?P<result>ok|FAILED|ignored)\b")
-# Failure blocks in the "failures:" section carry the stdout/panic message.
+running_re = re.compile(r"^running \d+ tests?\b")
 failure_hdr_re = re.compile(r"^---- (?P<name>.+?) stdout ----")
 
-cases = []
+cases = []  # (name, result, duration_seconds)
 failures = {}
 current_fail = None
+last_ts = None  # wall clock of the previous case's completion line
 
 with open(raw_path, "r", errors="replace") as fh:
-    lines = fh.read().splitlines()
-
-for line in lines:
-    m = case_re.match(line)
-    if m:
-        cases.append((m.group("name"), m.group("result")))
-        current_fail = None
-        continue
-    m = failure_hdr_re.match(line)
-    if m:
-        current_fail = m.group("name")
-        failures[current_fail] = []
-        continue
-    # Stop appending to a failure block when libtest starts the summary.
-    if current_fail is not None:
-        if line.startswith("failures:") or line.startswith("test result:"):
-            current_fail = None
+    for line in fh:
+        tsm = ts_re.match(line)
+        if not tsm:
+            # A rare unprefixed line (child process, panic-only) does not
+            # affect timing: only prefixed completion lines advance last_ts.
+            payload = line.rstrip("\n")
+            ts = None
         else:
-            failures[current_fail].append(line)
+            ts = float(tsm.group("ts"))
+            payload = tsm.group("rest").rstrip("\n")
 
-def testcase(name, result):
+        if running_re.match(payload):
+            last_ts = ts
+            continue
+
+        m = case_re.match(payload)
+        if m:
+            name = m.group("name")
+            result = m.group("result")
+            if ts is not None and last_ts is not None:
+                duration = max(ts - last_ts, 0.0)
+            else:
+                duration = 0.0
+            cases.append((name, result, duration))
+            if ts is not None:
+                last_ts = ts
+            current_fail = None
+            continue
+
+        m = failure_hdr_re.match(payload)
+        if m:
+            current_fail = m.group("name")
+            failures[current_fail] = []
+            continue
+
+        if current_fail is not None:
+            if payload.startswith("failures:") or payload.startswith("test result:"):
+                current_fail = None
+            else:
+                failures[current_fail].append(payload)
+
+def testcase(name, result, duration):
     body = ""
     if result == "FAILED":
         msg = "\n".join(failures.get(name, [])).strip() or "test failed"
         body = f'<failure message="test failed">{escape(msg)}</failure>'
     elif result == "ignored":
         body = '<skipped/>'
-    # No per-case duration on stable libtest without unstable flags; leave 0.
-    return f'    <testcase name="{escape(name)}" classname="{escape(suite)}" time="0">{body}</testcase>'
+    return f'    <testcase name="{escape(name)}" classname="{escape(suite)}" time="{duration:.6f}">{body}</testcase>'
 
 total = len(cases)
-failed = sum(1 for _, r in cases if r == "FAILED")
-skipped = sum(1 for _, r in cases if r == "ignored")
+failed = sum(1 for _, r, _ in cases if r == "FAILED")
+skipped = sum(1 for _, r, _ in cases if r == "ignored")
 
 with open(xml_path, "w") as out:
     out.write('<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -100,8 +135,8 @@ with open(xml_path, "w") as out:
     out.write(
         f'  <testsuite name="{escape(suite)}" tests="{total}" failures="{failed}" skipped="{skipped}">\n'
     )
-    for name, result in cases:
-        out.write(testcase(name, result) + "\n")
+    for name, result, duration in cases:
+        out.write(testcase(name, result, duration) + "\n")
     out.write('  </testsuite>\n')
     out.write('</testsuites>\n')
 PY
