@@ -5,7 +5,7 @@ pub(crate) enum FailpointName {
     BeforeSegmentFsync,
     #[cfg(test)]
     BeforeWalFsync,
-    AfterInlineManifestReadBeforeCommit,
+    BeforeInlineApplyWriteLock,
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
     AfterReadArtifactBytesBeforeReturn,
@@ -24,7 +24,7 @@ impl FailpointName {
             Self::BeforeSegmentFsync => "before_segment_fsync",
             #[cfg(test)]
             Self::BeforeWalFsync => "before_wal_fsync",
-            Self::AfterInlineManifestReadBeforeCommit => "after_inline_manifest_read_before_commit",
+            Self::BeforeInlineApplyWriteLock => "before_inline_apply_write_lock",
             Self::AfterArtifactBytesDurableBeforeMetadata => {
                 "after_artifact_bytes_durable_before_metadata"
             }
@@ -51,6 +51,44 @@ pub(crate) enum FailpointAction {
     Sleep(Duration),
     Error(String),
     Panic(String),
+    /// Park until the test releases the gate. Unlike [`Self::Sleep`], this
+    /// makes an interleaving a fact rather than a wager on wall-clock timing:
+    /// the test learns when the parked task actually reached the failpoint and
+    /// decides itself when it may continue.
+    #[cfg(test)]
+    Pause(std::sync::Arc<FailpointGate>),
+}
+
+/// The two-way rendezvous behind [`FailpointAction::Pause`].
+#[cfg(test)]
+#[derive(Debug, Default)]
+pub(crate) struct FailpointGate {
+    entered: tokio::sync::Notify,
+    released: tokio::sync::Notify,
+}
+
+#[cfg(test)]
+impl FailpointGate {
+    pub(crate) fn new() -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::default())
+    }
+
+    /// Resolves once a task has reached the failpoint and parked on it.
+    pub(crate) async fn entered(&self) {
+        self.entered.notified().await;
+    }
+
+    /// Lets the parked task run on.
+    pub(crate) fn release(&self) {
+        self.released.notify_one();
+    }
+
+    async fn park(&self) {
+        // Both directions store a permit when nobody is waiting yet, so
+        // neither half of the rendezvous can be missed by arriving early.
+        self.entered.notify_one();
+        self.released.notified().await;
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -98,6 +136,11 @@ impl FailpointSet {
             FailpointAction::Panic(message) => {
                 panic!("failpoint {}: {message}", name.as_str());
             }
+            #[cfg(test)]
+            FailpointAction::Pause(gate) => {
+                gate.park().await;
+                Ok(())
+            }
         }
     }
 
@@ -135,6 +178,13 @@ impl FailpointSet {
             }
             FailpointAction::Panic(message) => {
                 panic!("failpoint {}: {message}", name.as_str());
+            }
+            #[cfg(test)]
+            FailpointAction::Pause(_) => {
+                panic!(
+                    "failpoint {}: Pause needs an async context, use FailpointSet::hit",
+                    name.as_str()
+                );
             }
         }
     }

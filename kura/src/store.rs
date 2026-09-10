@@ -3033,6 +3033,13 @@ impl Store {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
+        // Reached with the caller's damping read already taken and no artifact
+        // lock held yet: the window a racing publish has to commit underneath a
+        // writer that has already read this key. A test parking here still
+        // holds the namespace read lock above, so do not pair it with a
+        // namespace delete.
+        self.hit_failpoint(FailpointName::BeforeInlineApplyWriteLock)
+            .await?;
         // Hold the per-artifact write lock across the read, the sticky-tag
         // decision and the commit. The tag is a read-modify-write over the
         // stored manifest, so computing it from a read taken outside the lock
@@ -3094,9 +3101,6 @@ impl Store {
         spec: &PersistArtifactSpec<'_>,
     ) -> Result<InlineApplyPrecheck, String> {
         let existing = self.manifest_from_db(artifact_id)?;
-        // Widens the read-to-commit window a racing writer would have to hit.
-        self.hit_failpoint(FailpointName::AfterInlineManifestReadBeforeCommit)
-            .await?;
         let version_ms = spec.precheck_version_ms();
         if let Some(existing_manifest) = &existing
             && existing_manifest.inline
@@ -10556,7 +10560,7 @@ mod tests {
 
     use crate::{
         config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
-        failpoints::{FailpointAction, FailpointName},
+        failpoints::{FailpointAction, FailpointGate, FailpointName},
         io::IoController,
         memory::MemoryController,
         metrics::Metrics,
@@ -12132,19 +12136,24 @@ mod tests {
     // to interleave their read and their commit, or the feature build writes the
     // `feature` tag it decided on when the key looked absent, over the `main` the
     // trunk build committed meanwhile, and with a version nothing downstream
-    // rejects. The failpoint pins that interleaving instead of racing for it.
+    // rejects. The gate pins that interleaving instead of racing for it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_concurrent_feature_publish_cannot_overwrite_the_trunk_tag() {
         let (_temp_dir, _config, store) = temp_store();
         let store = Arc::new(store);
+        // The feature publish parks between its damping read of an absent key
+        // and the write lock, which is the one window where another publish can
+        // land under it. The gate is what makes that a fact: the test resumes
+        // only once the publish has actually reached the failpoint, and the
+        // publish resumes only once the test says so. A fixed sleep here merely
+        // widened the window, and a loaded machine closed it again.
+        let gate = FailpointGate::new();
         store.failpoints().set_once(
-            FailpointName::AfterInlineManifestReadBeforeCommit,
-            FailpointAction::Sleep(std::time::Duration::from_millis(300)),
+            FailpointName::BeforeInlineApplyWriteLock,
+            FailpointAction::Pause(Arc::clone(&gate)),
         );
 
         let feature_store = Arc::clone(&store);
-        // Reads first (and stalls on the failpoint holding nothing but its own
-        // read), so it is the one whose decision is stale by the time it writes.
         let feature = tokio::spawn(async move {
             feature_store
                 .persist_inline_artifact_from_bytes_damped_and_enqueue(
@@ -12158,27 +12167,45 @@ mod tests {
                     Some("main"),
                 )
                 .await
-                .expect("feature publish should persist");
+                .expect("feature publish should persist")
         });
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let trunk_store = Arc::clone(&store);
-        let trunk = tokio::spawn(async move {
-            trunk_store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
-                    ArtifactProducer::Reapi,
-                    "ios",
-                    "action_cache/aa/10",
-                    "application/x-protobuf",
-                    b"graph-from-trunk",
-                    &[],
-                    Some("main"),
-                    Some("main"),
-                )
-                .await
-                .expect("trunk publish should persist");
-        });
-        feature.await.expect("feature task");
-        trunk.await.expect("trunk task");
+        tokio::time::timeout(std::time::Duration::from_secs(60), gate.entered())
+            .await
+            .expect("the feature publish must park before it takes the write lock");
+
+        // Commits `main` in full while the feature publish is held, so the
+        // feature build's decision is provably the stale one.
+        let (trunk_manifest, _applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph-from-trunk",
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("trunk publish should persist");
+        assert_eq!(
+            trunk_manifest.branch.as_deref(),
+            Some("main"),
+            "the trunk publish must have landed the trunk tag before the feature \
+             publish resumes, or the assertion below proves nothing"
+        );
+
+        gate.release();
+        let (feature_manifest, _applied) = feature.await.expect("feature task");
+        // Asserted on the resumed writer itself, not only through the scan
+        // below: whether it re-resolved the tag under the lock or was rejected
+        // outright as not-newer, what it must never do is come back holding the
+        // `feature` tag it decided on before the trunk commit.
+        assert_eq!(
+            feature_manifest.branch.as_deref(),
+            Some("main"),
+            "the feature publish kept the tag it decided on from its stale read"
+        );
 
         let trunk_view = store
             .action_cache_manifests("ios", 10, Some("main"))
@@ -12190,7 +12217,8 @@ mod tests {
         assert_eq!(
             keys,
             vec!["action_cache/aa/10"],
-            "the key stays in the trunk baseline whichever publish commits first"
+            "the feature publish resolved its tag from a read taken before the \
+             trunk commit and dropped the key out of the trunk baseline"
         );
     }
 
