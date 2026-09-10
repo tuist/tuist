@@ -19,7 +19,7 @@ Run Bazel tests through Tuist to feed the same test dashboards used by every oth
 tuist bazel test -- //app:tests
 ```
 
-Arguments after `--` are forwarded to `bazel test`. Use `--path` to select the project and working directory, and `--bazel` to select a different executable such as `bazelisk`. Ordinary `bazel test` still reports test results, but does not fetch or enforce Tuist quarantine policies.
+Arguments after `--` are forwarded to `bazel test`. Use `--path` to select the project and working directory, and `--bazel` to select a different executable such as `bazelisk`. Ordinary `bazel test` still runs your tests, but does not report individual cases to Tuist and does not enforce quarantine policies.
 
 ## What is tracked {#what-is-tracked}
 
