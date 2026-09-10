@@ -92,8 +92,9 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:579
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:818
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
-#: lib/tuist_web/marketing/live/marketing_blog_live.ex:109
-#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:13
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:146
+#: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:13
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:4
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:56
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:13
 #, elixir-autogen, elixir-format
@@ -846,7 +847,7 @@ msgstr ""
 msgid "Pull requests merged"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.ex:120
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:157
 #: lib/tuist_web/marketing/structured_markup.ex:367
 #, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."
@@ -2330,7 +2331,10 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:59
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:212
+#: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:59
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:13
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:35
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "All"
@@ -3171,4 +3175,39 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:46
 #, elixir-autogen, elixir-format
 msgid "teams to scale with joy"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Atom feed"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Clear search"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Grid view"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "List view"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "RSS feed"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "Search"
+msgstr ""
+
+#: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Search..."
 msgstr ""
