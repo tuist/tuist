@@ -86,7 +86,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:86
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:293
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:598
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:920
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:924
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:13
 #: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:4
@@ -168,7 +168,7 @@ msgstr ""
 msgid "Cache"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:999
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1003
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:491
 #, elixir-autogen, elixir-format
 msgid "Can I change or cancel my plan at any time?"
@@ -325,24 +325,24 @@ msgstr ""
 msgid "Developers"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1054
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1058
 #, elixir-autogen, elixir-format
 msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1006
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1010
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Do you offer annual billing discounts?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1028
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1032
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Do you offer discounts for non-profits and open-source?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:992
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:996
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "Do you support a seat-based pricing model?"
@@ -532,7 +532,7 @@ msgstr ""
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1022
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "How can I estimate the cost for my project?"
@@ -576,13 +576,13 @@ msgstr ""
 msgid "Invalid verification link. Please try signing up again."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1023
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1027
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:659
 #, elixir-autogen, elixir-format
 msgid "Is there a free trial for paid plans?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1011
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1015
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "Is there a minimum contract length?"
@@ -700,7 +700,7 @@ msgstr ""
 msgid "Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1205
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1209
 #: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter_verify.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:14
 #, elixir-autogen, elixir-format
@@ -712,7 +712,7 @@ msgstr ""
 msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1012
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1016
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:586
 #, elixir-autogen, elixir-format
 msgid "No, there's no minimum contract length. You're free to cancel at any time."
@@ -811,7 +811,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:43
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:286
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:595
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1049
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1053
 #, elixir-autogen, elixir-format
 msgid "Pricing"
 msgstr ""
@@ -1027,6 +1027,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/newsletter.html.heex:37
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:77
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:120
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Subscribe"
 msgstr ""
@@ -1149,12 +1150,12 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:461
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:518
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:584
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:919
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:971
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1048
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1093
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1125
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1158
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:923
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:975
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1052
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1097
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1129
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1162
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:87
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:52
 #, elixir-autogen, elixir-format
@@ -1192,7 +1193,7 @@ msgstr ""
 msgid "Tuist Icon"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1014
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1018
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:614
 #, elixir-autogen, elixir-format
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
@@ -1330,12 +1331,12 @@ msgstr ""
 msgid "View all"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:65
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "View in web browser"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:998
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1002
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "We accept credit card payments and wire transfers."
@@ -1351,7 +1352,7 @@ msgstr ""
 msgid "We embrace standards for long-term success while respecting freedom of choice."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1028
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:670
 #, elixir-autogen, elixir-format
 msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
@@ -1383,19 +1384,19 @@ msgstr ""
 msgid "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1001
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1005
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "What happens if I exceed my plan limits?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:997
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1001
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "What payment methods do you accept?"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1013
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1017
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "What support is included with each plan?"
@@ -1421,37 +1422,37 @@ msgstr ""
 msgid "Years of building OSS Foundation"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:993
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:997
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1029
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1033
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:698
 #, elixir-autogen, elixir-format
 msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1007
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1011
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:558
 #, elixir-autogen, elixir-format
 msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1004
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:502
 #, elixir-autogen, elixir-format
 msgid "Yes, you can manage your plan at any time through our management interface."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1019
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1023
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:642
 #, elixir-autogen, elixir-format
 msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1002
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1006
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:530
 #, elixir-autogen, elixir-format
 msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
@@ -1676,7 +1677,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:182
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:82
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:124
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:972
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:976
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_html/new/case_study.html.heex:6
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:918
@@ -1715,7 +1716,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:14
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:24
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1126
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1130
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:271
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:539
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:99
@@ -2188,7 +2189,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:10
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:16
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1094
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1098
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Compute"
@@ -2680,7 +2681,7 @@ msgstr ""
 msgid "Brand guidelines"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1118
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1122
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:542
 #: lib/tuist_web/marketing/controllers/marketing_html/new/tests.html.heex:31
 #, elixir-autogen, elixir-format
@@ -3115,7 +3116,7 @@ msgstr ""
 msgid "Fast macOS and Linux runners that scale with your workloads and plug directly into the rest of the Tuist platform."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1086
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1090
 #, elixir-autogen, elixir-format
 msgid "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
 msgstr ""
@@ -3550,4 +3551,64 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:628
 #, elixir-autogen, elixir-format
 msgid "System theme"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "All issues"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:394
+#, elixir-autogen, elixir-format
+msgid "Food for thought"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:489
+#, elixir-autogen, elixir-format
+msgid "Get the next issue in your inbox"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Issue %{number}"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:450
+#, elixir-autogen, elixir-format
+msgid "Next issue"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:427
+#, elixir-autogen, elixir-format
+msgid "Previous issue"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:509
+#, elixir-autogen, elixir-format
+msgid "Share it"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:442
+#, elixir-autogen, elixir-format
+msgid "This is the first issue"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:465
+#, elixir-autogen, elixir-format
+msgid "This is the latest issue"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:289
+#, elixir-autogen, elixir-format
+msgid "Tools & sites"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "Welcome to issue %{number}"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:328
+#, elixir-autogen, elixir-format
+msgid "Worthy Five: %{name}"
 msgstr ""
