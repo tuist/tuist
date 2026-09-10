@@ -17,7 +17,7 @@ defmodule Tuist.Kura.OriginMap do
 
   # Bumped when an entry moves. Recorded on decisions rather than compared
   # against anything: it dates a verdict, it does not gate one.
-  @version 4
+  @version 5
 
   # Nearest first, and every list names every candidate region. An origin
   # always has an answer, so a region being unserved or unfunded narrows the
@@ -70,21 +70,32 @@ defmodule Tuist.Kura.OriginMap do
     UA XK
   ]
 
+  # Réunion and Mayotte are nearer Singapore on the straight line, 5811km and
+  # 6650 against 9365 and 8042 to Paris, but their transit is the French cables
+  # north-west and the Mozambique Channel around them is already here. Saint
+  # Helena is 6736km from Santiago against 7251 from Paris and lands on the
+  # African coast.
   @africa_middle_east ~w[
     AE AO BF BH BI BJ BW CD CF CG CI CM CV DJ DZ EG EH ER ET GA GH GM GN GQ GW
-    IL IQ IR JO KE KM KW LB LR LS LY MA MG ML MR MU MW MZ NA NE NG OM PS QA RW
-    SA SC SD SL SN SO SS ST SY SZ TD TG TN TR TZ UG YE ZA ZM ZW
+    IL IQ IR JO KE KM KW LB LR LS LY MA MG ML MR MU MW MZ NA NE NG OM PS QA RE
+    RW SA SC SD SH SL SN SO SS ST SY SZ TD TG TN TR TZ UG YE YT ZA ZM ZW
   ]
 
   @apac ~w[
-    AF AM AS AU AZ BD BN BT CK CN FJ FM GE GU HK ID IN JP KG KH KI KP KR KZ LA
-    LK MH MM MN MO MV MY NC NF NP NR NU NZ PF PG PH PK PW SB SG TH TJ TK TL TM
-    TO TV TW UZ VN VU WS
+    AF AM AS AU AZ BD BN BT CC CK CN CX FJ FM GE GU HK HM ID IN IO JP KG KH KI
+    KP KR KZ LA LK MH MM MN MO MP MV MY NC NF NP NR NU NZ PF PG PH PK PW SB SG
+    TF TH TJ TK TL TM TO TV TW UZ VN VU WF WS
   ]
 
+  # Latin America and the Caribbean. The South Atlantic outliers are here on
+  # distance: Stanley is 2277km from Santiago, Grytviken 3528, Adamstown 5764
+  # against 7883 to Hillsboro. The Caribbean codes follow the block they sit
+  # in rather than their own nearest region, which for Gustavia is Vint Hill
+  # at 2730km against 5770 to Santiago; that block moves as one or not at all.
   @south_america ~w[
-    AG AI AR AW BB BM BO BR BS BZ CL CO CR CU CW DM DO EC GD GP GT GY HN HT JM
-    KN KY LC MQ MS MX NI PA PE PR PY SR SV SX TC TT UY VC VE VG VI
+    AG AI AQ AR AW BB BL BM BO BQ BR BS BV BZ CL CO CR CU CW DM DO EC FK GD GF
+    GP GS GT GY HN HT JM KN KY LC MF MQ MS MX NI PA PE PN PR PY SR SV SX TC TT
+    UY VC VE VG VI
   ]
 
   # The western United States and the Canadian west are nearer Hillsboro than
@@ -106,7 +117,18 @@ defmodule Tuist.Kura.OriginMap do
                      Enum.map(@africa_middle_east, &{&1, :africa_middle_east}) ++
                      Enum.map(@apac, &{&1, :apac}) ++
                      Enum.map(@south_america, &{&1, :south_america}) ++
-                     [{"US", :us_east}, {"CA", :canada_east}]
+                     [
+                       {"US", :us_east},
+                       {"CA", :canada_east},
+                       # Nuuk is 3301km from Vint Hill and Saint-Pierre 1964,
+                       # both nearer Beauharnois still, so they take the
+                       # Canadian preference rather than a European one.
+                       {"GL", :canada_east},
+                       {"PM", :canada_east},
+                       # Midway, Wake and Johnston. Navassa is Caribbean rather
+                       # than Pacific and one code cannot say both.
+                       {"UM", :us_west}
+                     ]
                  )
 
   @subdivision_zones Map.new(
