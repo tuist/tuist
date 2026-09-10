@@ -23,6 +23,10 @@ This directory contains database migrations and other private assets.
 ## Guardrails
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
+- The `eu-central` cleanup keeps an existing `eu-west` storage rollup on an
+  account/day collision and renames unmatched rows. These are derived
+  aggregates; counts may overlap and medians cannot be merged. The matching
+  ClickHouse sweep retains the source events for recalculation.
 - Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
   block-size, and query-memory settings, including catch-up passes. Copying
   one partition at a time alone does not bound their peak memory usage.
