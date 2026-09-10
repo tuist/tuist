@@ -315,6 +315,12 @@ main {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-large);
   }
+
+  /* The status alert sets its icon closer to the label than Noora's medium
+     alert does (spacing-3 instead of spacing-5). */
+  & > .noora-alert {
+    gap: var(--noora-spacing-3);
+  }
 }
 
 /* Section: a titled header strip over a hairline-divided list. */
