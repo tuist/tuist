@@ -31,3 +31,5 @@ This area owns LiveView pages and components for the web UI.
 - GitLab CI connections in Integrations take only an instance URL and runner token. GitLab and Buildkite cards share `runner_integrations_visible?`, derived from the account runners feature flag. Disconnect replaces Connect in the card header after connecting; show the instance URL only in its editable field. Each job selects an account-owned profile through its pipeline tags. Never repopulate token inputs; job detail views load account-scoped metadata without execution payloads.
 
 - GitLab disconnect disables the connection immediately and leaves upstream settlement to background polling; the disabled connection renders a pending notice and a disabled Disconnect action.
+
+- Runner job detail omits the whole Insights card unless at least one build or test run matches the runner job; candidate account projects alone do not justify an empty card. GitLab jobs link to their GitLab instance and omit the structured Steps card, which currently receives data only from GitHub completion webhooks; GitLab execution output remains available in Logs.

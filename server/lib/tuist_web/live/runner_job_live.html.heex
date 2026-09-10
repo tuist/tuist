@@ -201,6 +201,7 @@
     </.card>
 
     <.card
+      :if={@linked_build_runs != [] or @linked_test_runs != []}
       title={dgettext("dashboard_runners", "Insights")}
       icon="chart_arcs"
       data-part="insights-card"
@@ -213,12 +214,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_build_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",
@@ -314,12 +309,6 @@
             </span>
           </div>
           <div data-part="insights-section">
-            <div :if={is_nil(@insights_project)} data-part="insights-empty">
-              {dgettext(
-                "dashboard_runners",
-                "No matching project was found for this runner repository."
-              )}
-            </div>
             <div :if={@insights_project && @linked_test_runs == []} data-part="insights-empty">
               {dgettext(
                 "dashboard_runners",

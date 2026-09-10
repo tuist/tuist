@@ -682,7 +682,26 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Steps will appear here once the job finishes."
   end
 
+  test "hides insights when no project matches the job repository", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_502,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "unmatched/repository",
+        workflow_run_id: 315_020,
+        job_name: "test"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315020/jobs/31502")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "No matching project was found"
+  end
+
   test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
     mapping =
       Repo.insert!(%Tuist.Runners.GitLab.Job{
         account_id: account.id,
@@ -706,8 +725,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     flush_outbox!()
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
-    assert html =~ "https://gitlab.example.com/acme/mobile/-/jobs/42"
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert has_element?(lv, ~s(a[href="https://gitlab.example.com/acme/mobile/-/jobs/42"]), "GitLab")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
     refute html =~ "https://github.com/acme/mobile"
     refute html =~ "steps-card"
     refute html =~ "job-secret"
@@ -775,11 +795,24 @@ defmodule TuistWeb.RunnerJobLiveTest do
       account: account
     } do
       mapping = buildkite_job!(account, 4823, "test")
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: "4823"
+        )
+
+      flush_outbox!()
 
       {:ok, _lv, html} =
         live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
 
       assert html =~ "Insights"
+      assert html =~ build_run.id
     end
   end
 
