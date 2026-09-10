@@ -1252,10 +1252,10 @@ the region reads as the occupied nodes only. That is the same blind spot the
 pool-derived `kura:node_region` closes, and both halves are needed: the join
 puts the node in the region, the default gives it its capacity.
 
-Measured on 2026-09-03, per constraint, as `eu-central` / `us-east` /
+Measured on 2026-09-03, per constraint, as `eu-west` / `us-east` /
 `us-west`: ceiling 6 / 1 / 4, memory 20 / 8 / 10, disk 10 / 3 / 5, egress
 34 / 96 / 58. The ceiling binds first in every region that advertises one, and
-`us-east` is the region to watch. Most of `eu-central`'s ceiling room is a
+`us-east` is the region to watch. Most of `eu-west`'s ceiling room is a
 second node that carries no cache pod yet, which is the case the pool-derived
 join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
@@ -1642,7 +1642,10 @@ says so, which matters once a region has boxes with different budgets.
 
 ```promql
 count by (instance) (
-  node_load1{job="tuist-macos-node-exporter", instance!~".*-rack-fleet-.*"}
+  node_load1{
+    job="tuist-macos-node-exporter",
+    instance!~".*-rack-fleet-.*"
+  }
 )
 unless
 count by (instance) (
@@ -1652,6 +1655,17 @@ count by (instance) (
   }
 )
 ```
+
+The instance exclusion is load-bearing, not noise suppression. A
+`RackAppleSiliconMachine` is a Mac mini in a rack we operate, with no Scaleway
+Private Network and no prospect of one, so it correctly has no `vlan` device.
+Without the exclusion every rack host pages as critical from the moment it
+joins, which is what happened on 2026-09-09 when the first one did.
+
+When BER1 gains its in-rack kura region, the cache path there is in-rack L2
+rather than a Scaleway PN. Checking it is a NEW rule keyed on whatever that path
+exposes, not a widening of this one. Removing the exclusion to "cover the rack"
+only restores the false positive.
 
 - Pending period: 10 minutes (a legitimate re-attachment recreates the
   interface, so don't fire on the gap)
@@ -2353,6 +2367,122 @@ The limit is a gauge rather than a constant in the expression because it
 is per environment: production runs `queueConcurrency: 6`, and the
 in-code default is 4.
 
+### Ingestion jobs being discarded
+
+Rule uids `dfkmt5dtpx43kb` (`process_build`) and `cfl2e4b9eg8aoc`
+(`process_xcresult`), folder `Alerts`, group `Server`.
+
+A discarded job has exhausted every retry attempt. Oban prunes discarded
+rows, so each one is permanently lost customer data once pruning catches
+up with it. On 2026-09-09 build ingestion failed for 3.4 hours, 1,629
+jobs were discarded, and roughly 30 were pruned before recovery.
+
+```promql
+max by (queue) (
+  tuist_oban_queue_length_count{env="production", queue="process_build", state="discarded"}
+) > 25
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- No Data: **Alerting**, which is the opposite of most rules in this
+  document. See below.
+
+Threshold, measured over the 14 days to 2026-09-09 on production:
+
+| queue | p50 | p95 | p99 | outage peak |
+| --- | --- | --- | --- | --- |
+| `process_build` | 0 | 3 | 7 | 1,650 |
+| `process_xcresult` | 0 | 0 | 0 | 0 |
+
+25 sits about 3.5x above the `process_build` p99 and was crossed by
+roughly 11:10 UTC during the outage, about 15 minutes after the first
+error. `process_xcresult` never discards in normal operation, so its
+threshold matches its sibling rather than sitting near any noise floor.
+
+**Both rules were dead for nearly three months and this is the lesson of
+the section.** They previously read `tuist_oban_jobs_recent_terminal_count`,
+a metric emitted nowhere in the codebase and never present in Prometheus.
+They sat in `Normal (NoData)` from 2026-06-19, and because No Data mapped
+to OK that silence was indistinguishable from health. They were therefore
+dead through the whole 2026-09-09 outage. The rule looked specified,
+carried a good description, was unpaused, and could not fire. Run a new
+expression and confirm it returns a series before saving it.
+
+That is why No Data is Alerting here. The gauge is polled from the shared
+`oban_jobs` table by every node running `Tuist.Oban.PromExPlugin`, so it
+is present whenever any server pod is up, and the plugin emits an explicit
+zero for a queue that drains. Its absence means the telemetry broke rather
+than that the queue is clean. The 10 minute pending period is what keeps a
+deploy roll from paging.
+
+**Do not rewrite either rule onto `rate()` or `increase()`.** The Oban job
+counters (`tuist_oban_job_exception_attempts_count` and its siblings) are
+subject to Grafana Cloud adaptive metrics, which aggregates away `instance`
+and `pod`. Measured on 2026-09-09 at 5m, 15m, 1h and 6h windows, and again
+evaluated at a timestamp inside the outage, `rate()` and `increase()` over
+those aggregated counters return an **empty result rather than an error**,
+while an instant `sum by` over the same selector returns correct values.
+A rule built on them is silently dead in exactly the way these two were.
+The polled gauges are not counters and do not have this problem.
+
+### Build ingestion queue not draining
+
+Rule uid `ffxqtj0ye58g0b`, folder `Alerts`, group `Server`.
+
+The leading indicator for the same failure. It turns positive as soon as
+work stops draining, roughly an hour before retries are exhausted and the
+discarded-jobs rule above can see anything.
+
+```promql
+max by (queue) (
+  tuist_oban_queue_oldest_available_age_seconds{env="production", queue="process_build"}
+) > 300
+```
+
+- Pending period: 10 minutes
+- Severity: critical
+- No Data: OK, because the paired discarded-jobs rule above already runs
+  with No Data set to Alerting over the same plugin. A telemetry failure
+  should be loud once, not twice.
+
+For `process_build` this gauge had p50 0, p95 0 and p99 60 seconds over
+the same 14 days, so 300 is 5x p99. During the outage it crossed 300 at
+roughly 12:20 UTC and reached 690 seconds by the time the incident was
+mitigated by hand.
+
+**Scope this per queue and never fleet-wide.** Over that window the
+`default` queue sat at an oldest-available age of about 61 days as a
+matter of course, and `process_xcresult` had a p95 of roughly 5 hours
+because it legitimately runs long backlogs. One shared threshold across
+queues is either permanently firing or useless. A sibling rule for
+another queue needs its own baseline.
+
+`available` age rather than queue depth: this measures how long the
+oldest job that is ready to run has been waiting, so a backlog being
+worked through steadily does not fire, while a queue whose consumer has
+stopped completing does.
+
+Expect this to read high for a while after any recovery. Draining a
+backlog leaves the oldest job waiting behind newer higher-priority work,
+so the age climbs at wall-clock rate until the front of the queue is
+reached.
+
+### Why request-level alerting cannot see any of this
+
+The 2026-09-09 outage is the reference case. The CLI uploaded builds and
+received 2xx responses throughout; production HTTP counts for 200, 201,
+202 and 204 climbed normally for the entire window with no growth in any
+error status. The data was destroyed afterwards, inside an Oban job. HTTP
+error rate, latency and availability SLOs therefore all stayed green while
+100 percent of build ingestion was failing.
+
+No request-level rule can cover this class of outage. Any pipeline whose
+work is acknowledged synchronously and performed asynchronously needs a
+rule on the asynchronous half, and the three rules above are that cover
+for build and test ingestion.
+
+
 ### Swift registry catalog coverage deferred
 
 Same shape as the queue rule above, for the writer rather than a
@@ -2914,6 +3044,16 @@ limit in the summary, which is what the on-call needs to pick the lever:
   floor rather than loss. If that proves to be steady state on an instance,
   raise the floor or move those two kinds to a rate-based tier; do not raise
   the bar for the HTTP kinds, which are loss.
+  - `reapi_materialization` on the batch-read path now waits up to a second for
+    the pool before it sheds, so a shed there means the pool stayed full for a
+    whole second rather than that it was full at one instant. The wait shows
+    up as
+    `kura_memory_actions_total{action="response_materialization_admission_wait"}`,
+    which rises long before any shed does and is the earlier signal that an
+    instance's floor is too small for its read concurrency. Sheds without a
+    matching rise in that counter come from the other materialization sites,
+    which stay try-only: they are reached holding admission from another path,
+    so waiting there would be hold-and-wait on the pool they are waiting for.
   - `reapi_write_decode` now sheds only after the elastic pool is also spent.
     Write decoding borrows the ceiling headroom above the floor-derived budget
     while pressure is normal, so a shed means the pod exhausted its floor *and*
@@ -3319,9 +3459,9 @@ rather than silently. `region` and `cluster` both survive. Every
 `tuist-tuist-server` replica polls the same fleet-wide count, so the reducer
 has to be one that collapses identical values rather than adding them.
 Measured on 2026-09-08 against a ground truth of two stuck instances in
-us-east and one in eu-central:
+us-east and one in eu-west:
 
-| query | us-east | eu-central |
+| query | us-east | eu-west |
 | --- | --- | --- |
 | `sum by (region)` | 10 | 5 |
 | `max by (region)` | 2 | 1 |
@@ -3618,7 +3758,7 @@ topk(5, sum by (cluster, account) (rate(kura_egress_tree_class_sent_bytes{cluste
 
 Measured over the 7 days to 2026-09-02 with a 30 minute rate, the highest
 sustained share of budget on any production box was about 0.15 (us-east) and
-about 0.07 (eu-central); the others sat near zero. Both tiers are quiet on
+about 0.07 (eu-west); the others sat near zero. Both tiers are quiet on
 creation by a wide margin.
 
 ### Kura account at its egress ceiling
@@ -4198,7 +4338,7 @@ and were cleared on 2026-08-19:
   with it. Their Postgres rows were already gone, and
   `reconcile_retired_region_servers` drives teardown from those rows, so
   the orphaned `KuraInstance` CRs were invisible to it permanently.
-- 3 belonging to `kgw-…-eu-central-controller`, left behind when the
+- 3 belonging to `kgw-…-eu-west-controller`, left behind when the
   per-account Kura gateway was removed in
   [#11644](https://github.com/tuist/tuist/pull/11644). Helm does not prune
   CRDs, so the CRD and its CR outlived the controller that reconciled

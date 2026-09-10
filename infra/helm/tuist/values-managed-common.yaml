@@ -46,6 +46,8 @@ kuraController:
       - "*.kura.tuist.dev"
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+  analytics:
+    enabled: true
   sharedSecrets:
     kuraIntrospection:
       enabled: true

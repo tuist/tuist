@@ -64,6 +64,8 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 - Node-local optimizations (caching, mmap serving, readahead) must degrade gracefully to a known-good path and must not alter response bytes or headers, so a half-rolled fleet stays consistent.
 - New dependencies must build in the release image (`Dockerfile`) without new system requirements, and config/limit changes must ship with matching Helm values in `ops/` so a rollout does not depend on out-of-band manual steps.
 
+- Private runner Kura uses the ordinary managed StatefulSet rollout and account mesh. Both replicas continuously enqueue and consume replication traffic, with initial backfill after a restart; the standby is not read-only. The stable private gateway pins reads and writes to the selected primary. Replication remains asynchronous; Kubernetes readiness alone does not prove a drained outbox or complete backfill. See `infra/kura-controller/private-runner-rollouts.md`.
+
 ## Bazel timelines
 - `src/reapi/bep.rs` keeps its bounded invocation summary and separately delivers the `command.profile.gz` CAS reference and action diagnostics through `src/bazel_test_artifacts.rs`. The delivery worker reserves memory before reading artifacts. Profiles are limited to 32 MiB compressed; diagnostic streams use bounded range reads that retain their first and last 16 KiB. Only project-scoped CAS artifacts are read; arbitrary profile URLs and local paths are never fetched.
 - `tuist bazel setup` enables JSON profiles, disables profile event merging, includes target/output identifiers and uses the remote BEP artifact uploader. The server retains profile intervals and diagnostics for 90 days.

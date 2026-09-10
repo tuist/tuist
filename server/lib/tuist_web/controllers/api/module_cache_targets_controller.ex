@@ -96,10 +96,33 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
                    product: %Schema{type: :string, nullable: true, description: "The product type."},
                    bundle_id: %Schema{type: :string, nullable: true, description: "The bundle identifier."},
                    product_name: %Schema{type: :string, nullable: true, description: "The product name."},
+                   additional_strings: %Schema{
+                     type: :array,
+                     items: %Schema{type: :string},
+                     description: "Additional strings included in the hash, in their original order."
+                   },
+                   hashed_destinations: %Schema{
+                     type: :array,
+                     items: %Schema{type: :string},
+                     nullable: true,
+                     description:
+                       "Sorted raw destinations used to compute the hash. Null means unavailable; an empty array means none."
+                   },
+                   test_device: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "UI test device name. Null means unavailable; empty means none."
+                   },
+                   test_runtime: %Schema{
+                     type: :string,
+                     nullable: true,
+                     description: "UI test runtime identifier. Null means unavailable; empty means none."
+                   },
                    subhashes: %Schema{
                      type: :object,
                      additionalProperties: %Schema{type: :string},
-                     description: "Non-nil hash components."
+                     description:
+                       "Individual hash components. Unavailable components are omitted; an empty new component means none."
                    }
                  },
                  required: [:name]
@@ -154,6 +177,10 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
                 product: target.product,
                 bundle_id: target.bundle_id,
                 product_name: target.product_name,
+                additional_strings: target.additional_strings,
+                hashed_destinations: target.hashed_destinations,
+                test_device: target.test_device,
+                test_runtime: target.test_runtime,
                 subhashes: build_subhashes(target)
               }
             end),
@@ -175,7 +202,8 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
   end
 
   defp build_subhashes(target) do
-    Enum.reduce(@subhash_keys, %{}, fn key, acc ->
+    @subhash_keys
+    |> Enum.reduce(%{}, fn key, acc ->
       field = :"#{key}_hash"
       value = Map.get(target, field)
 
@@ -185,5 +213,10 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
         Map.put(acc, key, value)
       end
     end)
+    |> Map.merge(%{
+      embedded_product_references: target.embedded_product_references_hash,
+      foreign_build: target.foreign_build_hash
+    })
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
   end
 end

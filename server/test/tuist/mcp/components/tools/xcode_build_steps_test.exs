@@ -4,16 +4,10 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildStepsTest do
 
   alias Tuist.Authorization
   alias Tuist.Builds
-  alias Tuist.FeatureFlags
   alias Tuist.MCP.Components.Tools.GetXcodeBuildStep
   alias Tuist.MCP.Components.Tools.ListXcodeBuildSteps
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.RunsFixtures
-
-  setup do
-    stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-    :ok
-  end
 
   setup do
     {:ok, build} =

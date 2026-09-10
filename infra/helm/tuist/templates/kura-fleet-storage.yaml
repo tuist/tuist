@@ -346,7 +346,7 @@ spec:
       # node if the scheduler picks it, but it is not pinned there — it runs its
       # helper Pods on the target node regardless of where it sits. runner-cache
       # is the Elastic Metal runner-cache pool; kura-cache is the public-region
-      # pools (Dedibox eu-central, OVH) that also provision scw-local-nvme PVCs.
+      # pools (Dedibox eu-west, OVH) that also provision scw-local-nvme PVCs.
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists

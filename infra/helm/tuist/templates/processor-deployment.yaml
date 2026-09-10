@@ -90,7 +90,7 @@ spec:
           # processor mode via TUIST_MODE below instead of shipping a
           # separate image. That keeps the worker module, Ecto schemas, and
           # priv/secrets exactly in sync with what enqueued the job.
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           # Preserve the last container output in the pod's termination
           # message whenever the processor exits unsuccessfully. This gives

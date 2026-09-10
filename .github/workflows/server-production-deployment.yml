@@ -2172,10 +2172,23 @@ jobs:
           mise run build
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
+      # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
+      # (see Project.swift): the EE suite this job has always run, which covers
+      # caching, module cache and selective testing against canary, plus
+      # TuistServerAcceptanceTests, which covers build ingestion. Ingestion had
+      # no coverage here at all, which is how a change that killed 100% of it
+      # promoted to production green on 2026-09-09.
+      #
+      # The worker cap matches cli.yml. It is not load-bearing while the plan
+      # holds two targets, since xcodebuild hands out one worker per target, but
+      # it keeps the ceiling where it is if a third target is ever added here.
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
+            -maximum-parallel-testing-workers 2 \
+            -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Backward-compatibility acceptance - runs an OLD CLI against the freshly-

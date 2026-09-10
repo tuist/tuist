@@ -90,14 +90,11 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision currently applied to the backing resource.
-
-  Provisioners that render declarative resources should use this to let
-  the control plane re-apply config-only changes independently from Kura
-  runtime image changes.
+  Returns the observed private gateway URL and the controller's check time.
+  Consumers persist that check time so rereading status cannot renew readiness.
   """
   @callback external_endpoint(ref :: String.t(), Regions.t()) ::
-              {:ok, String.t()} | {:error, term()}
+              {:ok, %{url: String.t(), observed_at: DateTime.t()}} | {:error, term()}
 
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}

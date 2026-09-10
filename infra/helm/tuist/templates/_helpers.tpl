@@ -35,6 +35,24 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+Fully qualified server image reference. server.image.tag is required: the
+chart's .Chart.AppVersion pins the chart's own version (bumped alongside
+templates), not the server image, which ships on its own 1.x release cadence
+under ghcr.io/tuist/tuist. Falling back to AppVersion would render a tag that
+does not exist and land the deployment in ImagePullBackOff — this fail is
+loud instead. Every deploy pipeline sets the tag via --set at helm-upgrade
+time (see .github/workflows/server-deployment.yml); self-hosters must set it
+in their values file.
+*/}}
+{{- define "tuist.serverImage" -}}
+{{- $tag := .Values.server.image.tag | default "" -}}
+{{- if eq $tag "" -}}
+{{- fail "server.image.tag is required. The chart's .Chart.AppVersion does not track the server image (published under ghcr.io/tuist/tuist on a 1.x cadence). Pin an explicit tag, e.g. `server: { image: { tag: \"1.318.0\" } }`, matching a release from https://github.com/tuist/tuist/releases?q=server." -}}
+{{- end -}}
+{{- printf "%s:%s" .Values.server.image.repository $tag -}}
+{{- end -}}
+
+{{/*
 Name of the server migration Job. Stable when it runs as a Helm hook, and
 scoped to the release revision when it runs as a regular Job, so that Helm
 replaces it on upgrade instead of tripping the immutable `spec.template`.
@@ -108,6 +126,10 @@ green-field cluster.
 
 {{- define "tuist.runnersFleetName" -}}
 {{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
+{{- end -}}
+
+{{- define "tuist.rackFleetName" -}}
+{{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
 {{- end -}}
 
 {{- define "tuist.buildersFleetName" -}}
@@ -300,29 +322,13 @@ Call with the component's `s3` values:
 {{- end -}}
 
 {{/*
-Cache app's DATABASE_URL. Resolves to (in order):
-  1. cache.databaseUrl when set explicitly (self-hosted with own Postgres).
-  2. embedded Postgres + cache.embedded.database when postgresql.mode is
-     "embedded". The cache database is created by templates/postgresql-init.yaml
-     on first Postgres boot.
-  3. empty string (cache must be disabled or running in managedSecrets mode
-     where DATABASE_URL is unlocked from priv/secrets at runtime).
-
-Fails the render when an explicit `cache.databaseUrl` is set alongside an
-embedded Postgres. The two sources are mutually exclusive — silently
-preferring one would let an operator's intent (typically: an explicit URL
-written to override the embedded composition) be overridden by the chart's
-default. Mirrors the guard in tuist.licenseEnv.
+Cache app's DATABASE_URL. The pinned cache image (0.29.x) uses SQLite on the
+pod's /data volume and does not consume DATABASE_URL, so the helper returns
+empty and the deployment omits the env var. Kept as a helper (rather than
+deleting it inline) so a future cache image that reintroduces an external
+database only needs to change one composition site.
 */}}
 {{- define "tuist.cacheDatabaseUrl" -}}
-{{- if and .Values.cache.databaseUrl (eq .Values.postgresql.mode "embedded") -}}
-{{- fail "cache.databaseUrl and postgresql.mode=embedded are mutually exclusive — set one (explicit external URL OR embedded Postgres composition), not both." -}}
-{{- end -}}
-{{- if .Values.cache.databaseUrl -}}
-{{- .Values.cache.databaseUrl -}}
-{{- else if eq .Values.postgresql.mode "embedded" -}}
-ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.cache.embedded.database }}
-{{- end -}}
 {{- end -}}
 
 {{/*
@@ -553,16 +559,23 @@ License env vars. Resolves to one mutually exclusive source:
      environments that sync the license from 1Password.
   2. Chart-managed app-secrets Secret when server.license.key or
      server.license.certificateBase64 is inlined.
+  3. Caller-managed Secret named by server.license.existingSecret, with
+     per-field key names from server.license.existingSecretKeys. Use this
+     when the license values are populated by an out-of-band flow (Vault,
+     sealed-secrets, an ExternalSecret against a non-1Password store, …).
+     A blank existingSecretKeys entry skips wiring that env var.
 */}}
 {{- define "tuist.licenseEnv" -}}
 {{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
+{{- $existingSecret := .Values.server.license.existingSecret | default "" -}}
+{{- $existingKeys := .Values.server.license.existingSecretKeys | default dict -}}
 {{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
 {{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
-{{- $useEsoVerifyKey := ne (.Values.server.externalSecrets.license.verifyKeyItem | default "") "" -}}
 {{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
 {{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
-{{- $useInlineVerifyKey := ne (.Values.server.license.verifyKey | default "") "" -}}
+{{- $useExistingKey := and (ne $existingSecret "") (ne (get $existingKeys "key" | default "") "") -}}
+{{- $useExistingCertificate := and (ne $existingSecret "") (ne (get $existingKeys "certificateBase64" | default "") "") -}}
 {{- if and $useEsoKey $useEsoCertificate -}}
 {{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
@@ -572,30 +585,74 @@ License env vars. Resolves to one mutually exclusive source:
 {{- if and $useInlineKey $useInlineCertificate -}}
 {{- fail "server.license.key and server.license.certificateBase64 are mutually exclusive; pick one license source." -}}
 {{- end -}}
-{{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- if and (ne $existingSecret "") (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- fail "server.license.existingSecret is mutually exclusive with server.license.{key,certificateBase64} and with the server.externalSecrets.license path; pick one license source." -}}
+{{- end -}}
+{{- if and (ne $existingSecret "") (not (or $useExistingKey $useExistingCertificate)) -}}
+{{- fail "server.license.existingSecret is set but neither existingSecretKeys.key nor existingSecretKeys.certificateBase64 names a key; give the chart a license source." -}}
+{{- end -}}
+{{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate $useExistingKey $useExistingCertificate) -}}
 {{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
 {{- end -}}
-{{- if or $useEsoKey $useInlineKey }}
+{{- if or $useEsoKey $useInlineKey $useExistingKey }}
 - name: TUIST_LICENSE_KEY
   valueFrom:
     secretKeyRef:
+      {{- if $useExistingKey }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "key" | quote }}
+      {{- else }}
       name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
       key: server-license-key
+      {{- end }}
 {{- end }}
-{{- if or $useEsoCertificate $useInlineCertificate }}
+{{- if or $useEsoCertificate $useInlineCertificate $useExistingCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
   valueFrom:
     secretKeyRef:
+      {{- if $useExistingCertificate }}
+      name: {{ $existingSecret | quote }}
+      key: {{ get $existingKeys "certificateBase64" | quote }}
+      {{- else }}
       name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
+      {{- end }}
 {{- end }}
-{{- if or $useEsoVerifyKey $useInlineVerifyKey }}
-- name: TUIST_LICENSE_VERIFY_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ ternary $esoSecret $appSecret $useEsoVerifyKey | quote }}
-      key: server-license-verify-key
-{{- end }}
+{{- end -}}
+
+{{/*
+Cache application secret source. Resolves to either the chart-managed
+app-secrets Secret (default) or a caller-managed Secret named by
+cache.existingSecret, in which case every cache.apiKey / secretKeyBase /
+guardianSecretKey inline value must be empty. Fields (env var → key) come
+from cache.existingSecretKeys when set, else the app-secrets defaults.
+*/}}
+{{- define "tuist.cacheSecretName" -}}
+{{- $existingSecret := .Values.cache.existingSecret | default "" -}}
+{{- if ne $existingSecret "" -}}
+{{- if or (ne (.Values.cache.apiKey | default "") "") (ne (.Values.cache.secretKeyBase | default "") "") (ne (.Values.cache.guardianSecretKey | default "") "") -}}
+{{- fail "cache.existingSecret is mutually exclusive with cache.{apiKey,secretKeyBase,guardianSecretKey}; clear the inline values or unset cache.existingSecret." -}}
+{{- end -}}
+{{- $existingSecret -}}
+{{- else -}}
+{{- include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.cacheSecretKey" -}}
+{{- $field := .field -}}
+{{- $default := .default -}}
+{{- $existingSecret := .root.Values.cache.existingSecret | default "" -}}
+{{- if ne $existingSecret "" -}}
+{{- $keys := .root.Values.cache.existingSecretKeys | default dict -}}
+{{- $override := get $keys $field | default "" -}}
+{{- if eq $override "" -}}
+{{- fail (printf "cache.existingSecretKeys.%s is required when cache.existingSecret is set" $field) -}}
+{{- end -}}
+{{- $override -}}
+{{- else -}}
+{{- $default -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.serverHeadlessServiceName" -}}

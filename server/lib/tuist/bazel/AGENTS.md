@@ -42,6 +42,14 @@ does not expose a second Build Event Service listener.
   days.
 - Test cases and failure details derived from JUnit reports use the shared
   `test_runs` data model and retain the Bazel invocation identifier.
+- Order reports by run, shard, and attempt before aggregating retries. Preserve
+  numbered repetitions and failure diagnostics even when a retry passes. Resolve
+  final status per run and shard so a later passing run cannot hide a different
+  run's terminal failure. Shared flakiness detection and automations consume
+  these repetitions and the invocation's commit and environment context.
+- Reported class names distinguish equal method names in different classes;
+  fall back to the enclosing suite name when `classname` is absent. Keep this
+  identity convention aligned with the local Bazel muted-failure reader.
 - Update `server/data-export.md` and the public retention guide whenever a
   retained field, table, or retention period changes.
 

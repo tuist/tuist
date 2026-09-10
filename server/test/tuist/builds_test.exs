@@ -4,17 +4,11 @@ defmodule Tuist.BuildsTest do
 
   alias Tuist.Builds
   alias Tuist.Builds.Timeline
-  alias Tuist.FeatureFlags
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "build_timeline/1" do
-    setup do
-      stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-      :ok
-    end
-
     test "stores relative timings, isolates builds, and deduplicates processing retries" do
       event = %{
         event_id: 1,
@@ -85,7 +79,7 @@ defmodule Tuist.BuildsTest do
       assert length(events) == 1600
       assert Enum.any?(events, &(&1.start_ms > 15_000))
 
-      assert 1 == Builds.build_timeline_target_count(build.id)
+      assert %{target_count: 1} = Builds.build_timeline(build.id)
       assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
       assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
       assert nil == Timeline.neighbor(build.id, 1600, "next", [])

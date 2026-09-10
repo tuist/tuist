@@ -120,21 +120,31 @@ defmodule Tuist.ClickHouse.Backfill do
   # Held on one pinned connection for the length of the run rather than inside
   # a transaction: the copy takes hours, and an open transaction for hours is
   # its own problem.
+  #
+  # `timeout: :infinity` because that is how long the connection is held, not
+  # how long any query on it runs. The default is 15 seconds, so DBConnection
+  # killed the pinned connection fifteen seconds into a copy and took the run
+  # down with it, mid-enumeration, no matter how healthy the copy was. Staging
+  # passed only because its dataset finished inside the window; canary's did
+  # not. The run's real bound is the Job's `activeDeadlineSeconds`.
   defp with_single_flight(fun) do
-    Repo.checkout(fn ->
-      case Repo.query!("SELECT pg_try_advisory_lock($1)", [@lock_key]) do
-        %{rows: [[true]]} ->
-          try do
-            fun.()
-          after
-            Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
-          end
+    Repo.checkout(
+      fn ->
+        case Repo.query!("SELECT pg_try_advisory_lock($1)", [@lock_key]) do
+          %{rows: [[true]]} ->
+            try do
+              fun.()
+            after
+              Repo.query!("SELECT pg_advisory_unlock($1)", [@lock_key])
+            end
 
-        _ ->
-          Logger.warning("Another ClickHouse backfill holds the lock; leaving it to finish")
-          {:error, :already_running}
-      end
-    end)
+          _ ->
+            Logger.warning("Another ClickHouse backfill holds the lock; leaving it to finish")
+            {:error, :already_running}
+        end
+      end,
+      timeout: :infinity
+    )
   end
 
   defp backfill(source, target, opts) do

@@ -17,19 +17,30 @@ defmodule Tuist.Kura.OriginMap do
 
   # Bumped when an entry moves. Recorded on decisions rather than compared
   # against anything: it dates a verdict, it does not gate one.
-  @version 1
+  @version 3
 
   # Nearest first, and every list names every candidate region. An origin
   # always has an answer, so a region being unserved or unfunded narrows the
   # choice instead of leaving the account unplaced.
   @zone_preferences %{
-    us_east: ["us-east", "ca-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
-    us_west: ["us-west", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-central"],
-    canada_east: ["ca-east", "us-east", "us-west", "eu-central", "sa-west", "ap-southeast"],
-    europe: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"],
-    apac: ["ap-southeast", "us-west", "us-east", "eu-central", "ca-east", "sa-west"],
-    south_america: ["sa-west", "us-east", "ca-east", "us-west", "eu-central", "ap-southeast"],
-    africa_middle_east: ["eu-central", "us-east", "ca-east", "us-west", "ap-southeast", "sa-west"]
+    us_east: ["us-east", "ca-east", "us-central", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    us_central: ["us-central", "us-east", "ca-east", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    us_west: ["us-west", "us-central", "us-east", "ca-east", "sa-west", "ap-southeast", "eu-west", "eu-east"],
+    canada_east: ["ca-east", "us-east", "us-central", "us-west", "eu-west", "eu-east", "sa-west", "ap-southeast"],
+    europe: ["eu-west", "eu-east", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
+    europe_east: ["eu-east", "eu-west", "us-east", "ca-east", "us-central", "us-west", "ap-southeast", "sa-west"],
+    apac: ["ap-southeast", "us-west", "us-central", "us-east", "eu-west", "eu-east", "ca-east", "sa-west"],
+    south_america: ["sa-west", "us-east", "us-central", "ca-east", "us-west", "eu-west", "eu-east", "ap-southeast"],
+    africa_middle_east: [
+      "eu-west",
+      "eu-east",
+      "us-east",
+      "ca-east",
+      "us-central",
+      "us-west",
+      "ap-southeast",
+      "sa-west"
+    ]
   }
 
   # Where an origin no entry covers is served from. The same region an account
@@ -38,9 +49,21 @@ defmodule Tuist.Kura.OriginMap do
   @default_zone :us_east
 
   @europe ~w[
-    AD AL AT AX BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE
-    IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM
-    UA VA XK
+    AD AL AT AX BA BE CH CY DE ES FO FR GB GG GI GR HR IE IM IS IT JE LI LU MC
+    ME MK MT NL PT RS SI SJ SM VA XK
+  ]
+
+  # Nearer Warsaw than Paris, by enough that the routes follow the geography.
+  # Helsinki is 930km from Warsaw against 1910 from Paris, Copenhagen 670
+  # against 1030, Vilnius 400 against 1600, so the Nordics sit here with the
+  # Baltics rather than with western Europe.
+  #
+  # The boundary stops short of the Balkans, Greece and Cyprus. They are also
+  # nearer Warsaw on a straight line, but their transit is provisioned westward
+  # and the traffic behind them is small, so they stay on the Paris routes until
+  # eu-east has a record. Widening this list is one edit and re-reads history.
+  @europe_east ~w[
+    BG BY CZ DK EE FI HU LT LV MD NO PL RO RU SE SK UA
   ]
 
   @africa_middle_east ~w[
@@ -66,8 +89,16 @@ defmodule Tuist.Kura.OriginMap do
   @us_west_subdivisions ~w[AK AZ CA CO HI ID MT NM NV OR UT WA WY]
   @canada_west_subdivisions ~w[AB BC NT YT]
 
+  # The interior, which Chicago serves and neither Vint Hill nor Hillsboro does
+  # well: Dallas is 1300km from Chicago against 1900 from Vint Hill, Minneapolis
+  # 570 against 1600. Ohio, Kentucky and Tennessee are close to even between the
+  # two and stay on us-east; Colorado, Wyoming and Montana are already us-west
+  # and are no nearer Chicago than Hillsboro.
+  @us_central_subdivisions ~w[AR IA IL IN KS LA MI MN MO ND NE OK SD TX WI]
+
   @country_zones Map.new(
                    Enum.map(@europe, &{&1, :europe}) ++
+                     Enum.map(@europe_east, &{&1, :europe_east}) ++
                      Enum.map(@africa_middle_east, &{&1, :africa_middle_east}) ++
                      Enum.map(@apac, &{&1, :apac}) ++
                      Enum.map(@south_america, &{&1, :south_america}) ++
@@ -76,6 +107,7 @@ defmodule Tuist.Kura.OriginMap do
 
   @subdivision_zones Map.new(
                        Enum.map(@us_west_subdivisions, &{"US-" <> &1, :us_west}) ++
+                         Enum.map(@us_central_subdivisions, &{"US-" <> &1, :us_central}) ++
                          Enum.map(@canada_west_subdivisions, &{"CA-" <> &1, :us_west})
                      )
 

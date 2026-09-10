@@ -76,6 +76,9 @@ spec:
                   type: integer
                   format: int32
                   minimum: 1
+                privateHost:
+                  type: string
+                  maxLength: 253
                 publicHost:
                   type: string
                   maxLength: 253
@@ -96,10 +99,8 @@ spec:
                 # meshPeerHostNetwork.
                 publicHostNetwork:
                   type: boolean
-                # Private marks an instance with no public endpoint:
-                # the controller skips the Ingress/external-dns surface
-                # and the in-cluster Service is the only access path
-                # (runner-cache nodes).
+                # PrivateHost opts private instances into the shared gateway,
+                # restricted to clientCIDRs, with DNS targeting the node PN IP.
                 private:
                   type: boolean
                 # NodePort data plane for runner fleets that share a
@@ -222,6 +223,18 @@ spec:
               properties:
                 phase:
                   type: string
+                endpointLastCheckedAt:
+                  type: string
+                  format: date-time
+                endpointReason:
+                  type: string
+                endpointMessage:
+                  type: string
+                privateURL:
+                  type: string
+                endpointObservedGeneration:
+                  type: integer
+                  format: int64
                 publicURL:
                   type: string
                 grpcPublicURL:

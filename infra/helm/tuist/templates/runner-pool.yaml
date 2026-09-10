@@ -56,7 +56,19 @@ spec:
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
   os: darwin
-  fleetSelector: {{ $hostFleetName | quote }}
+  {{- /*
+  A pool normally binds to the fleet this block renders for, but it may name
+  another. Needed because a macOS host fleet is no longer one thing: rack-owned
+  minis (rackFleet, RackAppleSiliconMachine) are a separate CAPI fleet with
+  their own Node label, and a pool that could only ever select
+  runnersFleetName could never place work on them. Without this the rack can
+  join the cluster and run nothing, which is most of the point of the rack.
+
+  The pool still has to name a fleet whose nodes actually exist and run
+  tart-kubelet; a selector matching nothing leaves runners Pending rather than
+  failing loudly.
+  */}}
+  fleetSelector: {{ $pool.fleetSelector | default $hostFleetName | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
   runnerLabels:
     {{- range $runnerLabels }}

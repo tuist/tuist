@@ -54,6 +54,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
@@ -1156,6 +1157,9 @@ defmodule Tuist.Tests do
     end
   end
 
+  @doc """
+  Returns the stable identity shared by test ingestion and quarantine lookups.
+  """
   def generate_test_case_id(project_id, name, module_name, suite_name) do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
@@ -1210,6 +1214,36 @@ defmodule Tuist.Tests do
     Map.new(test_case_ids, fn test_case_id ->
       {test_case_id, Map.get(resolved_states, test_case_id, @default_test_case_state)}
     end)
+  end
+
+  @doc """
+  Resolves quarantine state at the start of an externally reported test run.
+  Delayed report processing must not apply a later quarantine change to history.
+  """
+  def get_test_case_states_at(project_id, test_case_ids, at) do
+    resolved =
+      test_case_ids
+      |> Enum.uniq()
+      |> Enum.chunk_every(2_000)
+      |> Enum.flat_map(fn ids ->
+        ClickHouseRepo.all(
+          from(s in TestCaseState,
+            where: s.project_id == ^project_id,
+            where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
+            where: s.inserted_at <= ^at,
+            group_by: s.test_case_id,
+            select: %{
+              test_case_id: s.test_case_id,
+              state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+              is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+            }
+          ),
+          multipart: true
+        )
+      end)
+      |> Map.new(&{&1.test_case_id, normalize_test_case_state(&1)})
+
+    Map.new(test_case_ids, &{&1, Map.get(resolved, &1, @default_test_case_state)})
   end
 
   # Scoped by `project_id` (which the caller already read off the test case) so
@@ -1924,7 +1958,9 @@ defmodule Tuist.Tests do
   end
 
   defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
-  defp check_cross_run_flakiness(%{git_commit_sha: nil}, test_case_data), do: {test_case_data, []}
+
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
+    do: {test_case_data, []}
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)

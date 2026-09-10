@@ -452,7 +452,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
   describe "evaluate/2 across regions" do
     test "a growing region wins over a shrinking one" do
       rollups =
-        moderate_churn(14, @today) ++ Enum.map(idle_days(30, @today), &Map.put(&1, :region, "eu-central"))
+        moderate_churn(14, @today) ++ Enum.map(idle_days(30, @today), &Map.put(&1, :region, "eu-west"))
 
       assert {:grow, "32Gi", evidence} = ClaimSizing.evaluate(context(rollups: rollups))
       assert evidence["region"] == "us-east"
@@ -461,7 +461,7 @@ defmodule Tuist.Kura.ClaimSizingTest do
     test "shrinking needs every region with data to agree" do
       rollups =
         idle_days(30, @today) ++
-          Enum.map(churn_days(5, @today, median_shed_age_seconds: 5 * @day_seconds), &Map.put(&1, :region, "eu-central"))
+          Enum.map(churn_days(5, @today, median_shed_age_seconds: 5 * @day_seconds), &Map.put(&1, :region, "eu-west"))
 
       assert ClaimSizing.evaluate(context(rollups: rollups)) == :none
     end

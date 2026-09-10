@@ -67,7 +67,7 @@ spec:
           # on the :web leader, not here, so this pod is purely a
           # consumer. Future ecosystems get their own mode + Deployment
           # (e.g. maven-registry-sync-deployment.yaml).
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist

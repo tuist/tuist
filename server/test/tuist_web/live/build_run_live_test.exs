@@ -6,8 +6,8 @@ defmodule TuistWeb.BuildRunLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.CommandEvents
-  alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobSteps
@@ -15,11 +15,6 @@ defmodule TuistWeb.BuildRunLiveTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
-
-  setup do
-    stub(FeatureFlags, :build_steps_enabled?, fn _account -> true end)
-    :ok
-  end
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -61,22 +56,19 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute render(lv) =~ "Compile &lt;App&gt;.swift"
     [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
     version = String.to_integer(version)
-    timeline = Tuist.Builds.build_timeline(build.id)
+    bootstrap = %{duration: build.duration, machine_metrics: []}
 
     socket = %Phoenix.LiveView.Socket{
-      assigns: %{__changed__: %{}, timeline_version: version, timeline: Phoenix.LiveView.AsyncResult.ok(timeline)}
+      assigns: %{__changed__: %{}, timeline_version: version, timeline: AsyncResult.ok(bootstrap)}
     }
 
-    assert {:reply, %{timeline: ^timeline}, trimmed_socket} =
+    assert {:reply, %{timeline: ^bootstrap}, ^socket} =
              TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version}, socket)
 
     assert {:reply, %{error: true}, ^socket} =
              TuistWeb.BuildRunLive.handle_event("load-timeline", %{"version" => version - 1}, socket)
 
-    assert trimmed_socket.assigns.timeline.result == Map.take(timeline, [:total_count, :duration])
-    refute Map.has_key?(trimmed_socket.assigns.timeline.result, :events)
-
-    refute Map.has_key?(hd(timeline.events), :log)
+    assert has_element?(lv, "#build-timeline[data-url$='/#{build.id}/timeline.json']")
 
     render_hook(lv, "load-timeline-step", %{
       request_id: 22,
@@ -224,7 +216,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     assert has_element?(lv, "[data-metric=cpu]")
     assert has_element?(lv, "[data-metric=memory]")
     refute has_element?(lv, "a", "Machine Metrics")
-    refute has_element?(lv, ".noora-table-empty-state", "No timeline available")
+    assert has_element?(lv, "[data-part=empty][hidden]")
     refute has_element?(lv, "#build-timeline[data-machine-metrics]")
   end
 
@@ -254,26 +246,63 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(lv, "#build-timeline")
   end
 
-  test "timeline query failures use the shared error panel", %{conn: conn, organization: organization, project: project} do
+  test "timeline mounts without loading steps or analytics for other tabs", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
     {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
-    stub(Tuist.Builds, :build_timeline, fn _, _ -> raise "query failed" end)
+    reject(Tuist.Builds, :build_timeline, 2)
+    reject(Tuist.Builds, :list_build_files, 1)
+    reject(Tuist.Builds, :list_build_targets, 1)
+    reject(Tuist.Builds, :list_cacheable_tasks, 1)
+    reject(Tuist.Builds, :list_cas_outputs, 1)
+    reject(Tuist.Builds, :cas_output_metrics, 1)
+    reject(Tuist.Builds, :cacheable_task_latency_metrics, 1)
+    reject(CommandEvents, :module_cache_output_metrics, 1)
 
     {:ok, lv, _} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
 
     render_async(lv)
-    assert has_element?(lv, "[data-part=timeline-error][data-error]")
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "[data-part=payload-loading]")
+    assert has_element?(lv, "[data-part=empty][hidden]")
   end
 
-  test "shows an explicit empty timeline for older builds", %{conn: conn, organization: organization, project: project} do
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+  test "loads only the selected breakdown and cache subtab after leaving timeline", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [%{type: :swift, status: :hit_remote, key: "key"}]
+      )
 
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=timeline")
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
 
-    render_async(lv)
-    assert has_element?(lv, ".noora-table-empty-state", "No timeline available")
-    refute has_element?(lv, "#build-timeline")
+    for {query, function} <- [
+          {"?tab=overview&breakdown-tab=module", :list_build_targets},
+          {"?tab=overview&breakdown-tab=file", :list_build_files},
+          {"?tab=xcode-cache&cache-tab=cacheable-tasks", :list_cacheable_tasks},
+          {"?tab=xcode-cache&cache-tab=cas-outputs", :list_cas_outputs}
+        ] do
+      test_pid = self()
+
+      for name <- [:list_build_targets, :list_build_files, :list_cacheable_tasks, :list_cas_outputs] do
+        stub(Tuist.Builds, name, fn options ->
+          send(test_pid, {:loaded, name})
+          Mimic.call_original(Tuist.Builds, name, [options])
+        end)
+      end
+
+      render_patch(lv, path <> query)
+      assert_receive {:loaded, ^function}
+      refute_receive {:loaded, _}
+    end
   end
 
   test "shows details of a build run", %{

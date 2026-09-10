@@ -35,6 +35,7 @@ alias Tuist.Shards.ShardPlanModule
 alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
+alias Tuist.Tests
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
@@ -238,6 +239,121 @@ defmodule SeedHelpers do
     |> Base.encode16(case: :lower)
     |> binary_part(0, length)
   end
+
+  def seed_test_comparison_projects(account, user_account) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    definitions = [
+      {"test_cache_warmup", "CacheTests", "enabled", true},
+      {"test_cache_key_is_stable", "CacheTests", "enabled", false},
+      {"test_session_refresh", "SessionTests", "muted", true},
+      {"test_valid_session", "SessionTests", "enabled", false},
+      {"test_background_sync", "SyncTests", "skipped", true},
+      {"test_sorted_inputs", "SortingTests", "enabled", false}
+    ]
+
+    for build_system <- [:xcode, :bazel] do
+      name = "#{build_system}-comparison"
+
+      project =
+        Repo.get_by(Project, account_id: account.id, name: name) ||
+          Projects.create_project!(%{name: name, account: %{id: account.id}}, build_system: build_system)
+
+      if !Tuist.ClickHouseRepo.exists?(from(t in Test, where: t.project_id == ^project.id)) do
+        for index <- 0..13 do
+          ran_at = NaiveDateTime.add(now, -(13 - index) * 43_200, :second)
+
+          modules =
+            definitions
+            |> Enum.reject(fn {_, _, state, _} -> state == "skipped" and index >= 11 end)
+            |> Enum.group_by(fn {_, suite, _, _} -> suite end)
+            |> Enum.sort_by(&elem(&1, 0))
+            |> Enum.map(fn {suite, cases} ->
+              test_cases =
+                Enum.map(cases, fn {name, _, state, flaky} ->
+                  failed = flaky and state == "muted" and index in [8, 11, 13]
+                  retries = flaky and not failed and rem(index, 3) == 1
+                  duration = 80 + index * 9 + if(flaky, do: 160, else: 0)
+
+                  %{
+                    name: name,
+                    test_suite_name: suite,
+                    status: if(failed, do: "failure", else: "success"),
+                    duration: duration,
+                    is_quarantined: state == "muted" and index >= 8,
+                    repetitions:
+                      if retries do
+                        [
+                          %{repetition_number: 1, name: "First attempt", status: "failure", duration: duration},
+                          %{repetition_number: 2, name: "Retry", status: "success", duration: duration}
+                        ]
+                      else
+                        []
+                      end,
+                    failures:
+                      if failed or retries do
+                        [
+                          %{
+                            message: "Service was not ready",
+                            path: "#{suite}.swift",
+                            line_number: 42,
+                            issue_type: "assertion_failure"
+                          }
+                        ]
+                      else
+                        []
+                      end
+                  }
+                end)
+
+              status = if Enum.any?(test_cases, &(&1.status == "failure")), do: "failure", else: "success"
+              duration = Enum.sum(Enum.map(test_cases, & &1.duration))
+
+              %{
+                name: if(build_system == :bazel, do: "//app:#{Macro.underscore(suite)}", else: "App#{suite}"),
+                status: status,
+                duration: duration,
+                test_suites: [%{name: suite, status: status, duration: duration}],
+                test_cases: test_cases
+              }
+            end)
+
+          {:ok, _} =
+            Tests.create_test(%{
+              id: UUIDv7.generate(),
+              project_id: project.id,
+              account_id: user_account.id,
+              build_system: Atom.to_string(build_system),
+              scheme: if(build_system == :bazel, do: "//app:all_tests", else: "App"),
+              git_branch: "main",
+              git_commit_sha: "comparison-#{index}",
+              is_ci: true,
+              ran_at: ran_at,
+              inserted_at: ran_at,
+              status: if(Enum.any?(modules, &(&1.status == "failure")), do: "failure", else: "success"),
+              duration: Enum.sum(Enum.map(modules, & &1.duration)),
+              test_modules: modules,
+              xcode_version: if(build_system == :xcode, do: "26.0", else: ""),
+              macos_version: "26.0",
+              model_identifier: "Mac15,6"
+            })
+
+          for buffer <- [TestCase.Buffer, TestCaseRun.Buffer, TestModuleRun.Buffer, TestSuiteRun.Buffer] do
+            buffer.flush()
+          end
+        end
+
+        {test_cases, _} = Tests.list_test_cases(project.id, %{page_size: 100})
+
+        for test_case <- test_cases do
+          {_, _, state, flaky} = Enum.find(definitions, &(elem(&1, 0) == test_case.name))
+          {:ok, _} = Tests.update_test_case(test_case.id, %{state: state, is_flaky: flaky}, actor_id: user_account.id)
+        end
+      end
+
+      IO.puts("Test comparison: /#{account.name}/#{name}/tests/test-cases")
+    end
+  end
 end
 
 # Stubs
@@ -293,6 +409,7 @@ organization =
   end
 
 organization_account = Repo.preload(organization, :account).account
+SeedHelpers.seed_test_comparison_projects(organization_account, Repo.preload(user, :account).account)
 {:ok, true} = FunWithFlags.enable(:kura, for_actor: organization_account)
 
 seed_account_token = fn account, name, opts ->
@@ -1130,7 +1247,7 @@ test_case_definitions =
   end
 
 {test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids, _test_cases} =
-  Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
+  Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
 # Update flaky test cases to be marked as is_flaky.
 # Split the flaky population across three states so both quarantine modes are exercised:

@@ -251,6 +251,23 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
   end
 
+  test "refreshes an active private endpoint while its image deployment is still running" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    server = server |> Ecto.Changeset.change(region: "scw-fr-par-runners") |> Repo.update!()
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "older-image"} end)
+    stub(Provisioner, :rollout, fn _, _ -> :ok end)
+    reject(&Kura.activate_server/2)
+
+    expect(Kura, :refresh_private_server_url, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    assert Repo.get!(Server, server.id).status == :active
+  end
+
   test "refreshes a converged node-port server instead of re-activating it every tick" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
@@ -724,7 +741,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     account = Accounts.get_account_from_user(user)
 
     {:ok, source} =
-      %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+      %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-move-source"}
       |> Server.create_changeset()
       |> Repo.insert()
 
@@ -732,7 +749,7 @@ defmodule Tuist.Kura.ReconcilerTest do
       source
       |> Server.status_changeset(%{
         status: :active,
-        url: "https://acme-eu-central-1.kura.tuist.dev",
+        url: "https://acme-eu-west-1.kura.tuist.dev",
         current_image_tag: "0.5.2"
       })
       |> Repo.update()
@@ -979,7 +996,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     server =
       server
-      |> Ecto.Changeset.change(region: "eu-central", peer_roles: Keyword.get(opts, :peer_roles, []))
+      |> Ecto.Changeset.change(region: "eu-west", peer_roles: Keyword.get(opts, :peer_roles, []))
       |> Repo.update!()
 
     stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)

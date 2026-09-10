@@ -7,6 +7,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
 - Tuist Server client: `cli/Sources/TuistServer`
+- Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
+- Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
 - Cache client: `cli/Sources/TuistCache`
 - Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
 - Dependencies tooling: `cli/Sources/TuistDependencies`

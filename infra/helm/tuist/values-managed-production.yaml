@@ -88,11 +88,6 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    # The offline-certificate license config is now the shared default in
-    # values-managed-common.yaml, so production no longer overrides it here.
-    license:
-      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
-      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
@@ -192,11 +187,53 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # What the placement sweep may apply on its own, per kind per day. Unset
+    # until 2026-09-09, which left placement proposing and an operator
+    # applying every time.
+    #
+    # Per kind because the kinds do not cost the same thing. An `expand` opens
+    # a region and leaves every cache the account already has where it is; the
+    # others give a region up, and what they spend is the refill of whatever
+    # was warm in it. `relocate` is the lowest because it is the only kind that
+    # can abandon a region an account has held long enough to have filled.
+    # `correct` replaces a first placement while it is still days old, so what
+    # it abandons is a cache that was barely warm and was chosen by a guess.
+    #
+    # Small on purpose: the numbers drain the backlog that had accumulated by
+    # the time this was set over several days rather than in one pass, so the
+    # first unattended moves are watched rather than found afterwards.
+    #
+    # `all` means no fleet-wide ceiling on that kind, which is the setting for
+    # every kind whose mistake is recoverable. What bounds those is the policy,
+    # asked per account: expansion stops at the plan's region count, relocation
+    # runs once a quarter, correction fires once in an account's life. Those
+    # scale with the fleet because they are per account. A fleet-wide count does
+    # not, and one sitting in front of a queue that grows with the account count
+    # only ever falls further behind.
+    #
+    # Falling behind is not merely slow here. A correction stops being available
+    # once the placement it replaces is a fortnight old, so a queue that runs
+    # long silently turns corrections into relocations, which need a quarter.
+    # The first day this ran capped, the whole fleet's allowance went in the
+    # first second: five applies, then eleven accounts waiting a full day.
+    #
+    # `retire` keeps a ceiling because it is the only kind whose mistake cannot
+    # be taken back: the instance stops serving within a minute and the volume
+    # is deleted an hour later with no cancel path. The per-account limits say
+    # nothing about how many accounts move at once, so a rung deciding wrongly
+    # for the whole fleet has nothing else in front of it.
+    #
+    # 25 is a stop, not a throttle. Retirement is rare by construction (a region
+    # held 90 days, a full history window, under the floor, and not earning its
+    # place), so this should never bind on a real day; what it bounds is a
+    # fleet-wide misfire, to one day's worth of regions rather than all of them.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -330,6 +367,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -358,7 +397,7 @@ kuraController:
 # on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -779,15 +818,15 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
 # (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
 # adoptable box hangs helm --wait.
 #
-# eu-central is a shared public region, so its capacity is the sum of its boxes
+# eu-west is a shared public region, so its capacity is the sum of its boxes
 # and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
 # ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
@@ -812,7 +851,7 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
     # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
@@ -830,6 +869,27 @@ vultrFleet:
     item: VULTR_API
 
 vultrFleets:
+  # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
+  # in the US interior; the plan and shape match sa-west exactly, so the machine
+  # kind, the disk conversion and the fleet wiring are the ones already proven
+  # there.
+  #
+  # Disabled until the box is ordered and converted. The self-join refuses a box
+  # whose /data cannot enforce project quotas, and an enabled fleet with no
+  # adoptable box wedges `helm --wait` for every production deploy.
+  us-central:
+    enabled: false
+    replicas: 1
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
   # South America West (Santiago), on Vultr because no other provider in the
   # fleet sells bare metal in South America.
   #
@@ -892,6 +952,26 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
+  # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
+  # metered provider where an unmetered one is available.
+  #
+  # Disabled until a box is ordered, prepped and marked. An enabled fleet with no
+  # adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy, not just this region.
+  eu-east:
+    enabled: false
+    replicas: 1
+    nodePool: kura-eu-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
+      offer: advance-1
+      datacenter: waw
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   us-east:
     enabled: true
     replicas: 2

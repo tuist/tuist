@@ -7,16 +7,18 @@ This directory contains the core business logic and domain modules for the serve
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
 - Ecto schemas, contexts, and domain services.
+- `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
+- External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.
 - Business rules for accounts, projects, bundles, previews, and analytics.
-- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected only when the owning account explicitly opts into the `xcode_build_steps` FunWithFlags flag (off in every environment by default; keep off until log redaction is ready), for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The initial response includes a distinct project/target count. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
+- Module-cache invalidation reads discover names with grouped aggregation, then batch independent module histories without splitting their date ranges. Window reads dictionary-encode repeated names and branches to bound memory. Dependency-graph reads identify the latest eligible commit before fetching its targets, preserve branch/environment filters and delayed uploads, and skip graph reads when no dependency edges exist. Blast radius is resolved after the module list is cut to its limit, so the graph is walked only for the modules a page shows and is not read at all for a page that shows none; the dependents time series reverses the graph once per distinct daily graph rather than once per day.
+- Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected by default for every processed Xcode build, for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The metadata response derives its distinct project/target count from the fetched intervals without a second query. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
 
-- Build ingestion reads `feature_flags` through the restricted processor role,
-  even when Xcode build step collection is disabled. Keep its read grant in
-  `Release` and `infra/cnpg/tuist-processor-grants.sql` in sync; every migration
-  revokes processor table privileges before restoring the allowlist.
+- Build ingestion no longer reads `feature_flags`. Its processor read grant in
+  `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
+  with older processor releases during rolling deployments and rollbacks.
 
 - `ClickHouseDictionarySource` builds escaped local dictionary sources for migrations.
   Its query options suppress application SQL logging without overriding managed
@@ -81,3 +83,7 @@ This directory contains the core business logic and domain modules for the serve
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
 
 - `Builds.RecordedSteps` exposes Gradle and Bazel timeline metadata through authorized API/MCP callers. These adapters reuse source records rather than copying them into Xcode `build_steps`. Opaque IDs remain scoped to the authorized parent; unavailable logs are null.
+
+- `scw-fr-par-runners` uses two standard managed replicas and a stable private gateway hostname. `Regions.observed_private_endpoint?/1` identifies private gateway regions: activation, convergence and dispatch freshness must all use this predicate. The provisioner waits for `privateURL`, the current spec generation and fresh `endpointLastCheckedAt`; it never replaces that check with a rendered hostname. Keep the legacy NodePort service enabled during migration. Private replica and endpoint configuration changes must move the manifest revision so existing instances converge.
+
+- `Provisioner.external_endpoint/1` returns `%{url: ..., observed_at: ...}`. Private activation/refresh must persist that controller observation in `last_ready_at`, not replace it with the server clock. Both validation and dispatch use `Regions.private_endpoint_staleness_seconds/0`; storage maintenance must not freeze this clock. Private gateway URLs must not override public URL helpers. Retained NodePorts serve already-dispatched jobs only.

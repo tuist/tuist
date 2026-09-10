@@ -2,16 +2,21 @@
 
 Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
-CAPI's standard Machine/MachineDeployment shape. It manages four
+CAPI's standard Machine/MachineDeployment shape. It manages five
 machine kinds:
 
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
+- `RackAppleSiliconMachine`: Mac minis **we own**, in a rack we
+  operate (the BER1 colo programme). Same host bootstrap and drift
+  loop as the Scaleway kind; the host comes from a `RackHost` in the
+  cluster's own inventory rather than a vendor API, and its reboot is
+  a PDU outlet. See "Rack-owned hosts" below.
 - `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
   has no user-data channel); adopts a pre-ordered box and
   **reinstalls it (wipe) on release**.
-- `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
+- `DediboxMachine` — Scaleway Dedibox bare metal (eu-west); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
 - `OVHDedicatedMachine` — OVHcloud US bare metal (the us-east / us-west /
   ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
@@ -37,14 +42,16 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
+| `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
+| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
-| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`.
+`samm`, `sammt`, `sasc`, `rasm`, `rasmt`, `rh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -229,6 +236,294 @@ Two auxiliary controllers run alongside it:
   re-rolls a target Deployment when the Ready Mac mini set changes so
   Pods spread across newly-joined hosts.
 
+## Rack-owned hosts
+
+`RackAppleSiliconMachine` joins Mac minis we bought, in a rack we operate. It
+is the Scaleway kind with the provider removed and the pool moved in-cluster:
+same `bootstrap.Run`, same `HostConfigHash` drift loop, same terminal-failure
+and cooldown rules, same per-machine tailnet egress Service: all of which live
+in `controllers/macos/hostagent.go` and are shared rather than copied, because
+those rules are the ones this provider has repeatedly got wrong in ways that
+stay invisible until a fleet has been running stale config for weeks.
+
+### Why two CRs
+
+Every other machine kind gets its pool from a vendor API: Scaleway's server list
+filtered by a name prefix, OVH's by a displayName prefix, Dedibox's by a tag.
+Hardware we own has no such API, so the pool has to be Kubernetes objects: one
+`RackHost` per box, carrying the physical facts, and a `RackAppleSiliconMachine`
+that claims one.
+
+Folding the address and the outlet onto the Machine instead is the obvious
+simplification and it does not work. A MachineTemplate is **cloned**, so every
+replica would carry the same address; you would need one MachineDeployment per
+box, `kubectl scale` would stop meaning anything, and: the part that actually
+bites: a MachineHealthCheck remediation would recreate the Machine onto the
+same broken host forever, because there would be nothing else for it to land on.
+
+**The claim is a status `Update`, not a merge patch.** `Update` carries the
+resourceVersion the host was read at, so the apiserver rejects the second of two
+racing claims and the loser retries. A merge patch sends no resourceVersion:
+both claims would "succeed", both machines would bootstrap the same box, and the
+second would take over the first's Node. This is the one place in the provider
+where one object's reconciler writes another object's status, and it is why
+`rackhosts/status` is in the operator's ClusterRole.
+
+### Where it deliberately diverges from the Scaleway kind
+
+Everything that differs is about ownership, and each divergence has a failure
+mode behind it:
+
+- **Credentials are read, never minted.** `EnsureFleetSSHKey` / `FleetSudoPassword`
+  generate a credential when the Secret has none, which is right when the
+  operator can then install it on the host. A rack host is keyed and given its
+  account by MDM *before* the cluster sees it, so a minted credential is one no
+  host has heard of: a generated SSH key fails every dial forever while reading
+  as a key problem, and a generated sudo password is XOR'd into
+  `/etc/kcpassword`, which breaks auto-login, so Virtualization.framework has
+  no console and every `tart run` fails for the life of the host. Both are
+  reachable in the window before ESO's first sync, so the static kind uses
+  `ReadFleetSSHCredentials`, which errors and requeues instead.
+- **Reboot is a PDU outlet.** Apple silicon powers on when mains is applied and
+  every fleet host runs `pmset autorestart 1`, so cutting and restoring an
+  outlet is a cold boot with nobody at a console. `internal/power` holds the
+  drivers, and the only one shipped today is `shelly`, which is scoped to home
+  and office prototypes: a colo rack's switched PDUs get their own driver.
+  `power.Cycle` drives off/settle/on itself rather than using a
+  device's native cycle verb, because the settle interval is the one parameter
+  that matters and no two devices agree on it. It verifies the outlet actually
+  went off before powering back on: a cycle that silently failed to cut power
+  would return success, and the caller would wait out a boot that never happened
+  and count the recovery as attempted.
+- **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
+  path releases the host so a *different* mini gets claimed, which works because
+  the pool is a vendor's and refills itself. Hand our own pool the same box back
+  and the next reconcile claims it again, so the Machine loops on the one host
+  that cannot work. `status.quarantined` takes it out of the pool; it is
+  controller-set and operator-cleared, so a bad box stays out until a human says
+  it was fixed.
+- **Delete releases the claim and stops.** No reinstall, no wipe: no API can do
+  either to hardware in our own rack. That makes Stage 2 of the delete path
+  (dropping the node identity) matter *more* than on rented capacity, not less:
+  nothing wipes the disk afterwards, so the kubeconfig stays on the box until
+  the next claim overwrites it.
+
+  The same reasoning binds every OTHER path that lets go of a host, which is why
+  they all go through `retireHost`: bootstrap exhaustion, and a claim lost
+  because the inventory record was deleted or released out of band. Bootstrap
+  starts tart-kubelet before its last fatal step (`installLogShipper`), so a
+  host can exhaust its attempts while already registering a Node and holding a
+  working long-lived token. Retiring it therefore has to revoke that identity,
+  delete the Node, and drop the TOFU fingerprint. Skip any one and the damage
+  lands on the NEXT host: the replacement is issued the same credentials and the
+  same Node name while the retired box keeps running, the stale Node keeps the
+  retired host's providerID (which tart-kubelet will not overwrite), or the old
+  host's SSH pin rejects a healthy replacement until it is quarantined too.
+
+### The first dial
+
+A rented mini has a public IP the operator can reach before anything is
+installed. A rack mini does not, and it is not on the tailnet yet either: 
+bootstrap is what puts it there. So `RackHost.spec.address` is the in-rack LAN
+address, reached through a **subnet router in the rack** that advertises it,
+with a matching `tcp:22` grant in `infra/tailscale/acls.json`.
+
+**Advertise a /32 per host, not the rack's prefix**, for as long as the
+catch-all `*->*` grant at the top of that ACL file still exists. A catch-all
+subsumes every narrowing below it, so what an advertised route actually exposes
+today is every address in it, on every port, to every device on the tailnet:
+three clusters' nodes, the rented Mac mini fleet, ops laptops, and every Tart
+runner VM holding a tailnet identity. The BER1 prototype's router sits on a HOME
+network, where a /24 would hand CI runner VMs the router admin page and every
+personal device in the house. The cost of a /32 is that the address becomes
+load-bearing in two places, the grant and `RackHost.spec.address`, so give each
+host a DHCP reservation and update both together.
+
+**The cluster reaches that address through an egress Service, not directly.**
+A Pod has no route to a subnet-routed address; only the Tailscale proxies do.
+So the machine reconciler creates a second egress Service per host, named
+`rack-<rackhost>`, annotated `tailscale.com/tailnet-ip` with the host's address,
+and dials that. It is the mirror of the per-Machine Service beside it: that one
+carries `tailscale.com/tailnet-fqdn` and only works once the mini IS a tailnet
+node, which is exactly what bootstrap has not done yet.
+
+**And the ProxyGroup has to accept routes**, which is the part with no obvious
+symptom. A proxy that does not answers `no matching peer` for a subnet-routed
+address while the Service still resolves to a ClusterIP, so every connection
+hangs and nothing anywhere names a route as the cause. That is what the
+`macminiEgress.proxyGroup.acceptRoutes` ProxyClass in
+`infra/helm/tailscale-operator` is for. Every other egress target in the cluster
+is a tailnet node reached by its own FQDN, which is why no fleet before this one
+needed it. Diagnose with:
+
+```bash
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale debug prefs | grep RouteAll
+kubectl -n tailscale-operator exec macmini-egress-0 -- tailscale ping 192.168.0.41
+```
+
+`RouteAll: false` or `no matching peer` is this, not a host fault and not the
+ACL.
+
+Routing it separately from the host's own tailnet identity is deliberate:
+`installTailscale` stops and replaces tailscaled, which over a session
+transported by the host's own tailnet identity would drop the tunnel it is
+riding: exactly why the drift loop's tailnet fallback has to set
+`SkipTailscaleInstall`. Through a separate router the session survives, so a
+rack host can be fully bootstrapped in one pass. The drift loop still falls back
+to the per-machine egress Service once the host has joined, for the case where
+the LAN address stops answering.
+
+That LAN prefix is **not** in `autoApprovers`. The Connector's Service CIDR is,
+because a Pod re-advertises it on every rollout and manual approval would break
+the route each time; a rack's subnet router is a long-lived box that advertises
+once, so auto-approval would buy nothing and would let any device holding the
+approver tag put a private prefix into the tailnet's routing table.
+
+### Two prerequisites before a real rack replaces the prototype
+
+Both are cheap to do early and expensive to retrofit, and neither is visible
+from the code.
+
+**1. Remove the catch-all grant before widening past /32.** A rack wants its
+mini VLAN advertised as one prefix rather than a /32 per host, and that is only
+safe once `{"src": ["*"], "dst": ["*"], "ip": ["*"]}` is gone from
+`infra/tailscale/acls.json`. While it is there it subsumes every narrowing
+below it, so an advertised prefix is reachable on every port by every device on
+the tailnet, CI runner VMs included: those execute customer build code and would
+gain SSH to every mini in the rack. The per-env grants in that file were written
+to survive the removal (their comment says exactly that), so the work is an
+audit of what still depends on the catch-all, chiefly Talos node access and ops
+laptops, not a rewrite. Until it is gone, keep advertising per-host /32s, which
+is correct but does not scale past a handful of boxes.
+
+**2. Run two subnet routers, not one.** Tailscale supports HA subnet routing:
+two nodes advertising the same prefix, one primary, automatic failover. A single
+service node is a single point of failure for every first dial and every drift
+push into the rack, which is the one path that has no fallback. Already-Ready
+Nodes keep working without it, which is precisely why this will look fine right
+up until a host needs re-bootstrapping and cannot be reached. The rack's own
+power doctrine is to dual-feed the pets; the service node is a pet.
+
+Both are also why the prototype's /32 is not merely a prototype artefact: it is
+the shape to keep until (1) is done.
+
+### Operating
+
+Inventory is chart-rendered from `rackFleet.hosts` in the env's values, so
+adding a mini is a reviewed values PR rather than a `kubectl apply` in someone's
+history.
+
+```bash
+kubectl get rh                      # pool, address, claimed-by, power, quarantined
+kubectl get rh -o wide              # + serial and site
+kubectl get rasm                    # the Machines, with the host each holds
+```
+
+`replicas` is a machine count and must not exceed the claimable hosts: a Machine
+with nowhere to land sits on `NoAvailableHost` forever, leaving the
+MachineDeployment permanently below spec and a `helm upgrade --wait` gated on
+that count running out its ceiling. It defaults to the declared host count. An
+explicit `0` is meaningful and is preserved (`dig`, not `default`): it declares
+the inventory, lets the RackHosts land and be power-polled, and holds the claim
+back until the boxes are reachable.
+
+**Reboot a host remotely:**
+
+```bash
+kubectl annotate rackhost <name> tuist.dev/power-action=cycle
+```
+
+`on`, `off` and `cycle` are one-shot; the controller clears the annotation after
+acting, including on failure: a failing `cycle` left annotated would
+power-cycle the box on every reconcile. `off` and `cycle` are refused while the
+host's Node is Ready and schedulable; cordon it first, or add
+`tuist.dev/power-action-force=true`.
+
+**A host nobody can power-cycle** reports `PowerReachable=False` and publishes
+`capt_rackhost_power_reachable 0`. That is not a host fault: the mini may be
+running perfectly, but it means the fleet has lost its only remote repair for
+that box, and it is worth catching before the reboot is needed rather than at
+the moment it cannot be done. `capt_rackhost_claimed` summed per pool is the
+rack's utilisation; free == 0 is what a scale-up will fail to satisfy.
+
+**A quarantine expires on its own** after `--rackhost-quarantine-retry-after`
+(default 30m), and the host returns to the pool with a `QuarantineExpired`
+event. That is the normal path, and it is not a convenience: clearing one by
+hand needs write access to `rackhosts/status`, which the operator's ClusterRole
+has and a human reaching the cluster through the kubectl gateway does NOT, so
+without the expiry a quarantined box is capacity nobody on call can recover. It
+is usually the right answer too, since most exhaustions are a verdict on the
+config being pushed rather than on the hardware, and the fix ships in the next
+operator image.
+
+If you do hold the permission, releasing one early is:
+
+```bash
+kubectl patch rackhost <name> --subresource=status --type=merge \
+  -p '{"status":{"quarantined":false,"quarantineReason":"","quarantinedAt":null}}'
+```
+
+A host that keeps re-quarantining is a real fault: read `status.quarantineReason`
+and the machine's `BootstrapFailed` events, and set `spec.unclaimable: true` to
+take it out of the pool for good while you work on it. A negative
+`--rackhost-quarantine-retry-after` disables the expiry fleet-wide, which only
+makes sense in a cluster where somebody can actually write that status.
+
+**Take a box out of the pool** without deleting its inventory record (bench
+work, an RMA) by setting `spec.unclaimable: true`. It stops the next claim; it
+does not evict the current one, the same shape as `Node.spec.unschedulable`.
+
+**Renaming a machine kind leaves three objects behind**, in every cluster the
+old name reached. The deploy workflow ships CRDs with `kubectl apply -f crds/`,
+which adds and updates but never prunes, and the superseded MachineTemplate
+carries `helm.sh/resource-policy: keep` so Helm will not collect it either. The
+MachineDeployment rolls onto the new kind and the old kind's objects stay:
+
+```bash
+kubectl get crd | grep <oldkind>
+kubectl get <oldkind>machinetemplates -A
+kubectl get machinesets -n <ns> -o custom-columns=\
+NAME:.metadata.name,INFRA:.spec.template.spec.infrastructureRef.kind
+```
+
+They are inert once the fleet has drained through the old controller, since
+nothing reconciles the kind any more and the retained MachineSet is at zero
+replicas. Removing them is cluster-admin work and is not available through the
+kubectl gateway on any tier, staging included: `machinesets`,
+`<kind>machinetemplates` and `customresourcedefinitions` are all read-only
+there by design. Delete oldest reference first so no live object is left
+pointing at a kind that is going away:
+
+```bash
+kubectl delete machineset <old-revision-machineset> -n <ns>
+kubectl delete <oldkind>machinetemplate <name> -n <ns>
+kubectl delete crd <oldkind>machines.infrastructure.cluster.x-k8s.io \
+                   <oldkind>machinetemplates.infrastructure.cluster.x-k8s.io
+```
+
+Check `spec.replicas` and that it owns no Machines before deleting a MachineSet:
+the other MachineSets under a MachineDeployment are its rollout history and are
+not stale.
+
+**Restart CAPI core afterwards.** Its Machine and MachineSet controllers start a
+dynamic watch per infrastructure kind they encounter, and that watch lives for
+the process lifetime: nothing tears it down when the CRD goes away. The
+controller is left listing a kind the apiserver no longer serves, roughly five
+lines a minute forever, which on an otherwise silent pod is its entire log
+output:
+
+```
+failed to list infrastructure.cluster.x-k8s.io/v1alpha1, Kind=<OldKind>:
+the server could not find the requested resource
+```
+
+```bash
+kubectl rollout restart deploy/capi-controller-manager -n capi-system
+```
+
+Nothing else reconciles the old kind, so this is log volume rather than a fleet
+fault, and no fleet changes across the restart.
+
 ## Module layout
 
 ```
@@ -242,6 +537,13 @@ infra/cluster-api-provider-tuist/
 │   ├── tuistcluster_types.go
 │   └── zz_generated.deepcopy.go
 ├── controllers/
+│   ├── macos/
+│   │   ├── scalewayapplesiliconmachine_controller.go
+│   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
+│   │   ├── rackhost_controller.go   # physical inventory: power, orphan claims
+│   │   └── hostagent.go             # what both macOS kinds share once a host
+│   │                                # is in hand: drift bookkeeping, terminal-
+│   │                                # failure rules, sizing overlay, egress Service
 │   ├── scalewayapplesiliconmachine_controller.go
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
@@ -254,6 +556,7 @@ infra/cluster-api-provider-tuist/
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
+│   ├── power/        # PDU / smart-plug drivers (the rack's remote reboot)
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
@@ -694,7 +997,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for the US cache regions, ADVANCE-2 for
    ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
-   for the Linux runner pool, Dedibox for eu-central. The RISE range's
+   for the Linux runner pool, Dedibox for eu-west. The RISE range's
    EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
@@ -744,7 +1047,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 in the `ovhFleets` map and render `tuist-tuist-ovh-fleet-<key>` (e.g.
 `tuist-tuist-ovh-fleet-us-east`). The adopt marker comes from that fleet's
 values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
-Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
+Production today: tag `tuist-kura-production` (eu-west), displayName prefixes
 `tuist-kura-ovh-production-us-east` / `-us-west` / `-ap-southeast` and
 `tuist-runners-ovh-production` (OVH).
 

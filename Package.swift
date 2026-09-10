@@ -63,6 +63,7 @@ var tuistDependencies: [Target.Dependency] = [
     swiftToolsSupportDependency,
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
+    commandDependency,
     pathDependency,
     argumentParserDependency,
     fileSystemDependency,

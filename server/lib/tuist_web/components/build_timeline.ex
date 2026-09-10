@@ -44,43 +44,21 @@ defmodule TuistWeb.Components.BuildTimeline do
           "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
         )}
       </p>
-      <.build_timeline timeline={timeline} duration={@duration} version={@version} source={@source} />
+      <.build_timeline duration={@duration} version={@version} source={@source} />
     </.async_result>
     """
   end
 
-  attr :timeline, :map, required: true
+  attr :url, :string, default: nil
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
   attr :source, :string, default: "xcode"
 
   def build_timeline(assigns) do
-    assigns =
-      assigns
-      |> assign(:has_metrics, Map.get(assigns.timeline, :has_metrics, false))
-      |> assign(:groups, timeline_groups(assigns.source))
+    assigns = assign(assigns, :groups, timeline_groups(assigns.source))
 
     ~H"""
-    <.card
-      :if={@timeline.total_count == 0 and not @has_metrics}
-      title={dgettext("dashboard_builds", "Build Timeline")}
-      icon="timeline_event"
-    >
-      <.card_section>
-        <.table_empty_state
-          icon="timeline_event"
-          title={dgettext("dashboard_builds", "No timeline available")}
-          subtitle={
-            dgettext(
-              "dashboard_builds",
-              "This build has no recorded step timings. Recorded steps are retained for 90 days."
-            )
-          }
-        />
-      </.card_section>
-    </.card>
     <div
-      :if={@timeline.total_count > 0 or @has_metrics}
       id="build-timeline"
       class="tuist-build-timeline"
       data-source={@source}
@@ -103,6 +81,7 @@ defmodule TuistWeb.Components.BuildTimeline do
         })
       }
       data-version={@version}
+      data-url={@url}
       data-duration={@duration}
       data-log-loading={dgettext("dashboard_builds", "Loading log…")}
       data-log-empty={dgettext("dashboard_builds", "No log recorded for this step.")}
@@ -115,15 +94,18 @@ defmodule TuistWeb.Components.BuildTimeline do
         <:actions>
           <span data-part="summary" hidden>
             <span><span data-stat="duration"></span> {dgettext("dashboard_builds", "elapsed")}</span>
-            <span><span data-stat="tasks"></span> {dgettext("dashboard_builds", "steps")}</span>
-            <span><span data-stat="targets"></span> {dgettext("dashboard_builds", "targets")}</span>
+            <span data-part="step-count" hidden><span data-stat="tasks"></span> {dgettext(
+              "dashboard_builds",
+              "steps"
+            )}</span>
+            <span data-part="target-count" hidden><span data-stat="targets"></span> {dgettext(
+              "dashboard_builds",
+              "targets"
+            )}</span>
           </span>
         </:actions>
-        <.card_section data-part="payload-loading">
-          <.skeleton_chart height="652px" />
-        </.card_section>
         <.error_card_section data-part="payload-error" hidden />
-        <.card_section data-part="timeline-content" hidden>
+        <.card_section data-part="timeline-content">
           <div data-part="machine-metrics" hidden>
             <div
               :for={
@@ -162,7 +144,22 @@ defmodule TuistWeb.Components.BuildTimeline do
               </div>
             </div>
           </div>
-          <div data-part="workspace">
+          <div data-part="payload-loading" aria-busy="true">
+            <.skeleton_chart height="652px" />
+          </div>
+          <div data-part="empty" hidden>
+            <.table_empty_state
+              icon="timeline_event"
+              title={dgettext("dashboard_builds", "No timeline available")}
+              subtitle={
+                dgettext(
+                  "dashboard_builds",
+                  "This build has no recorded step timings. Recorded steps are retained for 90 days."
+                )
+              }
+            />
+          </div>
+          <div data-part="workspace" hidden>
             <div data-part="timeline-chart">
               <div data-part="focus-region" tabindex="-1">
                 <div data-part="build-controls">

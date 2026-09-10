@@ -17,7 +17,6 @@ defmodule Tuist.Builds do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -150,12 +149,9 @@ defmodule Tuist.Builds do
       create_cacheable_tasks(build_map, cacheable_tasks)
       create_cas_outputs(build_map, cas_outputs)
       create_machine_metrics(build_map, machine_metrics)
+      create_build_steps(build_map, Map.get(attrs, :build_steps, []))
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
-
-      if project && FeatureFlags.build_steps_enabled?(project.account) do
-        create_build_steps(build_map, Map.get(attrs, :build_steps, []))
-      end
 
       if project do
         Tuist.PubSub.broadcast(
@@ -225,8 +221,6 @@ defmodule Tuist.Builds do
   def build_timeline(build_run_id, opts \\ []) do
     Timeline.load(build_run_id, opts)
   end
-
-  def build_timeline_target_count(build_run_id), do: Timeline.target_count(build_run_id)
 
   def neighbor_build_step(build_run_id, event_id, direction, opts),
     do: Timeline.neighbor(build_run_id, event_id, direction, opts)
