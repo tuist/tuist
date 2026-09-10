@@ -71,7 +71,7 @@ logo_cells = [
     <%!-- Wordmark and logo live in ONE continuous frame (no 2px seam
     between them in Figma) — the seam between the two subsections is the
     wordmark grid's own bottom hairline. --%>
-    <section data-part="section" aria-label="Brand assets">
+    <section data-part="section" aria-label={dgettext("marketing", "Brand assets")}>
       <div data-part="wordmark">
         <div data-part="text">
           <span data-part="eyebrow">{dgettext("marketing", "Wordmark")}</span>
@@ -83,20 +83,20 @@ logo_cells = [
             )}
           </p>
         </div>
-        <div data-part="grid">
-          <div :for={cell <- wordmark_cells} data-part="cell" data-surface={cell.surface}>
+        <ul data-part="grid">
+          <li :for={cell <- wordmark_cells} data-part="cell" data-surface={cell.surface}>
             <img src={cell.src} alt={cell.alt} />
             <.neutral_button
               data-part="download"
               href={cell.src}
-              aria-label={cell.alt}
+              aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
               label={dgettext("marketing", "Download")}
               {[download: true]}
             >
               <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
             </.neutral_button>
-          </div>
-        </div>
+          </li>
+        </ul>
       </div>
       <div data-part="logo">
         <div data-part="text">
@@ -109,20 +109,20 @@ logo_cells = [
             )}
           </p>
         </div>
-        <div data-part="grid">
-          <div :for={cell <- logo_cells} data-part="cell" data-surface={cell.surface}>
+        <ul data-part="grid">
+          <li :for={cell <- logo_cells} data-part="cell" data-surface={cell.surface}>
             <img src={cell.src} alt={cell.alt} />
             <.neutral_button
               data-part="download"
               href={cell.src}
-              aria-label={cell.alt}
+              aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
               label={dgettext("marketing", "Download")}
               {[download: true]}
             >
               <:icon_left><Noora.Icon.icon name="download" /></:icon_left>
             </.neutral_button>
-          </div>
-        </div>
+          </li>
+        </ul>
       </div>
     </section>
 

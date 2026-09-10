@@ -361,7 +361,7 @@ features = [
                     id={"#{feature.name}-hint"}
                     size="large"
                     description={feature.hint_text}
-                    title={dgettext("marketing", "Hits")}
+                    title={dgettext("marketing", "Hint")}
                   >
                     <:trigger :let={attrs}>
                       <span {attrs}>
@@ -442,7 +442,7 @@ features = [
                 aria-hidden="true"
               ><.chevron_down /></span>
             </summary>
-            <div data-part="answer">{raw(answer)}</div>
+            <div data-part="answer">{raw(HtmlSanitizeEx.basic_html(answer))}</div>
           </details>
         </div>
       </div>

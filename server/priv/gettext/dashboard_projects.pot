@@ -178,7 +178,7 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:110
+#: lib/tuist_web/live/create_project_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
@@ -188,7 +188,7 @@ msgstr ""
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:58
+#: lib/tuist_web/live/create_project_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Create a project"
 msgstr ""
@@ -307,7 +307,7 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:87
+#: lib/tuist_web/live/create_project_live.ex:82
 #: lib/tuist_web/live/project_automations_live.html.heex:86
 #: lib/tuist_web/live/project_automations_live.html.heex:974
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:111
@@ -480,7 +480,7 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:49
+#: lib/tuist_web/live/create_project_live.ex:47
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -878,13 +878,13 @@ msgstr ""
 msgid "Automations"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:99
+#: lib/tuist_web/live/create_project_live.ex:94
 #: lib/tuist_web/live/projects_live.ex:404
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:93
+#: lib/tuist_web/live/create_project_live.ex:88
 #: lib/tuist_web/live/projects_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Select build system"
@@ -1072,17 +1072,17 @@ msgstr ""
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:60
+#: lib/tuist_web/live/create_project_live.ex:55
 #, elixir-autogen, elixir-format
 msgid "Create a Tuist project"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:72
+#: lib/tuist_web/live/create_project_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "Organization"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:66
+#: lib/tuist_web/live/create_project_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "Select organization"
 msgstr ""

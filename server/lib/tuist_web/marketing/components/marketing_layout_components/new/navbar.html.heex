@@ -138,23 +138,16 @@ resources_items = [
     href: "https://github.com/tuist"
   }
 ] %>
+<%!-- phx-update="ignore": static markup whose hooks (data-static-hook)
+are mounted by mountStaticHooks (marketing.js) rather than by LiveView, so
+the menus work on LiveView pages before the socket has joined; LiveView
+leaves the subtree alone on join. --%>
 <header id="marketing-navbar" phx-update="ignore">
   <div data-part="bar">
-    <div data-part="brand" id="marketing-navbar-brand" phx-hook="LogoContextMenu">
+    <div data-part="brand" id="marketing-navbar-brand" data-static-hook="LogoContextMenu">
       <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
-        <img
-          data-part="logo"
-          data-theme="light"
-          src={~p"/marketing/images/components/navbar/logo-light.svg"}
-          alt="Tuist"
-        />
-        <img
-          data-part="logo"
-          data-theme="dark"
-          src={~p"/marketing/images/components/navbar/logo-dark.svg"}
-          alt="Tuist"
-        />
-        <svg data-part="logo-outline" viewBox="0 0 84 32" aria-hidden="true" hidden>
+        <.wordmark_new data-part="logo" role="img" aria-label="Tuist" />
+        <svg data-part="logo-outline" viewBox="0 0 84 32" aria-hidden="true">
           <use href="#footer-wordmark-shape" width="84" height="32" />
         </svg>
       </.link>
@@ -162,7 +155,11 @@ resources_items = [
       built from Noora dropdown items inside a statically-open Noora content
       panel — the wrapper only positions it and drives visibility. Copy
       actions always serve the light-mode SVGs regardless of theme. --%>
-      <div data-part="logo-menu" data-open="false" role="menu" aria-label="Brand assets">
+      <div
+        data-part="logo-menu"
+        data-open="false"
+        aria-label={dgettext("marketing", "Brand assets")}
+      >
         <div class="noora-dropdown-content" data-state="open">
           <div data-part="items">
             <%!-- The hook's data-copied flag fades in the check icon as
@@ -227,7 +224,11 @@ resources_items = [
         </div>
       </div>
     </div>
-    <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
+    <nav
+      data-part="menus"
+      id="marketing-navbar-menus"
+      aria-label={dgettext("marketing", "Main navigation")}
+    >
       <div data-part="menu">
         <button
           type="button"
@@ -294,7 +295,7 @@ resources_items = [
         </div>
       </div>
     </nav>
-    <nav data-part="actions" aria-label="Call to action">
+    <nav data-part="actions" aria-label={dgettext("marketing", "Account actions")}>
       <.neutral_button
         href="https://slack.tuist.dev"
         target="_blank"
@@ -320,7 +321,7 @@ resources_items = [
       switcher back. --%>
       <%!-- <div
         data-part="menu"
-        phx-hook="NavbarDropdown"
+        data-static-hook="NavbarDropdown"
         id="marketing-navbar-languages-menu"
         data-open="false"
       >
@@ -380,7 +381,7 @@ resources_items = [
       <.neutral_button
         size="large"
         data-part="mobile-menu-button"
-        phx-hook="MobileMenu"
+        data-static-hook="MobileMenu"
         id="mobile-menu-button"
         data-state="closed"
       >
@@ -401,7 +402,7 @@ resources_items = [
   <div
     data-part="viewport"
     id="marketing-navbar-viewport"
-    phx-hook="NavbarMegaMenu"
+    data-static-hook="NavbarMegaMenu"
     phx-update="ignore"
     data-open="false"
   >
@@ -451,7 +452,7 @@ resources_items = [
           <canvas
             data-part="dither"
             id="marketing-navbar-changelog-dither"
-            phx-hook="DitherTexture"
+            data-static-hook="DitherTexture"
             data-pitch="2"
             data-dot="2"
             data-top="0"
@@ -511,13 +512,18 @@ resources_items = [
       </div>
     </div>
   </div>
-  <nav data-part="mobile-menus" aria-label="Mobile navigation">
-    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-features">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
+  <nav data-part="mobile-menus" aria-label={dgettext("marketing", "Mobile navigation")}>
+    <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-features">
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-features-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Features")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-features-dropdown">
         <.link
           :for={item <- features_items}
           href={item.href}
@@ -529,12 +535,17 @@ resources_items = [
         </.link>
       </div>
     </div>
-    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-developers">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Developers")}</h3>
+    <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-developers">
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-developers-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Developers")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-developers-dropdown">
         <.link
           :for={item <- developers_items}
           href={item.href}
@@ -555,12 +566,17 @@ resources_items = [
         </.link>
       </div>
     </div>
-    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-resources">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Resources")}</h3>
+    <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-resources">
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-resources-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Resources")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-resources-dropdown">
         <.link
           :for={item <- resources_items}
           href={item.href}
@@ -603,19 +619,30 @@ resources_items = [
       selection from the stored preference at mount. The id must not start
       with "marketing-": pages.css lays out [id^="marketing-"] containers as
       flex columns, which would stack the button group vertically. --%>
-      <.button_group size="small" id="mobile-menu-theme-switcher" phx-hook="ThemeSwitcher">
+      <.button_group size="small" id="mobile-menu-theme-switcher" data-static-hook="ThemeSwitcher">
         <.button_group_item
           icon_only
           data-theme-option="system"
           data-selected
-          aria-label="System theme"
+          aria-pressed="true"
+          aria-label={dgettext("marketing", "System theme")}
         >
           <Noora.Icon.icon name="device_desktop" />
         </.button_group_item>
-        <.button_group_item icon_only data-theme-option="light" aria-label="Light theme">
+        <.button_group_item
+          icon_only
+          data-theme-option="light"
+          aria-pressed="false"
+          aria-label={dgettext("marketing", "Light theme")}
+        >
           <Noora.Icon.icon name="sun_high" />
         </.button_group_item>
-        <.button_group_item icon_only data-theme-option="dark" aria-label="Dark theme">
+        <.button_group_item
+          icon_only
+          data-theme-option="dark"
+          aria-pressed="false"
+          aria-label={dgettext("marketing", "Dark theme")}
+        >
           <Noora.Icon.icon name="moon" />
         </.button_group_item>
       </.button_group>

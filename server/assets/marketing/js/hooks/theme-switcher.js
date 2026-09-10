@@ -17,11 +17,9 @@ export const ThemeSwitcher = {
     this.sync = () => {
       const preference = getPreferredTheme();
       for (const button of this.buttons) {
-        if (button.dataset.themeOption === preference) {
-          button.setAttribute("data-selected", "");
-        } else {
-          button.removeAttribute("data-selected");
-        }
+        const selected = button.dataset.themeOption === preference;
+        button.toggleAttribute("data-selected", selected);
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
       }
     };
 

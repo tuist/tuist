@@ -11,6 +11,8 @@
  *               drive Emil's enter/exit keyframes.
  *   trigger   [data-open] + aria-expanded — active trigger (chevron flip).
  */
+import { closeOnNavigation } from "../lib/close-on-navigation.js";
+
 export const NavbarMegaMenu = {
   mounted() {
     this.navbar = this.el.closest("#marketing-navbar") || document.getElementById("marketing-navbar");
@@ -70,6 +72,15 @@ export const NavbarMegaMenu = {
     // of immediately: crossing the 2px seam between the bar and the panel
     // (or briefly overshooting an edge) shouldn't dismiss the menu.
     this.closeTimer = null;
+    // Following a link in the panel closes it before the page starts to
+    // change, so the navigation never carries an open menu across.
+    this.cleanups.push(
+      closeOnNavigation(this.el, () => {
+        this.cancelScheduledClose();
+        this.pinnedName = null;
+        this.close("navigate");
+      }),
+    );
     on(this.navbar, "mouseleave", () => this.scheduleClose());
     on(this.navbar, "mouseenter", () => this.cancelScheduledClose());
 

@@ -118,6 +118,9 @@
     & [data-part="grid"] {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
+      margin: 0;
+      padding: 0;
+      list-style: none;
 
       & > [data-part="cell"] {
         display: flex;
@@ -210,7 +213,7 @@
     /* A grid followed by another subsection (the wordmark grid) closes with
        its own per-surface bottom hairline — that hairline IS the seam
        between the two subsections of the shared frame. */
-    & > div:not(:last-child) [data-part="cell"]:nth-child(n + 3) {
+    & > :is(div, ul):not(:last-child) [data-part="cell"]:nth-child(n + 3) {
       &[data-surface="light"] {
         border-bottom: 1px solid var(--noora-neutral-light-200);
       }

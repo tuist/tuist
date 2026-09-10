@@ -61,7 +61,15 @@
         </.button>
       </div>
       <%!-- The macOS demo: DownloadMacDemo loops the preview install through
-      the menu bar app's popover (see the hook for the storyboard). --%>
+      the menu bar app's popover (see the hook for the storyboard). The figure
+      is hidden from assistive tech, so the paragraph before it carries what
+      the animation shows. --%>
+      <p class="sr-only">
+        {dgettext(
+          "marketing",
+          "Animation: the Tuist menu bar app lists the latest previews; picking one installs it and opens it on a simulator or a connected device."
+        )}
+      </p>
       <figure
         data-part="illustration"
         aria-hidden="true"

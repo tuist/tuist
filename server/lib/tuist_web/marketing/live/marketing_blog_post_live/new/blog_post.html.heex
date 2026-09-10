@@ -13,7 +13,9 @@
         <div data-part="metadata">
           <span data-part="author">{@post.interviewee_name || @author["name"]}</span>
           <span data-part="separator" aria-hidden="true">&bull;</span>
-          <span data-part="date">{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
+          <time data-part="date" datetime={Timex.format!(@post.date, "{ISOdate}")}>
+            {Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}
+          </time>
         </div>
       </header>
 
@@ -41,45 +43,48 @@
       <h2 id="read-next-title" data-part="title">{dgettext("marketing", "Read next")}</h2>
       <%!-- Same card anatomy as the blog index grid (see blog-new.css), so the
       two pages read as one system. --%>
-      <div data-part="posts">
-        <.link
-          :for={post <- @read_next_posts}
-          data-part="post"
-          href={Localization.localized_href(post.slug)}
-        >
-          <div data-part="cover">
-            <%= if TuistWeb.Marketing.MarketingBlogCovers.cover?(post) do %>
-              <TuistWeb.Marketing.MarketingBlogCovers.cover post={post} />
-            <% else %>
-              <img
-                data-part="image"
-                src={TuistWeb.Marketing.MarketingHTML.static_asset_path(post_image_url(post))}
-                alt=""
-                loading="lazy"
-                decoding="async"
-              />
-            <% end %>
-          </div>
-          <div data-part="content">
-            <h3 data-part="title">{post.title}</h3>
-            <p data-part="excerpt">{post.excerpt}</p>
-          </div>
-          <footer data-part="footer">
-            <div data-part="metadata">
-              <span data-part="author">
-                {post.interviewee_name || Blog.get_post_author_name(post)}
-              </span>
-              <span data-part="separator" aria-hidden="true">&bull;</span>
-              <span data-part="date">{Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}</span>
+      <ul data-part="posts">
+        <li :for={post <- @read_next_posts} data-part="post-item">
+          <.link
+            data-part="post"
+            href={Localization.localized_href(post.slug)}
+          >
+            <div data-part="cover">
+              <%= if TuistWeb.Marketing.MarketingBlogCovers.cover?(post) do %>
+                <TuistWeb.Marketing.MarketingBlogCovers.cover post={post} />
+              <% else %>
+                <img
+                  data-part="image"
+                  src={TuistWeb.Marketing.MarketingHTML.static_asset_path(post_image_url(post))}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
+              <% end %>
             </div>
-            <%!-- Wrapped because Noora's icon components raw-render their SVG and
-            drop any attributes passed to them, data-part included. --%>
-            <span data-part="icon">
-              <.arrow_right />
-            </span>
-          </footer>
-        </.link>
-      </div>
+            <div data-part="content">
+              <h2 data-part="title">{post.title}</h2>
+              <p data-part="excerpt">{post.excerpt}</p>
+            </div>
+            <footer data-part="footer">
+              <div data-part="metadata">
+                <span data-part="author">
+                  {post.interviewee_name || Blog.get_post_author_name(post)}
+                </span>
+                <span data-part="separator" aria-hidden="true">&bull;</span>
+                <time data-part="date" datetime={Timex.format!(post.date, "{ISOdate}")}>
+                  {Timex.format!(post.date, "{Mfull} {D}, {YYYY}")}
+                </time>
+              </div>
+              <%!-- Wrapped because Noora's icon components raw-render their SVG and
+              drop any attributes passed to them, data-part included. --%>
+              <span data-part="icon">
+                <.arrow_right />
+              </span>
+            </footer>
+          </.link>
+        </li>
+      </ul>
     </section>
 
     <div data-part="features-divider" aria-hidden="true">

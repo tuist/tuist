@@ -108,7 +108,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
       assert [_] = find(html, ~s(#marketing-blog > [data-part="posts"]))
       assert [] == find(html, ~s(#marketing-blog > [data-part="list"]))
-      assert length(find(html, ~s(#marketing-blog > [data-part="posts"] > [data-part="post"]))) == 9
+
+      assert length(find(html, ~s(#marketing-blog > [data-part="posts"] > [data-part="post-item"] > [data-part="post"]))) ==
+               9
     end
 
     test "?view=list renders rows of title, category and date cells", %{conn: conn} do
@@ -116,7 +118,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
       assert [] == find(html, ~s(#marketing-blog > [data-part="posts"]))
 
-      rows = find(html, ~s(#marketing-blog > [data-part="list"] > [data-part="row"]))
+      rows = find(html, ~s(#marketing-blog > [data-part="list"] > [data-part="row-item"] > [data-part="row"]))
 
       # The list fits more per page than the card grid's 9.
       assert length(rows) == 20

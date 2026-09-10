@@ -129,7 +129,7 @@ the page stays put and the server's message shows under the row. --%>
       <h2 id="newsletter-cta-title">
         {dgettext("marketing", "Supercharge your app development")}
       </h2>
-      <nav data-part="actions" aria-label="Primary actions">
+      <div data-part="actions" role="group" aria-labelledby="newsletter-cta-title">
         <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />
         <.button
           href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
@@ -138,7 +138,7 @@ the page stays put and the server's message shows under the row. --%>
           variant="secondary"
           label={dgettext("marketing", "Talk to us")}
         />
-      </nav>
+      </div>
     </section>
 
     <div data-part="divider" aria-hidden="true">

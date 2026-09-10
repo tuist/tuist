@@ -202,18 +202,19 @@
     & > [data-part="cases"] {
       display: grid;
       grid-template-columns: 1fr;
+      margin: 0;
+      padding: 0;
+      list-style: none;
 
       @media (min-width: 1024px) {
         grid-template-columns: repeat(3, 1fr);
       }
 
-      & > [data-part="case"] {
-        display: flex;
-        flex-direction: column;
+      /* The list item is the grid cell and draws the hairlines; the card is
+         the link inside, filling it. */
+      & > [data-part="case-item"] {
+        display: grid;
         border-top: 1px solid var(--marketing-stroke-default);
-        padding: var(--noora-spacing-8);
-        color: inherit;
-        text-decoration: none;
 
         &:first-child {
           border-top: none;
@@ -226,6 +227,14 @@
             border-left: 1px solid var(--marketing-stroke-default);
           }
         }
+      }
+
+      & > [data-part="case-item"] > [data-part="case"] {
+        display: flex;
+        flex-direction: column;
+        padding: var(--noora-spacing-8);
+        color: inherit;
+        text-decoration: none;
 
         & > [data-part="cover"] {
           background: var(--noora-surface-background-tertiary);

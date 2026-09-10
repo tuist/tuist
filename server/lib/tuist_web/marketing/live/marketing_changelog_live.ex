@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Marketing.Design
+  alias TuistWeb.Marketing.SocialCards
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
@@ -69,12 +70,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
      |> assign(:has_more?, has_more?)
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(
-         path:
-           TuistWeb.Helpers.OpenGraph.image_path(:marketing_changelog,
-             title: dgettext("marketing", "Changelog")
-           )
-       )
+       SocialCards.image_url("changelog")
      )
      |> assign(:head_title, "Tuist Changelog")
      |> assign(:head_include_blog_rss_and_atom, false)

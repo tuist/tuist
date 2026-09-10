@@ -5,6 +5,8 @@
  * Provides smooth transitions between open/closed states with direction-aware animations
  * that slide and fade content based on menu position.
  */
+import { closeOnNavigation } from "../lib/close-on-navigation.js";
+
 export const NavbarDropdown = {
   mounted() {
     this.initDropdown();
@@ -25,6 +27,11 @@ export const NavbarDropdown = {
     if (this.hoverTimeout) {
       clearTimeout(this.hoverTimeout);
       this.hoverTimeout = null;
+    }
+
+    if (this.stopClosingOnNavigation) {
+      this.stopClosingOnNavigation();
+      this.stopClosingOnNavigation = null;
     }
 
     // Remove all event listeners to prevent memory leaks
@@ -215,5 +222,8 @@ export const NavbarDropdown = {
 
     // Close when clicking outside
     addListener(document, "click", clickOutsideHandler);
+
+    // Following a link in the dropdown closes it before the page changes.
+    this.stopClosingOnNavigation = closeOnNavigation(dropdown, () => setOpenState(false, { immediate: true }));
   },
 };

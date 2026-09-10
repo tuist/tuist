@@ -56,24 +56,21 @@
         align-items: center;
         text-decoration: none;
 
+        /* One inline wordmark (wordmark_new/1): the letters follow the label
+           color, the mark's paths carry data-fill="purple". */
         & > [data-part="logo"] {
           display: block;
-          width: auto;
+          width: 84px;
           height: 32px;
+          color: var(--noora-surface-label-primary);
         }
 
-        /* Light/dark wordmark pair — the theme bootstrap stamps data-theme on
-           <html>, which picks the matching variant. */
-        & > [data-part="logo"][data-theme="dark"] {
+        /* Outline mode's stroked copy of the wordmark. Hidden here rather
+           than with the HTML hidden attribute, which has no effect on inline
+           SVG (the UA rule is namespaced to HTML elements); outline-mode.css
+           shows it with !important. */
+        & > [data-part="logo-outline"] {
           display: none;
-        }
-
-        :root[data-theme="dark"] & > [data-part="logo"][data-theme="light"] {
-          display: none;
-        }
-
-        :root[data-theme="dark"] & > [data-part="logo"][data-theme="dark"] {
-          display: block;
         }
       }
 
@@ -432,11 +429,23 @@
         flex-direction: column;
         align-items: stretch;
 
+        /* A real button (keyboard-operable before the hook mounts), reset
+           to the row it always was; the chevron carries the hover state. */
         & > [data-part="action"] {
           display: flex;
           flex-direction: row;
           justify-content: space-between;
           align-items: center;
+          appearance: none;
+          cursor: pointer;
+          margin: 0;
+          border: 0;
+          background: none;
+          padding: 0;
+          width: 100%;
+          color: inherit;
+          font: inherit;
+          text-align: left;
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
@@ -835,6 +844,15 @@
    there is no dead zone anywhere between the bar, the seam, and the
    panel's outer edges — including the rounded corners, whose hit-test
    notches were what killed the menu on edge contact. */
+/* Set by closeOnNavigation (js/lib) for the synchronous close that follows
+   a link click, so the menu is gone before the page starts to change
+   instead of fading through the navigation. */
+#marketing-navbar[data-instant],
+#marketing-navbar[data-instant] * {
+  animation: none !important;
+  transition: none !important;
+}
+
 #marketing-navbar > [data-part="viewport"] {
   display: none;
   position: absolute;

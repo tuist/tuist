@@ -11,7 +11,9 @@
         <h1 data-part="title">{@case_study.title}</h1>
 
         <div data-part="metadata">
-          <span data-part="date">{Timex.format!(@case_study.date, "{Mfull} {D}, {YYYY}")}</span>
+          <time data-part="date" datetime={Timex.format!(@case_study.date, "{ISOdate}")}>
+            {Timex.format!(@case_study.date, "{Mfull} {D}, {YYYY}")}
+          </time>
         </div>
       </header>
 
@@ -22,7 +24,11 @@
       <% else %>
         <img
           data-part="image"
-          src={static_asset_path(@case_study.og_image_path)}
+          src={
+            static_asset_path(
+              TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(@case_study)
+            )
+          }
           alt={dgettext("marketing", "%{company} case study", company: @case_study.company)}
           decoding="async"
         />
@@ -62,41 +68,46 @@
       <h2 id="read-next-title" data-part="title">{dgettext("marketing", "Read next")}</h2>
       <%!-- Same card anatomy as the customers index grid (see
       css/new/routes/customers.css), so the two pages read as one system. --%>
-      <div data-part="cases">
-        <.link
-          :for={related <- @related_case_studies}
-          data-part="case"
-          href={localized_href(Tuist.Marketing.Customers.case_study_href(related))}
-          target={if Tuist.Marketing.Customers.external_case_study?(related), do: "_blank"}
-          rel={
-            if Tuist.Marketing.Customers.external_case_study?(related),
-              do: "noopener noreferrer"
-          }
-        >
-          <div data-part="cover">
-            <%= if TuistWeb.Marketing.MarketingCustomerCovers.cover?(related) do %>
-              <TuistWeb.Marketing.MarketingCustomerCovers.cover case_study={related} />
-            <% else %>
-              <img
-                data-part="image"
-                src={static_asset_path(related.og_image_path)}
-                alt={dgettext("marketing", "%{company} case study", company: related.company)}
-                loading="lazy"
-                decoding="async"
-              />
-            <% end %>
-          </div>
-          <div data-part="content">
-            <h3 data-part="title">{related.title}</h3>
-          </div>
-          <%!-- Styled as Noora's link button but rendered as a span: the whole
-          card is already the anchor (see the customers index). --%>
-          <span class="noora-link-button" data-part="read-story" data-size="large">
-            <span>{dgettext("marketing", "Read story")}</span>
-            <.chevron_right />
-          </span>
-        </.link>
-      </div>
+      <ul data-part="cases">
+        <li :for={related <- @related_case_studies} data-part="case-item">
+          <.link
+            data-part="case"
+            href={localized_href(Tuist.Marketing.Customers.case_study_href(related))}
+            target={if Tuist.Marketing.Customers.external_case_study?(related), do: "_blank"}
+            rel={
+              if Tuist.Marketing.Customers.external_case_study?(related),
+                do: "noopener noreferrer"
+            }
+          >
+            <div data-part="cover">
+              <%= if TuistWeb.Marketing.MarketingCustomerCovers.cover?(related) do %>
+                <TuistWeb.Marketing.MarketingCustomerCovers.cover case_study={related} />
+              <% else %>
+                <img
+                  data-part="image"
+                  src={
+                    static_asset_path(
+                      TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(related)
+                    )
+                  }
+                  alt={dgettext("marketing", "%{company} case study", company: related.company)}
+                  loading="lazy"
+                  decoding="async"
+                />
+              <% end %>
+            </div>
+            <div data-part="content">
+              <h2 data-part="title">{related.title}</h2>
+            </div>
+            <%!-- Styled as Noora's link button but rendered as a span: the whole
+            card is already the anchor (see the customers index). --%>
+            <span class="noora-link-button" data-part="read-story" data-size="large">
+              <span>{dgettext("marketing", "Read story")}</span>
+              <.chevron_right />
+            </span>
+          </.link>
+        </li>
+      </ul>
     </section>
 
     <div data-part="features-divider" aria-hidden="true">

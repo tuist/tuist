@@ -18,7 +18,8 @@
      `[id^="marketing-"] > header:not(#marketing-navbar)` (its :not counts an
      ID), whose margins and 1296px max-width must lose to the page frame. */
   & > header[data-part="header"],
-  & > section {
+  & > section,
+  & > ul[data-part="cases"] {
     box-sizing: border-box;
     /* The navbar's own margin-bottom provides the seam above the header. */
     margin: 0 var(--noora-spacing-1);
@@ -59,9 +60,15 @@
     }
   }
 
+  /* A list now, so pages.css's section rule no longer reaches it: the frame
+     rule above sizes it, and this restores the section's stacking. */
   & > [data-part="cases"] {
     display: grid;
+    position: relative;
     grid-template-columns: 1fr;
+    z-index: var(--noora-z-index-1);
+    padding: 0;
+    list-style: none;
 
     @media (min-width: 768px) {
       grid-template-columns: repeat(2, 1fr);
@@ -76,7 +83,7 @@
        own border is the only line on all four outer edges — nothing doubles
        up against it. The blank filler cells stretch to the row height, which
        keeps the column lines running through a last row that isn't full. */
-    & > [data-part="case"],
+    & > [data-part="case-item"],
     & > [data-part="filler"] {
       border-top: 1px solid var(--marketing-stroke-default);
 
@@ -116,7 +123,13 @@
       }
     }
 
-    & > [data-part="case"] {
+    /* The list item is the grid cell (a single-cell grid, so the card fills
+       it); the card itself is the link inside. */
+    & > [data-part="case-item"] {
+      display: grid;
+    }
+
+    & > [data-part="case-item"] > [data-part="case"] {
       display: flex;
       flex-direction: column;
       padding: var(--noora-spacing-8);

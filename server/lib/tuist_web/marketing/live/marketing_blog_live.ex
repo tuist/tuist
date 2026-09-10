@@ -10,6 +10,8 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.MarketingCustomerCovers
+  alias TuistWeb.Marketing.SocialCards
 
   on_mount({TuistWeb.Authentication, :mount_current_user})
 
@@ -140,12 +142,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
       |> assign(:search_open, socket.assigns[:search_open] || search_query != "")
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(
-          path:
-            OpenGraph.image_path(:marketing_blog,
-              title: dgettext("marketing", "Blog")
-            )
-        )
+        SocialCards.image_url("blog")
       )
       |> assign(:head_title, "The Tuist Blog")
       |> assign(:head_include_blog_rss_and_atom, true)
@@ -195,6 +192,10 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
      socket
      |> assign(:search_open, false)
      |> push_patch(to: blog_href(category, "", 1, view_mode))}
+  end
+
+  defp entry_image_url({:case_study, case_study}) do
+    Tuist.Environment.app_url(path: MarketingCustomerCovers.og_image_path(case_study), marketing: true)
   end
 
   defp entry_image_url(entry) do

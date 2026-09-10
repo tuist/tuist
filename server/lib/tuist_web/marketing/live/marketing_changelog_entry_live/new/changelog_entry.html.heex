@@ -11,7 +11,9 @@
         <h1 data-part="title">{@entry.title}</h1>
 
         <div data-part="metadata">
-          <span data-part="date">{Timex.format!(@entry.date, "{Mfull} {D}, {YYYY}")}</span>
+          <time data-part="date" datetime={Timex.format!(@entry.date, "{ISOdate}")}>
+            {Timex.format!(@entry.date, "{Mfull} {D}, {YYYY}")}
+          </time>
           <span :if={not is_nil(@entry.pull_request)} data-part="separator" aria-hidden="true">
             &bull;
           </span>
@@ -22,6 +24,7 @@
               label={"##{@entry.pull_request}"}
               href={"https://github.com/tuist/tuist/pull/#{@entry.pull_request}"}
               target="_blank"
+              rel="noopener noreferrer"
             >
               <:icon_left>
                 <.git_merge />
