@@ -145,15 +145,17 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
 
     Compare duration_ms, status, actions_executed, critical_path and cache totals.
 
-    ### 3. Inspect retained actions
+    ### 3. Inspect recorded steps
 
-    Use `list_bazel_build_steps` to find slow or overlapping intervals and `get_bazel_build_step` for metadata.
-    Coverage includes only up to 32 retained actions plus setup; absent actions do not imply absent work.
-    Compare descriptions and categories, never step IDs across invocations. Per-action outcomes and logs are unavailable.
+    Use `list_bazel_build_steps` to find slow, failed, or overlapping intervals. Honor the response's `coverage`:
+    `trace_profile` includes all recorded profile intervals; `retained_action_spans` is limited to up to 32 actions plus setup.
+    Absent intervals in the retained summary do not imply absent work.
+    Compare descriptions, targets, and categories, never step IDs across invocations.
 
     ### 4. Check available output
 
-    Use invocation log tools for failures, and distinguish missing diagnostics from successful execution.
+    Use `get_bazel_build_step` to inspect a step's outcome and recorded action log when available.
+    Use invocation log tools for broader failure output. Missing diagnostics or unknown outcomes do not imply success.
     """
   end
 

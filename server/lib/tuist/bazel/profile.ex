@@ -88,12 +88,12 @@ defmodule Tuist.Bazel.Profile do
       timeline = timeline |> with_metric_intervals() |> with_cpu_percentage(invocation.custom_values)
 
       if Keyword.get(opts, :include_steps, true) do
-        timeline =
-          if timeline[:steps_version],
-            do: Map.put(timeline, :events, ProfileSteps.events(invocation, timeline.steps_version)),
-            else: timeline
-
-        Action.enrich(timeline, invocation)
+        if timeline[:steps_version] do
+          events = ProfileSteps.events(invocation, timeline.steps_version)
+          %{timeline | events: events, logs_available: Enum.any?(events, &(&1.status != "unknown"))}
+        else
+          Action.enrich(timeline, invocation)
+        end
       else
         Map.drop(timeline, [:events, :total_count, :target_count])
       end

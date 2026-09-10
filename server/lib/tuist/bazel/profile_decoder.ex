@@ -1,10 +1,11 @@
 defmodule Tuist.Bazel.ProfileDecoder do
   @moduledoc "Bounds JSON containers while decoding, before constructing the complete profile."
 
+  @max_json_bytes 128 * 1024 * 1024
   @max_entries 1_000_000
   @max_heap_bytes 64 * 1024 * 1024
 
-  def decode(json) do
+  def decode(json) when is_binary(json) and byte_size(json) <= @max_json_bytes do
     {value, nil, rest} =
       JSON.decode(json, nil,
         array_start: &start/1,
@@ -22,6 +23,8 @@ defmodule Tuist.Bazel.ProfileDecoder do
     :profile_too_large -> {:error, :profile_too_large}
   end
 
+  def decode(_), do: {:error, :profile_too_large}
+
   defp start(parent) do
     depth = if is_map(parent), do: parent.depth + 1, else: 1
     if depth > 64, do: throw(:profile_too_large)
@@ -30,8 +33,9 @@ defmodule Tuist.Bazel.ProfileDecoder do
   end
 
   defp push(value, acc) do
-    # Include off-heap binary contents as well as the decoded term's heap words.
-    bytes = acc.bytes + :erts_debug.flat_size(value) * :erlang.system_info(:wordsize) + :erlang.external_size(value)
+    # Input bytes bound string contents; separately bound heap terms and accumulator cons cells.
+    # external_size would charge a second representation of the same data, not off-heap memory.
+    bytes = acc.bytes + (:erts_debug.flat_size(value) + 2) * :erlang.system_info(:wordsize)
     if acc.count >= @max_entries or bytes > acc.budget, do: throw(:profile_too_large)
     %{acc | count: acc.count + 1, bytes: bytes, values: [value | acc.values]}
   end

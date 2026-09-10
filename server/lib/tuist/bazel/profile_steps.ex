@@ -54,11 +54,9 @@ defmodule Tuist.Bazel.ProfileSteps do
 
   def events(invocation, version) do
     invocation
-    |> query(version)
+    |> outcomes(version)
     |> order_by([s], asc: s.start_ms, asc: s.event_id)
-    |> select([s], map(s, ^@fields))
     |> ClickHouseRepo.all()
-    |> Enum.map(&Map.put(&1, :status, "unknown"))
   end
 
   def list(invocation, version, params) do

@@ -1,9 +1,7 @@
 defmodule Tuist.Bazel.Workers.ProcessProfileWorker do
   @moduledoc "Parses profiles on the bounded Bazel artifact processor queue."
-  use Oban.Worker,
-    queue: :process_bazel_tests,
-    max_attempts: 5,
-    unique: [keys: [:project_id, :invocation_id], states: :incomplete, period: :infinity]
+  # Staging enqueues one job atomically per accepted upload, including terminal-state retries.
+  use Oban.Worker, queue: :process_bazel_tests, max_attempts: 5
 
   alias Tuist.Bazel.Profile
   alias Tuist.Bazel.ProfileUpload

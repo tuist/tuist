@@ -47,7 +47,10 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
 
         if build_system == :bazel do
           assert text =~ "invocation_id"
-          assert text =~ "32 retained actions"
+          assert text =~ "trace_profile"
+          assert text =~ "retained_action_spans"
+          assert text =~ "recorded action log when available"
+          refute text =~ "Per-action outcomes and logs are unavailable"
           refute text =~ "build_run_id=head-id"
         else
           assert text =~ "time_origin"

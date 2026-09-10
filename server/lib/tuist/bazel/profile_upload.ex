@@ -35,9 +35,20 @@ defmodule Tuist.Bazel.ProfileUpload do
           updated_at: now
         }
       ],
-      on_conflict: :nothing
+      conflict_target: [:project_id, :invocation_id],
+      on_conflict:
+        from(u in __MODULE__,
+          where: u.state in ["rejected", "failed"],
+          update: [set: [compressed: ^compressed, state: "pending", error: nil, updated_at: ^now]]
+        )
     )
-    |> Oban.insert(:job, ProcessProfileWorker.new(%{project_id: project.id, invocation_id: id}))
+    |> Multi.run(:job, fn _repo, %{upload: {count, _}} ->
+      if count == 1 do
+        Oban.insert(ProcessProfileWorker.new(%{project_id: project.id, invocation_id: id}))
+      else
+        {:ok, :unchanged}
+      end
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, _} -> :ok

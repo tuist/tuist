@@ -71,13 +71,9 @@ defmodule Tuist.Bazel.Action do
   defp row(_, _), do: {:error, :invalid_action}
 
   def enrich(timeline, invocation) do
-    outputs = timeline.events |> Enum.map(& &1[:primary_output]) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
-
     actions =
       from(a in __MODULE__,
-        where:
-          a.project_id == ^invocation.project_id and a.invocation_id == ^invocation.invocation_id and
-            a.primary_output in ^outputs,
+        where: a.project_id == ^invocation.project_id and a.invocation_id == ^invocation.invocation_id,
         select: map(a, [:primary_output, :started_at_ms, :status])
       )
       |> ClickHouseRepo.all()
@@ -92,7 +88,7 @@ defmodule Tuist.Bazel.Action do
         end
       end)
 
-    %{timeline | events: events, logs_available: map_size(actions) > 0}
+    %{timeline | events: events, logs_available: Enum.any?(events, &(&1.status != "unknown"))}
   end
 
   defp matching_actions(actions, step, origin) when is_number(origin) do
@@ -107,6 +103,8 @@ defmodule Tuist.Bazel.Action do
   end
 
   defp matching_actions(actions, _step, _origin), do: actions
+
+  def log(_, %{status: "unknown"}), do: %{log: nil, log_truncated: false}
 
   def log(invocation, %{primary_output: output, action_started_at_ms: started}) do
     ClickHouseRepo.one(
