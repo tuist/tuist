@@ -97,7 +97,7 @@ Multi-replica ClickHouse behind Tuist is supported on ClickHouse Cloud only. Sel
 
 The ingest migrations emit a plain `MergeTree` engine. On Cloud that becomes a `SharedMergeTree` transparently, so writes land in shared object storage and any replica count works. On self-managed ClickHouse, `MergeTree` writes to local disk on one replica only; a multi-replica setup will either split ingest silently across replicas or reject the CREATE with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` depending on how `database_replicated_allow_only_replicated_engine` is set on the connecting user.
 
-Run one shard with one replica on self-managed ClickHouse.
+Run one shard with one replica on self-managed ClickHouse, and take regular backups of the ClickHouse data directory. There is no second replica to fall back to if the node is lost.
 
 #### Capping operational log retention {#capping-operational-log-retention}
 
