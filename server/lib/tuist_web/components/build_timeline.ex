@@ -32,7 +32,7 @@ defmodule TuistWeb.Components.BuildTimeline do
       >
         {dgettext(
           "dashboard_builds",
-          "This build has no trace profile. Only its recorded summary is available. Run tuist bazel setup to enable timeline collection for new builds."
+          "The trace profile is not available yet. This timeline shows the recorded build summary; profile delivery and processing may still be in progress."
         )}
       </p>
       <p

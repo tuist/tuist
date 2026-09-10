@@ -17,7 +17,7 @@ defmodule Tuist.Bazel.TimelineTest do
     }
 
     timeline = Timeline.load(build)
-    assert timeline.total_count == 3
+    assert timeline.total_count == 4
     assert timeline.duration == 5000
     assert timeline.coverage == "retained_action_spans"
     assert Enum.all?(timeline.events, &(&1.status == "unknown" and &1.target == ""))

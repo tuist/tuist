@@ -59,7 +59,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     assert has_element?(lv, "[data-part=legend] button[data-kind=fetch]", "Fetching")
     assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Analysis/setup")
     refute has_element?(lv, "[data-part=legend] button[data-kind=transform]")
-    assert has_element?(lv, "[data-part=timeline-coverage]", "no trace profile")
+    assert has_element?(lv, "[data-part=timeline-coverage]", "trace profile is not available yet")
     tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=tabs] a") |> Enum.map(&Floki.text/1)
     assert tabs == ["Overview", "Timeline", "Bazel Cache"]
     [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")

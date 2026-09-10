@@ -4,46 +4,8 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuildStep do
     name: "get_gradle_build_step",
     title: "Get Gradle Build Step",
     read_only_hint: true,
-    schema: %{
-      "type" => "object",
-      "properties" => %{
-        "build_run_id" => %{"type" => "string", "description" => "Build UUID or Tuist build dashboard URL."},
-        "step_id" => %{
-          "type" => "string",
-          "maxLength" => 128,
-          "description" => "Opaque step ID from list_gradle_build_steps."
-        }
-      },
-      "required" => ["build_run_id", "step_id"]
-    },
-    output_schema: %{
-      "type" => "object",
-      "properties" => %{
-        "id" => %{"type" => "string"},
-        "title" => %{"type" => "string"},
-        "project" => %{"type" => "string"},
-        "target" => %{"type" => "string"},
-        "category" => %{"type" => "string"},
-        "status" => %{"type" => "string"},
-        "start_ms" => %{"type" => "number"},
-        "duration_ms" => %{"type" => "number"},
-        "log" => %{"type" => ["string", "null"]},
-        "log_truncated" => %{"type" => "boolean"}
-      },
-      "required" => [
-        "id",
-        "title",
-        "project",
-        "target",
-        "category",
-        "status",
-        "start_ms",
-        "duration_ms",
-        "log",
-        "log_truncated"
-      ],
-      "additionalProperties" => false
-    }
+    schema: Tuist.MCP.Components.Tools.BuildStep.input(:gradle, true),
+    output_schema: Tuist.MCP.Components.Tools.BuildStep.detail(:gradle)
 
   alias Tuist.Builds.RecordedSteps, as: Steps
   alias Tuist.Gradle

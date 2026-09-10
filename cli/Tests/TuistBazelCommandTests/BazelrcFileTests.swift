@@ -19,6 +19,30 @@ struct BazelrcFileTests {
         )
     }
 
+    @Test func upgrades_cpu_capacity_for_existing_insights_and_cache_only_files() throws {
+        for contents in [
+            rendered().split(separator: "\n").filter { !$0.contains("TUIST_CPU_COUNT") }.joined(separator: "\n"),
+            "build --remote_cache=grpcs://old.example.com\nbuild --remote_header=x-tuist-account-handle=tuist\nbuild --remote_instance_name=app\n",
+        ] {
+            let endpoint = GRPCEndpoint(host: "new.example.com", explicitPort: nil, isTLS: true)
+            let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: endpoint, cpuCount: 6))
+            #expect(rewritten.contains("build --build_metadata=TUIST_CPU_COUNT=6"))
+            #expect(BazelrcFile.replacingRemoteCache(in: rewritten, with: endpoint, cpuCount: 8) == nil)
+        }
+    }
+
+    @Test func preserves_explicit_cpu_capacity_when_enabling_build_insights() throws {
+        let existing = """
+        build --remote_cache=grpcs://old.example.com
+        build --remote_header=x-tuist-account-handle=acme
+        build --remote_instance_name=app
+        common --build_metadata=TUIST_CPU_COUNT=4
+        """
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: moved, cpuCount: 6))
+        #expect(rewritten.contains("common --build_metadata=TUIST_CPU_COUNT=4"))
+        #expect(!rewritten.contains("TUIST_CPU_COUNT=6"))
+    }
+
     @Test func records_machine_cpu_capacity_without_using_the_job_limit() throws {
         let contents = rendered(cpuCount: 12) + "build --jobs=4\n"
         #expect(contents.contains("build --build_metadata=TUIST_CPU_COUNT=12"))

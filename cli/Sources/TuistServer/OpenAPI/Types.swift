@@ -22613,7 +22613,7 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/target`.
                 public var target: Swift.String?
-                /// Exact recorded category, such as swiftCompilation.
+                /// Exact category returned by a recorded step.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/GET/query/category`.
                 public var category: Swift.String?
@@ -22651,7 +22651,7 @@ public enum Operations {
                 ///   - search: Case-insensitive title, project, or target search.
                 ///   - project:
                 ///   - target:
-                ///   - category: Exact recorded category, such as swiftCompilation.
+                ///   - category: Exact category returned by a recorded step.
                 ///   - status:
                 ///   - start_ms:
                 ///   - end_ms:

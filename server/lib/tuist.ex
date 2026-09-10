@@ -91,6 +91,7 @@ defmodule Tuist do
       Bazel,
       Bazel.Invocation,
       Bazel.Profile,
+      Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
       ReapiCache,

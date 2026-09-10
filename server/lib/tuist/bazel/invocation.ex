@@ -46,4 +46,24 @@ defmodule Tuist.Bazel.Invocation do
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
   end
+
+  def timeline_spans(invocation) do
+    [
+      invocation.build_timeline_span_start_ms,
+      invocation.build_timeline_span_durations_ms,
+      invocation.build_timeline_span_categories,
+      invocation.build_timeline_span_descriptions
+    ]
+    |> Enum.zip()
+    |> Enum.with_index()
+    |> Enum.map(fn {{start_ms, duration_ms, category, description}, index} ->
+      %{
+        lane: Enum.at(invocation.build_timeline_span_lanes, index, 0),
+        start_ms: start_ms,
+        duration_ms: duration_ms,
+        category: category,
+        description: description
+      }
+    end)
+  end
 end

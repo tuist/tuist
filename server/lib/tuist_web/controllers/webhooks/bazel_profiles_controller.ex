@@ -1,7 +1,7 @@
 defmodule TuistWeb.Webhooks.BazelProfilesController do
   use TuistWeb, :controller
 
-  alias Tuist.Bazel.Profile
+  alias Tuist.Bazel.ProfileUpload
   alias Tuist.Projects
   alias TuistWeb.Plugs.RequireCacheEndpointPlug
 
@@ -24,10 +24,17 @@ defmodule TuistWeb.Webhooks.BazelProfilesController do
              Projects.projects_by_full_handles(["#{account}/#{name}"])["#{account}/#{name}"],
            {:ok, compressed} <- Base.decode64(content),
            true <- Base.encode16(:crypto.hash(:sha256, compressed), case: :lower) == String.downcase(digest),
-           :ok <- Profile.ingest(project, invocation, compressed) do
+           :ok <- ProfileUpload.stage(project, invocation, compressed) do
         conn |> put_status(:accepted) |> json(%{}) |> halt()
       else
-        _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid Bazel trace profile"}) |> halt()
+        {:error, :profile_too_large} ->
+          conn
+          |> put_status(:request_entity_too_large)
+          |> json(%{error: "Bazel trace profile exceeds the compressed size limit"})
+          |> halt()
+
+        _ ->
+          conn |> put_status(:bad_request) |> json(%{error: "Invalid Bazel trace profile"}) |> halt()
       end
     end
   end

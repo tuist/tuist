@@ -287,3 +287,7 @@ DNS retains a healthy published gateway across handoffs, and an explicit Cilium
 host/remote-node rule permits its cache-port hop across hosts. The endpoint's
 check time is separate from workload convergence and is preserved through server
 dispatch, so maintenance cannot expire a healthy entrance or renew stale status.
+
+### Bazel timeline delivery
+
+Action diagnostics and native profile references have independent, bounded queues so diagnostic delivery never waits for webhook capacity on the BEP stream. Actions are grouped into requests of up to 32 within one account/project; overflow is observable best effort. Profile delivery has separate capacity, so an action burst cannot displace the profile. New servers accept batch and legacy requests; Kura falls back to legacy requests only when the batch endpoint is absent during rollout. Profile parsing runs on Tuist’s bounded artifact processor queue after durable staging.

@@ -40,6 +40,86 @@ defmodule Tuist.Gradle.Timeline do
     normalize(build, tasks, configuration, transforms, metrics)
   end
 
+  def step_query(build) do
+    origin = timestamp(build.started_at) || recorded_origin(build)
+
+    tasks =
+      from(row in Task,
+        where: row.gradle_build_id == ^build.id and row.project_id == ^build.project_id,
+        select: %{
+          event_id: fragment("concat('task:', toString(?))", row.id),
+          title: row.task_path,
+          project: row.build_path,
+          target: row.task_path,
+          category: fragment("if(empty(?), 'task', ?)", row.task_type, row.task_type),
+          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          duration_ms: row.duration_ms,
+          status:
+            fragment(
+              "multiIf(? = 'executed', 'success', ? = 'failed', 'failure', ?)",
+              row.outcome,
+              row.outcome,
+              row.outcome
+            )
+        }
+      )
+
+    configuration =
+      from(row in ConfigurationOperation,
+        where: row.gradle_build_id == ^build.id and row.project_id == ^build.project_id,
+        select: %{
+          event_id: fragment("concat('configuration:', toString(?))", row.id),
+          title: row.phase,
+          project: row.build_path,
+          target: row.project_path,
+          category: "configuration",
+          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          duration_ms: row.duration_ms,
+          status: "unknown"
+        }
+      )
+
+    transforms =
+      from(row in ArtifactTransform,
+        where: row.gradle_build_id == ^build.id and row.project_id == ^build.project_id,
+        select: %{
+          event_id: fragment("concat('transform:', toString(?))", row.id),
+          title: fragment("concat(?, ' · ', ?)", row.transformer_name, row.subject_name),
+          project: ^(build.root_project_name || ""),
+          target: row.consumer_project_path,
+          category: "transform",
+          start_ms: fragment("toUnixTimestamp64Micro(?) / 1000 - ?", row.started_at, ^origin),
+          duration_ms: row.duration_ms,
+          status: "unknown"
+        }
+      )
+
+    rows = tasks |> union_all(^configuration) |> union_all(^transforms)
+    from(row in subquery(rows), where: row.start_ms >= 0 and row.duration_ms > 0)
+  end
+
+  defp recorded_origin(build) do
+    operations =
+      Enum.map([Task, ConfigurationOperation, ArtifactTransform], fn schema ->
+        ClickHouseRepo.one(
+          from(row in schema,
+            where: row.gradle_build_id == ^build.id and row.project_id == ^build.project_id,
+            select: fragment("minOrNull(toUnixTimestamp64Micro(?)) / 1000", row.started_at)
+          )
+        )
+      end)
+
+    metric =
+      ClickHouseRepo.one(
+        from(row in BuildMachineMetric,
+          where: row.gradle_build_id == ^build.id,
+          select: fragment("minOrNull(?) * 1000", row.timestamp)
+        )
+      )
+
+    [metric | operations] |> Enum.reject(&is_nil/1) |> Enum.min(fn -> 0 end)
+  end
+
   defp rows(schema, build, fields) do
     ClickHouseRepo.all(
       from(row in schema,

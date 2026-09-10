@@ -19,3 +19,5 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - `Timeline` loads all timed tasks, configuration operations and transforms for the authorized build and project. Nullable `gradle_builds.started_at` is the report duration origin; legacy reports use the earliest recorded operation or machine timestamp and identify that fallback. Machine samples share this origin. Missing timestamps/outcomes are never inferred from upload time or overall build success. Existing source retention applies; no operation logs are collected.
 
 - Keep the nearest real machine sample before the build origin when there are samples during the build. Its negative offset brackets the first displayed interval without inventing a reading at zero. Samples entirely before the build provide no timeline coverage.
+
+- Step API/MCP queries normalize the three operation tables through a ClickHouse union with database filtering, ordering and pagination; detail lookups do not load the full timeline or machine samples. Legacy origins are computed from scalar minimum timestamps. The dashboard still loads all operations for the interactive timeline.

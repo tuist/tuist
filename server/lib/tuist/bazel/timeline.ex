@@ -4,6 +4,7 @@ defmodule Tuist.Bazel.Timeline do
   No per-action outcome, log or machine sample is inferred from invocation-level data.
   """
 
+  alias Tuist.Bazel.Invocation
   alias Tuist.Bazel.Profile
 
   def load(invocation) do
@@ -12,31 +13,20 @@ defmodule Tuist.Bazel.Timeline do
 
   defp retained_summary(invocation) do
     events =
-      [
-        invocation.build_timeline_span_start_ms,
-        invocation.build_timeline_span_durations_ms,
-        invocation.build_timeline_span_categories,
-        invocation.build_timeline_span_descriptions
-      ]
-      |> Enum.zip()
+      invocation
+      |> Invocation.timeline_spans()
       |> Enum.with_index()
-      |> Enum.flat_map(fn {{start, duration, category, title}, index} ->
-        if duration > 0 do
-          [
-            %{
-              event_id: to_string(index),
-              title: title,
-              project: invocation.project_handle,
-              target: "",
-              category: category,
-              start_ms: start,
-              duration_ms: duration,
-              status: "unknown"
-            }
-          ]
-        else
-          []
-        end
+      |> Enum.map(fn {span, index} ->
+        %{
+          event_id: to_string(index),
+          title: span.description,
+          project: invocation.project_handle,
+          target: "",
+          category: span.category,
+          start_ms: span.start_ms,
+          duration_ms: span.duration_ms,
+          status: "unknown"
+        }
       end)
       |> Enum.sort_by(&{&1.start_ms, &1.event_id})
 

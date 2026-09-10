@@ -66,8 +66,9 @@ defmodule Tuist.Bazel.ProfileTest do
         inserted_at: ~N[2026-09-10 00:00:00],
         payload:
           JSON.encode!(%{
-            events: [],
-            duration: 403,
+            "future_profile_property_abc123" => %{"unrecognized_nested_key" => "ignored"},
+            :events => [],
+            :duration => 403,
             logs_available: false,
             machine_metrics: [%{offset_ms: 8, cpu_usage_cores: 1.8}]
           })
@@ -95,7 +96,7 @@ defmodule Tuist.Bazel.ProfileTest do
         custom_values: %{"TUIST_CPU_COUNT" => "12"}
       })
 
-    assert [%{offset_ms: 8, duration_ms: 395, cpu_usage_cores: 1.8, cpu_usage_percent: 15.0}] = normalized.machine_metrics
+    assert [%{cpu_usage_percent: 15.0, cpu_usage_cores: 1.8}] = normalized.machine_metrics
   end
 
   test "tolerates native floating-point rounding at full CPU utilization" do

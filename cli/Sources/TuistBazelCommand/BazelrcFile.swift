@@ -84,7 +84,11 @@ enum BazelrcFile {
     /// credential helper's own path is carried across rather than recomputed:
     /// the file records where Bazel was told to find it, and that is not this
     /// code's to change.
-    static func replacingRemoteCache(in contents: String, with endpoint: GRPCEndpoint) -> String? {
+    static func replacingRemoteCache(
+        in contents: String,
+        with endpoint: GRPCEndpoint,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+    ) -> String? {
         guard remoteCache(in: contents) != nil else { return nil }
 
         let rewritten = contents
@@ -111,8 +115,13 @@ enum BazelrcFile {
             .joined(separator: "\n")
 
         let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+        let cpuCapacityFlag = lines.contains(where: { hasOption("--build_metadata=TUIST_CPU_COUNT", in: $0) })
+            ? nil : "build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)"
         if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
             var missingFlags: [String] = []
+            if let cpuCapacityFlag {
+                missingFlags.append(cpuCapacityFlag)
+            }
             if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
                 missingFlags.append(outputChunkFlag)
             }
@@ -153,6 +162,7 @@ enum BazelrcFile {
         \(namedSetEntriesFlag)
         \(publishAllActionsFlag)
         \(profileFlags.joined(separator: "\n"))
+        \(cpuCapacityFlag ?? "")
         """
 
         return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"

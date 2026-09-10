@@ -970,6 +970,7 @@ components:
           x-struct:
           x-validate:
         log:
+          nullable: false
           type: string
           x-struct:
           x-validate:
@@ -999,13 +1000,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
         - log
         - log_truncated
       title: XcodeBuildStepDetail
@@ -1132,13 +1133,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
         - log
         - log_truncated
       title: GradleBuildStepDetail
@@ -2127,13 +2128,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
         - log
         - log_truncated
       title: BazelBuildStepDetail
@@ -5028,13 +5029,13 @@ components:
                 x-validate:
             required:
               - id
-              - title
-              - project
-              - target
-              - category
-              - start_ms
-              - duration_ms
               - status
+              - title
+              - category
+              - target
+              - project
+              - duration_ms
+              - start_ms
             title: BazelBuildStep
             type: object
             x-struct:
@@ -5938,13 +5939,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
       title: XcodeBuildStep
       type: object
       x-struct:
@@ -6017,13 +6018,13 @@ components:
                 x-validate:
             required:
               - id
-              - title
-              - project
-              - target
-              - category
-              - start_ms
-              - duration_ms
               - status
+              - title
+              - category
+              - target
+              - project
+              - duration_ms
+              - start_ms
             title: XcodeBuildStep
             type: object
             x-struct:
@@ -6423,13 +6424,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
       title: BazelBuildStep
       type: object
       x-struct:
@@ -6718,13 +6719,13 @@ components:
                 x-validate:
             required:
               - id
-              - title
-              - project
-              - target
-              - category
-              - start_ms
-              - duration_ms
               - status
+              - title
+              - category
+              - target
+              - project
+              - duration_ms
+              - start_ms
             title: GradleBuildStep
             type: object
             x-struct:
@@ -7170,13 +7171,13 @@ components:
           x-validate:
       required:
         - id
-        - title
-        - project
-        - target
-        - category
-        - start_ms
-        - duration_ms
         - status
+        - title
+        - category
+        - target
+        - project
+        - duration_ms
+        - start_ms
       title: GradleBuildStep
       type: object
       x-struct:
@@ -10820,7 +10821,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Exact recorded category, such as swiftCompilation.
+        - description: Exact category returned by a recorded step.
           in: query
           name: category
           required: false
@@ -10923,13 +10924,13 @@ paths:
                           x-validate:
                       required:
                         - id
-                        - title
-                        - project
-                        - target
-                        - category
-                        - start_ms
-                        - duration_ms
                         - status
+                        - title
+                        - category
+                        - target
+                        - project
+                        - duration_ms
+                        - start_ms
                       title: XcodeBuildStep
                       type: object
                       x-struct:
@@ -11948,6 +11949,22 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -11964,28 +11981,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
             x-struct:
             x-validate:
       responses:
@@ -13523,6 +13524,7 @@ paths:
                     x-struct:
                     x-validate:
                   log:
+                    nullable: false
                     type: string
                     x-struct:
                     x-validate:
@@ -13552,13 +13554,13 @@ paths:
                     x-validate:
                 required:
                   - id
-                  - title
-                  - project
-                  - target
-                  - category
-                  - start_ms
-                  - duration_ms
                   - status
+                  - title
+                  - category
+                  - target
+                  - project
+                  - duration_ms
+                  - start_ms
                   - log
                   - log_truncated
                 title: XcodeBuildStepDetail
@@ -20028,13 +20030,13 @@ paths:
                     x-validate:
                 required:
                   - id
-                  - title
-                  - project
-                  - target
-                  - category
-                  - start_ms
-                  - duration_ms
                   - status
+                  - title
+                  - category
+                  - target
+                  - project
+                  - duration_ms
+                  - start_ms
                   - log
                   - log_truncated
                 title: GradleBuildStepDetail
@@ -22307,13 +22309,13 @@ paths:
                     x-validate:
                 required:
                   - id
-                  - title
-                  - project
-                  - target
-                  - category
-                  - start_ms
-                  - duration_ms
                   - status
+                  - title
+                  - category
+                  - target
+                  - project
+                  - duration_ms
+                  - start_ms
                   - log
                   - log_truncated
                 title: BazelBuildStepDetail
@@ -26243,13 +26245,13 @@ paths:
                           x-validate:
                       required:
                         - id
-                        - title
-                        - project
-                        - target
-                        - category
-                        - start_ms
-                        - duration_ms
                         - status
+                        - title
+                        - category
+                        - target
+                        - project
+                        - duration_ms
+                        - start_ms
                       title: GradleBuildStep
                       type: object
                       x-struct:
@@ -30039,13 +30041,13 @@ paths:
                           x-validate:
                       required:
                         - id
-                        - title
-                        - project
-                        - target
-                        - category
-                        - start_ms
-                        - duration_ms
                         - status
+                        - title
+                        - category
+                        - target
+                        - project
+                        - duration_ms
+                        - start_ms
                       title: BazelBuildStep
                       type: object
                       x-struct:

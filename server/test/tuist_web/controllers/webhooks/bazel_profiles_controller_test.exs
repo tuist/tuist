@@ -4,6 +4,8 @@ defmodule TuistWeb.Webhooks.BazelProfilesControllerTest do
 
   alias Tuist.Bazel.Invocation
   alias Tuist.Bazel.Profile
+  alias Tuist.Bazel.ProfileUpload
+  alias Tuist.Bazel.Workers.ProcessProfileWorker
   alias Tuist.Builds.RecordedSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -42,6 +44,23 @@ defmodule TuistWeb.Webhooks.BazelProfilesControllerTest do
       })
 
     assert conn |> signed_post("/webhooks/bazel-profiles", payload) |> response(202)
+
+    build = %Invocation{
+      project_id: project.id,
+      invocation_id: "profile-test",
+      duration_ms: 100,
+      build_timeline_duration_ms: 100
+    }
+
+    assert ProfileUpload.state(build) == "pending"
+    assert {:ok, %{availability: "processing"}} = RecordedSteps.list(build, %{})
+
+    assert :ok =
+             ProcessProfileWorker.perform(%Oban.Job{
+               args: %{"project_id" => project.id, "invocation_id" => "profile-test"}
+             })
+
+    assert ProfileUpload.state(build) == "processed"
 
     action =
       Map.merge(identity, %{

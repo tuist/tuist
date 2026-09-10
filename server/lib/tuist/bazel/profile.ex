@@ -8,6 +8,8 @@ defmodule Tuist.Bazel.Profile do
   import Ecto.Query
 
   alias Tuist.Bazel.Action
+  alias Tuist.Bazel.ProfileDecoder
+  alias Tuist.Bazel.ProfileSteps
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests.Sanitizer
@@ -24,6 +26,11 @@ defmodule Tuist.Bazel.Profile do
     "Network Down usage (total)" => {:network_bytes_in, 1_000_000 / 8}
   }
 
+  @payload_keys Map.new(
+                  ~w(events total_count duration target_count machine_metrics has_metrics local_navigation logs_available time_origin profile_started_at_ms coverage steps_version event_id title project target primary_output category start_ms duration_ms status offset_ms cpu_usage_cores cpu_usage_percent memory_used_bytes network_bytes_in network_bytes_out action_started_at_ms)a,
+                  &{Atom.to_string(&1), &1}
+                )
+
   @primary_key false
   schema "bazel_profiles" do
     field :project_id, Ch, type: "Int64"
@@ -35,6 +42,10 @@ defmodule Tuist.Bazel.Profile do
   def ingest(project, invocation_id, compressed) do
     with {:ok, profile} <- decode(compressed),
          {:ok, timeline} <- normalize(profile, invocation_id, project.name) do
+      version = Base.encode16(:crypto.hash(:sha256, compressed), case: :lower)
+      ProfileSteps.insert(project, invocation_id, version, timeline)
+      timeline = timeline |> Map.put(:steps_version, version) |> Map.put(:events, [])
+
       IngestRepo.insert_all(__MODULE__, [
         %{
           project_id: project.id,
@@ -64,13 +75,39 @@ defmodule Tuist.Bazel.Profile do
 
     if payload do
       {timeline, nil, ""} =
-        JSON.decode(payload, nil, object_push: fn key, value, acc -> [{String.to_existing_atom(key), value} | acc] end)
+        JSON.decode(payload, nil,
+          object_push: fn key, value, acc ->
+            case @payload_keys[key] do
+              nil -> acc
+              known -> [{known, value} | acc]
+            end
+          end
+        )
+
+      timeline =
+        if timeline[:steps_version],
+          do: Map.put(timeline, :events, ProfileSteps.events(invocation, timeline.steps_version)),
+          else: timeline
 
       timeline
       |> with_metric_intervals()
       |> with_cpu_percentage(invocation.custom_values)
       |> Action.enrich(invocation)
     end
+  end
+
+  def steps_version(%{project_id: nil}), do: nil
+  def steps_version(%{invocation_id: nil}), do: nil
+
+  def steps_version(invocation) do
+    ClickHouseRepo.one(
+      from(p in __MODULE__,
+        where: p.project_id == ^invocation.project_id and p.invocation_id == ^invocation.invocation_id,
+        order_by: [desc: p.inserted_at],
+        limit: 1,
+        select: fragment("JSONExtractString(?, 'steps_version')", p.payload)
+      )
+    )
   end
 
   def decode(compressed) when is_binary(compressed) and byte_size(compressed) <= @max_compressed_bytes do
@@ -82,7 +119,7 @@ defmodule Tuist.Bazel.Profile do
       case inflate(z, compressed, [], 0) do
         {:ok, json} ->
           :ok = :zlib.inflateEnd(z)
-          JSON.decode(json)
+          ProfileDecoder.decode(json)
 
         error ->
           error
@@ -136,7 +173,7 @@ defmodule Tuist.Bazel.Profile do
        local_navigation: true,
        logs_available: false,
        time_origin: "profile_start",
-       profile_started_at_ms: metadata["profile_start_ts"],
+       profile_started_at_ms: epoch(metadata["profile_start_ts"]),
        coverage: "trace_profile"
      })}
   end
@@ -218,6 +255,8 @@ defmodule Tuist.Bazel.Profile do
   end
 
   defp metric(_, samples), do: samples
+  defp epoch(value) when is_integer(value) and value >= 0 and value <= 18_446_744_073_709_551_615, do: value
+  defp epoch(_), do: nil
   defp string(value) when is_binary(value), do: value
   defp string(_), do: ""
 end

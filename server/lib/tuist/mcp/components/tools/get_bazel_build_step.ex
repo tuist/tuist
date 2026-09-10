@@ -5,48 +5,8 @@ defmodule Tuist.MCP.Components.Tools.GetBazelBuildStep do
     title: "Get Bazel Build Step",
     read_only_hint: true,
     authorize: [action: :read, category: :build],
-    schema: %{
-      "type" => "object",
-      "properties" => %{
-        "account_handle" => %{"type" => "string"},
-        "project_handle" => %{"type" => "string"},
-        "invocation_id" => %{"type" => "string", "description" => "Bazel invocation identifier."},
-        "step_id" => %{
-          "type" => "string",
-          "maxLength" => 128,
-          "description" => "Opaque step ID from list_bazel_build_steps."
-        }
-      },
-      "required" => ["account_handle", "project_handle", "invocation_id", "step_id"]
-    },
-    output_schema: %{
-      "type" => "object",
-      "properties" => %{
-        "id" => %{"type" => "string"},
-        "title" => %{"type" => "string"},
-        "project" => %{"type" => "string"},
-        "target" => %{"type" => "string"},
-        "category" => %{"type" => "string"},
-        "status" => %{"type" => "string"},
-        "start_ms" => %{"type" => "number"},
-        "duration_ms" => %{"type" => "number"},
-        "log" => %{"type" => ["string", "null"]},
-        "log_truncated" => %{"type" => "boolean"}
-      },
-      "required" => [
-        "id",
-        "title",
-        "project",
-        "target",
-        "category",
-        "status",
-        "start_ms",
-        "duration_ms",
-        "log",
-        "log_truncated"
-      ],
-      "additionalProperties" => false
-    }
+    schema: Tuist.MCP.Components.Tools.BuildStep.input(:bazel, true),
+    output_schema: Tuist.MCP.Components.Tools.BuildStep.detail(:bazel)
 
   alias Tuist.Bazel
   alias Tuist.Builds.RecordedSteps, as: Steps

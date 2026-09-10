@@ -92,9 +92,14 @@ for step in steps:
     assert step['duration_ms'] == event['dur'] / 1000
 assert any(event.get('name') == 'CPU usage (total)' for event in raw)
 ready(failure)
-failed = get(failure + '/steps?status=failure')['steps']
-assert failed
-assert any('Timeline_compiler_diagnostic' in (get(failure + '/steps/' + step['id'])['log'] or '') for step in failed)
+# Profiles and diagnostics have independent queues; buffered action rows may arrive later.
+for attempt in range(30):
+    failed = get(failure + '/steps?status=failure')['steps']
+    if any('Timeline_compiler_diagnostic' in (get(failure + '/steps/' + step['id'])['log'] or '') for step in failed):
+        break
+    time.sleep(1)
+else:
+    raise AssertionError('The failed action diagnostic was not delivered')
 if os.environ.get('TUIST_TIMELINE_EVIDENCE_FILE'):
     evidence = pathlib.Path(os.environ['TUIST_TIMELINE_EVIDENCE_FILE'])
     evidence.write_text(json.dumps({'success': success, 'failure': failure, 'steps': len(steps),

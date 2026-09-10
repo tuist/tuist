@@ -741,21 +741,19 @@ impl BuildEventService {
                         digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
                     })
                     .collect();
-                delivery
-                    .enqueue_action(BazelAction {
-                        account_handle: account_handle.to_owned(),
-                        project_handle: project_handle.to_owned(),
-                        invocation_id: invocation_id.clone(),
-                        primary_output: id.primary_output.clone(),
-                        started_at_ms: action
-                            .start_time
-                            .as_ref()
-                            .and_then(strict_timestamp_millis)
-                            .unwrap_or_default(),
-                        success: action.success,
-                        logs,
-                    })
-                    .await;
+                delivery.enqueue_action(BazelAction {
+                    account_handle: account_handle.to_owned(),
+                    project_handle: project_handle.to_owned(),
+                    invocation_id: invocation_id.clone(),
+                    primary_output: id.primary_output.clone(),
+                    started_at_ms: action
+                        .start_time
+                        .as_ref()
+                        .and_then(strict_timestamp_millis)
+                        .unwrap_or_default(),
+                    success: action.success,
+                    logs,
+                });
             }
             if let Some(start) = self.invocations.lock().await.get_mut(&key)
                 && let Some(action_span) = action_span(event.id.as_ref(), &action)
@@ -778,7 +776,7 @@ impl BuildEventService {
                     if let Some(profile) =
                         profile_delivery(account_handle, project_handle, &invocation_id, log)
                     {
-                        delivery.enqueue_profile(profile).await;
+                        delivery.enqueue_profile(profile);
                         break;
                     }
                 }

@@ -1816,11 +1816,6 @@ msgstr ""
 msgid "Testing"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:33
-#, elixir-autogen, elixir-format
-msgid "This build has no trace profile. Only its recorded summary is available. Run tuist bazel setup to enable timeline collection for new builds."
-msgstr ""
-
 #: lib/tuist_web/components/build_timeline.ex:42
 #, elixir-autogen, elixir-format
 msgid "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
@@ -1834,4 +1829,9 @@ msgstr ""
 #: lib/tuist_web/components/build_timeline.ex:67
 #, elixir-autogen, elixir-format
 msgid "cores"
+msgstr ""
+
+#: lib/tuist_web/components/build_timeline.ex:33
+#, elixir-autogen, elixir-format
+msgid "The trace profile is not available yet. This timeline shows the recorded build summary; profile delivery and processing may still be in progress."
 msgstr ""
