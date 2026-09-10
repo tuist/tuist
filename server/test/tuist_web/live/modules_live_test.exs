@@ -192,27 +192,24 @@ defmodule TuistWeb.ModulesLiveTest do
 
     assert has_element?(lv, "#widget-misses", "Changed misses")
     assert has_element?(lv, "#widget-misses", "1")
-    assert has_element?(lv, "#widget-misses", "sources, resources, build settings")
+    assert has_element?(lv, "#widget-misses", "files, build settings")
     assert_patched(lv, base <> "?miss-reason=changed")
 
     render_click(lv, "select_miss_reason", %{"type" => "unavailable"})
     render_async(lv, 2000)
     assert has_element?(lv, "#widget-misses", "Unavailable misses")
     assert has_element?(lv, "#widget-misses", "0")
-    assert has_element?(lv, "#widget-misses", "same recorded endpoint")
+    assert has_element?(lv, "#widget-misses", "same cache endpoint")
+    refute has_element?(lv, "#widget-misses-tooltip", "Changed:")
 
     render_click(lv, "select_miss_reason", %{"type" => "cold"})
     render_async(lv, 2000)
 
     assert has_element?(lv, "#widget-misses", "Cold misses")
     assert has_element?(lv, "#widget-misses", "1")
-    assert has_element?(lv, "#widget-misses", "repeated misses for keys that may never have been warmed")
+    assert has_element?(lv, "#widget-misses", "No earlier comparison is available")
 
-    assert has_element?(
-             lv,
-             "#widget-misses",
-             "Older CLI versions may report an earlier build's cache results again from test shards"
-           )
+    assert has_element?(lv, ~s(a[href$="/en/docs/guides/features/cache/module-cache#analytics"]), "Cache analytics guide")
   end
 
   test "pages through the modules table", %{

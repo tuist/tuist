@@ -132,6 +132,61 @@ Cached library `.xcframework`s preserve the metadata needed by generated project
 > When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
 
 
+## Analytics {#analytics}
+
+Open **Module Cache → Modules** in your project's dashboard to find modules with frequent misses. Select the environment you want to improve, such as **CI**, and a date range. The overview shows cache hits, misses, and modules with misses; opening a module shows its history and the reason assigned to each observation.
+
+The **Misses** dropdown selects a count and explanation for one reason. The chart shows the distribution of all four reasons. On a module's page, use the history's **Reason** filter to inspect individual occurrences. Hover over a reason badge, or focus it with the keyboard, for its definition.
+
+### Miss reasons {#miss-reasons}
+
+| Reason | What it means |
+| --- | --- |
+| **Changed** | The module's own compared inputs changed. These include file hashes, build settings, the resolved configuration, and the compiler identifier. A source edit is only one possible cause. |
+| **Upstream** | The module's own compared inputs stayed the same, but its dependency or external-package hash changed. The module's source files can be untouched. |
+| **Cold** | There is no earlier module observation to compare with, or the reported inputs do not explain the miss and there is no qualifying evidence of earlier remote availability. Cold does not prove that the module was never cached. |
+| **Unavailable** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. The **Earlier remote hit** link opens the run used as evidence. |
+
+Unavailable establishes prior remote availability, not the cause of the current miss. Eviction, access problems, or a failed download can all produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
+
+For example:
+
+| Scenario | Classification |
+| --- | --- |
+| A module misses with no earlier observation or qualifying remote hit | Cold |
+| A changes; B depends on A, and C depends on B; all three keys change | A is Changed; B and C are Upstream |
+| The compiler version changes after warming, with sources and settings unchanged | Affected misses are Changed when both observations report the compiler inputs |
+| An exact key was downloaded remotely, then misses after its artifact is evicted | Unavailable, when the earlier hit qualifies as evidence |
+| A key repeatedly misses and was never successfully warmed | It can remain Cold |
+
+Reasons describe observations; they are not permanent labels attached to a key. For example, the first miss after a compiler upgrade can be Changed, while a later miss for that new key can be Cold if it was never observed as available remotely.
+
+### What the comparison can tell you {#analytics-comparison}
+
+Changed and Upstream compare the same module and product on the same branch, within the selected date range and environment. The previous observation may be a hit or a miss. Changing these filters can change the available comparison history.
+
+Unavailable checks the available 30-day history ending at the selected end date. It can use evidence from another branch or from a local run when inspecting CI, because those runs can share the same remote cache. It requires the same project, full nonempty key, and nonempty recorded endpoint. The earlier remote-hit report must have arrived before the current command started; overlapping or later reports do not establish prior availability.
+
+The CLI does not report every input used to construct the final key. Matching inputs in the dashboard therefore do not prove that the full keys match, and do not rule out a hashing or reporting bug. Older observations may also lack configuration/compiler fingerprints. An artifact successfully uploaded and then evicted before any recorded remote hit can still appear Cold: this classification does not currently use successful-upload evidence.
+
+The **Modules** count describes the latest commit on the default branch; hit and miss totals cover the selected date range and environment. Counts represent reported command observations, not unique artifacts or commits. Older CLI versions can report a build's cache results again when test-only shards restore its metadata, inflating counts and often Cold misses. Update the CLI in both the build and consuming test jobs; existing reports are not rewritten.
+
+### Improving the cache hit rate {#improving-cache-hit-rate}
+
+1. **Choose a consistent baseline.** Start with CI and a representative date range. Sort modules by misses, then consider their hit rates, dependents, and build cost. Fixing a frequently missed, expensive dependency can save more time than improving the hit rate of a tiny module. Compare the same environment and similar workloads after making a change.
+2. **Investigate Changed misses.** Open the relevant runs and compare their full keys and reported inputs. Align warming and consuming jobs on the intended Xcode/compiler version, configuration, and target destinations. Warm again after intentional changes. If volatile generated files or environment-dependent settings invalidate otherwise stable modules, investigate those inputs. Keep inputs that affect binary compatibility in the hash.
+3. **Follow Upstream misses to the changed dependency.** Inspect its history to find the direct change. Warming the resulting keys can restore reuse. If a frequently changing implementation invalidates many expensive dependents, consider smaller modules or stable interfaces as described under [Efficiency](#efficiency).
+4. **Check warming coverage for Cold misses.** Verify that warming selects the required modules, uses the consuming job's configuration and environment, and successfully uploads the artifacts. Check the full keys used by the actual CI jobs. If warming and consumption request different keys, inspect the hashing inputs before assuming the cache was evicted. Repeated misses with no earlier successful upload are possible even when the module's sources have not changed.
+5. **Use the evidence for Unavailable misses.** Follow **Earlier remote hit**, confirm the key and endpoint, then inspect the consuming run's cache warnings and the warming job's upload outcome. Check retention or eviction when applicable. Rewarm the required artifacts and verify a subsequent hit. If they still miss, share the two run links and relevant logs with support.
+
+For a hash comparison, run this in each relevant environment, using the configuration you intend to warm and consume:
+
+```bash
+tuist hash cache --configuration Debug --verbose
+```
+
+Compare the module's full hash and component block. Repeating the command on the same unchanged machine should normally produce the same result; compare the actual warming and consuming environments to investigate a mismatch. Neither command needs to hit the cache. See <.localized_link href="/guides/features/projects/hashing#debugging">hashing diagnostics</.localized_link> for further checks.
+
 ## Efficiency {#efficiency}
 
 The level of efficiency that can be achieved with binary caching depends strongly on the graph structure. To achieve the best results, we recommend the following:
