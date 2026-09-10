@@ -2,8 +2,10 @@ defmodule Tuist.BuildsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Ecto.Adapters.ClickHouse
   alias Tuist.Builds
   alias Tuist.Builds.Timeline
+  alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -215,7 +217,7 @@ defmodule Tuist.BuildsTest do
         })
 
       # Then
-      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      build = ClickHouseRepo.preload(build, [:machine_metrics])
       assert length(build.machine_metrics) == 2
       assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
       assert Enum.at(build.machine_metrics, 1).offset_ms == nil
@@ -1709,6 +1711,66 @@ defmodule Tuist.BuildsTest do
   end
 
   describe "get_cas_outputs_by_node_ids/3" do
+    test "sends large lookups in the request body with bounded array parameters" do
+      build_id = UUIDv7.generate()
+      node_ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index, 16), 64, "0")
+      parent = self()
+
+      stub(ClickHouseRepo, :all, fn query -> ClickHouseRepo.all(query, []) end)
+
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        {sql, params} = ClickHouse.to_sql(:all, query)
+        {url_params, _headers, body} = DBConnection.Query.encode(Ch.Query.build(sql, opts), params, opts)
+
+        assert url_params == []
+        assert sql =~ "Array(String)"
+        assert length(params) == 2
+        assert IO.iodata_length(body) < 131_072
+        send(parent, {:queried_node_ids, List.last(params)})
+        []
+      end)
+
+      assert Builds.get_cas_outputs_by_node_ids(build_id, node_ids ++ node_ids) == []
+
+      queried_node_ids =
+        fn ->
+          receive do
+            {:queried_node_ids, ids} -> ids
+          after
+            0 -> nil
+          end
+        end
+        |> Stream.repeatedly()
+        |> Enum.take_while(&(&1 != nil))
+        |> List.flatten()
+
+      assert Enum.sort(queried_node_ids) == Enum.sort(node_ids)
+    end
+
+    test "large lookups preserve build scoping and distinct semantics across batches" do
+      node_ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index, 16), 64, "0")
+      first = hd(node_ids)
+      middle = Enum.at(node_ids, 7500)
+      last = List.last(node_ids)
+      {:ok, build} = RunsFixtures.build_fixture()
+      {:ok, other_build} = RunsFixtures.build_fixture()
+
+      for {node_id, operation} <- [{first, :download}, {first, :upload}, {middle, :download}, {last, :download}] do
+        RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: node_id, operation: operation)
+      end
+
+      RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "unrequested")
+      RunsFixtures.cas_output_fixture(build_run_id: other_build.id, node_id: Enum.at(node_ids, 1))
+
+      for distinct <- [false, true] do
+        outputs = Builds.get_cas_outputs_by_node_ids(build.id, node_ids ++ [first, last], distinct: distinct)
+        expected = if distinct, do: [first, middle, last], else: [first, first, middle, last]
+
+        assert Enum.sort(Enum.map(outputs, & &1.node_id)) == Enum.sort(expected)
+        assert Enum.all?(outputs, &(&1.build_run_id == build.id))
+      end
+    end
+
     test "returns CAS outputs matching the given node_ids" do
       # Given
       {:ok, build} =

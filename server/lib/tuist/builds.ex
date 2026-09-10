@@ -23,6 +23,7 @@ defmodule Tuist.Builds do
 
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
+  @cas_output_node_ids_batch_size 1_000
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -406,10 +407,18 @@ defmodule Tuist.Builds do
   def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
     distinct = Keyword.get(opts, :distinct, false)
 
-    if Enum.empty?(node_ids) do
-      []
-    else
-      query = from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids)
+    # Multipart keeps IDs out of the URL; a single array avoids one form field per ID.
+    # Batch CAS digests to keep each array below ClickHouse's form-field value limit.
+    node_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@cas_output_node_ids_batch_size)
+    |> Enum.flat_map(fn node_ids_chunk ->
+      query =
+        from(c in CASOutput,
+          where:
+            c.build_run_id == ^build_run_id and
+              fragment("? IN (?)", c.node_id, type(^node_ids_chunk, {:array, :string}))
+        )
 
       query =
         if distinct do
@@ -418,8 +427,8 @@ defmodule Tuist.Builds do
           query
         end
 
-      ClickHouseRepo.all(query)
-    end
+      ClickHouseRepo.all(query, multipart: true)
+    end)
   end
 
   def cas_output_metrics(build_run_id) do
