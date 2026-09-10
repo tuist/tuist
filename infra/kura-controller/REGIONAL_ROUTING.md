@@ -32,6 +32,17 @@ runner caches and cloud LoadBalancer regions retain their existing behavior.
 Treat a configured domain as stable once published. Changing or removing it is
 a separate endpoint migration, not a capacity adjustment.
 
+The managed overlays request publication for this initial rollout:
+
+| Environment | Regions |
+| --- | --- |
+| Staging | EU West |
+| Canary | EU West, Canada East |
+| Production | EU West, US East, US West, Asia Pacific Southeast, EU East, US Central |
+
+Additional regions retain legacy routing until their ingress and cache workloads
+are ready and they are added to the managed region list.
+
 The controller prepares two names for each account:
 
 - `acme.eu-west.staging.kura.tuist.dev` for HTTP and gRPC.
@@ -189,3 +200,6 @@ DNS lifecycle, production-shaped policy or higher network capacity. This
 implementation's automated coverage includes primary changes,
 legacy preservation, wildcard TLS gating, DNS suppression, readiness-based
 address withdrawal, and peer SAN/route compatibility.
+
+The managed staging deployment, authenticated traffic checks, failure cases and
+cleanup are recorded in [STAGING_VALIDATION.md](rollout/STAGING_VALIDATION.md).

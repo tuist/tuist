@@ -1,0 +1,63 @@
+{
+  "date": "2026-09-10",
+  "kuraRuntime": "sha-4fbea0289708",
+  "serverAndController": "sha-df547b9af8ed",
+  "results": [
+    {
+      "scenario": "legacy URLs through two ingress addresses",
+      "cases": 8,
+      "requests": 128,
+      "errors": 0
+    },
+    {
+      "scenario": "legacy URLs after cross-machine primary movement",
+      "cases": 4,
+      "requests": 64,
+      "errors": 0
+    },
+    {
+      "scenario": "regional aliases before canonical migration",
+      "cases": 12,
+      "requests": 192,
+      "errors": 0
+    },
+    {
+      "scenario": "legacy and regional URLs after canonical migration",
+      "cases": 12,
+      "requests": 192,
+      "errors": 0
+    },
+    {
+      "scenario": "legacy and canonical URLs through two ingress addresses",
+      "cases": 24,
+      "requests": 384,
+      "errors": 0
+    },
+    {
+      "scenario": "gRPC writes with normal connection recycling",
+      "requests": 4096,
+      "errors": 0
+    },
+    {
+      "scenario": "gRPC reads with normal connection recycling",
+      "requests": 4096,
+      "errors": 0
+    },
+    {
+      "scenario": "HTTP/2 reads with normal connection recycling",
+      "requests": 4096,
+      "errors": 0
+    },
+    {
+      "scenario": "deliberate primary restart during gRPC reads without retries",
+      "requests": 10000,
+      "errors": 259,
+      "firstError": "rpc error: code = Unavailable desc = server is draining"
+    }
+  ],
+  "http1Diagnostic": {
+    "initialUnreproducedProtocolResponses": 1,
+    "followUpChecks": 128,
+    "followUpErrors": 0
+  }
+}

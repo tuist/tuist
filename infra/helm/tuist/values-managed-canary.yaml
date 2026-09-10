@@ -421,6 +421,21 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  # The deployment workflow prepares DNS/TLS/routes and gates publication.
+  # Regions without ready ingress and cache workloads retain legacy routing.
+  regionalRouting:
+    publishEndpoints: true
+    regions:
+      - region: eu-west
+        domain: eu-west.canary.kura.tuist.dev
+        ingressClass: kura-eu-west
+        ingressNamespace: platform
+        ingressDaemonSet: platform-kura-eu-west-ingress-nginx-controller
+      - region: ca-east
+        domain: ca-east.canary.kura.tuist.dev
+        ingressClass: kura-ca-east
+        ingressNamespace: platform
+        ingressDaemonSet: platform-kura-ca-east-ingress-nginx-controller
   privateGateway:
     enabled: true
   resources:
