@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.Plugin
-import org.gradle.api.model.ObjectFactory
 import org.gradle.api.Project
 import org.gradle.internal.build.event.BuildEventListenerRegistryInternal
 import org.gradle.api.logging.Logging
@@ -26,6 +25,7 @@ import org.gradle.internal.operations.OperationProgressEvent
 import org.gradle.internal.operations.OperationStartEvent
 import org.gradle.operations.configuration.ConfigurationCacheCheckFingerprintBuildOperationType
 import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStepBuildOperationType
+import org.gradle.internal.time.Time
 import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -39,6 +39,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
+import kotlin.math.roundToLong
 
 // --- Data classes ---
 
@@ -125,6 +126,7 @@ data class BuildReportRequest(
     @SerializedName("configuration_cache") val configurationCache: ConfigurationCacheReport? = null,
     @SerializedName("configuration_operations") val configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
     @SerializedName("artifact_transforms") val artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
+    @SerializedName("started_at") val startedAt: String? = null,
 )
 
 data class BuildReportResponse(val id: String)
@@ -137,6 +139,7 @@ abstract class TuistBuildInsightsService :
     AutoCloseable {
 
     interface Params : BuildServiceParameters {
+        val machineMetrics: Property<TuistMachineMetricsService>
         val url: Property<String>
         val project: Property<String>
         val useEnvironmentProxy: Property<Boolean>
@@ -155,12 +158,7 @@ abstract class TuistBuildInsightsService :
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
 
-    @get:Inject
-    abstract val objects: ObjectFactory
-
-    private val machineMetricsCollector = MachineMetricsCollector(
-        inputTrackingState = objects.newInstance(MetricsInputTracking::class.java).state
-    ).also { it.start() }
+    private val machineMetricsService = parameters.machineMetrics.get().also { it.attachReporter() }
 
     internal var gitInfoProvider: GitInfoProvider? = null
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
@@ -171,7 +169,7 @@ abstract class TuistBuildInsightsService :
     private val executionTelemetry = BuildExecutionTelemetry()
     private val configurationOperations = ConcurrentLinkedQueue<ConfigurationOperationReportEntry>()
     private val artifactTransforms = ConcurrentLinkedQueue<ArtifactTransformReportEntry>()
-    private val buildStartTime = System.currentTimeMillis()
+    private val buildStartTime = Time.currentTimeMillis()
     private val configurationCacheInvalidationReasons = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var configurationCacheStatus: String? = null
     @Volatile private var configurationCacheEntrySize: Long? = null
@@ -278,7 +276,7 @@ abstract class TuistBuildInsightsService :
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 
     override fun close() {
-        val machineMetrics = downsample(machineMetricsCollector.stop(), maxCount = 3600)
+        val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
         val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
 
         if (shouldUploadInBackground) {
@@ -321,14 +319,26 @@ abstract class TuistBuildInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val totalDurationMs = ((executionTelemetry.lastTaskAt ?: System.currentTimeMillis()) -
-            (executionTelemetry.firstEventAt ?: buildStartTime)).coerceAtLeast(0)
+        val tasks = executionTelemetry.tasks.toList()
+        val configuration = configurationOperations.toList()
+        val transforms = artifactTransforms.toList()
+        val reportStartedAt = recordingStartedAt(
+            tasks.map { it.startedAt } + configuration.map { it.startedAt } + transforms.map { it.startedAt },
+            machineMetrics,
+            buildStartTime
+        )
+        val reportFinishedAt = maxOf(
+            executionTelemetry.lastTaskAt ?: Time.currentTimeMillis(),
+            machineMetrics.lastOrNull()?.let { (it.timestamp * 1000).roundToLong() } ?: reportStartedAt
+        )
+        val totalDurationMs = (reportFinishedAt - reportStartedAt).coerceAtLeast(0)
 
         val report = buildReport(
             id = buildId,
-            taskOutcomes = executionTelemetry.tasks.toList(),
+            taskOutcomes = tasks,
             buildFailed = false,
             totalDurationMs = totalDurationMs,
+            startedAt = formatTimestamp(reportStartedAt),
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
             requestedTasks = executionTelemetry.requestedTasks.ifEmpty { parameters.requestedTasks.getOrElse(emptyList()) }.toList(),
@@ -340,8 +350,8 @@ abstract class TuistBuildInsightsService :
             ),
             machineMetrics = machineMetrics,
             configurationCache = configurationCacheReport(),
-            configurationOperations = configurationOperations.toList(),
-            artifactTransforms = artifactTransforms.toList(),
+            configurationOperations = configuration,
+            artifactTransforms = transforms,
         )
 
         val response = httpClient.execute { config ->
@@ -396,6 +406,13 @@ abstract class TuistBuildInsightsService :
         )
 }
 
+internal fun recordingStartedAt(
+    operationTimestamps: List<String?>,
+    machineMetrics: List<MachineMetricSample>,
+    fallback: Long
+): Long = (operationTimestamps.mapNotNull { it?.let { Instant.parse(it).toEpochMilli() } } +
+    machineMetrics.map { (it.timestamp * 1000).roundToLong() }).minOrNull() ?: fallback
+
 internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
     if (samples.size <= maxCount || maxCount < 2) return samples
     val step = (samples.size - 1).toDouble() / (maxCount - 1).toDouble()
@@ -418,7 +435,8 @@ internal fun buildReport(
     machineMetrics: List<MachineMetricSample>? = null,
     configurationCache: ConfigurationCacheReport? = null,
     configurationOperations: List<ConfigurationOperationReportEntry> = emptyList(),
-    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList()
+    artifactTransforms: List<ArtifactTransformReportEntry> = emptyList(),
+    startedAt: String? = null
 ): BuildReportRequest {
     val status = when {
         buildFailed -> "failure"
@@ -429,6 +447,7 @@ internal fun buildReport(
     return BuildReportRequest(
         id = id,
         durationMs = totalDurationMs,
+        startedAt = startedAt,
         status = status,
         gradleVersion = gradleVersion,
         javaVersion = System.getProperty("java.version"),
@@ -476,6 +495,10 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
+            parameters.machineMetrics.set(project.gradle.sharedServices.registerIfAbsent(
+                "tuistMachineMetrics",
+                TuistMachineMetricsService::class.java
+            ) {})
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)

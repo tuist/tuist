@@ -103,14 +103,19 @@ ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
-kura-eu-central-ingress-nginx:
+kura-eu-west-ingress-nginx:
   enabled: false
   controller:
     replicaCount: 2
-    electionID: kura-eu-central-ingress-nginx-leader
-    ingressClass: kura-eu-central
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
     ingressClassResource:
-      name: kura-eu-central
+      name: kura-eu-west
+      # The region was renamed from eu-central. This value is the controller's
+      # identity on an IngressClass, and Kubernetes makes that field immutable,
+      # so it keeps the string the kura-eu-central class was created with:
+      # changing it would make the upgrade patch an existing class and fail.
+      # It is an opaque identifier that nothing displays.
       controllerValue: k8s.io/kura-eu-central-ingress-nginx
     publishService:
       enabled: true
@@ -126,7 +131,7 @@ kura-eu-central-ingress-nginx:
     # the same validator for the Kura Ingress annotations.
     admissionWebhooks: &kuraGatewayAdmissionWebhooks
       enabled: false
-    # Anchored so all three regional Kura gateways share ONE nginx config
+    # Anchored so every regional Kura gateway shares ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
     # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
@@ -187,7 +192,7 @@ kura-ca-east-ingress-nginx:
       annotations: {}
     admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
-    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # eu-west block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
     config: *kuraGatewayNginxConfig
     metrics:
@@ -277,6 +282,57 @@ kura-sa-west-ingress-nginx:
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
+
+kura-eu-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-east-ingress-nginx-leader
+    ingressClass: kura-eu-east
+    ingressClassResource:
+      name: kura-eu-east
+      controllerValue: k8s.io/kura-eu-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-central-ingress-nginx-leader
+    ingressClass: kura-us-central
+    ingressClassResource:
+      name: kura-us-central
+      controllerValue: k8s.io/kura-us-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Lets the regional Kura gateways above reach Kura pods on the other boxes of a
+# multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
+# host-network; see templates/kura-gateway-network-policy.yaml for why the
+# per-instance NetworkPolicy cannot express this on its own.
+kuraGatewayNetworkPolicy:
+  enabled: false
+  # Namespace kura-controller creates KuraInstance workloads in
+  # (`kuraController.namespace` in the tuist chart).
+  namespace: kura
+  port: 4000
 
 external-dns:
   enabled: true
@@ -529,3 +585,42 @@ clusterIssuer:
   enabled: true
   name: letsencrypt-cloudflare
   server: https://acme-v02.api.letsencrypt.org/directory
+
+# Same regional gateway as managed Kura, reached directly over the runner PN.
+# The per-account ingress restricts both HTTP and gRPC to clientCIDRs. Never
+# trust forwarded client IPs here: there is no trusted proxy in front of nginx.
+kura-runners-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    electionID: kura-runners-ingress-nginx-leader
+    ingressClass: kura-runners
+    ingressClassResource:
+      name: kura-runners
+      controllerValue: k8s.io/kura-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true

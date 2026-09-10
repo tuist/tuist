@@ -2255,7 +2255,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       build.(~N[2024-04-03 10:00:00], :miss, "s2", "d1")
       # Only a dependency changed.
       build.(~N[2024-04-04 10:00:00], :miss, "s2", "d2")
-      # Nothing changed but it still missed, so the entry was gone.
+      # Identical inputs missed again, without proof that this key was ever available.
       build.(~N[2024-04-05 10:00:00], :miss, "s2", "d2")
 
       page = Analytics.module_build_history(project_id: project.id, name: "Core")
@@ -2817,6 +2817,22 @@ defmodule Tuist.Builds.AnalyticsTest do
       # rather than being reported empty.
       assert summary.product == "framework"
       assert summary.blast_radius == 1
+    end
+
+    test "module_summary reports the same fields whether or not the module has a row", %{
+      project: project,
+      opts: opts
+    } do
+      module_cache_build(project, ~N[2024-04-01 10:00:00], [{"Core", :remote, "c1", []}, {"App", :miss, "a1", []}])
+      module_cache_build(project, ~N[2024-04-02 10:00:00], [{"Core", :local, "c1", []}, {"App", :miss, "a2", []}])
+
+      opts = Keyword.put(opts, :project_id, project.id)
+      reused_only = Analytics.module_summary(Keyword.put(opts, :name, "Core"))
+      invalidated = Analytics.module_summary(Keyword.put(opts, :name, "App"))
+
+      # The zeroed row stands in for a real one, so a caller reading a field off
+      # a healthy module must not find it missing.
+      assert Map.keys(reused_only) == Map.keys(invalidated)
     end
 
     test "module_summary returns nil for a module no build in the window carries", %{project: project, opts: opts} do

@@ -63,6 +63,7 @@ var tuistDependencies: [Target.Dependency] = [
     swiftToolsSupportDependency,
 ]
 var tuistBazelCommandDependencies: [Target.Dependency] = [
+    commandDependency,
     pathDependency,
     argumentParserDependency,
     fileSystemDependency,
@@ -1848,10 +1849,19 @@ let package = Package(
     products: products,
     dependencies: [
         .package(id: "apple.swift-argument-parser", from: "1.5.0"),
-        .package(id: "apple.swift-log", from: "1.5.3"),
+        // Capped below 1.14 because `apple.swift-log 1.15` introduced a
+        // second overload of `Logger`'s level-specific helpers (with a
+        // new `error:` parameter). With both signatures accepting a
+        // `Logger.Message` positional argument and everything else
+        // defaulted, plain call sites like `logger.notice("...")` are
+        // ambiguous, and there are ~50 such call sites across the CLI.
+        // Lifting the cap wants a follow-up PR that migrates every
+        // affected call site rather than getting bundled into a
+        // Rosalind/Noora bump.
+        .package(id: "apple.swift-log", "1.5.3" ..< "1.14.0"),
         .package(id: "swiftlang.swift-tools-support-core", from: "0.6.1"),
         .package(id: "flight-school.AnyCodable", from: "0.6.7"),
-        .package(id: "tuist.ZIPFoundation", from: "0.9.19"),
+        .package(id: "tuist.ZIPFoundation", from: "0.9.22"),
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
@@ -1889,7 +1899,7 @@ let package = Package(
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.96")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.98")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

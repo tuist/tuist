@@ -39,7 +39,7 @@ remaining leg.
 That layout is not cosmetic. `tuist.kuraVolumeQuotaProgram` leaves every cache
 volume unbounded unless `/data` is a separate XFS filesystem mounted with
 project quotas, and the self-join refuses a box that cannot enforce. An
-unbounded `/data` is what caused the 2026-07-16 eu-central outage.
+unbounded `/data` is what caused the 2026-07-16 eu-west outage.
 
 **Consequence for this kind:** release-then-reinstall returns a box in a state
 the cluster will refuse to re-adopt. A `VultrMachine` therefore needs a

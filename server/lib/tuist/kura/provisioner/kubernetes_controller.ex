@@ -13,6 +13,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
@@ -21,8 +22,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
+  # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
+  @peer_roles_timeout_ms 3_000
   @egress_bandwidth_annotation "kubernetes.io/egress-bandwidth"
-  @manifest_revision "2026-08-19-ephemeral-storage-request-v1"
+  # The public host, ingress class and region label are not in the suffixes
+  # below, so a change to any of them moves the base.
+  @manifest_revision "2026-09-09-eu-west-region-rename-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
@@ -147,36 +152,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc """
-  The node-published URL a runner off the pod network dials:
-  `http://<node PN address>:<NodePort>`, from the KuraInstance status
-  the kura-controller maintains (node label + allocated Service port).
-  `{:error, :node_port_endpoint_not_ready}` until the whole chain —
-  Service allocated, primary pod placed, node labeled — is observed;
-  callers treat it like an unready public endpoint and retry on the
-  next reconcile tick.
+  The observed endpoint for a runner outside the pod network. Private gateways
+  return HTTPS only after the controller observes DNS, TLS, gateway and primary
+  readiness for the current spec. The observation timestamp is preserved so
+  dispatch uses the same freshness clock rather than starting a second window.
   """
   @impl true
-  def external_endpoint(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"nodeAddress" => address} = status}} when is_binary(address) and address != "" ->
-        # nodePortHTTP is the pre-rename name of nodePortCache, read as a
-        # fallback while controllers that publish it can still be running;
-        # drop it once the fleet publishes nodePortCache everywhere (tracked in #11654).
-        port = status["nodePortCache"] || status["nodePortHTTP"]
+  def external_endpoint(name, %Regions{provisioner_config: %{data_plane: :private_gateway}} = region) do
+    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region) do
+      status = instance["status"] || %{}
+      generation = get_in(instance, ["metadata", "generation"])
+      host = get_in(instance, ["spec", "privateHost"])
 
-        if is_integer(port) and port > 0 do
-          {:ok, "http://#{address}:#{port}"}
-        else
-          {:error, :node_port_endpoint_not_ready}
-        end
-
-      {:ok, _} ->
-        {:error, :node_port_endpoint_not_ready}
-
-      {:error, reason} ->
-        {:error, reason}
+      with true <- is_binary(host) and host != "",
+           true <- is_integer(generation) and status["endpointObservedGeneration"] == generation,
+           true <- status["privateURL"] == "https://#{host}",
+           timestamp when is_binary(timestamp) <- status["endpointLastCheckedAt"],
+           {:ok, observed_at, _} <- DateTime.from_iso8601(timestamp),
+           age = DateTime.diff(DateTime.utc_now(), observed_at),
+           true <- age >= 0 and age < Regions.private_endpoint_staleness_seconds() do
+        {:ok, %{url: status["privateURL"], observed_at: DateTime.truncate(observed_at, :second)}}
+      else
+        _ -> {:error, :private_endpoint_not_ready}
+      end
     end
   end
+
+  def external_endpoint(_name, %Regions{}), do: {:error, :private_endpoint_not_ready}
 
   @impl true
   def caught_up?(name, %Regions{} = region) do
@@ -254,6 +256,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       _ -> nil
     end
   end
+
+  @doc """
+  The replication roles the kura-controller publishes for the instance's
+  pods (`status.peerRoles`): `[%{url, gateway, primary}]`, `url` being the
+  pod's internal peer URL exactly as the controller renders its
+  `KURA_NODE_URL`. `{:ok, []}` until the controller has published any (an
+  older controller, or no pod placed yet).
+
+  Bounded explicitly: this is a cross-cluster read the reconciler makes for
+  every mesh server in a tick, and Req's defaults (15 s receive timeout plus
+  transient-GET retries) would let one unreachable regional apiserver hold
+  the whole batch. Roles that arrive a tick late cost nothing — the nodes
+  fall back to their local rule — so failing fast and retrying next tick is
+  strictly better than waiting.
+  """
+  @impl true
+  def peer_roles(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region, timeout: @peer_roles_timeout_ms) do
+      {:ok, %{"status" => %{"peerRoles" => roles}}} when is_list(roles) ->
+        {:ok, Enum.flat_map(roles, &parse_peer_role/1)}
+
+      {:ok, _} ->
+        {:ok, []}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # An entry without a URL names nothing a node could match a role to, so it
+  # is dropped rather than published as a role for an empty address.
+  defp parse_peer_role(%{"nodeURL" => url} = role) when is_binary(url) and url != "" do
+    [%{url: url, gateway: role["gateway"] == true, primary: role["primary"] == true}]
+  end
+
+  defp parse_peer_role(_role), do: []
 
   @impl true
   def current_manifest_revision(name, %Regions{} = region) do
@@ -347,6 +385,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
@@ -358,7 +397,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPeerHostNetwork" => mesh_peer_host_network?(region),
           "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
-          "exposeNodePort" => Regions.node_port_data_plane?(region),
+          "exposeNodePort" => region.provisioner_config[:expose_node_port],
           "clientCIDRs" => client_cidrs(region),
           # The account's effective pair, not the region's. The controller
           # derives the shaper's tuist.dev/egress-class from these same two
@@ -388,15 +427,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp public_host(_handle, _region), do: nil
 
-  # The customer gateway is host-network exactly when the regional gateway is:
-  # on bare metal there is no cloud LB, so the customer plane is served by the
-  # host-network gateway DaemonSet on the box NIC. Tells the controller to
-  # publish the account's public host via a per-account DNSEndpoint targeting the
-  # box its pods run on, so each account resolves to its own box across a
-  # multi-box region. Skipped on private (runner-cache) regions, which have no
-  # public host to advertise.
+  defp private_host(handle, %Regions{provisioner_config: %{private_host_template: template} = config})
+       when is_binary(template), do: interpolate_host(template, dns_handle(handle), config)
+
+  defp private_host(_handle, _region), do: nil
+
+  # Host-network gateways publish per-account DNS directly. Private gateways
+  # use the node's PN address; public gateways use its public InternalIP.
   defp public_host_network?(region) do
-    gateway_host_network?(region) and not Regions.private?(region)
+    (gateway_host_network?(region) and not Regions.private?(region)) or
+      region.provisioner_config[:data_plane] == :private_gateway
   end
 
   defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
@@ -415,17 +455,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp peer_tls_secret_name(_region), do: nil
 
-  defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
-  defp mesh_enabled?(_region), do: false
+  defp mesh_enabled?(region), do: Regions.mesh?(region)
 
-  # The dynamic peer view (KURA_MESH_PEERS_SYNC, see mesh_peers_sync_env/2)
-  # only ever carries self-hosted peers, so it is meaningful exactly for the
-  # accounts that can enroll one. That capability is the `self_hosted_cache`
-  # entitlement — the same predicate `SelfHostedClients.verify/2` authorizes
-  # enrollment with — so gating the sync on it can never diverge from who may
-  # actually join a peer. An account that cannot self-host has a fully static
-  # roster (its managed peers, baked into the manifest), so it has nothing
-  # dynamic to under-replicate to and must not arm Kura's peer-view boot gate.
+  # The self-hosted peers injected into an account's managed pods are gated
+  # on the `self_hosted_cache` entitlement — the same predicate
+  # `SelfHostedClients.verify/2` authorizes enrollment with — so the roster can
+  # never diverge from who may actually join a peer. The dynamic peer view
+  # itself (KURA_MESH_PEERS_SYNC, see mesh_peers_sync_env/1) is no longer
+  # gated on it: beside the self-hosted peers it now carries the replication
+  # roles, which every managed pod of a mesh region needs.
+  #
+  # The account's replication-pull flag rides along in the same map: it is
+  # another per-account input both the manifest and its revision derive from,
+  # and resolving it here keeps the two from ever reading a different answer.
   defp manifest_entitlements(account, %Regions{} = region) do
     configured_egress_mbps = configured_egress_guaranteed_mbps(region)
 
@@ -463,19 +505,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       allowed_features: allowed_features,
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory,
-      cpu_ceiling_milli: cpu_ceiling_milli
+      cpu_ceiling_milli: cpu_ceiling_milli,
+      replication_pull: mesh_enabled?(region) and FeatureFlags.kura_replication_pull_enabled?(account)
     }
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
   defp maybe_request_entitlement(features, false, _feature), do: features
 
-  defp mesh_peers_sync_enabled?(%Regions{} = region, entitlements) do
+  # Every mesh instance consumes the dynamic peer view: it carries the
+  # replication roles (`peer_roles`, kura/docs/replication-design.md §2.2)
+  # beside the self-hosted peers, and a managed pod needs the roles to know
+  # who it pulls from whether or not its account can ever enroll a self-hosted
+  # peer. Outside a mesh region there is no peer to have a role and the view
+  # would only arm Kura's peer-view boot gate for nothing.
+  defp mesh_peers_sync_enabled?(%Regions{} = region), do: mesh_enabled?(region)
+
+  defp self_hosted_peers_entitled?(%Regions{} = region, entitlements) do
     mesh_enabled?(region) and MapSet.member?(entitlements.allowed_features, :self_hosted_cache)
   end
 
   defp self_hosted_peers(account, %Regions{} = region, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements) do
+    if self_hosted_peers_entitled?(region, entitlements) do
       Mesh.self_hosted_peer_urls(account)
     else
       []
@@ -483,7 +534,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp entitled_self_hosted_peers(%Regions{} = region, peer_urls, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements), do: peer_urls, else: []
+    if self_hosted_peers_entitled?(region, entitlements), do: peer_urls, else: []
   end
 
   # The desired revision the reconciler compares against the live CR's
@@ -492,12 +543,32 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp manifest_revision_string(%Regions{} = region, claim, peer_urls, entitlements, egress) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
-      mesh_peers_sync_revision_suffix(region, entitlements) <>
+      replication_pull_revision_suffix(entitlements) <>
       backfill_revision_suffix(entitlements) <>
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress)
+      egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
+  end
+
+  # Reapply existing private instances when replicas or their entrance changes.
+  defp private_endpoint_revision_suffix(region) do
+    if Regions.private?(region) do
+      config = region.provisioner_config
+
+      inputs =
+        [
+          "host=#{config[:private_host_template]}",
+          "class=#{config[:ingress_class_name]}",
+          "plane=#{config[:data_plane]}",
+          "node-port=#{config[:expose_node_port]}"
+        ] ++ Enum.map(config[:client_cidrs] || [], &"cidr=#{&1}")
+
+      digest = revision_digest(inputs)
+      "+replicas#{replicas(region)}+endpoint#{digest}"
+    else
+      ""
+    end
   end
 
   # Keyed on the pair the manifest renders rather than on the override alone: the
@@ -567,35 +638,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # peer changes the desired revision and the reconciler re-applies the manifest.
   defp peers_revision_suffix([]), do: ""
 
-  defp peers_revision_suffix(peer_urls) when is_list(peer_urls) do
-    digest =
-      peer_urls
-      |> Enum.sort()
-      |> Enum.join(",")
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, 12)
+  defp peers_revision_suffix(peer_urls) when is_list(peer_urls), do: "+peers-" <> revision_digest(peer_urls)
 
-    "+peers-" <> digest
+  defp revision_digest(values) do
+    values
+    |> Enum.sort()
+    |> Enum.join(",")
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 12)
   end
 
-  # Whether KURA_MESH_PEERS_SYNC is set has to be part of the revision, or a
-  # plan change that flips the preloaded entitlement would alter the desired
-  # env without altering the revision, and the reconciler (which converges on
-  # the revision alone) would never re-apply — an account upgraded to a
-  # self-hosting plan would keep serving without the peer-view gate armed, the
-  # exact silent under-replication the gate exists to prevent. The marker fires
-  # only for a mesh region whose account is not entitled: that keeps both the
-  # enabled state and every non-mesh region byte-identical to today's revision,
-  # so nothing that already runs with the right env is rolled — only the
-  # mesh-region instances that should shed the variable change revision.
-  defp mesh_peers_sync_revision_suffix(region, entitlements) do
-    if mesh_enabled?(region) and not mesh_peers_sync_enabled?(region, entitlements) do
-      "+nosync"
-    else
-      ""
-    end
-  end
+  # The flip has to move the revision: the reconciler converges on the
+  # revision alone, so a flag that changed the rendered env without moving it
+  # would sit unapplied until some unrelated input happened to (the
+  # KURA_MESH_PEERS_SYNC lesson below). Suffixed only when on, so every account
+  # the flip has not reached keeps a byte-identical revision and nothing rolls
+  # for it; reverting the flag crosses the same boundary back.
+  defp replication_pull_revision_suffix(%{replication_pull: true}), do: "+pull"
+  defp replication_pull_revision_suffix(_entitlements), do: ""
 
   # Unconditional since Release C, and deliberately kept rather than deleted:
   # dropping the suffix would move every already-gated account's revision and
@@ -686,7 +747,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       ) ++
       cas_capacity_env(region, claim) ++
       staging_env(region, claim) ++
-      mesh_peers_sync_env(region, entitlements) ++
+      mesh_peers_sync_env(region) ++
+      replication_pull_env(entitlements) ++
       backfill_env(entitlements) ++
       node_location_env(region) ++
       telemetry_env(region)
@@ -825,22 +887,35 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp parse_storage_quantity(value), do: Regions.parse_storage_quantity(value)
 
-  # Managed pods of self-hosting-capable accounts fetch the account's
-  # self-hosted peer list from the control plane at boot and on cadence, so a
-  # self-hosted peer joining or leaving propagates without rolling the fleet.
-  # The variable also arms Kura's peer-view boot gate, so it is set only for
-  # accounts that can have such peers; folding
-  # the flag into the manifest revision (mesh_peers_sync_revision_suffix/2)
-  # keeps a plan change from silently leaving a running instance ungated. Once
-  # the whole fleet runs an image that fetches, the peers digest can be dropped
-  # from the manifest revision.
-  defp mesh_peers_sync_env(region, entitlements) do
-    if mesh_peers_sync_enabled?(region, entitlements) do
+  # Managed pods of a mesh region fetch the account's peer view from the
+  # control plane at boot and on cadence: the self-hosted peer list, so a peer
+  # joining or leaving propagates without rolling the fleet, and the
+  # replication roles beside it. The variable also arms Kura's peer-view boot
+  # gate. It used to be set only for accounts entitled to self-host (the view
+  # carried nothing else then), with a `+nosync` revision marker for the
+  # mesh-region instances that shed it, so that a plan change could not leave
+  # a running instance ungated. Now that every mesh instance carries the
+  # variable it is a function of the region alone and needs no marker; the
+  # instances that used to carry `+nosync` cross a revision boundary exactly
+  # once, onto the view, and the rest stay byte-identical. Once the whole
+  # fleet runs an image that fetches, the peers digest can be dropped from the
+  # manifest revision.
+  defp mesh_peers_sync_env(region) do
+    if mesh_peers_sync_enabled?(region) do
       [env_var("KURA_MESH_PEERS_SYNC", "true")]
     else
       []
     end
   end
+
+  # The account's pull flag, rendered into the spec so a node boots into the
+  # right mode rather than waiting for its first peer-view fetch to tell it.
+  # Not a CRD field on purpose: a field the deployed CRD schema does not
+  # declare fails every rollout bump until the CRD is upgraded, whereas an env
+  # entry rides in `extraEnv` on any controller. Must stay paired with
+  # replication_pull_revision_suffix/1.
+  defp replication_pull_env(%{replication_pull: true}), do: [env_var("KURA_REPLICATION_PULL", "true")]
+  defp replication_pull_env(_entitlements), do: []
 
   # Release C ignores KURA_BACKFILL_ENABLED — backfill is the only catch-up
   # path there — but the variable is still rendered, and unconditionally, so
@@ -1033,8 +1108,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 
-  defp client_get_kura_instance(namespace, name, region) do
-    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
+  defp client_get_kura_instance(namespace, name, region, opts \\ []) do
+    Client.get_kura_instance(namespace, name, Keyword.merge(kubernetes_client_opts(region), opts))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do

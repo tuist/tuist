@@ -362,17 +362,41 @@ defmodule Tuist.Kura.Placement do
     totals = totals_in(runs, window)
     total = totals |> Map.values() |> Enum.sum()
 
-    # An account with nothing attributed anywhere is not an account whose
-    # regions are misplaced; it is one nobody could locate, or one that has
-    # gone quiet everywhere. Reading that as "this region is unused" would
-    # retire every secondary in the fleet on the strength of no evidence at
-    # all, which is exactly what the rollout looks like before origins are
-    # being attributed.
-    if total == 0 do
-      nil
-    else
-      retire_candidate(context, plan_policy, rung, totals, total, runs, window)
+    cond do
+      # An account with nothing attributed anywhere is not an account whose
+      # regions are misplaced; it is one nobody could locate, or one that has
+      # gone quiet everywhere. Reading that as "this region is unused" would
+      # retire every secondary in the fleet on the strength of no evidence at
+      # all, which is exactly what the rollout looks like before origins are
+      # being attributed.
+      total == 0 -> nil
+      not history_covers_window?(context, rung.window_days) -> nil
+      true -> retire_candidate(context, plan_policy, rung, totals, total, runs, window)
     end
+  end
+
+  # Retirement is the only rung that reads an absence, so it is the only one
+  # partial history makes *more* likely to fire. The others need runs to clear
+  # a floor and a short history simply withholds them; this one needs runs to
+  # be missing, and a window nobody was watching supplies that for every region
+  # at once. A floor of a whole window's runs measured against a tenth of a
+  # window is a floor ten times too generous, which turns a real second office
+  # into one that looks abandoned.
+  #
+  # `held_long_enough?` does not cover this. It asks how long the account has
+  # held the region, not how much of that time anyone was recording where its
+  # traffic came from, and attribution that starts after the region did
+  # satisfies the first while failing the second.
+  #
+  # Permanent rather than a rollout guard: an account onboarded last week has a
+  # week of history whatever the fleet's attribution has been doing for months,
+  # and its regions must not be judged on a quarter it was not present for.
+  defp history_covers_window?(%{rollups: []}, _window_days), do: false
+
+  defp history_covers_window?(context, window_days) do
+    earliest = context.rollups |> Enum.map(& &1.date) |> Enum.min(Date)
+
+    Date.diff(context.today, earliest) >= window_days - 1
   end
 
   defp retire_candidate(context, plan_policy, rung, totals, total, runs, window) do

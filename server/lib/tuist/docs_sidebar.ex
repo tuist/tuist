@@ -208,7 +208,7 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
               %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"},
-              %Item{label: "Bazel cache and invocations", slug: "/en/guides/features/cache/bazel-cache"}
+              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache"}
             ]
           },
           %Item{
@@ -217,7 +217,8 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode"},
               %Item{label: "Generated projects", slug: "/en/guides/features/build-insights/generated-projects"},
-              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel"}
             ]
           }
         ]
@@ -232,7 +233,8 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/test-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel"}
             ]
           },
           %Item{
@@ -250,6 +252,10 @@ defmodule Tuist.Docs.Sidebar do
               %Item{
                 label: "Gradle",
                 slug: "/en/guides/features/test-insights/flaky-tests/gradle"
+              },
+              %Item{
+                label: "Bazel",
+                slug: "/en/guides/features/test-insights/flaky-tests/bazel"
               }
             ]
           },

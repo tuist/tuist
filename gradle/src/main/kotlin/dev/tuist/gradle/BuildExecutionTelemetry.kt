@@ -50,13 +50,10 @@ internal class BuildExecutionTelemetry {
     private val pending = mutableMapOf<Long, CacheWork>()
     val tasks = mutableListOf<TaskOutcomeData>()
     val requestedTasks = linkedSetOf<String>()
-    var firstEventAt: Long? = null
-        private set
     var lastTaskAt: Long? = null
         private set
 
     fun finished(operation: BuildOperationDescriptor, event: OperationFinishEvent) {
-        firstEventAt = minOf(firstEventAt ?: event.startTime, event.startTime)
         val duration = (event.endTime - event.startTime).coerceAtLeast(0)
         val details = operation.details
         val result = event.result

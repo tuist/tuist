@@ -56,6 +56,7 @@ mise run dev
 - `mise run dev`
 - `mix phx.server`
 - `iex -S mix phx.server`
+- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` - Render the real error pages (`TuistWeb.ErrorHTML`, e.g. the marketing 404) instead of Plug.Debugger's stack-trace page. `debug_errors` is compiled into `TuistWeb.Endpoint`, so when flipping it run `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` first (or `mix compile --force`)
 
 **Testing**
 - `mix test`
@@ -79,6 +80,15 @@ mise run dev
 **Database Utilities**
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
+
+## Marketing Redesign Rollout
+
+The marketing site redesign launches as a whole behind a single FunWithFlags boolean (`:new_marketing`), decided by `TuistWeb.Marketing.Design`. Anonymous traffic follows the global flag; authenticated users can preview the redesign before the flip by enabling the flag for their user as a FunWithFlags actor (their responses are marked `private, no-store` so shared caches never store a previewed variant). Rules while the rollout is in progress:
+
+- Redesigned page templates live in `new/` directories next to the legacy ones (`marketing_html/new/home.html.heex`, `marketing_layout_components/new/navbar.html.heex`), embedded with `embed_templates(..., suffix: "_new")` so the function names stay `home_new/1`, `navbar_new/1`, etc.; the controller action picks the template via `Design.new?(conn)` and assigns `:new_design` so the root layout links `bundle-new.css` (built from `assets/marketing/marketing_new.css`) instead of `bundle.css`.
+- Old and new designs restyle the same selectors, so their CSS must stay in separate bundles: legacy page styles in `marketing.css` imports, redesigned page styles under `assets/marketing/css/new/` imported from `marketing_new.css`. Never import a page's old and new CSS into the same bundle.
+- JS hooks, tokens, and components are shared between both designs — additions are fine, but do not rewrite shared files in place if the change would alter how legacy pages render.
+- Once the flag has been on in production and the legacy version is no longer needed, delete the legacy templates/CSS, move the `new/` files into place, and remove the flag.
 
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
@@ -128,6 +138,7 @@ mise run dev
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
 - Assets pipeline: `server/assets/AGENTS.md`
@@ -135,3 +146,5 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
+
+- Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.

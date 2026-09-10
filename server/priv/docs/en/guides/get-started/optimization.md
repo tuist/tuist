@@ -2,7 +2,7 @@
 {
   "title": "Optimize",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Reduce build and test times with caching, selective testing, and test sharding for Xcode and Gradle projects."
+  "description": "Reduce build and test times with caching, selective testing, and test sharding for Xcode, Gradle, and Bazel projects."
 }
 ---
 # Optimize {#optimize}
@@ -20,6 +20,7 @@ Start with the cache that matches your project:
 - For an existing Xcode project or workspace, follow the <.localized_link href="/guides/get-started/existing-xcode-project">existing Xcode project guide</.localized_link> to enable compilation caching without adopting project generation.
 - For a generated Xcode project, follow the <.localized_link href="/guides/get-started/generated-xcode-project">generated Xcode project guide</.localized_link> to use module caching or Xcode compilation caching.
 - For a Gradle project, follow the <.localized_link href="/guides/get-started/gradle-project">Gradle project guide</.localized_link> to connect Gradle's build cache to Tuist.
+- For a Bazel project, follow the <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache guide</.localized_link> to point Bazel at Tuist's Remote Execution API cache.
 
 Xcode compilation caching is useful when a team wants to keep an existing Xcode project or workspace, but it is generally less effective than Tuist's module cache. It reuses individual compilation outputs during the build, so Xcode still plans and executes the build around those cache hits.
 

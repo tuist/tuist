@@ -684,56 +684,6 @@ defmodule Tuist.Billing do
   defp stripe_billing_period(_subscription_id), do: nil
 
   @doc """
-  The Stripe ids of active subscriptions whose mirrored service period is
-  missing or has already closed.
-
-  Cancelled subscriptions are left out: nothing reads a period for them,
-  and Stripe has no current one to return.
-  """
-  def subscription_ids_with_stale_period(now \\ DateTime.utc_now()) do
-    Repo.all(
-      from(s in Subscription,
-        where: s.status in ["active", "trialing"],
-        where: is_nil(s.current_period_end) or s.current_period_end <= ^now,
-        select: s.subscription_id
-      )
-    )
-  end
-
-  @doc """
-  Re-reads one subscription's service period from Stripe and mirrors it
-  onto the row.
-
-  Only the period is written. Reusing `on_subscription_change/1` would
-  also re-derive the plan from the subscription's prices and raise when
-  it cannot name one, which would turn a legacy price into a failure to
-  record a period that is otherwise readable.
-
-  Returns `{:error, :billing_period_unavailable}` rather than leaving the
-  row silently unwritten, so the caller retries. A row that stays
-  unmirrored is still correct: the read path falls back to Stripe.
-  """
-  def refresh_subscription_period(subscription_id) when is_binary(subscription_id) do
-    case Repo.get_by(Subscription, subscription_id: subscription_id) do
-      nil ->
-        :ok
-
-      subscription ->
-        write_subscription_period(subscription, stripe_billing_period(subscription_id))
-    end
-  end
-
-  defp write_subscription_period(_subscription, nil), do: {:error, :billing_period_unavailable}
-
-  defp write_subscription_period(subscription, {period_start, period_end}) do
-    subscription
-    |> Subscription.update_changeset(%{current_period_start: period_start, current_period_end: period_end})
-    |> Repo.update!()
-
-    :ok
-  end
-
-  @doc """
   The `count` most recent billing periods, newest first, as
   `{start, end}` datetimes.
 
@@ -982,6 +932,30 @@ defmodule Tuist.Billing do
   def cache_access_blocked?(%Account{} = account) do
     effective_plan(account) == :air and
       over_free_tier?(account.current_month_remote_cache_hits_count)
+  end
+
+  @doc """
+  Starts `account`'s free tier over from now.
+
+  Both fields move together, and the second is the one that is easy to
+  miss. The counter is what `cache_access_blocked?/1` reads, so zeroing
+  it is what unblocks the account. `free_tier_reset_at` is what makes
+  that survive: `CommandEvents.account_month_usage/2` counts events from
+  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left
+  the timestamp behind would be recomputed straight back over the
+  threshold at the next nightly sweep.
+
+  This grants a fresh allowance for the rest of the month, not an
+  exemption. The reset goes inert on the first of the next month, when
+  the counting window returns to the month boundary on its own.
+  """
+  def reset_free_tier(%Account{} = account) do
+    account
+    |> Account.free_tier_reset_changeset(%{
+      free_tier_reset_at: DateTime.utc_now(),
+      current_month_remote_cache_hits_count: 0
+    })
+    |> Repo.update()
   end
 
   @doc """

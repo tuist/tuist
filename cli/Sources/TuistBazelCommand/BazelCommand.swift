@@ -7,10 +7,11 @@ public struct BazelCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "bazel",
-            abstract: "A set of commands to integrate Bazel with Tuist's remote cache and build insights.",
+            abstract: "Integrate Bazel with Tuist's remote cache, build insights, and test quarantine.",
             shouldDisplay: false,
             subcommands: [
                 BazelSetupCommand.self,
+                BazelTestCommand.self,
                 BazelCredentialHelperCommand.self,
             ]
         )

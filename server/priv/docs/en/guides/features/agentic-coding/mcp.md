@@ -271,9 +271,19 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `get_xcode_build` | Get detailed information about a specific Xcode build run, including a temporary download URL for the archive holding the raw `.xcactivitylog`. | `build_run_id` |
 | `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_steps` | List recorded build steps with timings and outcomes, without log text. | `build_run_id` |
+| `get_xcode_build_step` | Get one recorded build step, including its log and truncation flag. | `build_run_id`, `step_id` |
 | `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |
 | `list_xcode_build_cache_tasks` | List cacheable tasks (cache hits/misses) for a specific Xcode build run. | `build_run_id` |
 | `list_xcode_build_cas_outputs` | List [content-addressable storage](https://en.wikipedia.org/wiki/Content-addressable_storage) outputs for a specific Xcode build run. | `build_run_id` |
+
+`list_xcode_build_steps` returns pages of 20 steps by default (maximum 100 via `page_size`), with `page` and `pagination_metadata` for navigation. Use `search` to match titles, projects, or targets, or filter exact `project`, `target`, `category` (for example, `swiftCompilation`), and `status` (`success` or `failure`). Sort by `duration_ms` for slowest first (the default) or `start_ms` for chronological order. Step IDs break ties and are returned as decimal strings to preserve their full 64-bit precision. IDs are scoped to a build and should not be matched across builds.
+
+Optional `start_ms` and `end_ms` select steps overlapping a time range in milliseconds from build start; the end is exclusive. Both tools accept a build UUID or dashboard URL as `build_run_id`. Pass the returned step `id` unchanged as `step_id` to retrieve its log. Logs retain up to 64 KiB per step, with `log_truncated` indicating omitted output.
+
+Steps are collected by default when Xcode builds are processed. Recorded step data is retained for 90 days. The list response includes `availability`: `available` when recorded steps exist, even if filters match none; `processing` when the build is still processing and has no steps yet; or `unavailable` when steps were not recorded or have expired.
+
+The same operations are available over the HTTP API at `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps` and `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}`, with the same filters and pagination. Both require read access to the build's project.
 
 #### Gradle builds
 
@@ -283,6 +293,12 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `list_gradle_builds` | List Gradle build runs for a project, including custom metadata. Filter by a custom tag with the optional `tag` parameter. | `account_handle`, `project_handle` |
 | `get_gradle_build` | Get build metadata and task/cache counts. | `build_run_id` |
 | `list_gradle_build_tasks` | List task outcomes, composite build identity, cacheability, and incremental status. | `build_run_id` |
+| `list_gradle_build_steps` | List timed tasks, configuration and transforms, with search, metadata and overlapping time filters. | `build_run_id` |
+| `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; per-step logs are unavailable. | `build_run_id`, `step_id` |
+
+Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
+
+Bazel step IDs returned from retained summaries remain readable if a full profile arrives between listing and fetching a step. An indexed profile whose step data has expired reports unavailable. Gradle step lists include zero-duration cached and skipped operations.
 
 #### Bazel invocations
 
@@ -291,6 +307,8 @@ Webhook tools use the same administrator-only permission as the dashboard. Deliv
 | `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
 | `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
 | `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
+| `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
 | `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
 | `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |

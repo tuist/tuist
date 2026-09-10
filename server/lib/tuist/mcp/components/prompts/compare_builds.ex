@@ -81,6 +81,19 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     - **list_gradle_builds**: List Gradle build runs for a project (supports git_branch filter).
     - **get_gradle_build**: Get detailed metrics for a Gradle build run.
     - **list_gradle_build_tasks**: List Gradle tasks with outcomes and cache status.
+    - **list_gradle_build_steps**: Compare timed tasks, configuration and transforms with search and overlap filters.
+    - **get_gradle_build_step**: Inspect recorded metadata by opaque step ID; per-step logs are unavailable.
+    """
+  end
+
+  defp tools_section(:bazel) do
+    """
+    ## Available MCP tools
+
+    - **list_bazel_invocations** and **get_bazel_invocation**: Resolve completed invocations and compare their metrics.
+    - **list_bazel_build_steps** and **get_bazel_build_step**: Inspect retained action intervals with search and overlap filters.
+    - **list_bazel_invocation_logs** and **get_bazel_invocation_log**: Inspect available invocation-level output.
+    All Bazel tools require account_handle and project_handle. Detail tools use invocation_id.
     """
   end
 
@@ -93,6 +106,8 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     - **get_xcode_build**: Get detailed metrics for an Xcode build run (by ID or dashboard URL).
     - **list_xcode_build_targets**: List per-target build and compilation durations.
     - **list_xcode_build_files**: List per-file compilation durations (sorted slowest-first by default).
+    - **list_xcode_build_steps**: List recorded operations with timings and outcomes; filter by target or search and paginate, slowest first by default.
+    - **get_xcode_build_step**: Inspect a step's recorded log using its build ID and decimal string step ID.
     - **list_xcode_build_issues**: List warnings and errors.
     - **list_xcode_build_cache_tasks**: List cache hit/miss status per task.
     - **list_xcode_build_cas_outputs**: List CAS upload/download operations.
@@ -112,7 +127,8 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
 
     Use `list_gradle_build_tasks` for both builds. Compare `duration_ms` and `outcome` per task.
     Identify tasks that changed from `local_hit`/`remote_hit` to `executed` (cache misses).
-    Sort by absolute time difference.
+    Sort by absolute time difference. Use `list_gradle_build_steps` to inspect overlapping work and configuration or transform costs.
+    Honor `time_origin`: older reports start at the first recording. Match operations by identity, never by their build-scoped step IDs.
 
     ### 4. Check cache changes
 
@@ -120,6 +136,26 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     - Tasks that changed from hit to executed (potential cache invalidation).
     - Tasks that changed from executed to hit (improvements).
     - New tasks that appeared in the head build.
+    """
+  end
+
+  defp workflow_section(:bazel) do
+    """
+    ### 2. Compare invocation metrics
+
+    Compare duration_ms, status, actions_executed, critical_path and cache totals.
+
+    ### 3. Inspect recorded steps
+
+    Use `list_bazel_build_steps` to find slow, failed, or overlapping intervals. Honor the response's `coverage`:
+    `trace_profile` includes all recorded profile intervals; `retained_action_spans` is limited to up to 32 actions plus setup.
+    Absent intervals in the retained summary do not imply absent work.
+    Compare descriptions, targets, and categories, never step IDs across invocations.
+
+    ### 4. Check available output
+
+    Use `get_bazel_build_step` to inspect a step's outcome and recorded action log when available.
+    Use invocation log tools for broader failure output. Missing diagnostics or unknown outcomes do not imply success.
     """
   end
 
@@ -143,6 +179,10 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     Use `list_xcode_build_files` filtered by the regressed target. Compare `compilation_duration` per file.
     Identify the slowest files and any new files that appeared in the head build.
 
+    For individual compiler, linker, or script operations, use `list_xcode_build_steps` filtered by the affected target.
+    Inspect relevant output with `get_xcode_build_step`. Step IDs are scoped to each build; compare titles and targets,
+    not IDs. Respect `availability` and `log_truncated`: missing or expired records are not evidence that work did not run.
+
     ### 5. Check issues
 
     Use `list_xcode_build_issues` for both builds. Report:
@@ -155,6 +195,18 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     Use `list_xcode_build_cache_tasks` for both builds. Report:
     - Tasks that changed from hit to miss (potential cache invalidation).
     - Tasks that changed from miss to hit (improvements).
+    """
+  end
+
+  defp resolution_section(base, head, account_handle, project_handle, default_branch, :bazel) do
+    """
+    ### 1. Resolve invocations
+
+    Project: `#{account_handle}/#{project_handle}`. Base: #{base || "latest invocation on #{default_branch || "main"}"}.
+    Head: #{head || "latest invocation on the current branch"}.
+    Resolve IDs or dashboard URLs using `get_bazel_invocation` with invocation_id.
+    For branches, paginate `list_bazel_invocations` and match git_branch locally; it has no branch filter.
+    If the intended invocation cannot be identified, ask which invocation to compare.
     """
   end
 

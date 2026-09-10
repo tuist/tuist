@@ -13,6 +13,7 @@ defmodule Tuist.Kura.PlacementProposals do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Subscription
+  alias Tuist.Environment
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Kura.OriginRollup
@@ -70,15 +71,48 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  Open proposals, oldest first, capped at `limit`. What automatic mode drains;
-  the cap bounds how much placement may move in one pass.
+  How many proposals of each kind the sweep may apply on its own in a day, with
+  every kind present. A count, or `:unlimited` for a kind with no fleet-wide
+  ceiling.
+
+  A kind the configuration does not name stays at zero, so a bare number turns
+  nothing on: every kind has to be named to run unattended, and one that has to
+  be named cannot be enabled by a value written for the others. Zero is also
+  the stop, which is why it stays the default rather than `:unlimited`.
   """
-  def open_proposals(limit) do
-    PlacementProposal
-    |> where([proposal], proposal.status == :open)
-    |> order_by([proposal], asc: proposal.inserted_at)
+  def automatic_apply_budgets do
+    configured = Environment.kura_placement_automatic_applies_per_day()
+
+    Map.new(PlacementProposal.kinds(), &{&1, Map.get(configured, to_string(&1), 0)})
+  end
+
+  @doc """
+  Open proposals of one kind, oldest first, capped at `limit` or every one of
+  them for `:unlimited`. What automatic mode drains.
+
+  Oldest first, so a backlog is drained in the order it accumulated and no
+  proposal can be starved by a steady arrival of newer ones. Age is not
+  staleness here: the sweep rewrites an open proposal's evidence every pass
+  its verdict still holds, so the oldest proposal is reasoned from the same
+  hour's rollups as the newest.
+  """
+  def open_proposals(kind, :unlimited) do
+    kind
+    |> open_proposals_query()
+    |> Repo.all()
+  end
+
+  def open_proposals(kind, limit) do
+    kind
+    |> open_proposals_query()
     |> limit(^limit)
     |> Repo.all()
+  end
+
+  defp open_proposals_query(kind) do
+    PlacementProposal
+    |> where([proposal], proposal.status == :open and proposal.kind == ^kind)
+    |> order_by([proposal], asc: proposal.inserted_at)
   end
 
   @doc """
@@ -104,14 +138,21 @@ defmodule Tuist.Kura.PlacementProposals do
   end
 
   @doc """
-  How many proposals the sweep applied on its own since `datetime`. Operator
-  applies are excluded: the budget guards what happens unattended.
+  How many proposals of each kind the sweep applied on its own since
+  `datetime`, as a count per kind with every kind present. Operator applies
+  are excluded: the budget guards what happens unattended.
   """
   def automatic_applies_since(%DateTime{} = datetime) do
-    PlacementProposal
-    |> where([proposal], proposal.status == :applied and proposal.resolved_by == "automatic")
-    |> where([proposal], proposal.resolved_at >= ^datetime)
-    |> Repo.aggregate(:count)
+    spent =
+      PlacementProposal
+      |> where([proposal], proposal.status == :applied and proposal.resolved_by == "automatic")
+      |> where([proposal], proposal.resolved_at >= ^datetime)
+      |> group_by([proposal], proposal.kind)
+      |> select([proposal], {proposal.kind, count(proposal.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    Map.merge(Map.new(PlacementProposal.kinds(), &{&1, 0}), spent)
   end
 
   def dismiss(%PlacementProposal{} = proposal, resolved_by) do
@@ -178,14 +219,17 @@ defmodule Tuist.Kura.PlacementProposals do
     open = Map.get(inputs.open_proposals, account.id)
     plan = AccountPolicies.sizing_plan(account)
 
-    if placeable?(account) do
+    if placeable?(account) and known_regions?(account, inputs) do
       converge_placeable_account(account, open, plan, inputs, today, policy)
     else
       # An account resolution refuses has nowhere to be placed, and the
       # lifecycle will never provision for it. Deciding anything for one would
       # be acting on an instance set that cannot be converged: a relocation
       # would retire its source and leave it with strictly fewer instances
-      # every time, ending at none.
+      # every time, ending at none. An account holding a region the catalog
+      # does not name is left alone for the same reason: the rows can name one
+      # for the length of a deploy that renames a region, and read as a
+      # misplacement that would move the account off an instance serving it.
       if open, do: supersede(open, "sweep")
       :none
     end
@@ -193,6 +237,13 @@ defmodule Tuist.Kura.PlacementProposals do
 
   defp placeable?(account) do
     match?({:ok, _resolution}, AccountPolicies.resolve(account))
+  end
+
+  defp known_regions?(account, inputs) do
+    placer_rows = Map.get(inputs.placer_regions, account.id, [])
+    live = Map.get(inputs.live_regions, account.id, [])
+
+    placer_rows |> serving_from(live) |> Enum.all?(&Regions.exists?/1)
   end
 
   defp converge_placeable_account(account, open, plan, inputs, today, policy) do
@@ -298,10 +349,13 @@ defmodule Tuist.Kura.PlacementProposals do
     |> Repo.preload(subscriptions: active_subscriptions())
   end
 
+  # Excludes what is known to be private rather than including what is known
+  # to be public, so a live region the catalog does not name still counts as
+  # held; `known_regions?/2` is what reads it.
   defp live_regions(account_ids) do
     Server
     |> where([server], server.account_id in ^account_ids)
-    |> where([server], server.region in ^public_region_ids())
+    |> where([server], server.region not in ^private_region_ids())
     |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses() and server.move_phase == :none)
     |> order_by([server], asc: server.inserted_at, asc: server.id)
     |> select([server], {server.account_id, server.region})
@@ -357,6 +411,12 @@ defmodule Tuist.Kura.PlacementProposals do
   defp public_region_ids do
     Regions.all()
     |> Enum.reject(&Regions.private?/1)
+    |> Enum.map(& &1.id)
+  end
+
+  defp private_region_ids do
+    Regions.all()
+    |> Enum.filter(&Regions.private?/1)
     |> Enum.map(& &1.id)
   end
 end

@@ -50,6 +50,10 @@ defmodule TuistWeb.API.ModuleCacheController do
     hit_rate: %Schema{type: :number, description: "Percentage of appearances that were hits."},
     self_changes: %Schema{type: :integer, description: "Invalidations caused by the module's own content changing."},
     dependency_induced: %Schema{type: :integer, description: "Invalidations caused only by a dependency changing."},
+    evicted: %Schema{
+      type: :integer,
+      description: "Invalidations where the module was unchanged but its cached artifact was gone."
+    },
     unclassified: %Schema{
       type: :integer,
       description: "Invalidations with no comparable prior build: first-seen, cold or evicted."
@@ -71,6 +75,7 @@ defmodule TuistWeb.API.ModuleCacheController do
     :hit_rate,
     :self_changes,
     :dependency_induced,
+    :evicted,
     :unclassified
   ]
 
@@ -222,7 +227,7 @@ defmodule TuistWeb.API.ModuleCacheController do
         type: %Schema{
           title: "ModuleCacheBuildReason",
           type: :string,
-          enum: ["hit", "changed", "upstream", "cold"]
+          enum: ["hit", "changed", "upstream", "cold", "evicted"]
         },
         description: "Restrict to builds with this outcome."
       ],
@@ -284,9 +289,9 @@ defmodule TuistWeb.API.ModuleCacheController do
                    },
                    reason: %Schema{
                      type: :string,
-                     enum: ["hit", "changed", "upstream", "cold"],
+                     enum: ["hit", "changed", "upstream", "cold", "evicted"],
                      description:
-                       "Why the module missed: changed (its own content differed), upstream (only a dependency differed) or cold (no comparable prior build)."
+                       "Why the module missed: changed (its own content differed), upstream (only a dependency differed), evicted (unchanged but the cached artifact was gone) or cold (no comparable prior build)."
                    }
                  },
                  required: [:run_id, :scheme, :ran_at, :git_branch, :git_commit_sha, :cache_status, :reason]
@@ -365,9 +370,10 @@ defmodule TuistWeb.API.ModuleCacheController do
                properties: %{
                  changed: %Schema{type: :array, items: %Schema{type: :integer}},
                  upstream: %Schema{type: :array, items: %Schema{type: :integer}},
+                 evicted: %Schema{type: :array, items: %Schema{type: :integer}},
                  cold: %Schema{type: :array, items: %Schema{type: :integer}}
                },
-               required: [:changed, :upstream, :cold]
+               required: [:changed, :upstream, :evicted, :cold]
              },
              module_counts: %Schema{
                type: :array,
@@ -407,7 +413,7 @@ defmodule TuistWeb.API.ModuleCacheController do
       invalidations: cache.invalidations,
       reuses: cache.reuses,
       hit_rates: hit_rates(cache),
-      miss_reasons: Map.take(miss_reasons, [:changed, :upstream, :cold]),
+      miss_reasons: Map.take(miss_reasons, [:changed, :upstream, :evicted, :cold]),
       module_counts: Analytics.modules_timeseries(opts).counts,
       dependents_counts: if(name, do: Analytics.module_dependents_timeseries(scoped).counts)
     }
@@ -455,6 +461,7 @@ defmodule TuistWeb.API.ModuleCacheController do
       :hit_rate,
       :self_changes,
       :dependency_induced,
+      :evicted,
       :unclassified,
       :blast_radius
     ])

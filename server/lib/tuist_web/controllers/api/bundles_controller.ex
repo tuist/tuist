@@ -44,17 +44,17 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ],
-      git_branch: [
-        in: :query,
-        type: :string,
-        required: false,
-        description: "Filter bundles by git branch."
-      ],
       page: [
         in: :query,
         type: :integer,
         required: false,
         description: "Page number for pagination."
+      ],
+      git_branch: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Filter bundles by git branch."
       ],
       page_size: [
         in: :query,

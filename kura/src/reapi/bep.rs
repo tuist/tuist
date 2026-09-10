@@ -16,8 +16,9 @@ use tracing::warn;
 use crate::{
     analytics::{BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent},
     bazel_test_artifacts::{
-        BazelTestArtifact, BazelTestArtifactKind, BazelTestInvocationFinished,
-        BazelTestResult as DeliveredBazelTestResult, BazelTestSummary as DeliveredBazelTestSummary,
+        BazelAction, BazelProfile, BazelTestArtifact, BazelTestArtifactKind,
+        BazelTestInvocationFinished, BazelTestResult as DeliveredBazelTestResult,
+        BazelTestSummary as DeliveredBazelTestSummary, MAX_BAZEL_PROFILE_BYTES,
         MAX_BAZEL_TEST_ARTIFACT_BYTES,
     },
     state::SharedState,
@@ -187,6 +188,8 @@ struct BazelBuildEventId {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelActionCompletedId {
+    #[prost(string, tag = "1")]
+    primary_output: String,
     #[prost(string, tag = "2")]
     label: String,
 }
@@ -239,6 +242,12 @@ struct BazelProgress {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelActionExecuted {
+    #[prost(bool, tag = "1")]
+    success: bool,
+    #[prost(message, optional, tag = "3")]
+    stdout: Option<BazelFile>,
+    #[prost(message, optional, tag = "4")]
+    stderr: Option<BazelFile>,
     #[prost(string, tag = "8")]
     action_type: String,
     #[prost(message, optional, tag = "12")]
@@ -255,6 +264,8 @@ struct BazelBuildToolLogs {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelBuildToolLog {
+    #[prost(string, optional, tag = "2")]
+    uri: Option<String>,
     #[prost(string, tag = "1")]
     name: String,
     #[prost(bytes = "vec", tag = "3")]
@@ -714,6 +725,36 @@ impl BuildEventService {
         }
 
         if let Some(action) = event.action {
+            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
+                && let Some(id) = event
+                    .id
+                    .as_ref()
+                    .and_then(|id| id.action_completed.as_ref())
+                && !id.primary_output.is_empty()
+                && id.primary_output.len() <= MAX_TARGET_LABEL_BYTES
+            {
+                let logs = [action.stdout.as_ref(), action.stderr.as_ref()]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(bazel_file_digest_and_size)
+                    .filter(|(digest, _)| {
+                        digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
+                    })
+                    .collect();
+                delivery.enqueue_action(BazelAction {
+                    account_handle: account_handle.to_owned(),
+                    project_handle: project_handle.to_owned(),
+                    invocation_id: invocation_id.clone(),
+                    primary_output: id.primary_output.clone(),
+                    started_at_ms: action
+                        .start_time
+                        .as_ref()
+                        .and_then(strict_timestamp_millis)
+                        .unwrap_or_default(),
+                    success: action.success,
+                    logs,
+                });
+            }
             if let Some(start) = self.invocations.lock().await.get_mut(&key)
                 && let Some(action_span) = action_span(event.id.as_ref(), &action)
             {
@@ -730,6 +771,16 @@ impl BuildEventService {
         }
 
         if let Some(build_tool_logs) = event.build_tool_logs {
+            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
+                for log in &build_tool_logs.log {
+                    if let Some(profile) =
+                        profile_delivery(account_handle, project_handle, &invocation_id, log)
+                    {
+                        delivery.enqueue_profile(profile);
+                        break;
+                    }
+                }
+            }
             if let Some(start) = self.invocations.lock().await.get_mut(&key)
                 && let Some((duration_ms, actions)) = critical_path(&build_tool_logs)
             {
@@ -1152,6 +1203,36 @@ fn append_invocation_log(
         message,
         observed_at_ms,
     });
+}
+
+fn profile_delivery(
+    account: &str,
+    project: &str,
+    invocation: &str,
+    log: &BazelBuildToolLog,
+) -> Option<BazelProfile> {
+    if log.name != "command.profile.gz" {
+        return None;
+    }
+    let file = BazelFile {
+        uri: log.uri.clone(),
+        ..Default::default()
+    };
+    let (digest, size) = bazel_file_digest_and_size(&file)?;
+    if size == 0
+        || size > MAX_BAZEL_PROFILE_BYTES
+        || digest.len() != 64
+        || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    Some(BazelProfile {
+        account_handle: account.to_owned(),
+        project_handle: project.to_owned(),
+        invocation_id: invocation.to_owned(),
+        digest,
+        size,
+    })
 }
 
 fn critical_path(logs: &BazelBuildToolLogs) -> Option<(u64, Vec<CriticalPathAction>)> {
@@ -1713,6 +1794,28 @@ mod tests {
     }
 
     #[test]
+    fn profile_delivery_accepts_only_bounded_cas_profiles() {
+        let digest = "a".repeat(64);
+        let mut log = BazelBuildToolLog {
+            name: "command.profile.gz".into(),
+            uri: Some(format!("bytestream://cache/project/blobs/{digest}/123")),
+            contents: vec![],
+        };
+        let profile = profile_delivery("account", "project", "build", &log).unwrap();
+        assert_eq!(profile.digest, digest);
+        assert_eq!(profile.size, 123);
+        log.uri = Some("file:///tmp/command.profile.gz".into());
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+        log.uri = Some(format!(
+            "bytestream://cache/project/blobs/{digest}/{}",
+            MAX_BAZEL_PROFILE_BYTES + 1
+        ));
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+        log.name = "unrelated.gz".into();
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+    }
+
+    #[test]
     fn extracts_invocation_identity_from_the_build_event_stream() {
         let event = OrderedBuildEvent {
             stream_id: Some(proto::StreamId {
@@ -1904,6 +2007,7 @@ mod tests {
                         workspace_status: None,
                         build_tool_logs: Some(BazelBuildToolLogs {
                             log: vec![BazelBuildToolLog {
+                                uri: None,
                                 name: "critical path".into(),
                                 contents: b"Critical Path: 1s\n  1s Link //app:app\n".to_vec(),
                             }],
@@ -2072,6 +2176,7 @@ mod tests {
     fn parses_a_bounded_critical_path_report() {
         let logs = BazelBuildToolLogs {
             log: vec![BazelBuildToolLog {
+                uri: None,
                 name: "critical path".into(),
                 contents: b"Critical Path: 1.25s, Remote (80.00% of the time): [queue: 1.00%, setup: 2.00%, process: 77.00%]\n  250ms, Remote (100.00% of the time): [queue: 0.00%, setup: 1.00%, process: 99.00%, input files: 4, input bytes: 512, memory bytes: 1024] Compile //app:one\n  1s Link //app:app\n".to_vec(),
             }],

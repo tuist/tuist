@@ -36,6 +36,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -316,7 +317,6 @@ type server struct {
 	nano          *nanomdmClient
 	enrollProfile []byte
 	usbProfile    []byte
-	bootstrapPkg  []byte
 
 	// Enroll sequences run outside the request, because NanoMDM's webhook
 	// is fire-and-forget and holding it open buys nothing. Shutdown waits
@@ -457,9 +457,11 @@ func (s *server) runEnrollSequence(id string) {
 			build: func() ([]byte, error) { return installProfileCommand(s.usbProfile) },
 		},
 		{
-			name:  "InstallEnterpriseApplication(bootstrap)",
-			build: func() ([]byte, error) { return installBootstrapPkgCommand(s.cfg, s.bootstrapPkg) },
-			skip:  skipIf(len(s.bootstrapPkg) == 0, "no bootstrap package present in the assets secret"),
+			name: "InstallEnterpriseApplication(bootstrap)",
+			build: func() ([]byte, error) {
+				return installBootstrapPkgCommand(s.cfg, loadBootstrapPkg(s.cfg.assetsDir))
+			},
+			skip: skipIf(len(loadBootstrapPkg(s.cfg.assetsDir)) == 0, "no bootstrap package present in the assets secret"),
 		},
 		{
 			name:  "DeviceConfigured",
@@ -506,15 +508,23 @@ func (s *server) handleEnroll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handlePkg(w http.ResponseWriter, r *http.Request) {
-	if len(s.bootstrapPkg) == 0 {
+	pkg := loadBootstrapPkg(s.cfg.assetsDir)
+	if len(pkg) == 0 {
 		http.Error(w, "bootstrap package not provisioned", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(s.bootstrapPkg)
+	w.Write(pkg)
 }
 
 func main() {
+	// One binary, two modes: the long-running enroller, and a one-shot
+	// credential expiry check run from a CronJob. Sharing the image keeps
+	// the check on the same build and deploy path as the thing it guards.
+	if len(os.Args) > 1 && os.Args[1] == "check-expiry" {
+		os.Exit(runExpiryCheck(expiryConfigFromEnv(), time.Now(), &http.Client{Timeout: 30 * time.Second}))
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -530,9 +540,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	pkg := loadBootstrapPkg(cfg.assetsDir)
-	if pkg == nil {
-		log.Printf("WARNING: no bootstrap package in %s; InstallEnterpriseApplication will be skipped", cfg.assetsDir)
+	// Only a startup hint. The package is re-read per use, because ESO can
+	// populate the Secret after the pod starts and a mounted Secret update
+	// does not restart anything.
+	if len(loadBootstrapPkg(cfg.assetsDir)) == 0 {
+		log.Printf("no bootstrap package in %s yet; it will be picked up without a restart once present", cfg.assetsDir)
 	}
 
 	s := &server{
@@ -540,7 +552,6 @@ func main() {
 		nano:          &nanomdmClient{baseURL: cfg.nanomdmURL, apiKey: cfg.nanomdmAPIKey, client: &http.Client{Timeout: 30 * time.Second}},
 		enrollProfile: profile,
 		usbProfile:    usb,
-		bootstrapPkg:  pkg,
 	}
 
 	mux := http.NewServeMux()
@@ -584,5 +595,26 @@ func main() {
 		log.Printf("in-flight enroll sequences finished")
 	case <-time.After(25 * time.Second):
 		log.Printf("WARNING: gave up waiting on in-flight enroll sequences; a device may be stranded at awaiting-configuration")
+	}
+}
+
+func expiryConfigFromEnv() expiryConfig {
+	atoi := func(key string, def int) int {
+		if v := os.Getenv(key); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				return n
+			}
+		}
+		return def
+	}
+	return expiryConfig{
+		certDir:      envOr("EXPIRY_CERT_DIR", "/certs"),
+		nanodepURL:   strings.TrimRight(envOr("EXPIRY_NANODEP_URL", "http://localhost:9001"), "/"),
+		nanodepKey:   os.Getenv("EXPIRY_NANODEP_API_KEY"),
+		depName:      envOr("EXPIRY_DEP_NAME", "tuist"),
+		warnDays:     atoi("EXPIRY_WARN_DAYS", 60),
+		critDays:     atoi("EXPIRY_CRIT_DAYS", 14),
+		slackToken:   os.Getenv("EXPIRY_SLACK_TOKEN"),
+		slackChannel: os.Getenv("EXPIRY_SLACK_CHANNEL"),
 	}
 }

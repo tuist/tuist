@@ -5,12 +5,16 @@ use tokio::fs;
 use crate::{
     constants::{
         BACKFILL_BODIES_BATCH_BYTES, DEFAULT_BACKFILL_BATCH_BYTES, DEFAULT_BACKFILL_MARGIN_PERCENT,
-        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
-        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER,
-        DEFAULT_REPLICATION_UPLOAD_STALL_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
+        DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER, DEFAULT_REPLICATION_UPLOAD_STALL_MS,
+        DEFAULT_SYNC_DRAIN_MARGIN_MS, DEFAULT_SYNC_FEED_MAX_ROWS,
+        DEFAULT_SYNC_FEED_STALE_PEER_SECS, DEFAULT_SYNC_LONG_POLL_SECS,
+        DEFAULT_SYNC_PASS_START_BUFFER_MS, DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        DEFAULT_SYNC_REGION_SETTLE_MS, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
         DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
         DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
-        MAX_INLINE_REPLICATION_BODY_BYTES, default_backfill_ready_ring_percent,
+        MAX_INLINE_REPLICATION_BODY_BYTES, SYNC_LONG_POLL_MAX_SECS,
+        default_backfill_ready_ring_percent,
     },
     runtime::DataDirLock,
 };
@@ -118,6 +122,15 @@ const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BACKFILL_MARGIN_PERCENT: &str = "KURA_BACKFILL_MARGIN_PERCENT";
 const KURA_BACKFILL_READY_RING_PERCENT: &str = "KURA_BACKFILL_READY_RING_PERCENT";
 const KURA_BACKFILL_BATCH_BYTES: &str = "KURA_BACKFILL_BATCH_BYTES";
+const KURA_REPLICATION_PULL: &str = "KURA_REPLICATION_PULL";
+const KURA_SYNC_FEED_MAX_ROWS: &str = "KURA_SYNC_FEED_MAX_ROWS";
+const KURA_SYNC_LONG_POLL_SECS: &str = "KURA_SYNC_LONG_POLL_SECS";
+const KURA_SYNC_PASS_START_BUFFER_MS: &str = "KURA_SYNC_PASS_START_BUFFER_MS";
+const KURA_SYNC_REGION_SETTLE_MS: &str = "KURA_SYNC_REGION_SETTLE_MS";
+const KURA_SYNC_FEED_STALE_PEER_SECS: &str = "KURA_SYNC_FEED_STALE_PEER_SECS";
+const KURA_SYNC_DRAIN_MARGIN_MS: &str = "KURA_SYNC_DRAIN_MARGIN_MS";
+const KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER: &str = "KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER";
+const KURA_SYNC_PEER_SERVING_MAX_INFLIGHT: &str = "KURA_SYNC_PEER_SERVING_MAX_INFLIGHT";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -218,7 +231,8 @@ pub struct Config {
     pub replication_upload_stall_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
-    pub multipart_max_active_uploads: usize,
+    /// Fixed override; otherwise the memory controller sizes admission at runtime.
+    pub multipart_max_active_uploads: Option<usize>,
     pub multipart_max_stored_bytes: u64,
     /// Share of the age-ordered segment ring (counted from the newest) whose
     /// boundary segment's seal-time stat becomes the backfill horizon; the
@@ -236,6 +250,33 @@ pub struct Config {
     /// per-artifact endpoint instead of riding a batch. Never exceeds the
     /// shared response ceiling ([`BACKFILL_BODIES_BATCH_BYTES`]).
     pub backfill_batch_bytes: u64,
+    /// The flip (design §5.2): this node pulls from every peer that also
+    /// pulls, and advertises so in `/_internal/status`. Off, it pushes to
+    /// every peer exactly as before. `KURA_REPLICATION_PULL`; the control
+    /// plane's account flag can also switch it on for enrolled nodes.
+    pub replication_pull: bool,
+    /// Arrival-feed cap in rows (`KURA_SYNC_FEED_MAX_ROWS`).
+    pub sync_feed_max_rows: u64,
+    /// Forward-read long-poll wait (`KURA_SYNC_LONG_POLL_SECS`).
+    pub sync_long_poll_secs: u64,
+    /// Backward-pass start buffer below the region watermark
+    /// (`KURA_SYNC_PASS_START_BUFFER_MS`).
+    pub sync_pass_start_buffer_ms: u64,
+    /// Settle window of the ascending region read
+    /// (`KURA_SYNC_REGION_SETTLE_MS`).
+    pub sync_region_settle_ms: u64,
+    /// Feed consumer staleness (`KURA_SYNC_FEED_STALE_PEER_SECS`).
+    pub sync_feed_stale_peer_secs: u64,
+    /// Margin kept back from the drain timeout by the sibling wait
+    /// (`KURA_SYNC_DRAIN_MARGIN_MS`).
+    pub sync_drain_margin_ms: u64,
+    /// Bodies requests one peer identity may hold in flight on the serving
+    /// side (`KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER`, design §11.1).
+    pub sync_peer_bodies_slots_per_peer: u64,
+    /// Bodies requests this node serves in flight across every peer identity
+    /// (`KURA_SYNC_PEER_SERVING_MAX_INFLIGHT`, design §11.1). `None` derives
+    /// it from the membership view: `max(8, visible peers × slots per peer)`.
+    pub sync_peer_serving_max_inflight: Option<u64>,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -1275,9 +1316,8 @@ impl Config {
                     format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
                 })
             },
-        )
-        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
-        if multipart_max_active_uploads == 0 {
+        );
+        if multipart_max_active_uploads == Some(0) {
             invalid.push(format!(
                 "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
             ));
@@ -1328,6 +1368,79 @@ impl Config {
         if backfill_ready_ring_percent == 0 || backfill_ready_ring_percent > 100 {
             invalid.push(format!(
                 "{KURA_BACKFILL_READY_RING_PERCENT} must be between 1 and 100"
+            ));
+        }
+        let replication_pull =
+            optional_parsed_value(&mut lookup, KURA_REPLICATION_PULL, &mut invalid, |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_REPLICATION_PULL} must be a valid bool"))
+            })
+            .unwrap_or(false);
+        let sync_feed_max_rows = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_FEED_MAX_ROWS,
+            &mut invalid,
+            DEFAULT_SYNC_FEED_MAX_ROWS,
+        );
+        let sync_long_poll_secs = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_LONG_POLL_SECS,
+            &mut invalid,
+            DEFAULT_SYNC_LONG_POLL_SECS,
+        )
+        .clamp(1, SYNC_LONG_POLL_MAX_SECS);
+        let sync_pass_start_buffer_ms = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_PASS_START_BUFFER_MS,
+            &mut invalid,
+            DEFAULT_SYNC_PASS_START_BUFFER_MS,
+        );
+        let sync_region_settle_ms = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_REGION_SETTLE_MS,
+            &mut invalid,
+            DEFAULT_SYNC_REGION_SETTLE_MS,
+        );
+        let sync_feed_stale_peer_secs = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_FEED_STALE_PEER_SECS,
+            &mut invalid,
+            DEFAULT_SYNC_FEED_STALE_PEER_SECS,
+        );
+        let sync_drain_margin_ms = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_DRAIN_MARGIN_MS,
+            &mut invalid,
+            DEFAULT_SYNC_DRAIN_MARGIN_MS,
+        );
+        let sync_peer_bodies_slots_per_peer = parse_u64_env(
+            &mut lookup,
+            KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+            &mut invalid,
+            DEFAULT_SYNC_PEER_BODIES_SLOTS_PER_PEER,
+        );
+        let sync_peer_serving_max_inflight = optional_parsed_value(
+            &mut lookup,
+            KURA_SYNC_PEER_SERVING_MAX_INFLIGHT,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_SYNC_PEER_SERVING_MAX_INFLIGHT} must be a valid u64")
+                })
+            },
+        );
+        if sync_feed_max_rows == 0 {
+            invalid.push(format!("{KURA_SYNC_FEED_MAX_ROWS} must be greater than 0"));
+        }
+        if sync_peer_bodies_slots_per_peer == 0 {
+            invalid.push(format!(
+                "{KURA_SYNC_PEER_BODIES_SLOTS_PER_PEER} must be greater than 0"
+            ));
+        }
+        if sync_peer_serving_max_inflight == Some(0) {
+            invalid.push(format!(
+                "{KURA_SYNC_PEER_SERVING_MAX_INFLIGHT} must be greater than 0"
             ));
         }
         let backfill_batch_bytes = optional_parsed_value(
@@ -1861,6 +1974,15 @@ impl Config {
             backfill_margin_percent,
             backfill_ready_ring_percent,
             backfill_batch_bytes,
+            replication_pull,
+            sync_feed_max_rows,
+            sync_long_poll_secs,
+            sync_pass_start_buffer_ms,
+            sync_region_settle_ms,
+            sync_feed_stale_peer_secs,
+            sync_drain_margin_ms,
+            sync_peer_bodies_slots_per_peer,
+            sync_peer_serving_max_inflight,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1930,6 +2052,25 @@ where
             None
         }
     }
+}
+
+/// A plain `u64` knob with a default; a malformed value is reported like any
+/// other invalid setting.
+fn parse_u64_env<F>(
+    lookup: &mut F,
+    key: &'static str,
+    invalid: &mut Vec<String>,
+    default: u64,
+) -> u64
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    optional_parsed_value(lookup, key, invalid, |value| {
+        value
+            .parse::<u64>()
+            .map_err(|_| format!("{key} must be a valid u64"))
+    })
+    .unwrap_or(default)
 }
 
 fn optional_parsed_value<T, F, P>(
@@ -2693,10 +2834,7 @@ mod tests {
             512 * BYTES_PER_MIB
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
-        assert_eq!(
-            config.multipart_max_active_uploads,
-            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
-        );
+        assert_eq!(config.multipart_max_active_uploads, None);
         assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(
@@ -2942,7 +3080,7 @@ mod tests {
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.replication_upload_stall_ms, 90_000);
-        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_active_uploads, Some(64));
         assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
@@ -2955,6 +3093,15 @@ mod tests {
         assert_eq!(config.request_log_sample_rate, 0.25);
         assert_eq!(config.slow_request_threshold_ms, 15_000);
         assert_eq!(config.warning_log_interval_ms, 30_000);
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_multipart_capacity_overrides() {
+        for value in ["0", "-1", "not-a-number"] {
+            let error = config_from(&[(KURA_MULTIPART_MAX_ACTIVE_UPLOADS, value)])
+                .expect_err("invalid fixed session capacity should fail configuration");
+            assert!(error.contains(KURA_MULTIPART_MAX_ACTIVE_UPLOADS));
+        }
     }
 
     #[test]

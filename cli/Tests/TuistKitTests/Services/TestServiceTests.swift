@@ -4740,6 +4740,119 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    /// Regression: `tuist test --without-building --selective-testing -- -xctestrun <path>` used to
+    /// fall through to project generation, which requires the SPM graph to be fully resolved. On CI
+    /// jobs that consume a pre-built xctestrun cache without running package resolution, that raised
+    /// `Couldn't find target`. If a `selective-testing-graph.json` sits next to the xctestrun file,
+    /// reuse the same fast path used for `.xctestproducts` bundles and skip generation entirely.
+    func test_run_testWithoutBuilding_skipsGeneration_whenSelectiveTestingGraphExistsNextToXctestrun() async throws {
+        // Given
+        let path = try temporaryPath()
+        let buildProductsPath = path.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: buildProductsPath)
+
+        let xctestrunPath = buildProductsPath.appending(component: "MyApp_iphonesimulator.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = buildProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
+            )
+        }
+
+        // Then — generator must NOT be called; the sibling graph is enough to skip regeneration.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(0)
+
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_fallsBackToGeneration_whenXctestrunHasNoSelectiveTestingGraphSibling() async throws {
+        // Given — the xctestrun is present but no `selective-testing-graph.json` next to it. Tuist
+        // must fall back to generating the project so selective testing has a graph to hash against.
+        givenGenerator()
+        let path = try temporaryPath()
+        let buildProductsPath = path.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: buildProductsPath)
+
+        let xctestrunPath = buildProductsPath.appending(component: "MyApp_iphonesimulator.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([.test(name: "TestScheme")])
+
+        // When
+        try await testRun(
+            path: path,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
+        )
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(1)
+    }
+
     func test_run_testWithoutBuilding_fromBundle_routesSelectiveTestHashesToLocalStorage_whenNoUpload() async throws {
         // Given
         let path = try temporaryPath()
@@ -5076,84 +5189,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
-        // Given
-        let path = try temporaryPath()
-        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try await fileSystem.makeDirectory(at: testProductsPath)
-
-        let selectiveTestingGraph = SelectiveTestingGraph(
-            testTargetHashes: ["MyTests": "abc123"]
-        )
-        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
-        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
-
-        let projectPath = try AbsolutePath(validating: "/tmp/Project")
-        let project = Project.test(
-            path: projectPath,
-            name: "Project",
-            targets: [.test(name: "MyTests")]
-        )
-        let graph = Graph.test(
-            name: "MyApp",
-            path: projectPath,
-            workspace: .test(),
-            projects: [projectPath: project]
-        )
-        let binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [
-            projectPath: [
-                "MyTests": CacheItem.test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
-            ],
-        ]
-        let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]] = [
-            projectPath: [
-                "MyTests": CacheItem.test(
-                    name: "MyTests",
-                    hash: "selective-hash",
-                    source: .remote,
-                    cacheCategory: .selectiveTests
-                ),
-            ],
-        ]
-        let runMetadata = RunMetadata(
-            graph: graph,
-            binaryCacheItems: binaryCacheItems,
-            selectiveTestingCacheItems: selectiveTestingCacheItems,
-            targetContentHashSubhashes: [:],
-            buildRunId: "BUILD-RUN-ID"
-        )
-        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
-        try JSONEncoder().encode(runMetadata).write(to: runMetadataPath.url)
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
-
-        given(xcodebuildController)
-            .run(arguments: .any)
-            .willReturn(())
-
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
-            )
-        }
-
-        // Then — RunMetadataStorage should be populated from the snapshot
-        let restoredBuildRunId = await runMetadataStorage.buildRunId
-        XCTAssertEqual(restoredBuildRunId, "BUILD-RUN-ID")
-        let restoredBinaryCacheItems = await runMetadataStorage.binaryCacheItems
-        XCTAssertEqual(restoredBinaryCacheItems, binaryCacheItems)
-        let restoredSelectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
-        XCTAssertEqual(restoredSelectiveTestingCacheItems, selectiveTestingCacheItems)
-        let restoredGraph = await runMetadataStorage.graph
-        XCTAssertEqual(restoredGraph?.name, "MyApp")
-        XCTAssertEqual(restoredGraph?.projects[projectPath]?.name, "Project")
-    }
-
     func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenMissing() async throws {
         // Given
         let path = try temporaryPath()
@@ -5247,7 +5282,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // skips xcodebuild entirely and uploads a synthesized "skipped" test summary. Before
         // this fix, uploadSkippedTestSummary hardcoded buildRunId: nil, which dropped the link
         // back to the originating build run. The restore from a real snapshot file is covered
-        // by test_run_testWithoutBuilding_restoresRunMetadata_fromBundle; here we pre-populate
+        // by the Swift Testing restoration cases below; here we pre-populate
         // RunMetadataStorage directly to keep the test focused on the skip path's buildRunId
         // forwarding.
         let path = try temporaryPath()
@@ -5897,6 +5932,311 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(writtenGraph.attemptedTestPlans, ["TestScheme"])
     }
 
+    /// Regression: without a `-testProductsPath` the build side used to only persist the selective
+    /// testing graph if xcodebuild happened to emit an `.xctestproducts` bundle. CI pipelines that
+    /// cache raw `.xctestrun` files (built with `xcodebuild build-for-testing`) had no way to reuse
+    /// the graph later. Persisting the graph next to any xctestrun file in derived data lets a
+    /// subsequent `tuist test --without-building -- -xctestrun <path>` skip project generation.
+    func test_run_build_writesSelectiveTestingGraphNextToXctestrunInDerivedData() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let derivedDataPath = path.appending(component: "DerivedData")
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: buildProductsPath)
+        let xctestrunPath = buildProductsPath.appending(component: "MyApp_iphonesimulator.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+
+        let projectPath = path.appending(component: "Project")
+        let scheme = Scheme.test(name: "TestScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "TargetA")],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [projectPath: ["TargetA": "hash-a"]]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, graph, environment)
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            derivedDataPath: derivedDataPath.pathString
+        )
+
+        // Then — the graph sits next to the xctestrun so a later --without-building run finds it.
+        let graphPath = buildProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let exists = try await fileSystem.exists(graphPath)
+        XCTAssertTrue(exists, "Expected selective testing graph next to xctestrun at \(graphPath.pathString)")
+        let writtenGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(at: graphPath)
+        XCTAssertEqual(writtenGraph.attemptedTestPlans, ["TestScheme"])
+    }
+
+    /// Guards the write helper from dropping a stray `selective-testing-graph.json` in a
+    /// derived-data tree that never went through `build-for-testing` (nothing to pair it with).
+    func test_run_build_doesNotWriteSelectiveTestingGraph_whenDerivedDataHasNoXctestrun() async throws {
+        // Given — derived data exists but contains no xctestrun files (e.g., the user only
+        // built libraries, not test bundles).
+        givenGenerator()
+        let path = try temporaryPath()
+        let derivedDataPath = path.appending(component: "DerivedData")
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: buildProductsPath)
+
+        let projectPath = path.appending(component: "Project")
+        let scheme = Scheme.test(name: "TestScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [.test(name: "App-Workspace")]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [.test(name: "TargetA")],
+                    schemes: [scheme]
+                ),
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [projectPath: ["TargetA": "hash-a"]]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, environment) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: path,
+            action: .build,
+            derivedDataPath: derivedDataPath.pathString
+        )
+
+        // Then — no stray file inside Build/Products.
+        let strayGraphPath = buildProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let exists = try await fileSystem.exists(strayGraphPath)
+        XCTAssertFalse(
+            exists,
+            "Did not expect a selective testing graph at \(strayGraphPath.pathString) with no xctestrun sibling"
+        )
+    }
+
+    /// Pins precedence: `-testProductsPath` wins over `-xctestrun` (same as xcodebuild's own
+    /// input-mode precedence). The test proves it by having each graph hold a distinct hash
+    /// and asserting the bundle graph's hash is the one uploaded — otherwise a run job could
+    /// pair the built products from the bundle with a graph computed for an unrelated
+    /// test-run configuration.
+    func test_run_testWithoutBuilding_prefersTestProductsPath_overXctestrun_whenBothProvided() async throws {
+        // Given — both inputs carry a `selective-testing-graph.json`, with distinct hashes.
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try JSONEncoder()
+            .encode(SelectiveTestingGraph(testTargetHashes: ["MyTests": "bundle-hash"]))
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+
+        let xctestrunDirectory = path.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: xctestrunDirectory)
+        let xctestrunPath = xctestrunDirectory.appending(component: "MyApp.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+        try JSONEncoder()
+            .encode(SelectiveTestingGraph(testTargetHashes: ["MyTests": "sibling-hash"]))
+            .write(to: xctestrunDirectory.appending(component: SelectiveTestingGraph.fileName).url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: [
+                    "-testProductsPath", testProductsPath.pathString,
+                    "-xctestrun", xctestrunPath.pathString,
+                ]
+            )
+        }
+
+        // Then — generator never runs (fast path), and the uploaded hash is the bundle's.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(0)
+        verify(cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "MyTests", hash: "bundle-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    /// Precedence corner case: if `-testProductsPath` is present but has NO sibling graph, we
+    /// must NOT silently fall through to a `-xctestrun` sibling graph. xcodebuild would still
+    /// run from the testProductsPath input, so consulting the xctestrun's graph would pair
+    /// execution with hashes computed for a different test-run configuration.
+    func test_run_testWithoutBuilding_fallsBackToGeneration_whenTestProductsPathHasNoGraphEvenIfXctestrunHasOne() async throws {
+        // Given — testProductsPath exists but has no `selective-testing-graph.json`. The
+        // xctestrun sibling directory does. The fast path must not fire.
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let xctestrunDirectory = path.appending(components: "Build", "Products")
+        try await fileSystem.makeDirectory(at: xctestrunDirectory)
+        let xctestrunPath = xctestrunDirectory.appending(component: "MyApp.xctestrun")
+        try Data().write(to: xctestrunPath.url)
+        try JSONEncoder()
+            .encode(SelectiveTestingGraph(testTargetHashes: ["MyTests": "sibling-hash"]))
+            .write(to: xctestrunDirectory.appending(component: SelectiveTestingGraph.fileName).url)
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([.test(name: "TestScheme")])
+
+        // When
+        try await testRun(
+            path: path,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", testProductsPath.pathString,
+                "-xctestrun", xctestrunPath.pathString,
+            ]
+        )
+
+        // Then — generator did run, the sibling graph was ignored.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(1)
+    }
+
     func test_run_build_writesAllTestPlanNames_whenSchemeHasMultiplePlans() async throws {
         // Given
         givenGenerator()
@@ -6159,6 +6499,70 @@ final class TestServiceTests: TuistUnitTestCase {
 
 @Suite
 struct TestServiceShardingTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [false, true])
+    func without_building_restores_context_without_replaying_binary_cache_lookups(sharded: Bool) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: path)
+        let fileSystem = FileSystem()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(testTargetHashes: ["MyTests": "selective-hash"]),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+        let selectiveItems: [AbsolutePath: [String: CacheItem]] = [path: [
+            "MyTests": .test(name: "MyTests", hash: "selective-hash", source: .remote, cacheCategory: .selectiveTests),
+        ]]
+        let subhashes: [String: TargetContentHashSubhashes] = ["selective-hash": .test(sources: "sources")]
+        let metadata = RunMetadata(
+            graph: .test(
+                name: "MyApp",
+                path: path,
+                projects: [path: .test(path: path, name: "Project", targets: [.test(name: "MyTests")])]
+            ),
+            binaryCacheItems: [path: [
+                "MyTests": .test(name: "MyTests", hash: "binary-hash", source: .remote, cacheCategory: .binaries),
+            ]],
+            selectiveTestingCacheItems: selectiveItems,
+            targetContentHashSubhashes: subhashes,
+            buildRunId: "BUILD-RUN-ID"
+        )
+        try await fileSystem.writeAsJSON(metadata, at: testProductsPath.appending(component: RunMetadata.fileName))
+
+        if sharded {
+            given(fixture.shardService)
+                .shard(
+                    shardIndex: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    reference: .any,
+                    shardPlanId: .any,
+                    testProductsPath: .any,
+                    testProductsArchivePath: .any
+                )
+                .willReturn(Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: testProductsPath,
+                    testIdentifiers: ["MyTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["MyTests"],
+                    selectiveTestingGraph: nil
+                ))
+        }
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: path, shardIndex: sharded ? 0 : nil, testProductsPath: testProductsPath)
+        }
+
+        #expect(await fixture.runMetadataStorage.buildRunId == "BUILD-RUN-ID")
+        #expect(await fixture.runMetadataStorage.binaryCacheItems.isEmpty)
+        #expect(await fixture.runMetadataStorage.selectiveTestingCacheItems == selectiveItems)
+        #expect(await fixture.runMetadataStorage.targetContentHashSubhashes == subhashes)
+        #expect(await fixture.runMetadataStorage.graph?.name == "MyApp")
+        #expect(await fixture.runMetadataStorage.graph?.projects[path]?.name == "Project")
+    }
+
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -6215,7 +6619,7 @@ struct TestServiceShardingTests {
 private struct TestServiceShardingFixture {
     let shardService = MockShardServicing()
 
-    private let runMetadataStorage = RunMetadataStorage()
+    let runMetadataStorage = RunMetadataStorage()
     private let subject: TestService
 
     init(rootDirectory: AbsolutePath) {
@@ -6260,9 +6664,10 @@ private struct TestServiceShardingFixture {
 
     func run(
         path: AbsolutePath,
-        shardPlanId: String,
-        shardIndex: Int,
-        shardArchivePath: AbsolutePath
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil,
+        shardArchivePath: AbsolutePath? = nil,
+        testProductsPath: AbsolutePath? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -6288,7 +6693,7 @@ private struct TestServiceShardingFixture {
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 generateOnly: false,
-                passthroughXcodeBuildArguments: [],
+                passthroughXcodeBuildArguments: testProductsPath.map { ["-testProductsPath", $0.pathString] } ?? [],
                 skipQuarantine: true,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,

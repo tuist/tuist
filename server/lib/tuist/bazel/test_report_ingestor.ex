@@ -20,7 +20,18 @@ defmodule Tuist.Bazel.TestReportIngestor do
       |> Enum.map(fn target_label ->
         target_results = Map.get(results_by_target, target_label, [])
         test_summary = Map.get(summaries_by_target, target_label)
-        reports = Enum.map(target_results, &parse_report/1)
+
+        reports =
+          target_results
+          |> Enum.sort_by(&{&1.run, &1.shard, &1.attempt})
+          |> Enum.map(fn result ->
+            result
+            |> parse_report()
+            |> Map.update!(:test_cases, fn cases ->
+              Enum.map(cases, &Map.put(&1, :execution, {result.run, result.shard}))
+            end)
+          end)
+
         test_cases = aggregate_test_cases(reports)
 
         %{
@@ -32,6 +43,7 @@ defmodule Tuist.Bazel.TestReportIngestor do
         }
       end)
 
+    test_modules = mark_quarantined_cases(project, invocation, test_modules)
     attributes = test_attributes(project, invocation, test_results, test_modules)
 
     case Tests.create_test(attributes) do
@@ -45,6 +57,25 @@ defmodule Tuist.Bazel.TestReportIngestor do
   end
 
   def ingest(_, _, _, _), do: {:error, :invalid_input}
+
+  defp mark_quarantined_cases(project, invocation, test_modules) do
+    identities =
+      for module <- test_modules, test_case <- module.test_cases do
+        Tests.generate_test_case_id(project.id, test_case.name, module.name, test_case.test_suite_name)
+      end
+
+    states =
+      Tests.get_test_case_states_at(project.id, identities, Map.get(invocation, :started_at) || invocation.finished_at)
+
+    Enum.map(test_modules, fn module ->
+      Map.update!(module, :test_cases, fn cases ->
+        Enum.map(cases, fn test_case ->
+          id = Tests.generate_test_case_id(project.id, test_case.name, module.name, test_case.test_suite_name)
+          Map.put(test_case, :is_quarantined, states[id].state in Tests.active_quarantine_states())
+        end)
+      end)
+    end)
+  end
 
   defp parse_report(%{junit_content: report}) when is_binary(report) do
     case JunitReport.parse(report) do
@@ -64,12 +95,26 @@ defmodule Tuist.Bazel.TestReportIngestor do
     |> Enum.flat_map(& &1.test_cases)
     |> Enum.group_by(&{&1.name, &1.test_suite_name})
     |> Enum.map(fn {_identity, cases} ->
-      latest = List.last(cases)
+      final_executions = cases |> Enum.group_by(& &1.execution) |> Enum.map(fn {_, attempts} -> List.last(attempts) end)
+
+      latest =
+        cases
+        |> List.last()
+        |> Map.delete(:execution)
+        |> Map.put(:status, aggregate_status(final_executions))
+        |> Map.put(:failures, cases |> Enum.flat_map(& &1.failures) |> Enum.uniq())
 
       Map.put(
         latest,
         :repetitions,
-        Enum.map(cases, &Map.take(&1, [:status, :duration, :failures]))
+        cases
+        |> Enum.with_index(1)
+        |> Enum.map(fn {test_case, number} ->
+          test_case
+          |> Map.take([:status, :duration, :failures])
+          |> Map.put(:repetition_number, number)
+          |> Map.put(:name, "Attempt #{number}")
+        end)
       )
     end)
   end
@@ -108,6 +153,7 @@ defmodule Tuist.Bazel.TestReportIngestor do
   defp test_attributes(project, invocation, test_results, test_modules) do
     target_labels = test_modules |> Enum.map(& &1.name) |> Enum.sort()
     target_patterns = if invocation.target_patterns == [], do: target_labels, else: invocation.target_patterns
+    target_patterns = target_patterns |> Enum.reject(&String.starts_with?(&1, "-")) |> Enum.uniq() |> Enum.sort()
 
     %{
       id: invocation.test_run_id,

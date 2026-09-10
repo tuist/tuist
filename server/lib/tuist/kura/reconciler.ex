@@ -74,6 +74,8 @@ defmodule Tuist.Kura.Reconciler do
   # guards against a runaway query if a regression ever leaks
   # `:running` rows.
   @reconcile_batch_size 200
+  @peer_role_observation_concurrency 8
+  @peer_role_observation_timeout_ms 4_000
 
   @impl Oban.Worker
   def perform(%Job{}) do
@@ -343,6 +345,7 @@ defmodule Tuist.Kura.Reconciler do
         activate_and_mark_succeeded(deployment, server)
 
       {:ok, _other_image_tag} ->
+        refresh_private_endpoint(server)
         apply_deployment(deployment, server)
 
       {:error, :not_found} ->
@@ -403,11 +406,9 @@ defmodule Tuist.Kura.Reconciler do
             )
           end
 
-        {:error, :node_port_endpoint_not_ready = detail} ->
-          # The controller has not yet observed the full node-port
-          # chain (Service ports allocated, primary pod placed on a
-          # labeled node). Benign startup delay, same as DNS.
-          wait_or_stall(server, deployment, detail, "waiting on node-port endpoint for server #{server.id}")
+        {:error, :private_endpoint_not_ready = detail} ->
+          # Gateway DNS/TLS may converge after the pods.
+          wait_or_stall(server, deployment, detail, "waiting on private endpoint for server #{server.id}")
 
         {:error, reason} ->
           fail(deployment, server, reason)
@@ -500,6 +501,7 @@ defmodule Tuist.Kura.Reconciler do
 
     latest = latest_deployments(Enum.map(servers, & &1.id))
 
+    observe_peer_roles(servers, latest)
     Enum.each(servers, &project_server(&1, Map.get(latest, &1.id)))
 
     :ok
@@ -532,6 +534,7 @@ defmodule Tuist.Kura.Reconciler do
         reconcile_manifest_revision(server, desired)
 
       {:ok, observed} ->
+        refresh_private_endpoint(server)
         record(server, derived_status(server, latest_status), observed, now())
 
       {:error, :not_found} ->
@@ -550,6 +553,95 @@ defmodule Tuist.Kura.Reconciler do
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  # Role reads are independent across regions and each can consume its full
+  # cross-cluster timeout. Running a bounded group prevents one slow regional
+  # cluster from serially delaying observation of every account in the batch.
+  # The ordinary server projection stays ordered below this step.
+  defp observe_peer_roles(servers, latest) do
+    observable = Enum.filter(servers, &peer_roles_observable?(&1, Map.get(latest, &1.id)))
+
+    observable
+    |> Task.async_stream(&observe_server_peer_roles/1,
+      max_concurrency: @peer_role_observation_concurrency,
+      ordered: true,
+      timeout: @peer_role_observation_timeout_ms,
+      on_timeout: :kill_task
+    )
+    |> Enum.zip(observable)
+    |> Enum.each(fn
+      {{:ok, :ok}, _server} ->
+        :ok
+
+      {{:exit, reason}, server} ->
+        Logger.warning(
+          "[Kura.Reconciler] peer-role observation task exited for server #{server.id} in #{server.region}: #{inspect(reason)}"
+        )
+    end)
+  end
+
+  defp peer_roles_observable?(_server, nil), do: false
+
+  defp peer_roles_observable?(_server, %Deployment{status: status}) when status in @open_deployment_statuses, do: false
+
+  defp peer_roles_observable?(_server, %Deployment{}), do: true
+
+  # Refreshes `kura_servers.peer_roles` from the backing KuraInstance's
+  # `status.peerRoles`. The mesh view (`Tuist.Kura.Mesh.peer_roles/1`) used to
+  # read the apiserver itself, on the request path of `/_internal/kura/mesh/peers`
+  # — an unbounded, un-rate-limited endpoint every managed pod polls at heartbeat
+  # cadence, whose slowest region decided whether a node made its own 5 s deadline.
+  # The roles change only when the controller moves one, so observing them on the
+  # loop that already observes the instance costs a tick of staleness and takes a
+  # cross-cluster read off every request. Roles are an optimisation over the local
+  # lowest-URL rule (kura/docs/replication-design.md §2.2), so a tick of lag is
+  # only a late role move, never a stalled region.
+  #
+  # Only mesh regions have peers to have roles, and a read that fails leaves the
+  # last known roles in place rather than blanking a live topology on one
+  # unreachable apiserver.
+  #
+  # This runs on the observation pass only, so a server with an open deployment
+  # keeps the roles of its last observation until the rollout closes. That is
+  # the window in which the controller moves a role most, and the one the
+  # published roles are least able to help in: a role naming a pod that is
+  # restarting names a peer no node can see, and an unmatched role is ignored
+  # in favour of the local rule by design. So the rollout window runs on the
+  # local rule either way, and the tick after the deployment closes republishes.
+  defp observe_server_peer_roles(%Server{} = server) do
+    if mesh_region?(server) do
+      case Provisioner.peer_roles(server) do
+        {:ok, roles} ->
+          persist_peer_roles(server, roles)
+
+        {:error, reason} ->
+          Logger.warning("[Kura.Reconciler] could not observe peer roles for server #{server.id}: #{inspect(reason)}")
+
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp persist_peer_roles(%Server{} = server, roles) do
+    case Kura.record_peer_roles(server, roles) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record peer roles for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp mesh_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.mesh?(region) and not Regions.retired?(region)
+      _ -> false
     end
   end
 
@@ -598,25 +690,81 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) and url_matches_rendered_host?(server) do
-      refresh_node_port_url(server)
-    else
-      do_converge(server, desired)
+    cond do
+      not converged?(server, desired) ->
+        do_converge(server, desired)
+
+      url_matches_rendered_host?(server) ->
+        clear_public_host_drift(server)
+        refresh_private_endpoint(server)
+
+      true ->
+        converge_public_host_drift(server, desired)
     end
   end
 
-  # A converged node-port server still needs its dispatch URL tracked:
-  # the node-published endpoint moves with the primary pod. No-op for
-  # cluster-DNS regions.
-  defp refresh_node_port_url(%Server{} = server) do
-    case Kura.refresh_private_server_url(server) do
+  # A converged server reaches this branch on the same tick its instance
+  # re-renders, so `activate_server/2` would resolve the new host ahead of the
+  # record for it (`Kura.public_host_publication_seconds/0`). The tick that
+  # notices the change only records it; the probe runs on a later one.
+  defp converge_public_host_drift(%Server{} = server, desired) do
+    case server.public_host_drift_observed_at do
+      nil ->
+        Logger.info(
+          "[Kura.Reconciler] public host changed for server #{server.id}; holding the endpoint probe for #{Kura.public_host_publication_seconds()}s"
+        )
+
+        record_public_host_drift(server)
+
+      observed_at ->
+        if DateTime.diff(DateTime.utc_now(), observed_at) >= Kura.public_host_publication_seconds() do
+          do_converge(server, desired)
+        else
+          Logger.info("[Kura.Reconciler] still holding the endpoint probe for server #{server.id}")
+
+          :ok
+        end
+    end
+  end
+
+  defp record_public_host_drift(%Server{} = server) do
+    case Kura.record_public_host_drift(server, now()) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not record the public host change for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  defp clear_public_host_drift(%Server{} = server) do
+    case Kura.clear_public_host_drift(server) do
       :ok ->
         :ok
 
       {:error, reason} ->
         Logger.warning(
-          "[Kura.Reconciler] could not refresh node-port endpoint for server #{server.id}: #{inspect(reason)}"
+          "[Kura.Reconciler] could not clear the public host change for server #{server.id}: #{inspect(reason)}"
         )
+
+        :ok
+    end
+  end
+
+  # Availability is independent of image convergence; refresh active private
+  # instances during a rollout as well as after convergence.
+  # This also moves legacy node-address URLs to the gateway once it is ready.
+  defp refresh_private_endpoint(%Server{} = server) do
+    case Kura.refresh_private_server_url(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not refresh private endpoint for server #{server.id}: #{inspect(reason)}")
 
         :ok
     end
@@ -636,14 +784,13 @@ defmodule Tuist.Kura.Reconciler do
   # not re-written every tick. A non-binary render (e.g. unknown region) leaves
   # the existing `converged?` behaviour untouched.
   #
-  # Node-port regions are the exception: their dispatch `url` is the
-  # node-published `http://<pn-ip>:<node-port>`, which the cluster-DNS template
-  # `public_url/2` renders never matches, so this would report drift on every
-  # tick and route a converged node through `do_converge/2` (DB write +
-  # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
-  # tracking the moving endpoint, so report node-port regions as in sync here.
+  # Private gateway and NodePort regions use an
+  # observed endpoint, which can differ from the template during a gateway
+  # migration or a legacy NodePort move. The refresh path owns both the URL
+  # change and its readiness heartbeat, so rendered URL equality must not
+  # bypass those checks.
   defp url_matches_rendered_host?(%Server{} = server) do
-    if node_port_region?(server) do
+    if observed_endpoint_region?(server) do
       true
     else
       case Provisioner.public_url(server.account, server) do
@@ -654,9 +801,9 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
-  defp node_port_region?(%Server{region: region_id}) do
+  defp observed_endpoint_region?(%Server{region: region_id}) do
     case Regions.fetch(region_id) do
-      {:ok, region} -> Regions.node_port_data_plane?(region)
+      {:ok, region} -> Regions.observed_private_endpoint?(region)
       _ -> false
     end
   end
@@ -683,8 +830,8 @@ defmodule Tuist.Kura.Reconciler do
 
         record(server, server.status, desired, now())
 
-      {:error, :node_port_endpoint_not_ready} ->
-        Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
+      {:error, :private_endpoint_not_ready} ->
+        Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
 
         record(server, server.status, desired, now())
 

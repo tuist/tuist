@@ -21,7 +21,7 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
@@ -57,21 +57,44 @@ defmodule Tuist.Release do
 
     assert_supported_clickhouse_version()
 
-    for repo <- repos() do
-      {:ok, _, _} =
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          ensure_database_schema(repo)
-          Ecto.Migrator.run(repo, :up, all: true)
-          assert_all_migrations_up(repo)
-          grant_runtime_role(repo)
-          grant_processor_role(repo)
-          grant_swift_registry_sync_role(repo)
-          grant_grafana_role(repo)
-          reconcile_ops_clickhouse(repo)
-        end)
-    end
+    with_shadow_ingest_repo(fn ->
+      for repo <- repos() do
+        {:ok, _, _} =
+          Ecto.Migrator.with_repo(repo, fn repo ->
+            ensure_database_schema(repo)
+            Ecto.Migrator.run(repo, :up, all: true)
+            assert_all_migrations_up(repo)
+            grant_runtime_role(repo)
+            grant_processor_role(repo)
+            grant_swift_registry_sync_role(repo)
+            grant_grafana_role(repo)
+            reconcile_ops_clickhouse(repo)
+          end)
+      end
+    end)
 
     reconcile_bare_metal_clickhouse_schema()
+  end
+
+  # Migrating with shadow writes on mirrors every `Tuist.IngestRepo` write to
+  # the in-cluster server, including the `schema_migrations` insert Ecto makes
+  # after each migration. `Ecto.Migrator.with_repo/3` below starts the repo
+  # being migrated and nothing else, so the destination was never started and
+  # every one of those mirrors failed at lookup:
+  #
+  #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
+  #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+  #
+  # That failure is terminal rather than retried, because a repo that is not
+  # started will not become started, so each one was a row the destination
+  # never received, on every deploy that ran migrations.
+  defp with_shadow_ingest_repo(fun) do
+    if is_nil(Environment.clickhouse_bare_metal_url()) do
+      fun.()
+    else
+      {:ok, result, _apps} = Ecto.Migrator.with_repo(Tuist.ShadowIngestRepo, fn _started -> fun.() end)
+      result
+    end
   end
 
   # Brings the in-cluster ClickHouse's schema back in line with the source, for

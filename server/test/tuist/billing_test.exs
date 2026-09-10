@@ -9,7 +9,6 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
-  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -214,91 +213,6 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
-    end
-  end
-
-  describe "subscription_ids_with_stale_period/1" do
-    test "returns active subscriptions whose mirrored period is missing or closed" do
-      # Given
-      now = DateTime.utc_now()
-      account = AccountsFixtures.organization_fixture(preload: [:account]).account
-
-      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_never_mirrored")
-
-      BillingFixtures.subscription_fixture(
-        account_id: AccountsFixtures.organization_fixture(preload: [:account]).account.id,
-        subscription_id: "sub_closed",
-        current_period_start: DateTime.truncate(DateTime.shift(now, month: -2), :second),
-        current_period_end: DateTime.truncate(DateTime.shift(now, month: -1), :second)
-      )
-
-      BillingFixtures.subscription_fixture(
-        account_id: AccountsFixtures.organization_fixture(preload: [:account]).account.id,
-        subscription_id: "sub_running",
-        current_period_start: DateTime.truncate(DateTime.shift(now, day: -1), :second),
-        current_period_end: DateTime.truncate(DateTime.shift(now, month: 1), :second)
-      )
-
-      # A cancelled subscription has no period worth spending a request
-      # on: nothing reads it, and Stripe has nothing current to return.
-      BillingFixtures.subscription_fixture(
-        account_id: AccountsFixtures.organization_fixture(preload: [:account]).account.id,
-        subscription_id: "sub_cancelled",
-        status: "canceled"
-      )
-
-      # When
-      got = Billing.subscription_ids_with_stale_period()
-
-      # Then
-      assert Enum.sort(got) == ["sub_closed", "sub_never_mirrored"]
-    end
-  end
-
-  describe "refresh_subscription_period/1" do
-    test "mirrors the period Stripe reports onto the row" do
-      # Given
-      account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_id")
-
-      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
-        {:ok,
-         %{
-           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
-           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
-         }}
-      end)
-
-      # When
-      got = Billing.refresh_subscription_period("sub_id")
-
-      # Then
-      assert got == :ok
-
-      subscription = Repo.get_by!(Subscription, subscription_id: "sub_id")
-      assert subscription.current_period_start == ~U[2026-09-08 10:00:00Z]
-      assert subscription.current_period_end == ~U[2026-10-08 10:00:00Z]
-    end
-
-    test "errors when Stripe cannot be reached so the job retries" do
-      # Given
-      account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_id")
-
-      expect(Stripe.Subscription, :retrieve, fn "sub_id" -> {:error, :timeout} end)
-
-      # When / Then
-      # Leaving the row untouched keeps the read path on its own Stripe
-      # fallback, which is correct but is the cost this exists to remove.
-      assert Billing.refresh_subscription_period("sub_id") == {:error, :billing_period_unavailable}
-    end
-
-    test "is a no-op for a subscription that is no longer stored" do
-      # Given
-      reject(&Stripe.Subscription.retrieve/1)
-
-      # When / Then
-      assert Billing.refresh_subscription_period("sub_gone") == :ok
     end
   end
 
@@ -1797,6 +1711,45 @@ defmodule Tuist.BillingTest do
 
       # When / Then
       assert Billing.cache_access_blocked?(account)
+    end
+  end
+
+  describe "reset_free_tier/1" do
+    test "zeroes the counter so the account is no longer blocked" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 2,
+          preload: [:account]
+        )
+
+      assert Billing.cache_access_blocked?(account)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert account.current_month_remote_cache_hits_count == 0
+      refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
+    end
+
+    test "moves the counting window forward so the nightly recount does not undo it" do
+      # Given
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: 500,
+          preload: [:account]
+        )
+
+      before = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert DateTime.after?(account.free_tier_reset_at, before)
     end
   end
 

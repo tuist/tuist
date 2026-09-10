@@ -327,18 +327,43 @@ public struct GitController: GitControlling {
 
     private func run(command: String...) async throws {
         if environment.isVerbose {
-            try await commandRunner.runAndPrint(arguments: command, environment: Environment.current.variables)
+            try await commandRunner.runAndPrint(arguments: command, environment: hardenedEnvironment())
         } else {
-            try await commandRunner.runAndWait(arguments: command)
+            try await commandRunner.runAndWait(arguments: command, environment: hardenedEnvironment())
         }
     }
 
     private func capture(command: String...) async throws -> String {
-        if environment.isVerbose {
-            return try await commandRunner.capture(arguments: command, environment: Environment.current.variables)
-        } else {
-            return try await commandRunner.capture(arguments: command)
-        }
+        try await commandRunner.capture(arguments: command, environment: hardenedEnvironment())
+    }
+
+    /// Environment overrides that keep every spawned `git` invocation
+    /// non-interactive on CI runners. The subprocess inherits `tuist`'s
+    /// stdin, so anything that opens a credential prompt, spawns
+    /// `gpg` for signature verification, or otherwise reads from stdin
+    /// blocks indefinitely with no output. The runner then cancels the
+    /// step at its wall-clock timeout and the user is left with a silent
+    /// multi-hour hang.
+    ///
+    /// `GIT_TERMINAL_PROMPT=0` disables the terminal prompt path.
+    /// `GIT_ASKPASS=/usr/bin/false` forces any askpass helper to fail
+    /// immediately (`/usr/bin/false` exists on both macOS and Linux, while
+    /// `/bin/false` is not guaranteed on macOS and would print a spurious
+    /// `fatal: cannot exec` line into stderr before the disabled-prompt
+    /// path took over). `GIT_CONFIG_COUNT=1` plus the `KEY_0`/`VALUE_0`
+    /// pair overrides `log.showSignature` for the lifetime of the
+    /// subprocess, which keeps `git log` from invoking `gpg`
+    /// regardless of the repository's configuration.
+    private static let hardenedEnvironmentOverrides: [String: String] = [
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/usr/bin/false",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "log.showSignature",
+        "GIT_CONFIG_VALUE_0": "false",
+    ]
+
+    private func hardenedEnvironment() -> [String: String] {
+        Environment.current.variables.merging(Self.hardenedEnvironmentOverrides) { _, new in new }
     }
 
     private func parseVersions(_ unparsed: String) throws -> [Version] {

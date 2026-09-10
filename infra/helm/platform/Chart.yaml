@@ -19,10 +19,10 @@ dependencies:
     repository: https://kubernetes.github.io/ingress-nginx
     condition: ingress-nginx.enabled
   - name: ingress-nginx
-    alias: kura-eu-central-ingress-nginx
+    alias: kura-eu-west-ingress-nginx
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
-    condition: kura-eu-central-ingress-nginx.enabled
+    condition: kura-eu-west-ingress-nginx.enabled
   - name: ingress-nginx
     alias: kura-ca-east-ingress-nginx
     version: 4.11.3
@@ -44,10 +44,25 @@ dependencies:
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-ap-southeast-ingress-nginx.enabled
   - name: ingress-nginx
+    alias: kura-runners-ingress-nginx
+    version: 4.11.3
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: kura-runners-ingress-nginx.enabled
+  - name: ingress-nginx
     alias: kura-sa-west-ingress-nginx
     version: 4.11.3
     repository: https://kubernetes.github.io/ingress-nginx
     condition: kura-sa-west-ingress-nginx.enabled
+  - name: ingress-nginx
+    alias: kura-eu-east-ingress-nginx
+    version: 4.11.3
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: kura-eu-east-ingress-nginx.enabled
+  - name: ingress-nginx
+    alias: kura-us-central-ingress-nginx
+    version: 4.11.3
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: kura-us-central-ingress-nginx.enabled
   - name: external-dns
     version: 1.15.0
     repository: https://kubernetes-sigs.github.io/external-dns

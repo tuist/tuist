@@ -81,8 +81,9 @@ fi
 # Optional: route the job's Tuist cache at the account's per-job
 # endpoint when dispatch-poll.sh staged one. The CLI honors
 # TUIST_CACHE_ENDPOINT as a cache-endpoint override; exporting before
-# exec propagates it to the runner process and every job step. Falls
-# back to the CLI's default cache resolution when the file is absent.
+# exec propagates it to the runner process. The job-start hook below
+# also publishes it to GitHub's job environment for container steps.
+# Falls back to default cache resolution when the file is absent.
 CACHE_ENDPOINT_PATH="${JIT_PATH}.cache-endpoint"
 if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   cache_endpoint="$(cat "${CACHE_ENDPOINT_PATH}")"
@@ -137,6 +138,14 @@ cat >"${JOB_STARTED_HOOK}" <<HOOK
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
 _wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
 [ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+# Docker job steps only receive GitHub's explicit job environment,
+# not arbitrary variables inherited by the runner process. GITHUB_ENV
+# is created when this hook executes, not when run-job.sh writes it.
+if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
+  if ! printf 'TUIST_CACHE_ENDPOINT=%s\\n' "\${TUIST_CACHE_ENDPOINT}" >> "\${GITHUB_ENV}"; then
+    echo "::warning::Could not publish the runner cache endpoint to the job environment"
+  fi
+fi
 exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"

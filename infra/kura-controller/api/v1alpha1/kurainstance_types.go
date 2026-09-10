@@ -27,7 +27,8 @@ type KuraInstanceSpec struct {
 	// multi-box region (and the gateway stops feeding external-dns the ambiguous
 	// all-nodes address). On an LB region (false) DNS is sourced from the gateway
 	// Service/Ingress as before. This is the customer-plane analog of
-	// MeshPeerHostNetwork.
+	// MeshPeerHostNetwork. Private instances publish PrivateHost to the node PN
+	// address through the same mechanism.
 	PublicHostNetwork bool `json:"publicHostNetwork,omitempty"`
 
 	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
@@ -42,14 +43,13 @@ type KuraInstanceSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	ExtraEnv    []corev1.EnvVar     `json:"extraEnv,omitempty"`
 
-	// Private marks a region with no public endpoint, reachable only
-	// over the cluster's internal Service DNS (today: the runner-cache
-	// regions, serving an in-cluster runner fleet). When true the
-	// controller leaves the public/gRPC Ingress and Certificate
-	// unreconciled and the primary Service stays ClusterIP — there is
-	// no public host to advertise, and the runner Pods reach the cache
-	// at `<instance>.<namespace>.svc.cluster.local`.
+	// Private restricts client access to the cluster and ClientCIDRs. PrivateHost
+	// opts into the shared regional gateway; otherwise no Ingress is created.
 	Private bool `json:"private,omitempty"`
+	// PrivateHost uses the same ingress/TLS/primary Service as PublicHost, with
+	// DNS targeting the node's tuist.dev/pn-ipv4 address. Requires a host-network
+	// ingress class and nonempty ClientCIDRs. PublicHost is ignored when private.
+	PrivateHost string `json:"privateHost,omitempty"`
 
 	// ExposeNodePort additionally publishes the co-hosted cache port
 	// (HTTP + gRPC) through a NodePort Service (`<instance>-external`)
@@ -59,8 +59,8 @@ type KuraInstanceSpec struct {
 	// cluster's pod network — the macOS Tart VMs reach the pool over
 	// a cloud Private Network, where ClusterIP DNS doesn't resolve
 	// and isn't routed. Traffic must enter on the node hosting the
-	// pod; status.NodeAddress + status.NodePortCache are what dispatch
-	// hands those clients.
+	// pod; status.NodeAddress + status.NodePortCache describe that legacy URL.
+	// Gateway regions retain this Service during migration to PrivateHost.
 	ExposeNodePort bool `json:"exposeNodePort,omitempty"`
 
 	// ClientCIDRs are source ranges allowed to reach the cache port in
@@ -237,19 +237,58 @@ type KuraInstanceRolloutHealth struct {
 	SampledAt                    *metav1.Time `json:"sampledAt,omitempty"`
 }
 
+// KuraInstancePeerRole is one pod's replication role as the controller
+// resolves it (kura/docs/replication-design.md §2.1). NodeURL is the pod's
+// KURA_NODE_URL — the identity the runtime registers with the server — so
+// the server can match roles to registered peers without translating names.
+type KuraInstancePeerRole struct {
+	NodeURL string `json:"nodeURL"`
+	Gateway bool   `json:"gateway"`
+	Primary bool   `json:"primary"`
+
+	// Node is the box the pod is scheduled on, empty when it is not
+	// scheduled or does not exist yet. On host-network regions the primary's
+	// box is the one the account's customer DNS record targets and the only
+	// one whose gateway serves it without a cross-box hop, so this is what
+	// makes "is the record pointing at a box that can serve" a single read.
+	//
+	// An account's replicas can report different boxes. The pod affinity only
+	// prefers co-location and the StatefulSet uses Parallel pod management, so
+	// a region with more than one box can place them apart, and a cache PV is
+	// a local-path directory with hard node affinity, so it then holds for the
+	// life of those volumes. That is not a fault and is deliberately not
+	// reconverged: see the placement note in AGENTS.md.
+	Node string `json:"node,omitempty"`
+}
+
 type KuraInstanceStatus struct {
-	Phase            string       `json:"phase,omitempty"`
-	PublicURL        string       `json:"publicURL,omitempty"`
-	GRPCPublicURL    string       `json:"grpcPublicURL,omitempty"`
-	ObservedImage    string       `json:"observedImage,omitempty"`
-	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
-	Message          string       `json:"message,omitempty"`
-	LastReconciledAt *metav1.Time `json:"lastReconciledAt,omitempty"`
+	// PrivateURL is published only after the private gateway, DNS, certificate,
+	// and primary have been observed ready for EndpointObservedGeneration.
+	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
+	EndpointReason             string       `json:"endpointReason,omitempty"`
+	EndpointMessage            string       `json:"endpointMessage,omitempty"`
+	PrivateURL                 string       `json:"privateURL,omitempty"`
+	EndpointObservedGeneration int64        `json:"endpointObservedGeneration,omitempty"`
+	Phase                      string       `json:"phase,omitempty"`
+	PublicURL                  string       `json:"publicURL,omitempty"`
+	GRPCPublicURL              string       `json:"grpcPublicURL,omitempty"`
+	ObservedImage              string       `json:"observedImage,omitempty"`
+	ReadyReplicas              int32        `json:"readyReplicas,omitempty"`
+	Message                    string       `json:"message,omitempty"`
+	LastReconciledAt           *metav1.Time `json:"lastReconciledAt,omitempty"`
 
 	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
 	// reports, published for the control plane's health-gated progressive
 	// rollout. Absent until at least one reconcile has sampled the pods.
 	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
+
+	// PeerRoles lists every pod of the StatefulSet with the roles the
+	// controller resolved for it: Primary is the pod the public Services
+	// route to, Gateway the pod that carries the region's cross-region
+	// replication — the Ready, non-draining complement of the primary, or
+	// the primary itself when there is none. The server reads it to publish
+	// roles in the mesh peer list.
+	PeerRoles []KuraInstancePeerRole `json:"peerRoles,omitempty"`
 
 	// CPUAutosize carries the CPU observation behind requests.cpu. It is
 	// status because nothing outside the controller sets it, and it has to

@@ -73,6 +73,10 @@ defmodule Tuist.MCP.Components.Tools.ModuleCacheTools do
         "type" => "integer",
         "description" => "Invalidations where only a dependency changed."
       },
+      "evicted" => %{
+        "type" => "integer",
+        "description" => "Invalidations where the module was unchanged but its cached artifact was gone."
+      },
       "unclassified" => %{
         "type" => "integer",
         "description" => "Invalidations with no comparable prior build: first-seen, cold or evicted."
@@ -86,7 +90,7 @@ defmodule Tuist.MCP.Components.Tools.ModuleCacheTools do
   end
 
   def invalidation_row_required do
-    ~w(name product appearances invalidations invalidation_rate hit_rate self_changes dependency_induced unclassified blast_radius)
+    ~w(name product appearances invalidations invalidation_rate hit_rate self_changes dependency_induced evicted unclassified blast_radius)
   end
 
   def invalidation_row(row) do
@@ -99,6 +103,7 @@ defmodule Tuist.MCP.Components.Tools.ModuleCacheTools do
       hit_rate: row.hit_rate,
       self_changes: row.self_changes,
       dependency_induced: row.dependency_induced,
+      evicted: row.evicted,
       unclassified: row.unclassified,
       blast_radius: row.blast_radius
     }
@@ -331,9 +336,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleBuilds do
           },
           "reason" => %{
             "type" => "string",
-            "enum" => ["hit", "changed", "upstream", "cold"],
+            "enum" => ["hit", "changed", "upstream", "cold", "evicted"],
             "description" =>
-              "Restrict to builds with this outcome: hit, changed (own content differed), upstream (only a dependency differed) or cold (no comparable prior build)."
+              "Restrict to builds with this outcome: hit, changed (own content differed), upstream (only a dependency differed), evicted (unchanged but the cached artifact was gone) or cold (no comparable prior build)."
           },
           "order" => %{
             "type" => "string",
@@ -363,7 +368,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleBuilds do
               "git_branch" => %{"type" => "string"},
               "git_commit_sha" => %{"type" => "string"},
               "cache_status" => %{"type" => "string", "enum" => ["miss", "local", "remote"]},
-              "reason" => %{"type" => "string", "enum" => ["hit", "changed", "upstream", "cold"]}
+              "reason" => %{"type" => "string", "enum" => ["hit", "changed", "upstream", "cold", "evicted"]}
             },
             "required" => ["run_id", "scheme", "ran_at", "git_branch", "git_commit_sha", "cache_status", "reason"],
             "additionalProperties" => false
@@ -464,9 +469,10 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeModuleCacheTimeseries do
           "properties" => %{
             "changed" => %{"type" => "array", "items" => %{"type" => "integer"}},
             "upstream" => %{"type" => "array", "items" => %{"type" => "integer"}},
+            "evicted" => %{"type" => "array", "items" => %{"type" => "integer"}},
             "cold" => %{"type" => "array", "items" => %{"type" => "integer"}}
           },
-          "required" => ["changed", "upstream", "cold"],
+          "required" => ["changed", "upstream", "evicted", "cold"],
           "additionalProperties" => false
         },
         "module_counts" => %{
@@ -520,6 +526,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeModuleCacheTimeseries do
       miss_reasons: %{
         changed: miss_reasons.changed,
         upstream: miss_reasons.upstream,
+        evicted: miss_reasons.evicted,
         cold: miss_reasons.cold
       },
       module_counts: Analytics.modules_timeseries(opts).counts,

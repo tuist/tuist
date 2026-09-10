@@ -243,7 +243,7 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -302,7 +302,7 @@ jobs:
       TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -385,6 +385,8 @@ jobs:
         run: aube install
       - name: Check Elixir format
         run: mix format --check-formatted
+      - name: Test frontend interactions
+        run: node --test assets/app/js/*.test.mjs
       - name: Check asset format
         run: prettier --check assets
       - name: Check CSS custom property references
@@ -396,7 +398,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Check marketing and app image budgets
+      - name: Install image inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends imagemagick
+      - name: Test image budget guard
+        working-directory: ${{ github.workspace }}
+        run: bash mise/tasks/marketing/image-budget-test.sh
+      - name: Check served image budgets
         working-directory: ${{ github.workspace }}
         run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
@@ -588,7 +597,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

@@ -217,6 +217,7 @@ mod cold_replay_benchmark {
     }
 
     fn dataset(count: usize, source: &'static PathState) -> (Arc<Server>, Vec<Vec<u8>>) {
+        let encoding_remote = test_proxy().remote_for("tuist/cold-replay-source");
         let mut actions = HashMap::new();
         let mut blobs = HashMap::new();
         let mut nodes = Vec::new();
@@ -250,13 +251,13 @@ mod cold_replay_benchmark {
             }
             let root =
                 store_probe_object_with_refs(source, format!("root-{action}").as_bytes(), &outputs);
-            let (manifest, encoded) = walk_closure(source, &root).unwrap();
+            let (manifest, encoded) = walk_closure(source, &root, &encoding_remote).unwrap();
             assert_eq!(manifest.len(), 41);
             let mut entry = Vec::new();
             let mut files = Vec::new();
-            for (node, bytes) in manifest.into_iter().zip(encoded) {
-                let bytes = bytes.unwrap_or_else(|| unsafe {
-                    encode_node_blob(source, &node.llcas_digest).unwrap().0
+            for (node, (bytes, chunked)) in manifest.into_iter().zip(encoded) {
+                let bytes = bytes.unwrap_or_else(|| {
+                    encode_node_blob_accounted(source, &node.llcas_digest, &encoding_remote, Some(chunked)).unwrap().0
                 });
                 blobs.insert(node.blob.hash.clone(), bytes);
                 let index = *indexes.entry(node.llcas_digest.clone()).or_insert_with(|| {

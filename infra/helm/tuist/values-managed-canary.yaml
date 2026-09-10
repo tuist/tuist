@@ -205,7 +205,7 @@ server:
       # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
-      value: eu-central,scw-fr-par-runners,ca-east
+      value: eu-west,scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -235,6 +235,14 @@ server:
     # interim-paced ordering here; kept aligned with production.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Matches production so the cascade runs the automatic-apply path before
+    # production gets it. What it proves is bounded: this environment has one
+    # public region and its accounts are acceptance-test accounts reclaimed the
+    # next day, so the sweep has nowhere to move anything to and no history to
+    # move it on. It exercises the parse, the per-kind budget and the sweep
+    # under a non-empty value, not a real transition.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -279,6 +287,43 @@ clickhouse:
         # not the pool label. The second box is joined, tainted and idle until
         # the two-replica work lands.
         nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers; the backfill then copies what
+    # was written before a stated cutoff. Doing it the other way round leaves
+    # the rows written between the copy finishing and the mirror starting on
+    # Cloud alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads from the in-cluster
+    # server yet, so a mirrored write that fails costs a metric and not a
+    # request: inserts are handed to a bounded Task.Supervisor rather than
+    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
+    # cannot overtake the inserts it is meant to erase.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow pool
+    # is not ready for the first seconds of its life, which is what the retry
+    # covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
@@ -298,17 +343,53 @@ clickhouse:
     # makes the destination reject a non-replicated table, so creation
     # succeeding is the proof.
     #
-    # Being a post-upgrade hook, this re-runs on every deploy while it is
-    # enabled. That is harmless for the clone, which creates what is missing
-    # and leaves the rest, but the step after it is not: advance `task` rather
-    # than leaving this armed once the gate is met.
+    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
+    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
+    # one enabled re-runs it on every deploy. That was harmless for the clone,
+    # which creates what is missing and leaves the rest alone, and it is not
+    # harmless for what comes next.
     #
-    # `cutoff` stays unset. It belongs to the backfill, two steps later, and is
-    # read off the completed rollout of the deploy that turns dual writes on.
+    # `name` and `task` are the step this would run if it were enabled, which
+    # is why they name the *next* one rather than the last that ran.
+    #
+    # `cutoff` is deliberately absent, and arming the backfill without it fails
+    # loudly rather than copying to a stale timestamp. Set it to a moment after
+    # the deploy that turns dual writes on above has finished rolling out: the
+    # backfill covers everything before it, the mirror covers everything after,
+    # and naming the boundary is what stops the two from leaving a gap.
+    # Step 5, the initial replication: everything canary wrote before the
+    # cutoff still lives only on Cloud, and this copies it.
+    #
+    # A post-upgrade hook, by inheriting `background: false`, which is the mode
+    # staging used successfully. The previous attempt set `background: true` on
+    # the belief that helm does not wait on ordinary Jobs. Helm 3 does not;
+    # helm 4 does, so the Job blocked the release and a failing one rolled
+    # three canary deploys back. Background mode stays unusable until there is
+    # a mechanism helm does not wait on, and that is a production problem:
+    # canary's dataset is small enough to wait for.
+    #
+    # Two bugs that stopped every previous run are fixed and deployed here:
+    # the advisory lock's connection is no longer capped at fifteen seconds,
+    # and the destination is waited for rather than raced.
+    #
+    # `cutoff` is later than the last mirror error rather than the moment dual
+    # writes rolled out. Terminal shadow-write errors are rows that reached
+    # Cloud and not the destination, so a cutoff before them leaves those rows
+    # covered by neither side. The counter last moved at about 11:30Z and has
+    # been flat since, so this is comfortably after it.
+    #
+    # It will not reach clean parity in one run, by construction: this deploy
+    # restarts the server pods, and the writes lost while their mirror warms up
+    # land after the cutoff. The repair is another run with a later cutoff,
+    # which is what the runbook prescribes and what production will do anyway.
+    #
+    # Gate: every chunk recorded done in the ledger with no failures, read from
+    # the Job afterwards.
     migration:
       enabled: true
-      name: schema-clone
-      task: Tuist.Release.clone_clickhouse_schema
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-10T12:20:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -356,6 +437,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"
@@ -384,8 +467,11 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-ca-east]
@@ -547,10 +633,10 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
 # DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
 # in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
@@ -562,7 +648,7 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:

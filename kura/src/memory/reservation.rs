@@ -12,6 +12,17 @@ use super::{MemoryController, MemoryControllerInner};
 pub(super) const FOREGROUND_ADMISSION_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(30);
 pub(super) const RESPONSE_STREAM_ADMISSION_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a response waits for materialization headroom before shedding.
+///
+/// Shorter than the response-stream deadline above, because the two are bounding
+/// different things. That one waits for a stream slot the node will free as soon
+/// as a stream finishes; this one waits on a pool whose permits are released
+/// only when a client has finished reading a body, which nothing server-side
+/// bounds. Momentary contention clears far inside a second -- measured p99 was
+/// 369ms with demand at four times the pool -- so a second rides out everything
+/// the pool can actually turn over, while a pool held by stalled readers costs a
+/// second per read rather than five before the shed it was always going to be.
+pub(super) const RESPONSE_MATERIALIZATION_ADMISSION_TIMEOUT: Duration = Duration::from_secs(1);
 /// How long a caller that can degrade will wait for a full-size reservation.
 ///
 /// Short on purpose. When failing admission meant returning `503` it was worth

@@ -152,6 +152,12 @@ stringData:
   # one secret reference instead of assembling a URL from four env vars and
   # having to agree on the escaping.
   url: {{ printf "http://default:%s@%s:8123/%s" $password $chName $m.database | quote }}
+{{- if $m.tailscale.enabled }}
+  # The same database by its tailnet name, for writers that are not on the pod
+  # network and cannot resolve the Service above. Same credential; what differs
+  # is only how the host is reached.
+  url-tailnet: {{ printf "http://default:%s@%s:8123/%s" $password (required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname) $m.database | quote }}
+{{- end }}
   # Mounted into users.d. ClickHouse reads it at startup and on reload.
   users.xml: |
     <clickhouse>
@@ -409,6 +415,41 @@ spec:
     - name: metrics
       port: {{ $m.metricsPort }}
       targetPort: {{ $m.metricsPort }}
+{{- if $m.tailscale.enabled }}
+---
+{{- /*
+A second Service carrying only the HTTP port, so the Tailscale operator fronts
+that and nothing else. Annotating the Service above would have been fewer
+lines and would also have put the native protocol and the Prometheus endpoint
+on the tailnet, which nothing off-cluster needs.
+
+This exists because the macOS fleet's xcresult-processor is not on the pod
+network: it runs in a Tart VM with a tailnet address, so the in-cluster
+Service name resolves for every other writer and not for it. It wrote the
+whole test family to the system of record and mirrored none of it, and the
+only reason that surfaced is the parity check reporting six tables with zero
+rows on the destination. Nothing in that pod's own logs said so, because its
+logs reach neither `kubectl logs` nor Loki.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $chName }}-tailnet
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clickhouse
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ required "clickhouse.managed.tailscale.hostname is required when tailscale.enabled is true" $m.tailscale.hostname | quote }}
+    tailscale.com/tags: {{ required "clickhouse.managed.tailscale.tags is required when tailscale.enabled is true" $m.tailscale.tags | quote }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -573,7 +614,22 @@ spec:
         # ConfigMap edit sits on disk unread until something else restarts
         # the pod. ClickHouse reloads some of these itself, but not the
         # profile settings that gate the replicated-engine guard.
-        checksum/config: {{ printf "%s|%s" ($m | toYaml) $password | sha256sum | trunc 32 }}
+        #
+        # `migration` and `shadowWrites` are omitted because neither reaches
+        # this server's configuration. `migration` selects a step and its
+        # cutoff, and `shadowWrites` is read by the application's env. Hashing
+        # them restarted the database on every step of the very migration they
+        # describe, which is not a theoretical cost: enabling dual writes
+        # rolled the pod out from under the mirror and lost four writes to a
+        # terminal error, and arming the backfill rolled it again five seconds
+        # after the backfill Job started, so the copy died on `connection
+        # refused` before reading a single row.
+        #
+        # Everything else stays hashed, including `backup`, which does reach
+        # the ConfigMap through the disk declaration. The rule is that a value
+        # is omitted only when it configures the client or the rollout rather
+        # than the server.
+        checksum/config: {{ printf "%s|%s" (omit $m "migration" "shadowWrites" | toYaml) $password | sha256sum | trunc 32 }}
     spec:
       nodeSelector:
         node.cluster.x-k8s.io/pool: {{ $m.nodePool }}

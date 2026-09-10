@@ -47,9 +47,16 @@ const runtimeProperties = {
     "--runner-vnc-width": "",
     "--runner-vnc-height": "",
     "--runner-vnc-aspect-ratio": "",
+    // Measured by BuildTimeline.js and its draggable inspector at runtime.
+    "--timeline-inspector-width": "",
+    "--timeline-viewport-height": "",
     // Set inline by the Gradle build timeline on each configuration operation.
     "--configuration-operation-start": "",
     "--configuration-operation-duration": "",
+    // Set inline per platform-hero panel by
+    // server/lib/tuist_web/marketing/components/marketing_home_components.ex.
+    "--panel-x": "",
+    "--panel-w": "",
   },
 };
 

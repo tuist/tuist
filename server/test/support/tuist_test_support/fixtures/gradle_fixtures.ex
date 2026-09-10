@@ -26,6 +26,8 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         project_id: project_id,
         account_id: account_id,
         duration_ms: Keyword.get(attrs, :duration_ms, 10_000),
+        started_at: Keyword.get(attrs, :started_at),
+        machine_metrics: Keyword.get(attrs, :machine_metrics, []),
         status: Keyword.get(attrs, :status, "success"),
         gradle_version: Keyword.get(attrs, :gradle_version, "8.5"),
         java_version: Keyword.get(attrs, :java_version, "17.0.1"),

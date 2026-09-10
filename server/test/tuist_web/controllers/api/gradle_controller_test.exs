@@ -34,6 +34,7 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       body = %{
         duration_ms: 400,
+        started_at: "2026-09-09T10:00:00.123Z",
         status: "success",
         tasks: [
           %{
@@ -58,6 +59,9 @@ defmodule TuistWeb.API.GradleControllerTest do
         |> Map.fetch!("id")
 
       Buffer.flush()
+      {:ok, recorded_build} = Gradle.get_build(id)
+      assert recorded_build.started_at == ~N[2026-09-09 10:00:00.123000]
+
       Tuist.Gradle.Task.Buffer.flush()
       response = conn |> get(path <> "/" <> id) |> json_response(200)
       assert hd(response["tasks"])["execution"]["incremental"] == true
@@ -511,6 +515,62 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert task["cache_key"] == "key-123"
       assert task["remote_cache_miss"] == false
       assert task["remote_cache_stored"] == nil
+    end
+
+    test "returns the remote cache transfer totals for the build", %{conn: conn, user: user, project: project} do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: [
+            %{
+              task_path: ":app:compileKotlin",
+              outcome: "remote_hit",
+              cacheable: true,
+              cache_artifact_size: 6000
+            },
+            %{
+              task_path: ":lib:compileKotlin",
+              outcome: "remote_hit",
+              cacheable: true,
+              cache_artifact_size: 3000
+            },
+            %{
+              task_path: ":app:processResources",
+              outcome: "executed",
+              cacheable: true,
+              cache_artifact_size: 1000,
+              remote_cache_stored: true
+            }
+          ]
+        )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}")
+
+      assert %{
+               "cache_download_bytes" => 9000,
+               "cache_upload_bytes" => 1000
+             } = json_response(conn, 200)
+    end
+
+    test "returns zeroed remote cache transfer totals for a build with no tasks", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          account_id: user.account.id,
+          tasks: []
+        )
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}")
+
+      assert %{
+               "cache_download_bytes" => 0,
+               "cache_upload_bytes" => 0
+             } = json_response(conn, 200)
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do

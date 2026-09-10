@@ -5,7 +5,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
   alias Tuist.Alerts.Workers.AlertWorker
   alias Tuist.Automations.Workers.AutomationScheduler
-  alias Tuist.Billing.Workers.RefreshSubscriptionPeriodsWorker
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias Tuist.Environment
   alias Tuist.Kura.Reconciler, as: KuraReconciler
@@ -130,7 +129,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
         refute SyncStripeMetersWorker in workers
-        refute RefreshSubscriptionPeriodsWorker in workers
         refute KuraReconciler in workers
         refute ClaimSizingWorker in workers
         refute StaleQueuedJobsWorker in workers
@@ -233,6 +231,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       assert hosted_cache_crons == self_hosted_cache_crons
     end
 
+    test "the hosted sign-up report runs every hour, including weekends" do
+      assert {"@hourly", HourlySlackReportWorker} in RuntimeConfig.crontab(:web, :prod, true)
+    end
+
     test ":web + prod-like env, Tuist-hosted: hosted-only entries plus shared crons" do
       for env <- [:prod, :stag, :can], artifact_retention_days <- [%{}, %{cache_artifacts: 21}] do
         workers =
@@ -258,7 +260,6 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         assert DeleteExpiredGradleCacheArtifactsWorker in workers
         assert SyncStripeMetersWorker in workers
-        assert RefreshSubscriptionPeriodsWorker in workers
         assert KuraReconciler in workers
         assert ClaimSizingWorker in workers
         assert StaleQueuedJobsWorker in workers

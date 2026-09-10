@@ -173,6 +173,9 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  # Enable managed gateway readiness reads and its Cilium backend policy.
+  privateGateway:
+    enabled: false
   namespace: kura
   replicaCount: 2
   tolerations: []
@@ -195,6 +198,18 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  # One Certificate in the controller namespace, issued by tlsClusterIssuer,
+  # that every public Ingress terminates on. The controller maintains it, not
+  # this chart: `--rollback-on-failure` defaults Helm 4's wait strategy to
+  # `watcher`, so a Certificate in the release makes a first issuance slower
+  # than the release timeout fail the deploy. An instance keeps its own
+  # certificate until this Secret holds a leaf covering its host, and an ACME
+  # wildcard covers exactly one label below the name it is issued for.
+  publicWildcardCertificate:
+    enabled: false
+    secretName: kura-public-wildcard-tls
+    dnsNames:
+      - "*.kura.tuist.dev"
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override
@@ -203,6 +218,12 @@ kuraController:
     # Environment label injected into controller-managed Kura pods. Kura
     # uses this for both OpenTelemetry and Sentry.
     deploymentEnvironment: production
+  analytics:
+    # Sync the server's webhook signing key and internal address into Kura.
+    # Requires server.config.managedSecrets and sharedSecrets.enabled.
+    # Self-hosted installs can instead supply KURA_ANALYTICS_SERVER_URL and
+    # KURA_ANALYTICS_SIGNING_KEY through sharedSecrets.data.
+    enabled: false
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
@@ -415,6 +436,11 @@ codebaseSearch:
 server:
   enabled: true
   replicaCount: 1
+  # server.image.tag is REQUIRED. The chart's .Chart.AppVersion tracks the
+  # chart itself, not the server image, which ships on its own 1.x cadence
+  # under ghcr.io/tuist/tuist. Pin an explicit tag matching a release from
+  # https://github.com/tuist/tuist/releases?q=server (for example "1.318.0").
+  # Managed deploys inject it via `helm upgrade --set server.image.tag=...`.
   image:
     repository: ghcr.io/tuist/tuist
     tag: ""
@@ -484,6 +510,15 @@ server:
     shardBundles: ""
   skipEmailConfirmation: true
   secretKeyBase: ""
+  # Name of an existing Kubernetes Secret backing TUIST_SECRET_KEY_BASE (the
+  # Phoenix session/signing key). When set, the chart routes the env var
+  # through a secretKeyRef against this Secret instead of rendering
+  # `server-secret-key-base` into its own app-secrets Secret. Use with a
+  # Vault-synced Secret, sealed-secrets, or any other out-of-band source.
+  # Mutually exclusive with `server.secretKeyBase`. Override
+  # `secretKeyBaseExistingSecretKey` to match the key in your Secret.
+  secretKeyBaseExistingSecret: ""
+  secretKeyBaseExistingSecretKey: server-secret-key-base
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
   # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
   # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
@@ -501,15 +536,12 @@ server:
       name: onepassword
     # Sync either the online Tuist license key or the air-gapped license
     # certificate from the external store. These sources are mutually
-    # exclusive. The optional verify key lets air-gapped certificates signed
-    # by an additional issuer validate during a key rotation.
+    # exclusive.
     license:
       item: ""
       field: password
       certificateItem: ""
       certificateField: password
-      verifyKeyItem: ""
-      verifyKeyField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -667,8 +699,23 @@ server:
   license:
     key: ""
     certificateBase64: ""
-    verifyKey: ""
     selfHostingDevelopmentMode: false
+    # Name of an existing Kubernetes Secret whose keys back the license
+    # environment variables. Use this when the license values live in a
+    # Secret populated out-of-band (Vault, sealed-secrets, bank-vaults, an
+    # ExternalSecret targeting a store other than 1Password, etc.) and you
+    # do not want the chart to render them into its own app-secrets Secret.
+    # Mutually exclusive with `server.license.{key,certificateBase64}`
+    # and with the ESO `server.externalSecrets.license` path.
+    #
+    # Override `existingSecretKeys` to match the key names in your Secret.
+    # An empty value under `existingSecretKeys` skips wiring the corresponding
+    # env var, which lets the Secret carry only the online key (or only the
+    # air-gapped certificate) without a placeholder for the other.
+    existingSecret: ""
+    existingSecretKeys:
+      key: server-license-key
+      certificateBase64: server-license-certificate-base64
   database:
     ssl: false
   storage:
@@ -705,7 +752,7 @@ server:
   # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
   # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
   kuraPeerFailoverIps: []
-  # - region: eu-central
+  # - region: eu-west
   #   ip: "1.2.3.4"
   #   vendor: dedibox
   #   pool: kura-dedibox
@@ -1326,6 +1373,7 @@ capi:
 # it and set the PN id. Scale with
 # `kubectl scale machinedeployment <name> --replicas=N`.
 kuraFleet:
+  # replicas counts hosts; each account has two Kura process replicas/PVCs.
   enabled: false
   replicas: 1
   # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
@@ -1512,6 +1560,107 @@ vultrFleet:
 vultrFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
+# colo programme), as opposed to capacity ordered from a provider API.
+#
+# Two things are declared here and they are different in kind. `hosts` is
+# physical INVENTORY: one entry per box, each rendering a RackHost the fleet's
+# Machines claim from. Everything under `machine` is WORKLOAD shape, cloned onto
+# every Machine by the MachineTemplate. Keeping them apart is what lets one
+# replica count scale the rack; see templates/rack-fleet.yaml.
+rackFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-fleet
+
+  # The claim marker AND the environment boundary. A Machine claims a free
+  # RackHost whose pool matches, so staging and production inventory can coexist
+  # as long as their pools differ. Required when enabled.
+  pool: ""
+
+  # Machine count. Defaults to the number of declared hosts: a Machine with
+  # nowhere to land sits on NoAvailableHost forever, which leaves the
+  # MachineDeployment permanently below spec. Set it lower to stage a rack one
+  # box at a time.
+  replicas: null
+
+  # Default rack site for hosts that don't name their own. Load-bearing: it
+  # composes the providerID, so it must be stable for the life of a host.
+  site: ""
+
+  # Default SSH account. On rack hosts this is the MDM-provisioned service
+  # account, not a provider-issued one.
+  sshUser: tuist
+
+  # The rack's physical inventory. Adding a mini is a values PR: the record is
+  # then versioned and reviewed, rather than living in someone's kubectl
+  # history. Nothing here is workload config: see `machine` below for that.
+  #
+  #   - name: ber1-proto-01     # RackHost object name; also the Node name's box
+  #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
+  #     address: 192.168.0.41   # what the operator SSHes to, normally the
+  #                             # in-rack LAN address reached over a tailnet
+  #                             # subnet route advertised by the rack's service
+  #                             # node. Routing it separately from the host's
+  #                             # OWN tailnet identity is deliberate: bootstrap
+  #                             # stops and replaces tailscaled, which over a
+  #                             # host-transported session drops the tunnel it
+  #                             # is riding.
+  #     site: ber1
+  #     rack: r1
+  #     shelf: s3
+  #     positionU: 12
+  #     power:                  # the fleet's remote reboot: Apple silicon boots
+  #       driver: shelly        # on power-apply and every host runs
+  #       host: 192.168.0.50    # `pmset autorestart 1`, so an outlet cycle is a
+  #       outlet: "0"           # cold boot with nobody at a console.
+  #       credentialsSecret: "" # optional; omit for an unauthenticated plug
+  #     unclaimable: false      # takes a box out of the pool (bench work, RMA)
+  #                             # without deleting its inventory record
+  hosts: []
+
+  # Workload shape, cloned onto every Machine. Each field falls back to the
+  # operator's global default when unset.
+  machine:
+    hostCPU: null            # cores advertised on the Node
+    hostMemoryMB: null       # RAM advertised, minus the ~2 GB
+                             # Virtualization.framework reserves for the host
+    guestCapacity: null      # Tart guests the host is expected to run
+    maxPods: null            # Node Pod ceiling; size as guests x 2 + 1
+    # Cache-volume quota in GiB. An explicit 0 means "cache volumes off on this
+    # host" (the only setting that fits a 256 GB prototype box) and is
+    # deliberately distinguishable from unset, which inherits the global.
+    runnerCacheVolumeGiB: null
+
+  # The fleet SSH key + the service account's password, synced from 1Password.
+  # NOT optional: the controller never mints a replacement, because a credential
+  # generated in-cluster is one no MDM-provisioned host has heard of.
+  sshExternalSecret:
+    enabled: false
+    item: BER1_FLEET_SSH
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+  # PDU / smart-plug credentials, if the endpoint has any. A plug on a
+  # management segment with no password needs none; leave disabled and omit
+  # `power.credentialsSecret` on the hosts.
+  powerExternalSecret:
+    enabled: false
+    item: BER1_PDU
+    secretName: ""       # default: <fleet-name>-power
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      username: username
+      password: password
+
 macosFleet:
   enabled: false
   name: ""             # default: <release>-macos-fleet
@@ -2202,6 +2351,11 @@ runnersFleet:
     #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
     #   # Linux block); override here to add extra labels.
     #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
+    #   # Optional. Host fleet whose Nodes this pool's runners land on;
+    #   # defaults to this block's own fleet. Set it to place work on a
+    #   # macOS fleet other than runnersFleet, which today means the
+    #   # rack-owned minis in `rackFleet`.
+    #   fleetSelector: ""
     #   pod:
     #     cpuMilli: 8000
     #     memoryMB: 14336
@@ -2549,6 +2703,11 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+# The standalone cache service is deprecated for new deployments. Hosted
+# Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
+# and disables this workload (`cache.enabled: false` in
+# values-managed-common.yaml). It is kept for existing self-hosted installs
+# that still rely on it; new deployments should skip it and plan on Kura.
 cache:
   enabled: true
   replicaCount: 1
@@ -2559,6 +2718,16 @@ cache:
     name: ""
     annotations: {}
   podSecurityContext: {}
+  # ghcr.io/tuist/cache is published as a single-arch linux/amd64 image (see
+  # .github/workflows/cache-release.yml — the build does not pass `platforms`
+  # to buildx). arm64 is not planned: the service is on the deprecation path
+  # in favor of Kura, and every managed environment runs on Hetzner amd64
+  # nodes (cx/cpx/ccx) so arm64 has never been on the roadmap for this
+  # image. The chart currently has no cache-specific scheduling fields;
+  # constrain the pod through `global.nodeSelector` / `global.tolerations`
+  # (applied to every workload in the release), or through cluster-level
+  # scheduling (a runtimeClass, admission policy, or dedicated node pool)
+  # rather than expecting a multi-arch tag.
   image:
     repository: ghcr.io/tuist/cache
     tag: "0.29.0"
@@ -2591,23 +2760,31 @@ cache:
   apiKey: ""
   secretKeyBase: ""
   guardianSecretKey: ""
-  # DATABASE_URL for the cache Phoenix app's own Postgres. Two paths:
-  #
-  #   - Self-hosted with an external Postgres: set explicitly here, like
-  #     ecto://user:pass@host:5432/db.
-  #   - Embedded mode (postgresql.mode=embedded): leave empty. The chart
-  #     composes a URL pointing at the embedded Postgres + a dedicated
-  #     `cache.embedded.database` (auto-created at first Postgres boot via
-  #     templates/postgresql-init.yaml so the cache app's migrations don't
-  #     collide with the server's).
-  #
-  # Managed-cloud envs (managedSecrets: true) bypass this entirely — the
-  # cache app reads its own DATABASE_URL from priv/secrets/<env>.yml.enc
-  # baked into the image.
+  # Name of an existing Kubernetes Secret backing the cache's three inline
+  # secrets (Tuist API key, Phoenix SECRET_KEY_BASE, Guardian SECRET_KEY).
+  # Use this when those values live in a Secret populated out-of-band
+  # (Vault, sealed-secrets, an ExternalSecret targeting a store other than
+  # 1Password, etc.) and you do not want the chart to render them into its
+  # own app-secrets Secret. Mutually exclusive with `cache.apiKey`,
+  # `cache.secretKeyBase`, and `cache.guardianSecretKey`. All three keys
+  # must be present in the referenced Secret; override `existingSecretKeys`
+  # if their names differ.
+  existingSecret: ""
+  existingSecretKeys:
+    apiKey: cache-api-key
+    secretKeyBase: cache-secret-key-base
+    guardianSecretKey: cache-guardian-secret-key
+  # Unused by the pinned cache image (0.29.x). The cache app writes its state
+  # to a SQLite database on the pod's own /data volume; there is no external
+  # Postgres to point at. Leave empty — the value is ignored and the
+  # historical embedded-Postgres composition has been removed so the chart no
+  # longer emits a DATABASE_URL that Exqlite would try to open as a file path
+  # ("Exqlite.Error: database_open_failed"). The cache service itself is
+  # deprecated for hosted use in favor of Kura (see kuraController).
   databaseUrl: ""
   embedded:
-    # Database name created in the embedded Postgres for the cache app.
-    # Only meaningful when postgresql.mode=embedded; ignored otherwise.
+    # Deprecated: the cache image no longer uses Postgres, so this field has
+    # no effect. Retained to preserve the values-file schema across upgrades.
     database: tuist_cache
   storage:
     pvc:
@@ -3023,13 +3200,20 @@ clickhouse:
       # leaving a gap between them. RFC 3339, for example
       # "2026-09-04T07:30:00Z". The backfill refuses to run without it.
       cutoff: ""
-      # Run the step as an ordinary Job rather than a deploy hook, so the
-      # release does not wait for it. For the schema clone and the parity
-      # checks, which take seconds to minutes, waiting is what makes the
-      # deploy's result meaningful. For the backfill it is the opposite: helm
-      # waits for hook Jobs, so a copy of a production-sized dataset would hold
-      # the release for hours and then fail it on the deadline below, rolling
-      # the release back with it.
+      # BROKEN under helm 4, and left here only so the values keep their shape
+      # while a replacement is chosen. Do not set it to true.
+      #
+      # The intent was to run the step as an ordinary Job rather than a deploy
+      # hook, so the release would not wait for it: waiting is what makes the
+      # deploy's result meaningful for the schema clone and the parity checks,
+      # which take seconds to minutes, and is the opposite of what a
+      # production-sized copy wants.
+      #
+      # That relied on helm 3, whose `--wait` covered pods and workloads but
+      # not Jobs. Helm 4 waits on Jobs too, so an ordinary Job is not
+      # background at all: the release blocks on it, and a Job that fails
+      # fails the release. Arming it on canary rolled back three releases in a
+      # row on `resource Job/... not ready. status: Failed`.
       #
       # The task takes an advisory lock, so a second deploy while a copy is
       # running starts a Job that exits immediately rather than a second copy.
@@ -3037,6 +3221,11 @@ clickhouse:
       # Only used by a background Job, which is not deleted by the deploy that
       # follows it. Long enough to read the logs of one that failed overnight.
       ttlSecondsAfterFinished: 86400
+      # How many five-second attempts the init container makes at reaching the
+      # server before giving up. Five minutes covers a StatefulSet rolling a
+      # replica, which is what this exists for, and still fails inside the
+      # step's own deadline if the server is genuinely down.
+      waitAttempts: 60
       # No retries. These steps are resumable, so a failure should be read
       # and re-run deliberately rather than repeated automatically against a
       # database.
@@ -3079,6 +3268,25 @@ clickhouse:
         # and query budgets from the cgroup limit, and the rest of the box is
         # more useful as page cache than as headroom it will try to fill.
         memory: 32Gi
+    # Reachability for writers that are not on the pod network. The macOS
+    # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
+    # a pod IP, so it cannot resolve the in-cluster Service name the `url`
+    # secret carries. It wrote the whole test family to ClickHouse Cloud and
+    # mirrored none of it, which parity saw as six tables holding zero rows on
+    # the destination while the source had data.
+    #
+    # Same mechanism the CNPG pooler already uses for the same fleet: the
+    # Tailscale operator watches for `tailscale.com/expose` and fronts the
+    # Service with a userspace proxy node, so the VM dials it over MagicDNS as
+    # a first-class tailnet member without joining the overlay.
+    #
+    # A dedicated Service rather than annotating the main one, so only the
+    # HTTP port is reachable off-cluster: the native protocol and the metrics
+    # port have no business on the tailnet.
+    tailscale:
+      enabled: false
+      hostname: ""
+      tags: ""
     persistence:
       size: 200Gi
       storageClassName: clickhouse-local
@@ -3140,6 +3348,15 @@ clickhouse:
     # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
     # a dedicated health-check URL instead.
     pingUrl: ""
+    # Name of an existing Kubernetes Secret whose `existingSecretKey` field
+    # holds the full TUIST_CLICKHOUSE_URL (including any embedded
+    # credentials). When set, the chart wires TUIST_CLICKHOUSE_URL through a
+    # secretKeyRef instead of rendering the URL as a literal env value, so
+    # credentials never enter the manifest. Use with a Vault-synced Secret,
+    # a sealed Secret, or any other out-of-band source. Mutually exclusive
+    # with `clickhouse.external.url`.
+    existingSecret: ""
+    existingSecretKey: clickhouse-url
   embedded:
     image:
       repository: clickhouse/clickhouse-server

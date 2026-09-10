@@ -27,9 +27,30 @@ Tuesday through Sunday resolves to the full taken at the start of its own
 week. Moving the full to Sunday would silently pair each incremental with the
 previous week's full.
 
-If a full fails, that week's incrementals fail too, because their base is
-missing. That is deliberate. The alternative is an "incremental" that quietly
-promotes itself to a full and takes a terabyte by surprise.
+## When the week's full is missing
+
+An incremental whose base does not exist takes a full instead, under the same
+`full/$WEEK` path, and says so in its log.
+
+This reverses an earlier decision here, which was to let those incrementals
+fail on the grounds that the alternative is an "incremental" that quietly
+promotes itself to a full and takes a terabyte by surprise. The surprise is
+real. It is the smaller problem.
+
+What the earlier reasoning covered was a failed Monday, where an operator is
+already being paged and can re-run the full the same day. What it did not
+cover is an environment enabled on any day other than Monday: its first full
+is not due until the following Monday, so every incremental until then fails
+against a base that was never taken, and the environment holds no backup at
+all for up to six days while alerting daily in a way that reads like a
+credentials fault. That happened to canary and staging in 2026-W37, and it
+would have happened to production on whichever weekday it was enabled, during
+the part of the migration where the in-cluster server is least proven.
+
+So the trade is an unplanned full against no backup at all, and it resolves
+the same way in both the cases above. It is bounded by the same
+`timeoutSeconds` and by `concurrencyPolicy: Forbid`, and the log line names it
+rather than leaving a full to be inferred from the object store.
 
 ## Restoring
 
@@ -63,7 +84,9 @@ the log collector entirely, so the object itself is the record.
   (dict "suffix" "full" "schedule" $m.backup.fullSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'full/$WEEK')" $m.database)
         "describe" "a full backup for ISO week $WEEK")
   (dict "suffix" "incremental" "schedule" $m.backup.incrementalSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'incremental/$WEEK/$DAY') SETTINGS base_backup = Disk('backups', 'full/$WEEK')" $m.database)
-        "describe" "an incremental backup for $DAY against the full for ISO week $WEEK")
+        "describe" "an incremental backup for $DAY against the full for ISO week $WEEK"
+        "fallbackQuery" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'full/$WEEK')" $m.database)
+        "fallbackDescribe" "a full backup for ISO week $WEEK")
 }}
 {{- range $job := $jobs }}
 ---
@@ -127,14 +150,38 @@ spec:
                 - |
                   WEEK=$(date -u +%G-W%V)
                   DAY=$(date -u +%F)
+                  ch() {
+                    clickhouse-client \
+                      --host {{ $chName }} \
+                      --port 9000 \
+                      --user default \
+                      --password "$CLICKHOUSE_PASSWORD" \
+                      --receive_timeout {{ $m.backup.timeoutSeconds }} \
+                      --query "$1"
+                  }
                   echo "Taking {{ $job.describe }}"
-                  clickhouse-client \
-                    --host {{ $chName }} \
-                    --port 9000 \
-                    --user default \
-                    --password "$CLICKHOUSE_PASSWORD" \
-                    --receive_timeout {{ $m.backup.timeoutSeconds }} \
-                    --query "{{ $job.query }}"
+                  if out=$(ch "{{ $job.query }}" 2>&1); then
+                    printf '%s\n' "$out"
+                    exit 0
+                  fi
+                  printf '%s\n' "$out" >&2
+{{- if $job.fallbackQuery }}
+                  # Only a missing base falls back. Every other failure is a
+                  # real one and must stay a failure: promoting a permission
+                  # error or an unreachable server into a full backup attempt
+                  # would turn one alert into two and still leave no backup.
+                  case "$out" in
+                    *BACKUP_NOT_FOUND*)
+                      echo "No full backup exists for ISO week $WEEK, so taking {{ $job.fallbackDescribe }} instead of an incremental."
+                      ch "{{ $job.fallbackQuery }}"
+                      ;;
+                    *)
+                      exit 1
+                      ;;
+                  esac
+{{- else }}
+                  exit 1
+{{- end }}
               resources:
                 {{- toYaml $m.backup.resources | nindent 16 }}
 {{- end }}

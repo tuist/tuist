@@ -165,6 +165,11 @@
         patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       />
       <.tab_menu_horizontal_item
+        label={dgettext("dashboard_builds", "Timeline")}
+        selected={@selected_tab == "timeline"}
+        patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+      />
+      <.tab_menu_horizontal_item
         :if={@has_binary_cache_data}
         label={dgettext("dashboard_builds", "Module Cache")}
         selected={@selected_tab == "module-cache"}
@@ -187,12 +192,26 @@
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
       <.tab_menu_horizontal_item
-        :if={length(@machine_metrics) > 0}
+        :if={
+          length(@machine_metrics) > 0 and
+            not Enum.any?(@machine_metrics, &is_number(&1.offset_ms))
+        }
         label={dgettext("dashboard_builds", "Machine Metrics")}
         selected={@selected_tab == "machine-metrics"}
         patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
       />
     </.tab_menu_horizontal>
+    <section :if={@selected_tab == "timeline" and @run.status != "processing"}>
+      <.build_timeline_section
+        timeline={@timeline}
+        source="xcode"
+        duration={@run.duration}
+        version={@timeline_version}
+        url={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/timeline.json"
+        }
+      />
+    </section>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Build Details")}
@@ -1634,6 +1653,7 @@
     <% end %>
     <%= if @selected_tab == "module-cache" and @run.status != "processing" and @has_binary_cache_data do %>
       <.module_cache_tab
+        project={@selected_project}
         binary_cache_analytics={@binary_cache_analytics}
         binary_cache_filter={@binary_cache_filter}
         binary_cache_page={@binary_cache_page}

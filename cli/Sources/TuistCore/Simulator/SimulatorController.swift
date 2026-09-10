@@ -1,4 +1,5 @@
 import Command
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -60,7 +61,8 @@ public protocol SimulatorControlling {
     ///   - device: The simulator device to install the app on.
     func installApp(at path: AbsolutePath, device: SimulatorDevice) async throws
 
-    /// Opens the simulator application & launches app on the given simulator.
+    /// Opens the simulator application (`Simulator.app`, or `DeviceHub.app` on Xcode 27 and later) & launches app on the
+    /// given simulator.
     /// - Parameters:
     ///   - bundleId: The bundle id of the app to launch.
     ///   - device: The simulator device to install the app on.
@@ -128,13 +130,16 @@ public struct SimulatorController: SimulatorControlling {
     private let userInputReader: UserInputReading
 
     private let commandRunner: CommandRunning
+    private let fileSystem: FileSysteming
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.userInputReader = userInputReader
         self.commandRunner = commandRunner
+        self.fileSystem = fileSystem
     }
 
     /// Returns the list of simulator devices that are available in the system.
@@ -320,14 +325,30 @@ public struct SimulatorController: SimulatorControlling {
         Logger.current
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
         let device = try await device.booted(using: commandRunner)
-        let simulator = try await XcodeController.current.selected().path.appending(
-            components: "Contents",
-            "Developer",
-            "Applications",
-            "Simulator.app"
-        )
-        try await commandRunner.runAndWait(arguments: ["/usr/bin/open", "-a", simulator.pathString])
+        try await openSimulatorApp(for: device)
         try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    }
+
+    /// Brings the simulator UI to the foreground. Xcode 26 and earlier ship `Simulator.app`; Xcode 27 replaced it with
+    /// `DeviceHub.app`, which focuses a device through the `devices://` URL scheme.
+    private func openSimulatorApp(for device: SimulatorDevice) async throws {
+        let xcodePath = try await XcodeController.current.selected().path
+        let simulatorApp = xcodePath.appending(components: "Contents", "Developer", "Applications", "Simulator.app")
+        let deviceHubApp = xcodePath.appending(components: "Contents", "Applications", "DeviceHub.app")
+
+        if try await fileSystem.exists(simulatorApp) {
+            try await commandRunner.runAndWait(arguments: ["/usr/bin/open", "-a", simulatorApp.pathString])
+        } else if try await fileSystem.exists(deviceHubApp) {
+            try await commandRunner.runAndWait(arguments: [
+                "/usr/bin/open",
+                "-a",
+                deviceHubApp.pathString,
+                "devices://manage/select?id=\(device.udid)",
+            ])
+        } else {
+            Logger.current
+                .debug("Neither Simulator.app nor DeviceHub.app found in \(xcodePath). Skipping opening the simulator UI.")
+        }
     }
 
     public func booted(device: SimulatorDevice) async throws -> SimulatorDevice {

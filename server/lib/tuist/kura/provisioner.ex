@@ -90,14 +90,11 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, String.t() | nil} | {:error, term()}
 
   @doc """
-  Returns the manifest revision currently applied to the backing resource.
-
-  Provisioners that render declarative resources should use this to let
-  the control plane re-apply config-only changes independently from Kura
-  runtime image changes.
+  Returns the observed private gateway URL and the controller's check time.
+  Consumers persist that check time so rereading status cannot renew readiness.
   """
   @callback external_endpoint(ref :: String.t(), Regions.t()) ::
-              {:ok, String.t()} | {:error, term()}
+              {:ok, %{url: String.t(), observed_at: DateTime.t()}} | {:error, term()}
 
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
@@ -134,6 +131,18 @@ defmodule Tuist.Kura.Provisioner do
   """
   @callback rollout_health(ref :: String.t(), Regions.t()) ::
               {:ok, map() | nil} | {:error, term()}
+
+  @doc """
+  The replication roles the backing platform publishes for the server's
+  pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
+  URL — or `{:ok, []}` when the resource exists but has not published any
+  yet. Read by `Tuist.Kura.Reconciler` on the loop that already observes the
+  instance and persisted on `kura_servers.peer_roles`, which is what the mesh
+  view publishes; never called from a request. Implementations must still
+  bound it — one tick observes every mesh server in turn.
+  """
+  @callback peer_roles(ref :: String.t(), Regions.t()) ::
+              {:ok, [map()]} | {:error, term()}
 
   ## Convenience dispatchers
 
@@ -213,6 +222,13 @@ defmodule Tuist.Kura.Provisioner do
   def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `peer_roles/2` on the region's provisioner."
+  def peer_roles(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.peer_roles(ref, region)
     end
   end
 end
