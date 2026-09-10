@@ -618,6 +618,38 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --version 0.1.0
 ```
 
+### License {#helm-license}
+
+Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: TUIST_LICENSE
+      certificateBase64: ""
+      verifyKey: ""
+```
+
+For an air-gapped installation, reference the Base64-encoded license certificate instead:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: ""
+      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
+      verifyKey: ""
+```
+
+Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
+
+Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
+
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 
 The chart manages three infrastructure dependencies: `postgresql`, `clickhouse`, and `objectStorage`. Each defaults to **embedded** mode, meaning the chart deploys them inside the cluster. To point at your own external instances instead, set the dependency's `mode` to `external` and fill in the connection details in your `values.yaml`. For example, to use an external PostgreSQL database:
