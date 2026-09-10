@@ -84,6 +84,12 @@ checks and the distinction between verified bots and unrecognized automation
 are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
 
 ### `kura-controller/` — Kura endpoint controller
+
+Opt-in read-only connectivity diagnostics use a credential-free, fixed-profile
+sidecar and existing `pods/log` access, without `pods/exec` or a gateway bypass.
+The controller deployment selects exact instances; defaults remain disabled.
+See [`kura-controller/connectivity-diagnostics.md`](kura-controller/connectivity-diagnostics.md)
+for the threat model and the separate approved rollout required to add it to pods.
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle. Customer-plane TLS is one `*.kura.tuist.dev` Certificate per cluster, rendered by the chart next to the controller (`kuraController.publicWildcardCertificate`) rather than owned by any one `KuraInstance`; the controller points every public Ingress at its Secret. See `kura-controller/AGENTS.md`.
 
 ### `egress-tree-agent/` — per-node shared egress HTB tree

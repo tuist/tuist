@@ -346,6 +346,10 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
+            {{- with .Values.kuraController.connectivityProbe.instances }}
+            - {{ printf "--connectivity-probe-image=%s:%s" $.Values.kuraController.image.repository $imageTag | quote }}
+            - {{ printf "--connectivity-probe-instances=%s" (join "," .) | quote }}
+            {{- end }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}

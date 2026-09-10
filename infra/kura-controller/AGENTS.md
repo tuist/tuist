@@ -4,6 +4,13 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Scope
 
+- Optional fixed connectivity diagnostics: [`internal/connectivity/AGENTS.md`](internal/connectivity/AGENTS.md).
+  A credential-free sidecar on exact deployment-configured instance names emits
+  resolver settings and bounded internal `/ready` timings to ordinary pod logs.
+  Disabled by default; no RBAC or JIT policy changes. See
+  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) before opting in:
+  the pod template changes and rolls selected instances.
+
 - API group: `kura.tuist.dev`
 - Primary resource: `KuraInstance`
 - Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
