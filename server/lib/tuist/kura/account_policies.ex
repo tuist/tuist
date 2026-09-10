@@ -201,7 +201,13 @@ defmodule Tuist.Kura.AccountPolicies do
   defp resolve(%Account{} = account, lookups) do
     plan = Billing.effective_plan(account)
 
-    case effective_service_region(account, plan, lookups) do
+    resolution =
+      case held_unknown_region(account, lookups) do
+        nil -> effective_service_region(account, plan, lookups)
+        _region -> {:error, :region_unknown}
+      end
+
+    case resolution do
       {:ok, service_region} ->
         {:ok, %{plan: plan, service_region: service_region}}
 
@@ -209,6 +215,17 @@ defmodule Tuist.Kura.AccountPolicies do
         Telemetry.resolution_refused(plan, reason)
         {:error, reason}
     end
+  end
+
+  # The rows can name a region this code has never heard of for the length of
+  # a deploy that renames one. Resolving past it to a default would place the
+  # account a second time, on the very KuraInstance name it already holds, so
+  # an account holding such a region is refused and left where it is.
+  defp held_unknown_region(account, lookups) do
+    Enum.find(
+      [lookups.placer_region.(account), lookups.live_region.(account)],
+      &(is_binary(&1) and not Regions.exists?(&1))
+    )
   end
 
   @doc """
