@@ -14,6 +14,11 @@ HTTP/gRPC hosts with all replicas Ready at the current revision. The gate also
 confirmed that canonical names had no individual DNSEndpoint records, including
 the fresh fixture.
 
+Subsequent gate-only hardening made the TLS 1.2 minimum explicit and limited
+plan parsing to validated Kubernetes resource names and routing metadata.
+Both remaining staging accounts passed public and peer TLS probes again with
+that minimum; the gate suite now has 13 passing tests.
+
 ## Fixtures and method
 
 Two disposable, authenticated accounts were used. One began with legacy public

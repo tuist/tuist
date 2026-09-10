@@ -69,6 +69,17 @@ class PublicationGateTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             gate.plan([self.server, self.controller])
 
+    def test_plan_serializes_only_metadata_and_selected_arguments(self):
+        self.controller["spec"]["template"]["spec"]["containers"][0]["args"].append("--unrelated-secret=must-not-be-serialized")
+        config = gate.plan([self.server, self.controller])
+        self.assertEqual(config["certificate"], "kura-public-wildcard-tls")
+        self.assertNotIn("must-not-be-serialized", json.dumps(config))
+
+    def test_certificate_reference_must_be_a_resource_name(self):
+        self.controller["spec"]["template"]["spec"]["containers"][0]["args"].append("--public-tls-secret-name=--help")
+        with self.assertRaisesRegex(ValueError, "resource name"):
+            gate.plan([self.server, self.controller])
+
     def test_release_namespace_overrides_client_dry_run_default(self):
         self.server["metadata"]["namespace"] = "default"
         self.assertEqual(gate.plan([self.server, self.controller], "tuist-staging")["serverNamespace"], "tuist-staging")

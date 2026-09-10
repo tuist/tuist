@@ -7,6 +7,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import ssl
 import subprocess
@@ -40,6 +41,14 @@ def published_domains(deployment):
     return {}
 
 
+def controller_argument(arguments, name):
+    prefix = "--" + name + "="
+    for argument in reversed(arguments):
+        if argument.startswith(prefix):
+            return argument[len(prefix):]
+    raise ValueError(f"controller argument is missing: {name}")
+
+
 def plan(resources, namespace=None):
     controller = next((r for r in resources if r["kind"] == "Deployment" and
                        r["metadata"].get("labels", {}).get("app.kubernetes.io/component") == "kura-controller"), None)
@@ -49,15 +58,23 @@ def plan(resources, namespace=None):
         return {}
     if not controller:
         raise ValueError("regional publication requires the controller")
-    flags = dict(arg[2:].split("=", 1) for arg in controller["spec"]["template"]["spec"]["containers"][0]["args"] if arg.startswith("--") and "=" in arg)
-    regions = json.loads(flags["regional-routing-config"])
+    arguments = controller["spec"]["template"]["spec"]["containers"][0]["args"]
+    regions = json.loads(controller_argument(arguments, "regional-routing-config"))
+    # This flag names a Kubernetes resource; it contains no certificate or key
+    # material. Read only the two arguments the metadata-only plan needs.
+    certificate_name = controller_argument(arguments, "public-tls-secret-name")
+    if len(certificate_name) > 253 or any(
+        len(label) > 63 or not re.fullmatch(r"[a-z0-9](?:[-a-z0-9]*[a-z0-9])?", label)
+        for label in certificate_name.split(".")
+    ):
+        raise ValueError("public certificate reference is not a valid Kubernetes resource name")
     domains = published_domains(server)
     regions = [r for r in regions if r["region"] in domains]
     if domains != {r["region"]: r["domain"] for r in regions}:
         raise ValueError("controller and server regional domains differ")
     return {"namespace": controller["metadata"]["namespace"], "regions": regions,
             "serverNamespace": namespace or server["metadata"].get("namespace") or "default", "serverName": server["metadata"]["name"],
-            "certificate": flags["public-tls-secret-name"]}
+            "certificate": certificate_name}
 
 
 def needs_preparation(config):
@@ -92,6 +109,7 @@ def verify_dns(hostname, expected):
 
 def https_probe(host, address):
     context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.set_alpn_protocols(["http/1.1"])
     try:
         with socket.create_connection((address, 443), timeout=5) as sock:
@@ -108,6 +126,7 @@ def https_probe(host, address):
 def peer_probe(host, addresses, secret):
     data = {key: base64.b64decode(secret["data"][key]) for key in ("ca.pem", "tls.crt", "tls.key")}
     context = ssl.create_default_context(cadata=data["ca.pem"].decode())
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     with tempfile.TemporaryDirectory(prefix="kura-peer-probe-") as directory:
         for key, value in data.items():
             path = Path(directory) / key
