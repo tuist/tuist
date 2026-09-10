@@ -217,7 +217,7 @@ defmodule TuistWeb.ModulesLive do
   def miss_reason_color("upstream"), do: "secondary"
   def miss_reason_color("cold"), do: "tertiary"
   def miss_reason_color("unavailable"), do: "destructive"
-  def miss_reason_color(_all), do: "destructive"
+  def miss_reason_color(_all), do: "neutral"
 
   defp analytics_opts(%{
          selected_project: project,

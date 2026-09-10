@@ -319,7 +319,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def miss_reason_legend("upstream"), do: "secondary"
   def miss_reason_legend("cold"), do: "tertiary"
   def miss_reason_legend("unavailable"), do: "destructive"
-  def miss_reason_legend(_all), do: "destructive"
+  def miss_reason_legend(_all), do: "neutral"
 
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
