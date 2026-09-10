@@ -26,15 +26,17 @@ defmodule Tuist.Repo.Migrations.SweepRemainingEuCentralKuraRowsTest do
     for _ <- 1..2 do
       SweepRemainingEuCentralKuraRows.sweep_storage_rollups!(Repo)
 
-      assert Repo.get!(StorageRollup, canonical.id) == canonical
-      assert Repo.get!(StorageRollup, earlier.id) == %{earlier | region: "eu-west"}
-      assert Repo.get!(StorageRollup, other_account.id) == %{other_account | region: "eu-west"}
-      assert Repo.get!(StorageRollup, other_region.id) == other_region
+      assert reload(canonical) == canonical
+      assert reload(earlier) == %{earlier | region: "eu-west"}
+      assert reload(other_account) == %{other_account | region: "eu-west"}
+      assert reload(other_region) == other_region
+      # excellent_migrations:safety-assured-for-next-line operation_get_by
       refute Repo.get_by(StorageRollup, account_id: account.id, region: "eu-central", date: date)
     end
   end
 
   defp insert_rollup(account_id, region, date, count) do
+    # excellent_migrations:safety-assured-for-next-line operation_insert
     Repo.insert!(%StorageRollup{
       account_id: account_id,
       region: region,
@@ -44,4 +46,7 @@ defmodule Tuist.Repo.Migrations.SweepRemainingEuCentralKuraRowsTest do
       median_shed_age_seconds: count * 3
     })
   end
+
+  # excellent_migrations:safety-assured-for-next-line operation_get
+  defp reload(rollup), do: Repo.get!(StorageRollup, rollup.id)
 end

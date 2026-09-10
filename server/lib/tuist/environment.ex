@@ -440,7 +440,7 @@ defmodule Tuist.Environment do
   """
   def kura_regional_dns_domain(region_id, environment \\ System.get_env()) do
     with {:ok, domains} when is_map(domains) <-
-           Jason.decode(Map.get(environment, "TUIST_KURA_REGIONAL_DNS_DOMAINS", "{}")),
+           JSON.decode(Map.get(environment, "TUIST_KURA_REGIONAL_DNS_DOMAINS", "{}")),
          domain when is_binary(domain) and byte_size(domain) <= 184 <- Map.get(domains, region_id),
          true <-
            Regex.match?(~r/\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/, domain) do
