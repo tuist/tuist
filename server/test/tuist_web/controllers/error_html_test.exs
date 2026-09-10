@@ -43,7 +43,7 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
 
     defp render_not_found(conn, flag_enabled) do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_not_found -> flag_enabled
+        :new_marketing -> flag_enabled
         _flag -> false
       end)
 
