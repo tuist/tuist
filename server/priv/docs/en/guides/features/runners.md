@@ -63,6 +63,12 @@ Your current limits are shown alongside each chart. If your workflows regularly 
         link="/guides/features/runners/buildkite"/>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
+        title="GitLab CI"
+        details="Connect a GitLab runner to a Tuist profile and target it with job tags."
+        linkText="Get started"
+        link="/guides/features/runners/gitlab-ci"/>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
         title="Profiles"
         details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
         linkText="Manage profiles"

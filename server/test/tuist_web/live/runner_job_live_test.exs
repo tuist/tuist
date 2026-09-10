@@ -682,6 +682,37 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Steps will appear here once the job finishes."
   end
 
+  test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 900
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        fleet_name: "linux-amd64",
+        repository: "acme/mobile",
+        workflow_run_id: 900,
+        workflow_name: "pipeline",
+        job_name: "test",
+        head_branch: "main"
+      })
+
+    flush_outbox!()
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert html =~ "https://gitlab.example.com/acme/mobile/-/jobs/42"
+    refute html =~ "https://github.com/acme/mobile"
+    refute html =~ "steps-card"
+    refute html =~ "job-secret"
+  end
+
   describe "Buildkite jobs" do
     defp buildkite_job!(account, workflow_run_id, job_name) do
       {:ok, mapping} =

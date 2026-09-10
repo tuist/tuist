@@ -98,6 +98,22 @@ while true; do
 
   case "${http}" in
     200)
+      if jq -e '.gitlab_job' /tmp/dispatch.json >/dev/null; then
+        if [ -z "${JIT_OUTPUT_PATH}" ]; then
+          echo "GitLab dispatch requires the isolated poller container"
+          exit 1
+        fi
+        gitlab_path="${JIT_OUTPUT_PATH}.gitlab.json"
+        if ! { jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.gitlab_job + {report_url: $report_url}' /tmp/dispatch.json >"${gitlab_path}.tmp" &&
+          chmod 0644 "${gitlab_path}.tmp" && mv -f "${gitlab_path}.tmp" "${gitlab_path}"; }; then
+          echo "GitLab assignment could not be staged"
+          exit 1
+        fi
+        # Sidecars use the JIT path as their job-start marker.
+        printf 'gitlab\n' >"${JIT_OUTPUT_PATH}"
+        exit 0
+      fi
       jit=$(jq -r '.encoded_jit_config // empty' /tmp/dispatch.json)
       # Buildkite's credential set. The server sends one or the other,
       # never both, so which is present selects the agent run-job.sh

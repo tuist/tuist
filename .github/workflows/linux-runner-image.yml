@@ -71,6 +71,16 @@ jobs:
             -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
             -w /w ubuntu:22.04 bash ./metrics-sampler_test.sh
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/linux-runner-image/gitlab-runner/go.mod
+
+      - name: Test GitLab job executor
+        working-directory: infra/linux-runner-image/gitlab-runner
+        env:
+          GOWORK: "off"
+        run: go test -race ./...
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 

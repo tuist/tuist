@@ -136,7 +136,7 @@
 
   /* Title and subtitle on the left, the actions on the same line to the
      right; when connected, the fields run the full width underneath. */
-  & > [data-part="buildkite-card-section"] {
+  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"]) {
     display: flex;
     flex-direction: column;
 
@@ -199,7 +199,7 @@
     }
   }
 
-  & #connect-buildkite-modal [data-part="connect-buildkite"] {
+  & #connect-buildkite-modal :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);

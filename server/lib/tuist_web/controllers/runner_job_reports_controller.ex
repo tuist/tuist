@@ -1,58 +1,22 @@
 defmodule TuistWeb.RunnerJobReportsController do
   @moduledoc """
-  Ingests a job's log and outcome from the runner that ran it.
+  Receives masked logs and outcomes from Buildkite and GitLab jobs.
 
-  The route carries no provider in its path. Nothing about a runner
-  reporting its own output is Buildkite-specific: the token is scoped to
-  one job, the runner name comes from the session, and an exit status
-  plus a cancelled flag is how any agent describes an outcome. Buildkite
-  is simply the first lane whose provider gives us no way to read those
-  back ourselves. The log parser does strip Buildkite's timestamp
-  markers, but leaves a line without them untouched.
-
-  The GitHub lane pulls both from GitHub after the fact: logs from the
-  Actions Logs API, the outcome from the `workflow_job.completed`
-  webhook. Neither is available here on the same terms. Buildkite's log
-  endpoint lives on the REST API, which takes an organization API token
-  rather than the cluster agent token, so using it would mean asking the
-  customer for a second, broader credential purely so we can read back
-  output that passed through our own machine on its way out.
-
-  So the runner reports instead. `buildkite-agent` runs with
-  `--enable-job-log-tmpfile`, which writes the job's log verbatim to a
-  path it exports as `BUILDKITE_JOB_LOG_TMPFILE`, and a global `pre-exit`
-  hook posts that file here along with the job's window and exit status.
-  This is the capture point GitHub's runner does not offer: there, step
-  output goes straight from the worker to GitHub over HTTP with no stable
-  in-VM read point, which is why that lane pulls.
-
-  ## Why not the Pod's ServiceAccount token
-
-  Both endpoints authenticate with a
-  `Tuist.Runners.Buildkite.ReportToken` minted for one job at dispatch,
-  not with the Pod credential the rest of the runner endpoints use. On
-  the Linux fleet the job container holds no ServiceAccount token by
-  design — the poller init container claims the job and hands the
-  credential over on a shared volume so untrusted workflow code never
-  sits beside a token that can claim more work. Reporting with that token
-  would have undone the isolation, and restricting the Buildkite lane to
-  macOS to avoid the question would have left half the fleet out.
-
-  A report token authorizes only what the job it names could already do:
-  write its own log, and declare its own exit status. It cannot claim
-  work or reach another account, so staging it into the job container
-  changes nothing about what that container can reach.
-
-  The job the report belongs to comes from the token, never from the
-  body or the path, so a job cannot write over another's history.
+  Every request authenticates with a token scoped to one existing job and
+  account. The job container never receives the fleet's ServiceAccount
+  credential or a reusable provider runner credential. Billing timestamps
+  are observed on the server, and log ingestion is bounded by bytes,
+  line count and a short grace period after completion.
   """
 
   use TuistWeb, :controller
 
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.LogParser
-  alias Tuist.Runners.Buildkite.ReportToken
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobReports
+  alias Tuist.Runners.JobReportToken, as: ReportToken
 
   require Logger
 
@@ -80,18 +44,20 @@ defmodule TuistWeb.RunnerJobReportsController do
   def logs(conn, params) do
     first_line_number = params |> Map.get("first_line_number", 1) |> to_integer(1)
 
-    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
+    with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id} = identity} <- authenticate(conn),
          :ok <- accepting_logs(workflow_job_id),
          {:ok, lines} <- parse_lines(params),
          :ok <- within_line_ceiling(first_line_number, lines) do
+      parser = if identity[:provider] == :gitlab, do: GitLab.LogParser, else: LogParser
+
       lines
-      |> LogParser.parse(first_line_number, DateTime.utc_now())
+      |> parser.parse(first_line_number, DateTime.utc_now())
       |> Enum.map(&Map.merge(&1, %{workflow_job_id: workflow_job_id, account_id: account_id}))
       |> JobLogs.append()
 
       send_resp(conn, :no_content, "")
     else
-      error -> render_error(conn, error, "buildkite log ingest")
+      error -> render_error(conn, error, "runner log ingest")
     end
   end
 
@@ -112,20 +78,22 @@ defmodule TuistWeb.RunnerJobReportsController do
   """
   def finish(conn, params) do
     with {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} <- authenticate(conn),
-         {:ok, runner_name} <- Buildkite.runner_name_for_job(workflow_job_id, account_id) do
+         {:ok, runner_name} <- JobReports.runner_name_for_job(workflow_job_id, account_id) do
       # The window is measured server-side; only the outcome comes from
       # the job, which could decide it by exiting with that status anyway.
       report = %{
         workflow_job_id: workflow_job_id,
-        conclusion: Buildkite.conclusion_for(outcome(params))
+        conclusion: JobReports.conclusion_for(outcome(params))
       }
 
-      case Buildkite.record_job_finished(runner_name, account_id, report) do
+      provider = if GitLab.get_job_for_account(account_id, workflow_job_id), do: GitLab, else: Buildkite
+
+      case provider.record_job_finished(runner_name, account_id, report) do
         :ok ->
           send_resp(conn, :no_content, "")
 
         {:error, reason} ->
-          Logger.error("runners: buildkite finish report failed",
+          Logger.error("runners: finish report failed",
             workflow_job_id: workflow_job_id,
             reason: inspect(reason)
           )
@@ -141,14 +109,14 @@ defmodule TuistWeb.RunnerJobReportsController do
         send_resp(conn, :no_content, "")
 
       error ->
-        render_error(conn, error, "buildkite finish report")
+        render_error(conn, error, "runner finish report")
     end
   end
 
   # A settled job stops accepting log lines once the upload that follows
   # its finish report has had time to land.
   defp accepting_logs(workflow_job_id) do
-    if Buildkite.log_window_open?(workflow_job_id, @log_grace_seconds) do
+    if JobReports.log_window_open?(workflow_job_id, @log_grace_seconds) do
       :ok
     else
       {:error, :job_settled}

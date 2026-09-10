@@ -281,6 +281,7 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "GitHub Actions", slug: "/en/guides/features/runners/github-actions"},
               %Item{label: "Buildkite", slug: "/en/guides/features/runners/buildkite"},
+              %Item{label: "GitLab CI", slug: "/en/guides/features/runners/gitlab-ci"},
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
               %Item{label: "Docker", slug: "/en/guides/features/runners/docker"}
             ]

@@ -1370,6 +1370,12 @@ while true; do
       # confuse `[^"]*`. The server emits compact JSON; the
       # optional whitespace lets a future pretty-printer not
       # break this path.
+      gitlab_job=$(jq -r 'has("gitlab_job")' /tmp/dispatch.json)
+      if [ "${gitlab_job}" = "true" ]; then
+        jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.gitlab_job + {report_url: $report_url}' /tmp/dispatch.json >/tmp/tuist-gitlab-job.json
+        chmod 0600 /tmp/tuist-gitlab-job.json
+      fi
       jit=$(sed -n 's/.*"encoded_jit_config"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       # Buildkite's counterpart. The server sends one credential set or
       # the other, never both, so which key is present is what selects
@@ -1378,7 +1384,7 @@ while true; do
       bk_token=$(sed -n 's/.*"buildkite_acquisition_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_job_uuid=$(sed -n 's/.*"buildkite_job_uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       bk_report_token=$(sed -n 's/.*"buildkite_report_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -z "${jit}" ] && [ -z "${bk_token}" ]; then
+      if [ -z "${jit}" ] && [ -z "${bk_token}" ] && [ "${gitlab_job}" != "true" ]; then
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but no runner credential; retrying"
         sleep "${interval}"
         continue
@@ -1548,7 +1554,13 @@ HOOK
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
-      if [ -n "${bk_token}" ]; then
+      if [ "${gitlab_job}" = "true" ]; then
+        /opt/tuist/tuist-gitlab-runner --job-file /tmp/tuist-gitlab-job.json \
+          --builds-dir /Users/runner/work &
+        runner_pid=$!
+        wait "${runner_pid}"
+        rc=$?
+      elif [ -n "${bk_token}" ]; then
         # Buildkite needs none of the idle-watchdog machinery below. The
         # acquisition token names one job UUID, so the assignment already
         # happened server-side before this VM was handed anything: the

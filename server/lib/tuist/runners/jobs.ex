@@ -135,6 +135,13 @@ defmodule Tuist.Runners.Jobs do
   # `repository` on the job row therefore holds a pipeline slug. The
   # account's projects are the candidates instead, and `ci_project_handle`
   # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %Tuist.Runners.GitLab.Job{}) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
   def projects_for_runner_job(%{id: account_id}, _job, %{organization_slug: _} = _buildkite_job) do
     case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
       [] -> {:error, :not_found}
@@ -187,6 +194,11 @@ defmodule Tuist.Runners.Jobs do
   # A Buildkite build number is unique only within its pipeline, so the
   # pipeline handle is part of the match; without it two pipelines in the
   # same account would cross-link at the same build number.
+  defp ci_scope(query, %Tuist.Runners.GitLab.Job{url: url, project_path: path}) do
+    handle = "#{URI.parse(url).host}/#{path}"
+    where(query, [run], run.ci_provider == "gitlab" and run.ci_project_handle == ^handle)
+  end
+
   defp ci_scope(query, nil), do: where(query, [run], run.ci_provider == "github")
 
   defp ci_scope(query, %{organization_slug: org, pipeline_slug: pipeline}) do

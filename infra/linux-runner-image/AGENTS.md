@@ -240,3 +240,7 @@ For the customer-facing dispatch label, autoscaling, and capacity
 model see `server/lib/tuist/runners.ex` and
 `infra/helm/tuist/values.yaml` (`runnersFleetLinux.pools[]`) —
 this doc is only about the container image.
+
+## GitLab CI
+
+The poller stages `<jit>.gitlab.json` with one assigned job and its report token, then writes the JIT marker for sidecars. `run-job.sh` launches `/usr/local/bin/tuist-gitlab-runner`; the reusable GitLab runner token stays on the server. The same executor is built for macOS. See [executor context](gitlab-runner/AGENTS.md); validate it with `GOWORK=off go test ./...` from that directory.

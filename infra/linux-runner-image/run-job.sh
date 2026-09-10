@@ -22,6 +22,12 @@ set -uo pipefail
 
 JIT_PATH=${TUIST_RUNNER_JIT_PATH:-/var/lib/tuist-runner/jit}
 
+if [ -s "${JIT_PATH}.gitlab.json" ]; then
+  [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
+  exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \
+    --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
 BUILDKITE_ENV_PATH="${JIT_PATH}.buildkite-env"
 
 # Buildkite branch. The poller stages a credential file instead of a JIT
