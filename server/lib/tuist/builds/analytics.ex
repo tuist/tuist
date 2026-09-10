@@ -2276,7 +2276,7 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
-    `:dependency_induced`, `:unavailable` (a previously remote-served exact key now
+    `:dependency_induced`, `:evicted` (a previously remote-served exact key now
     misses at the same endpoint), and `:unclassified` (misses without an earlier
     observation in the comparison window, or not explained by the compared inputs).
     These are command observations; restored cache results can be reported by
@@ -2294,7 +2294,7 @@ defmodule Tuist.Builds.Analytics do
   @doc """
   Returns, per module and day, how often it was built and why it missed:
   `appearances`, `misses`, `changed` (its own content differed from its previous
-  build), `upstream` (only a dependency differed), and `unavailable`
+  build), `upstream` (only a dependency differed), and `evicted`
   (an exact key previously served remotely now misses at the same endpoint). Both the module list and
   miss-reason timeseries derive from this breakdown. Reads are batched by module
   name so each query sorts a bounded set of independent module histories, with
@@ -2327,7 +2327,7 @@ defmodule Tuist.Builds.Analytics do
       countIf(hit = 'miss') AS misses,
       countIf(reason = 'changed') AS changed,
       countIf(reason = 'upstream') AS upstream,
-      countIf(reason = 'unavailable') AS unavailable
+      countIf(reason = 'evicted') AS evicted
     FROM (
       SELECT *, #{module_cache_reason()} AS reason
       FROM (
@@ -2379,7 +2379,7 @@ defmodule Tuist.Builds.Analytics do
     |> Enum.flat_map(fn names ->
       %{rows: rows} = ClickHouseRepo.query!(query, Map.put(params, :names, names))
 
-      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, unavailable] ->
+      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, evicted] ->
         %{
           day: normalize_date(day),
           name: name,
@@ -2388,7 +2388,7 @@ defmodule Tuist.Builds.Analytics do
           misses: misses,
           changed: changed,
           upstream: upstream,
-          unavailable: unavailable
+          evicted: evicted
         }
       end)
     end)
@@ -2451,7 +2451,7 @@ defmodule Tuist.Builds.Analytics do
     """
     multiIf(
       hit != 'miss', 'hit',
-      previously_available, 'unavailable',
+      previously_available, 'evicted',
       rn = 1, 'cold',
       own != prev_own OR arrayExists(
         input -> mapContains(prev_direct_inputs, input)
@@ -2498,10 +2498,10 @@ defmodule Tuist.Builds.Analytics do
     breakdown
     |> Enum.group_by(&{&1.name, &1.product})
     |> Enum.map(fn {{name, product}, rows} ->
-      {appearances, invalidations, self_changes, dependency_induced, unavailable} =
-        Enum.reduce(rows, {0, 0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream, unavailable} ->
+      {appearances, invalidations, self_changes, dependency_induced, evicted} =
+        Enum.reduce(rows, {0, 0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream, evicted} ->
           {appearances + row.appearances, misses + row.misses, changed + row.changed, upstream + row.upstream,
-           unavailable + row.unavailable}
+           evicted + row.evicted}
         end)
 
       %{
@@ -2513,8 +2513,8 @@ defmodule Tuist.Builds.Analytics do
         hit_rate: percentage(appearances - invalidations, appearances),
         self_changes: self_changes,
         dependency_induced: dependency_induced,
-        unavailable: unavailable,
-        unclassified: max(invalidations - (self_changes + dependency_induced + unavailable), 0)
+        evicted: evicted,
+        unclassified: max(invalidations - (self_changes + dependency_induced + evicted), 0)
       }
     end)
     |> Enum.filter(&(&1.invalidations > 0))
@@ -2585,14 +2585,14 @@ defmodule Tuist.Builds.Analytics do
         misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
         changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
         upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
-        unavailable = rows |> Enum.map(& &1.unavailable) |> Enum.sum()
+        evicted = rows |> Enum.map(& &1.evicted) |> Enum.sum()
 
         {day,
          %{
            changed: changed,
            upstream: upstream,
-           unavailable: unavailable,
-           cold: max(misses - changed - upstream - unavailable, 0)
+           evicted: evicted,
+           cold: max(misses - changed - upstream - evicted, 0)
          }}
       end)
 
@@ -2607,7 +2607,7 @@ defmodule Tuist.Builds.Analytics do
       changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
       upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
       cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end),
-      unavailable: Enum.map(dates, fn d -> get_in(by_day, [d, :unavailable]) || 0 end)
+      evicted: Enum.map(dates, fn d -> get_in(by_day, [d, :evicted]) || 0 end)
     }
   end
 
@@ -2783,7 +2783,7 @@ defmodule Tuist.Builds.Analytics do
     * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
     * `:git_branch` - When set, restricts to a single branch
     * `:commit_sha` - When set, matches commit shas starting with it
-    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`, `"cold"` or `"unavailable"`
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`, `"cold"` or `"evicted"`
     * `:order` - `"desc"` (default, newest first) or `"asc"`
     * `:limit` - Rows per page (default 25)
 
@@ -2792,7 +2792,7 @@ defmodule Tuist.Builds.Analytics do
     start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
     `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
     `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
-    `"changed"`, `"upstream"`, `"cold"` or `"unavailable"`).
+    `"changed"`, `"upstream"`, `"cold"` or `"evicted"`).
 
     `:scheme` comes from the build run the command event belongs to and is
     empty for the commands that produce no activity log, such as `generate` and
@@ -2926,7 +2926,7 @@ defmodule Tuist.Builds.Analytics do
 
   defp build_history_reason_filter(opts) do
     case Keyword.get(opts, :reason) do
-      reason when reason in ~w(hit changed upstream cold unavailable) -> {"reason = {reason:String}", %{reason: reason}}
+      reason when reason in ~w(hit changed upstream cold evicted) -> {"reason = {reason:String}", %{reason: reason}}
       _ -> {"", %{}}
     end
   end
@@ -3250,7 +3250,7 @@ defmodule Tuist.Builds.Analytics do
   @doc """
   Returns a daily breakdown of reported misses: `changed` (the module's compared
   direct inputs differed), `upstream` (only its dependency or external package hash
-  differed), `unavailable` (a previously served exact key now misses at the same endpoint),
+  differed), `evicted` (a previously served exact key now misses at the same endpoint),
   and `cold` (missing comparison history or an unexplained miss without earlier
   remote availability evidence). Cold does not establish that an artifact was
   never cached or was evicted.

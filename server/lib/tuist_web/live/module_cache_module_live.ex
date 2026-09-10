@@ -6,7 +6,9 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.Skeleton
-  import TuistWeb.Helpers.ModuleCache, only: [normalize_miss_reason: 1, reason_description: 1]
+
+  import TuistWeb.Helpers.ModuleCache,
+    only: [normalize_miss_reason: 1, reason_description: 1]
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -91,8 +93,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_event("select_miss_reason", %{"type" => type}, socket)
-      when type in ~w(all changed upstream cold unavailable) do
+  def handle_event("select_miss_reason", %{"type" => type}, socket) when type in ~w(all changed upstream cold evicted) do
     query = Query.put(socket.assigns.uri.query, "miss-reason", type)
 
     {:noreply,
@@ -222,7 +223,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       self_changes: 0,
       dependency_induced: 0,
       unclassified: invalidations,
-      unavailable: 0,
+      evicted: 0,
       # A module with no misses still has dependents; the graph knows them even
       # though there is no invalidation row to read them from.
       blast_radius: Analytics.module_dependents_count(Keyword.put(opts, :name, name))
@@ -302,31 +303,31 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def builds_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def builds_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def builds_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
-  def builds_reason_label("unavailable"), do: dgettext("dashboard_cache", "Evicted")
+  def builds_reason_label("evicted"), do: dgettext("dashboard_cache", "Evicted")
   def builds_reason_label(_), do: dgettext("dashboard_cache", "Any")
 
   def miss_reason_value(module, "changed"), do: module.self_changes
   def miss_reason_value(module, "upstream"), do: module.dependency_induced
   def miss_reason_value(module, "cold"), do: module.unclassified
-  def miss_reason_value(module, "unavailable"), do: module.unavailable
+  def miss_reason_value(module, "evicted"), do: module.evicted
   def miss_reason_value(module, _all), do: module.invalidations
 
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
   def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
-  def miss_reason_title("unavailable"), do: dgettext("dashboard_cache", "Evicted misses")
+  def miss_reason_title("evicted"), do: dgettext("dashboard_cache", "Evicted misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_legend("changed"), do: "primary"
   def miss_reason_legend("upstream"), do: "secondary"
   def miss_reason_legend("cold"), do: "tertiary"
-  def miss_reason_legend("unavailable"), do: "destructive"
+  def miss_reason_legend("evicted"), do: "destructive"
   def miss_reason_legend(_all), do: "amber"
 
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def build_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
-  def build_reason_label("unavailable"), do: dgettext("dashboard_cache", "Evicted")
+  def build_reason_label("evicted"), do: dgettext("dashboard_cache", "Evicted")
   def build_reason_label(_), do: dgettext("dashboard_cache", "Cached")
 
   # The colours the miss-reason widget and its chart already use, so a row reads
@@ -334,7 +335,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def build_reason_color("changed"), do: "primary"
   def build_reason_color("upstream"), do: "secondary"
   def build_reason_color("cold"), do: "attention"
-  def build_reason_color("unavailable"), do: "warning"
+  def build_reason_color("evicted"), do: "warning"
   def build_reason_color(_), do: "neutral"
 
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")

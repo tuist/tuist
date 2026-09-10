@@ -2,7 +2,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
   @moduledoc false
   use Gettext, backend: TuistWeb.Gettext
 
-  def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold unavailable), do: reason
+  def normalize_miss_reason(reason) when reason in ~w(all changed upstream cold evicted), do: reason
   def normalize_miss_reason(_), do: "all"
 
   def reason_description("changed") do
@@ -26,7 +26,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
     )
   end
 
-  def reason_description("unavailable") do
+  def reason_description("evicted") do
     dgettext(
       "dashboard_cache",
       "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."

@@ -12,7 +12,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
 
   test "unknown miss reasons render the All view", %{conn: conn, organization: organization, project: project} do
     {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core?miss-reason=evicted")
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core?miss-reason=unknown")
 
     render_async(lv, 2000)
     assert has_element?(lv, "#widget-why-it-misses", "Misses")
@@ -268,7 +268,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     refute has_element?(lv, "#module-build-history-table")
   end
 
-  test "unavailable misses show their reason and explanation", %{conn: conn, organization: organization, project: project} do
+  test "evicted misses show their reason and explanation", %{conn: conn, organization: organization, project: project} do
     stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
 
     observe = fn at, hit ->
@@ -295,13 +295,16 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     observe.(~N[2024-01-29 10:00:00], :remote)
     observe.(~N[2024-01-30 10:00:00], :miss)
     base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
-    {:ok, lv, _html} = live(conn, base <> "?miss-reason=unavailable&builds-reason=unavailable")
+
+    {:ok, lv, _html} = live(conn, base <> "?miss-reason=evicted&builds-reason=evicted")
     render_async(lv, 2000)
     assert has_element?(lv, "#widget-why-it-misses", "Evicted misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
     assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Evicted")
 
     assert has_element?(lv, "#module-build-history-table", "The cached artifact was most likely evicted")
+    refute has_element?(lv, "#module-build-history-table [data-type=badge]", "Cached")
+    assert render(lv) =~ "builds-reason=evicted"
   end
 
   test "the analytics widgets read the same way as the modules page", %{
@@ -352,7 +355,7 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     # Every reason, including the total, is wired to the event.
     html = render(lv)
 
-    for reason <- ~w(all changed upstream cold unavailable) do
+    for reason <- ~w(all changed upstream cold evicted) do
       assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
     end
 
@@ -362,6 +365,10 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     assert has_element?(lv, "#widget-why-it-misses", "Changed misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
     assert has_element?(lv, "#widget-why-it-misses", "configuration, or compiler version")
+
+    render_click(lv, "select_miss_reason", %{"type" => "evicted"})
+    assert_push_event(lv, "replace-url", %{url: "?miss-reason=evicted"})
+    assert has_element?(lv, "#widget-why-it-misses", "Evicted misses")
 
     # The other two widgets are the ones the modules page keeps in its table.
     assert has_element?(lv, "#widget-hit-rate")

@@ -172,9 +172,9 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       insert_chain(current, :miss, "v1")
 
       assert_reasons(@view, Keyword.put(opts, :end_datetime, ~U[2024-04-04 23:59:59Z]), current, %{
-        "A" => "unavailable",
-        "B" => "unavailable",
-        "C" => "unavailable"
+        "A" => "evicted",
+        "B" => "evicted",
+        "C" => "evicted"
       })
     end
 
@@ -196,7 +196,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       assert_reasons(@view, opts, current, %{"A" => "cold", "B" => "cold", "C" => "cold"})
     end
 
-    test "#{view}: an earlier remote hit for the exact key and endpoint makes a miss unavailable", %{
+    test "#{view}: an earlier remote hit for the exact key and endpoint makes a miss evicted", %{
       project: project,
       opts: opts
     } do
@@ -204,11 +204,11 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       insert_chain(warmed, :remote, "v1")
       current = observation(project, 2)
       insert_chain(current, :miss, "v1")
-      assert_reasons(@view, opts, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
-      filtered = Analytics.module_build_history(opts ++ [name: "A", reason: "unavailable"])
+      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
+      filtered = Analytics.module_build_history(opts ++ [name: "A", reason: "evicted"])
       assert Enum.map(filtered.rows, & &1.id) == [current.id]
       series = Analytics.module_miss_reasons_timeseries(opts)
-      assert series.unavailable == [0, 3]
+      assert series.evicted == [0, 3]
       assert series.cold == [0, 0]
     end
 
@@ -266,7 +266,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       current = observation(project, 2, git_branch: "feature", is_ci: true)
       insert_chain(current, :miss, "v1")
       scoped = Keyword.merge(opts, start_datetime: ~U[2024-04-02 00:00:00Z], git_branch: "feature", is_ci: true)
-      assert_reasons(@view, scoped, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
+      assert_reasons(@view, scoped, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
     end
 
     for reported_at <- [~N[2024-04-02 10:00:00], ~N[2024-04-02 10:05:00]] do
@@ -314,7 +314,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       current = observation(project, 3)
       insert_chain(current, :miss, "v1")
       opts = Keyword.put(opts, :end_datetime, ~U[2024-04-03 23:59:59Z])
-      assert_reasons(@view, opts, current, %{"A" => "unavailable", "B" => "unavailable", "C" => "unavailable"})
+      assert_reasons(@view, opts, current, %{"A" => "evicted", "B" => "evicted", "C" => "evicted"})
     end
   end
 
@@ -325,7 +325,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     insert_chain(current, :miss, "v1")
     assert [row] = Analytics.module_invalidations(Keyword.put(opts, :name, "A"))
     assert row.name == "A"
-    assert row.unavailable == 1
+    assert row.evicted == 1
   end
 
   test "availability remains correct across multiple bounded name batches", %{project: project, opts: opts} do
@@ -348,7 +348,7 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
     IngestRepo.insert_all(XcodeTarget, targets)
     rows = Analytics.module_invalidations(Keyword.put(opts, :limit, 300))
     assert length(rows) == 257
-    assert Enum.all?(rows, &(&1.unavailable == 1 and &1.unclassified == 0))
+    assert Enum.all?(rows, &(&1.evicted == 1 and &1.unclassified == 0))
   end
 
   defp observation(project, day, attrs \\ []) do
@@ -424,14 +424,14 @@ defmodule Tuist.Builds.ModuleCacheClassificationTest do
       |> Analytics.module_invalidations()
       |> Map.new(fn row ->
         assert row.invalidations == 1
-        {row.name, {row.self_changes, row.dependency_induced, row.unclassified, row.unavailable}}
+        {row.name, {row.self_changes, row.dependency_induced, row.unclassified, row.evicted}}
       end)
 
     counts = %{
       "changed" => {1, 0, 0, 0},
       "upstream" => {0, 1, 0, 0},
       "cold" => {0, 0, 1, 0},
-      "unavailable" => {0, 0, 0, 1}
+      "evicted" => {0, 0, 0, 1}
     }
 
     assert actual ==

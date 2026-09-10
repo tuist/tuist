@@ -181,7 +181,7 @@
                 {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
                 {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
                 {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"},
-                {"unavailable", dgettext("dashboard_cache", "Evicted"), "destructive"}
+                {"evicted", dgettext("dashboard_cache", "Evicted"), "destructive"}
               ]
             }
             value={value}
@@ -405,7 +405,7 @@
           },
           %{
             name: dgettext("dashboard_cache", "Evicted"),
-            data: @miss_reasons_series.result.unavailable,
+            data: @miss_reasons_series.result.evicted,
             type: "bar",
             stack: "total",
             color: "var:noora-chart-destructive",
@@ -468,7 +468,7 @@
           secondary_text={dgettext("dashboard_cache", "Reason:")}
         >
           <.dropdown_item
-            :for={value <- ~w(any hit changed upstream cold unavailable)}
+            :for={value <- ~w(any hit changed upstream cold evicted)}
             value={value}
             label={builds_reason_label(value)}
             patch={builds_filter_patch(@uri, "builds-reason", value)}
