@@ -188,10 +188,12 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:47
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:465
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:551
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:42
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.html.heex:8
-#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:63
-#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:53
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live/changelog_entry.html.heex:8
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live/new/changelog_entry.html.heex:6
+#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:75
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:5
+#: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:4
 #: lib/tuist_web/marketing/structured_markup.ex:400
 #, elixir-autogen, elixir-format
 msgid "Changelog"
@@ -653,7 +655,8 @@ msgstr ""
 msgid "LinkedIn"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:92
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:92
+#: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Load more"
 msgstr ""
@@ -1015,7 +1018,7 @@ msgstr ""
 msgid "Stay updated with the latest changes and improvements in Tuist."
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:74
+#: lib/tuist_web/marketing/live/marketing_changelog_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
 msgstr ""
@@ -1137,7 +1140,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:924
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:960
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:75
-#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:41
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -2340,7 +2343,10 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_blog_live/blog.html.heex:59
 #: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:13
 #: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:35
-#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:14
+#: lib/tuist_web/marketing/live/marketing_changelog_live/changelog.html.heex:14
+#: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:9
+#: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:27
+#: lib/tuist_web/marketing/live/marketing_changelog_live/new/changelog.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "All"
 msgstr ""
