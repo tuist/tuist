@@ -1,5 +1,5 @@
 {
-  "originHash" : "55a682e76daa9e8811c8d1d4f59f7b71d06fb1b1d544defb38241917d31a020b",
+  "originHash" : "2835b9caf3e1fc9916c581b951c0380a9b2b4ae81413d57a485f888fbc22fa7a",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -106,7 +106,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "version" : "1.15.1"
+        "version" : "1.13.2"
       }
     },
     {
@@ -567,7 +567,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/swift-server/swift-service-lifecycle.git",
       "state" : {
-        "version" : "2.12.0"
+        "version" : "2.11.0"
       }
     },
     {
@@ -661,7 +661,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tuist/Command.git",
       "state" : {
-        "version" : "0.14.13"
+        "version" : "0.14.11"
       }
     },
     {
@@ -686,7 +686,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.57.1"
+        "version" : "0.56.0"
       }
     },
     {

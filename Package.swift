@@ -1848,7 +1848,16 @@ let package = Package(
     products: products,
     dependencies: [
         .package(id: "apple.swift-argument-parser", from: "1.5.0"),
-        .package(id: "apple.swift-log", from: "1.5.3"),
+        // Capped below 1.14 because `apple.swift-log 1.15` introduced a
+        // second overload of `Logger`'s level-specific helpers (with a
+        // new `error:` parameter). With both signatures accepting a
+        // `Logger.Message` positional argument and everything else
+        // defaulted, plain call sites like `logger.notice("...")` are
+        // ambiguous, and there are ~50 such call sites across the CLI.
+        // Lifting the cap wants a follow-up PR that migrates every
+        // affected call site rather than getting bundled into a
+        // Rosalind/Noora bump.
+        .package(id: "apple.swift-log", "1.5.3" ..< "1.14.0"),
         .package(id: "swiftlang.swift-tools-support-core", from: "0.6.1"),
         .package(id: "flight-school.AnyCodable", from: "0.6.7"),
         .package(id: "tuist.ZIPFoundation", from: "0.9.19"),
