@@ -87,7 +87,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:354
 #: lib/tuist_web/live/module_cache_module_live.html.heex:41
 #: lib/tuist_web/live/module_cache_module_live.html.heex:447
-#: lib/tuist_web/live/modules_live.ex:326
+#: lib/tuist_web/live/modules_live.ex:329
 #: lib/tuist_web/live/modules_live.html.heex:11
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -197,7 +197,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:26
 #: lib/tuist_web/live/module_cache_module_live.ex:353
 #: lib/tuist_web/live/module_cache_module_live.html.heex:43
-#: lib/tuist_web/live/modules_live.ex:325
+#: lib/tuist_web/live/modules_live.ex:328
 #: lib/tuist_web/live/modules_live.html.heex:13
 #: lib/tuist_web/live/xcode_cache_live.ex:425
 #, elixir-autogen, elixir-format
@@ -222,7 +222,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:669
 #: lib/tuist_web/live/module_cache_module_live.html.heex:130
 #: lib/tuist_web/live/module_cache_module_live.html.heex:292
-#: lib/tuist_web/live/modules_live.ex:320
+#: lib/tuist_web/live/modules_live.ex:323
 #: lib/tuist_web/live/xcode_cache_live.ex:304
 #: lib/tuist_web/live/xcode_cache_live.html.heex:109
 #: lib/tuist_web/live/xcode_cache_live.html.heex:786
@@ -444,7 +444,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_module_live.ex:352
 #: lib/tuist_web/live/module_cache_module_live.html.heex:42
 #: lib/tuist_web/live/module_cache_module_live.html.heex:526
-#: lib/tuist_web/live/modules_live.ex:324
+#: lib/tuist_web/live/modules_live.ex:327
 #: lib/tuist_web/live/modules_live.html.heex:12
 #: lib/tuist_web/live/xcode_cache_live.ex:426
 #, elixir-autogen, elixir-format
@@ -465,8 +465,8 @@ msgstr ""
 #: lib/tuist_web/components/module_invalidations_table.ex:33
 #: lib/tuist_web/live/module_cache_live.html.heex:249
 #: lib/tuist_web/live/module_cache_module_live.ex:330
-#: lib/tuist_web/live/modules_live.ex:210
-#: lib/tuist_web/live/modules_live.ex:322
+#: lib/tuist_web/live/modules_live.ex:213
+#: lib/tuist_web/live/modules_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Misses"
 msgstr ""
@@ -1057,7 +1057,7 @@ msgid "Cold"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:328
-#: lib/tuist_web/live/modules_live.ex:208
+#: lib/tuist_web/live/modules_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Cold misses"
 msgstr ""
@@ -1065,7 +1065,7 @@ msgstr ""
 #: lib/tuist_web/components/module_invalidations_table.ex:49
 #: lib/tuist_web/live/module_cache_module_live.html.heex:149
 #: lib/tuist_web/live/module_cache_module_live.html.heex:339
-#: lib/tuist_web/live/modules_live.ex:321
+#: lib/tuist_web/live/modules_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Dependents"
 msgstr ""
@@ -1158,7 +1158,7 @@ msgid "Upstream"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:327
-#: lib/tuist_web/live/modules_live.ex:207
+#: lib/tuist_web/live/modules_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Upstream misses"
 msgstr ""
@@ -1242,7 +1242,7 @@ msgid "All"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:326
-#: lib/tuist_web/live/modules_live.ex:206
+#: lib/tuist_web/live/modules_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Changed misses"
 msgstr ""
@@ -1303,7 +1303,7 @@ msgid "Evicted"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_module_live.ex:329
-#: lib/tuist_web/live/modules_live.ex:209
+#: lib/tuist_web/live/modules_live.ex:212
 #, elixir-autogen, elixir-format
 msgid "Evicted misses"
 msgstr ""

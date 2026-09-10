@@ -445,6 +445,21 @@ defmodule TuistWeb.ModulesLiveTest do
     assert has_element?(lv, "[data-part=\"analytics-error\"]")
   end
 
+  test "shows an analytics error when the independently loaded module count fails", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Analytics, :module_count, fn _opts -> raise Ch.Error, code: 159, message: "Timeout exceeded" end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
+
+    render_async(lv, 2000)
+    assert has_element?(lv, ~s([data-part="analytics"] [data-error]))
+    refute has_element?(lv, ~s([data-part="analytics"] [data-part="widgets"]))
+  end
+
   describe "page_of/3" do
     # 60 modules over a page size of 25: three pages of 25, 25 and 10.
     setup do
