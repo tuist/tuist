@@ -947,22 +947,30 @@ defmodule TuistWeb.Marketing.MarketingController do
     head_title = page.head_title || "#{page.title} · Tuist"
     head_description = page.head_description || page.excerpt
 
-    conn
-    |> assign(:head_title, head_title)
-    |> assign(:head_description, head_description)
-    |> assign(
-      :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: page.title))
-    )
-    |> assign(:head_twitter_card, "summary_large_image")
-    |> assign_structured_data(
-      get_breadcrumbs_structured_data([
-        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-        {page.title, Tuist.Environment.app_url(path: page.slug)}
-      ])
-    )
-    |> assign(:page, page)
-    |> render(:page, layout: false)
+    conn =
+      conn
+      |> assign(:head_title, head_title)
+      |> assign(:head_description, head_description)
+      |> assign(
+        :head_image,
+        Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: page.title))
+      )
+      |> assign(:head_twitter_card, "summary_large_image")
+      |> assign_structured_data(
+        get_breadcrumbs_structured_data([
+          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+          {page.title, Tuist.Environment.app_url(path: page.slug)}
+        ])
+      )
+      |> assign(:page, page)
+
+    if Design.new?(conn, :page) do
+      conn
+      |> assign(:new_design, true)
+      |> render(:page_new, layout: false)
+    else
+      render(conn, :page, layout: false)
+    end
   end
 
   def assign_default_head_tags(conn, _params) do

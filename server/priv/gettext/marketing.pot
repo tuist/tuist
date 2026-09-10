@@ -627,6 +627,7 @@ msgstr ""
 msgid "Keep up with the latest and greatest changes in Tuist."
 msgstr ""
 
+#: lib/tuist_web/marketing/controllers/marketing_html/new/page.html.heex:23
 #: lib/tuist_web/marketing/controllers/marketing_html/page.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Last updated %{date}"
@@ -703,12 +704,12 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/footer.html.heex:68
 #: lib/tuist_web/marketing/components/marketing_layout_components/new/navbar.html.heex:130
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:494
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:996
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1004
 #, elixir-autogen, elixir-format
 msgid "Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1005
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1013
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Newsletter Verification Failed"
@@ -1138,7 +1139,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:817
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:863
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:924
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:960
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:961
 #: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:75
 #: lib/tuist_web/marketing/live/marketing_changelog_entry_live.ex:52
 #, elixir-autogen, elixir-format
@@ -2481,13 +2482,13 @@ msgstr ""
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1016
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1024
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:18
 #, elixir-autogen, elixir-format
 msgid "Your mobile platform team,"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1017
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:1025
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:21
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:13
 #, elixir-autogen, elixir-format
