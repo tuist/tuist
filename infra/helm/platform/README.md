@@ -8,7 +8,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
-| `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
+| `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
@@ -195,3 +195,21 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 - Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager custom resource definitions are reconciled by `k8s:install-platform` before the Helm release. A direct Helm install is supported only after another tool has applied those definitions.
+
+## Runner Kura gateway
+
+`kura-runners-ingress-nginx` is enabled in staging, canary and production on the
+`kura-scw-fr-par` pool. It reuses the shared Kura streaming configuration and
+terminates TLS for per-account private hostnames. Its listeners bind the host
+interfaces; HTTP and gRPC access is restricted by each Ingress's source allowlist.
+It does not trust forwarded headers, PROXY protocol or real-IP rewriting.
+The controller publishes private A records through DNSEndpoint; ingress status
+publication stays disabled so external-dns cannot substitute public node IPs.
+The managed certificate issuer uses DNS-01, which works with private A records.
+
+See [runner migration and verification](../../kura-controller/private-runner-rollouts.md).
+
+The Tuist chart's managed gateway policy explicitly allows the backend hop from
+Cilium host and remote-node identities to TCP 4000 on private gateway-labelled Kura pods.
+The runner CIDR allowlist remains at nginx and on legacy NodePorts. A healthy DNS
+gateway remains selected across primary handoffs, including cross-host ones.

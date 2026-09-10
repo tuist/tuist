@@ -372,6 +372,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client

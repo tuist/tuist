@@ -173,6 +173,9 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  # Enable managed gateway readiness reads and its Cilium backend policy.
+  privateGateway:
+    enabled: false
   namespace: kura
   replicaCount: 2
   tolerations: []
@@ -1366,6 +1369,7 @@ capi:
 # it and set the PN id. Scale with
 # `kubectl scale machinedeployment <name> --replicas=N`.
 kuraFleet:
+  # replicas counts hosts; each account has two Kura process replicas/PVCs.
   enabled: false
   replicas: 1
   # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache

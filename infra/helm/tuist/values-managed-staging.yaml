@@ -32,6 +32,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   telemetry:
     deploymentEnvironment: staging
 

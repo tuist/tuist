@@ -166,6 +166,9 @@ kura-ap-southeast-ingress-nginx:
       externalTrafficPolicy: ""
       annotations: {}
 
+kura-runners-ingress-nginx:
+  enabled: true
+
 # South America West (Santiago, Vultr). Same host-network shape as the other
 # bare-metal regions: the region's gateway binds the box's public IP, and Vultr
 # has no cloud LoadBalancer to put in front of it.
