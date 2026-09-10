@@ -8,6 +8,7 @@ defmodule Tuist.OpenGraphImageTemplates do
   """
 
   alias Tuist.Docs.OgImage, as: DocsImage
+  alias Tuist.Marketing.Blog.CoverArtwork, as: BlogCoverArtwork
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogImage
   alias Tuist.Marketing.Customers.CoverArtwork
   alias Tuist.Marketing.OgImages, as: MarketingImages
@@ -135,6 +136,22 @@ defmodule Tuist.OpenGraphImageTemplates do
     end
   end
 
+  def spec(%{"template" => "marketing_blog_cover", "slug" => slug} = params) do
+    if allowed_keys?(params, ["template", "slug"], []) and BlogCoverArtwork.available?(slug) do
+      # As for case studies: the SVG is the render's whole input, so it is
+      # hashed into the key and the dark variant fills the same 16:9 wrapper.
+      svg = BlogCoverArtwork.svg(slug, :og)
+      asset_hash = OpenGraphImages.key([blog_cover_asset_hash(), svg])
+
+      build_spec(params, asset_hash, fn ->
+        html = MarketingImages.render_case_study_html(svg: svg)
+        OpenGraphImageRenderer.render(html, slug)
+      end)
+    else
+      :error
+    end
+  end
+
   def spec(_params), do: :error
 
   defp marketing_spec(params, title, icon_path) do
@@ -252,6 +269,13 @@ defmodule Tuist.OpenGraphImageTemplates do
     OpenGraphImages.cached_key(:marketing_case_study_open_graph_template_assets, [
       {:module, MarketingImages},
       {:module, CoverArtwork}
+    ])
+  end
+
+  defp blog_cover_asset_hash do
+    OpenGraphImages.cached_key(:marketing_blog_cover_open_graph_template_assets, [
+      {:module, MarketingImages},
+      {:module, BlogCoverArtwork}
     ])
   end
 

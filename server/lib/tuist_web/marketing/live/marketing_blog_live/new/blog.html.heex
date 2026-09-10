@@ -135,13 +135,17 @@
         rel={if Content.external_link?(post), do: "noopener noreferrer"}
       >
         <div data-part="cover">
-          <img
-            data-part="image"
-            src={TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
+          <%= if TuistWeb.Marketing.MarketingBlogCovers.cover?(post) do %>
+            <TuistWeb.Marketing.MarketingBlogCovers.cover post={post} />
+          <% else %>
+            <img
+              data-part="image"
+              src={TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          <% end %>
         </div>
         <div data-part="content">
           <h3 data-part="title">{Content.get_entry_title(post)}</h3>

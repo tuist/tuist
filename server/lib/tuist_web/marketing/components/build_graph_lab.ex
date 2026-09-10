@@ -114,7 +114,7 @@ defmodule TuistWeb.Marketing.Components.BuildGraphLab do
         width: 100%;
         height: auto;
         overflow: visible;
-        color: var(--noora-neutral-light-700);
+        color: var(--marketing-illustration-neutral-6);
       }
 
       .build-graph-lab__edge {
@@ -124,7 +124,7 @@ defmodule TuistWeb.Marketing.Components.BuildGraphLab do
 
       .build-graph-lab__node {
         fill: var(--noora-surface-background-primary);
-        stroke: var(--noora-neutral-light-800);
+        stroke: var(--marketing-illustration-neutral-7);
         stroke-width: 2;
       }
 
@@ -134,7 +134,7 @@ defmodule TuistWeb.Marketing.Components.BuildGraphLab do
       }
 
       .build-graph-lab__track {
-        fill: var(--noora-neutral-light-300);
+        fill: var(--marketing-illustration-neutral-2);
       }
 
       .build-graph-lab__task {
