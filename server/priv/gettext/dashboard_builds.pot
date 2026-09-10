@@ -774,7 +774,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:922
+#: lib/tuist_web/live/bazel_invocation_live.ex:941
 #: lib/tuist_web/live/build_run_live.ex:1157
 #: lib/tuist_web/live/build_run_live.html.heex:274
 #: lib/tuist_web/live/build_run_live.html.heex:616
@@ -890,7 +890,7 @@ msgid "Scheme:"
 msgstr ""
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:201
-#: lib/tuist_web/live/bazel_invocation_live.ex:564
+#: lib/tuist_web/live/bazel_invocation_live.ex:574
 #: lib/tuist_web/live/build_run_live.html.heex:504
 #: lib/tuist_web/live/build_run_live.html.heex:658
 #: lib/tuist_web/live/build_run_live.html.heex:1210
