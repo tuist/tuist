@@ -875,10 +875,16 @@
         );
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
-    /* Figma: every dropdown is a 1200x360 frame (width = the page container). */
+    /* Figma: every dropdown is a 1200-wide frame (width = the page
+       container). The height comes from the open content (the closed ones
+       are absolutely stacked for the crossfade), so a menu taller than the
+       360px baseline grows the panel instead of scrolling inside it.
+       interpolate-size lets the auto height animate between menus. */
     width: min(var(--marketing-page-width), calc(100vw - 64px));
-    height: 360px;
+    min-height: 360px;
     overflow: hidden;
+    interpolate-size: allow-keywords;
+    transition: height 250ms ease;
   }
 
   & > [data-part="panel"] > [data-part="content"] {
@@ -890,10 +896,10 @@
     /* Stay visible while the exit animation plays, then hide. */
     transition: visibility 0s linear 250ms;
     inset: 0;
-    overflow-y: auto;
     pointer-events: none;
 
     &[data-state="open"] {
+      position: relative;
       visibility: visible;
       opacity: 1;
       transition: none;
@@ -1203,6 +1209,10 @@
       gap: var(--noora-spacing-2);
       box-sizing: border-box;
       padding: var(--noora-spacing-7);
+      /* Lets the 1fr tracks shrink below the nowrap subtitle's intrinsic
+         width, so the ellipsis engages instead of the panel growing a
+         horizontal scrollbar. */
+      min-width: 0;
       text-decoration: none;
 
       & > [data-part="title"] {
