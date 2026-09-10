@@ -47,30 +47,30 @@ func hostNetworkPeerInstance(name, region, host string) *kurav1alpha1.KuraInstan
 
 func TestPeerDemuxDesiredStateFiltersHostNetworkInstances(t *testing.T) {
 	instances := []kurav1alpha1.KuraInstance{
-		*hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev"),
+		*hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev"),
 		// Different region.
 		*hostNetworkPeerInstance("kura-globex", "ca-east", "peer.globex-ca-east.kura.tuist.dev"),
 		// Same region but LoadBalancer-fronted (not host network).
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "kura-initech", Namespace: "kura"},
 			Spec: kurav1alpha1.KuraInstanceSpec{
-				Region: "eu-central", Mesh: true,
-				MeshPublicPeerHost: "peer.initech-eu-central.kura.tuist.dev",
+				Region: "eu-west", Mesh: true,
+				MeshPublicPeerHost: "peer.initech-eu-west.kura.tuist.dev",
 			},
 		},
 		// Same region, host network, but no public peer host.
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "kura-hooli", Namespace: "kura"},
-			Spec:       kurav1alpha1.KuraInstanceSpec{Region: "eu-central", Mesh: true, MeshPeerHostNetwork: true},
+			Spec:       kurav1alpha1.KuraInstanceSpec{Region: "eu-west", Mesh: true, MeshPeerHostNetwork: true},
 		},
 	}
 
-	routes, nodeSelector, tolerations, issues := peerDemuxDesiredState("eu-central", "kura", instances)
+	routes, nodeSelector, tolerations, issues := peerDemuxDesiredState("eu-west", "kura", instances)
 
 	if len(routes) != 1 {
-		t.Fatalf("expected exactly the one host-network eu-central route, got %d: %+v", len(routes), routes)
+		t.Fatalf("expected exactly the one host-network eu-west route, got %d: %+v", len(routes), routes)
 	}
-	if routes[0].host != "peer.acme-eu-central.kura.tuist.dev" {
+	if routes[0].host != "peer.acme-eu-west.kura.tuist.dev" {
 		t.Fatalf("unexpected route host %q", routes[0].host)
 	}
 	if routes[0].backend != "kura-acme-peers-public.kura.svc.cluster.local:7443" {
@@ -88,15 +88,15 @@ func TestPeerDemuxDesiredStateFiltersHostNetworkInstances(t *testing.T) {
 }
 
 func TestPeerDemuxDesiredStatePublishesOneSafeRoutePerHost(t *testing.T) {
-	host := "peer.acme-eu-central.kura.tuist.dev"
-	legacy := hostNetworkPeerInstance("kura-acme-old", "eu-central", host)
+	host := "peer.acme-eu-west.kura.tuist.dev"
+	legacy := hostNetworkPeerInstance("kura-acme-old", "eu-west", host)
 	legacy.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
-	current := hostNetworkPeerInstance("kura-acme-current", "eu-central", host)
+	current := hostNetworkPeerInstance("kura-acme-current", "eu-west", host)
 	current.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
-	invalid := hostNetworkPeerInstance("kura-invalid", "eu-central", "not a host; include /tmp/file")
+	invalid := hostNetworkPeerInstance("kura-invalid", "eu-west", "not a host; include /tmp/file")
 
 	routes, _, _, issues := peerDemuxDesiredState(
-		"eu-central",
+		"eu-west",
 		"kura",
 		[]kurav1alpha1.KuraInstance{*current, *legacy, *invalid},
 	)
@@ -115,7 +115,7 @@ func TestPeerDemuxDesiredStatePublishesOneSafeRoutePerHost(t *testing.T) {
 
 func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 	conf := peerDemuxNginxConf([]peerDemuxRoute{
-		{host: "peer.acme-eu-central.kura.tuist.dev", backend: "kura-acme-peers-public.kura.svc.cluster.local:7443"},
+		{host: "peer.acme-eu-west.kura.tuist.dev", backend: "kura-acme-peers-public.kura.svc.cluster.local:7443"},
 	}, "10.96.0.10")
 
 	for _, want := range []string{
@@ -127,7 +127,7 @@ func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 		"map $ssl_preread_server_name $kura_peer_backend {",
 		"ssl_preread on;",
 		"listen 7443;",
-		"peer.acme-eu-central.kura.tuist.dev kura-acme-peers-public.kura.svc.cluster.local:7443;",
+		"peer.acme-eu-west.kura.tuist.dev kura-acme-peers-public.kura.svc.cluster.local:7443;",
 		"proxy_pass $kura_peer_backend;",
 	} {
 		if !strings.Contains(conf, want) {
@@ -141,10 +141,10 @@ func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 }
 
 func TestPeerDemuxNginxConfSupportsMaximumAccountHandle(t *testing.T) {
-	host := "peer." + strings.Repeat("a", 32) + "-eu-central-1-staging.kura.tuist.dev"
+	host := "peer." + strings.Repeat("a", 32) + "-eu-west-1-staging.kura.tuist.dev"
 	conf := peerDemuxNginxConf([]peerDemuxRoute{{
 		host:    host,
-		backend: "kura-account-eu-central-1-peers-public.kura.svc.cluster.local:7443",
+		backend: "kura-account-eu-west-1-peers-public.kura.svc.cluster.local:7443",
 	}}, "10.96.0.10")
 
 	if !strings.Contains(conf, "map_hash_bucket_size 512;") {
@@ -165,7 +165,7 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
 	dns := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: "kube-dns", Namespace: "kube-system"},
 		Spec:       corev1.ServiceSpec{ClusterIP: "10.96.0.10"},
@@ -173,17 +173,17 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, dns).Build()
 	reconciler := &PeerDemuxReconciler{Client: client, APIReader: client, Scheme: scheme}
 
-	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-west", Namespace: "kura"}}
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
 		t.Fatal(err)
 	}
 
-	name := peerDemuxName("eu-central")
+	name := peerDemuxName("eu-west")
 	configMap := &corev1.ConfigMap{}
 	if err := client.Get(ctx, types.NamespacedName{Name: name, Namespace: "kura"}, configMap); err != nil {
 		t.Fatalf("expected demux ConfigMap: %v", err)
 	}
-	if !strings.Contains(configMap.Data["nginx.conf"], "peer.acme-eu-central.kura.tuist.dev") {
+	if !strings.Contains(configMap.Data["nginx.conf"], "peer.acme-eu-west.kura.tuist.dev") {
 		t.Fatalf("demux config missing the account route:\n%s", configMap.Data["nginx.conf"])
 	}
 
@@ -431,7 +431,7 @@ func TestInstancePublicPeerServiceUsesClusterIPOnHostNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
@@ -465,7 +465,7 @@ func TestPeerDNSEndpointPublishesFailoverIP(t *testing.T) {
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
 	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
 
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
 
@@ -483,7 +483,7 @@ func TestPeerDNSEndpointPublishesFailoverIP(t *testing.T) {
 		t.Fatalf("expected one DNS endpoint, found=%v err=%v: %+v", found, err, endpoints)
 	}
 	record := endpoints[0].(map[string]interface{})
-	if record["dnsName"] != "peer.acme-eu-central.kura.tuist.dev" {
+	if record["dnsName"] != "peer.acme-eu-west.kura.tuist.dev" {
 		t.Fatalf("unexpected dnsName %v", record["dnsName"])
 	}
 	targets := record["targets"].([]interface{})
@@ -506,14 +506,14 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
 
 	instance := hostNetworkPeerInstance(
-		"kura-acme-eu-central-1",
-		"eu-central",
-		"peer.acme-eu-central-1.kura.tuist.dev",
+		"kura-acme-eu-west-1",
+		"eu-west",
+		"peer.acme-eu-west-1.kura.tuist.dev",
 	)
 	instance.Spec.AccountHandle = "acme"
 	instance.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
 	sibling := hostNetworkPeerInstance(
-		"kura-acme-eu-central-1-m",
+		"kura-acme-eu-west-1-m",
 		instance.Spec.Region,
 		instance.Spec.MeshPublicPeerHost,
 	)
@@ -915,7 +915,7 @@ func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
 	existing.SetNamespace("kura")
 	existing.SetName("kura-acme-peer-dns")
 
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
 	// No failover IP, and the fake client has no pods, so there is no node-IP
 	// fallback target either -> the stale DNSEndpoint must be torn down.
 	instance.Spec.MeshPeerFailoverIP = ""
@@ -947,7 +947,7 @@ func TestPeerDNSEndpointFallsBackToBoxIPWithoutFailoverIP(t *testing.T) {
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
 	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
 
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
 	instance.Spec.MeshPeerFailoverIP = "" // no region failover IP provisioned yet
 
 	// The account's pod is scheduled on box-1, whose InternalIP is the box's

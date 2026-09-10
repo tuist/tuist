@@ -4804,21 +4804,21 @@ mod tests {
     #[tokio::test]
     async fn cluster_status_reports_unique_regions_separately_from_node_members() {
         let context = test_context(|config| {
-            config.region = "eu-central".into();
+            config.region = "eu-west".into();
         })
         .await;
         context
             .state
             .apply_membership_view(
-                std::collections::BTreeSet::from(["eu-central".to_string()]),
+                std::collections::BTreeSet::from(["eu-west".to_string()]),
                 std::collections::BTreeMap::from([
                     (
                         "http://kura-1.kura-headless.kura.svc.cluster.local:7443".to_string(),
-                        "eu-central".to_string(),
+                        "eu-west".to_string(),
                     ),
                     (
                         "http://kura-2.kura-headless.kura.svc.cluster.local:7443".to_string(),
-                        "eu-central".to_string(),
+                        "eu-west".to_string(),
                     ),
                 ]),
                 true,
@@ -4839,7 +4839,7 @@ mod tests {
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("failed to decode up response");
         assert_eq!(body["ring_members"], 3);
-        assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
+        assert_eq!(body["regions"], serde_json::json!(["eu-west"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
     }

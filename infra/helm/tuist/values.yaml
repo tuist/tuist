@@ -745,7 +745,7 @@ server:
   # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
   # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
   kuraPeerFailoverIps: []
-  # - region: eu-central
+  # - region: eu-west
   #   ip: "1.2.3.4"
   #   vendor: dedibox
   #   pool: kura-dedibox

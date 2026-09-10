@@ -41,7 +41,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -50,7 +50,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert manifest["apiVersion"] == "kura.tuist.dev/v1alpha1"
       assert manifest["kind"] == "KuraInstance"
-      assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
+      assert manifest["metadata"]["name"] == "kura-tuist-eu-west-1"
       assert manifest["metadata"]["namespace"] == "kura"
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
@@ -59,12 +59,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
       assert spec["tenantID"] == "tuist"
-      assert spec["region"] == "eu-central"
+      assert spec["region"] == "eu-west"
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
-      assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
+      assert spec["publicHost"] == "tuist-eu-west-1.kura.tuist.dev"
       # gRPC co-hosts on the single public host: grpcPublicHost == publicHost.
-      assert spec["grpcPublicHost"] == "tuist-eu-central-1.kura.tuist.dev"
-      assert spec["ingressClassName"] == "kura-eu-central"
+      assert spec["grpcPublicHost"] == "tuist-eu-west-1.kura.tuist.dev"
+      assert spec["ingressClassName"] == "kura-eu-west"
       refute Map.has_key?(spec, "peerTLSSecretName")
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
@@ -109,7 +109,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{
@@ -138,7 +138,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{
@@ -176,7 +176,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           region,
@@ -212,7 +212,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           region,
@@ -239,7 +239,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -263,7 +263,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         stub(Tuist.Billing, :effective_plan, fn _ -> plan end)
 
         spec =
-          "kura-tuist-eu-central-1"
+          "kura-tuist-eu-west-1"
           |> KubernetesController.manifest(
             "0.5.2",
             %Account{id: 1, name: "tuist"},
@@ -300,7 +300,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       reject(&Tuist.Billing.effective_plan/1)
 
       spec =
-        "kura-tuist-eu-central-1"
+        "kura-tuist-eu-west-1"
         |> KubernetesController.manifest(
           "0.5.2",
           %Account{id: 1, name: "tuist"},
@@ -326,7 +326,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       reject(&Tuist.Billing.effective_plan/1)
 
       spec =
-        "kura-tuist-eu-central-1"
+        "kura-tuist-eu-west-1"
         |> KubernetesController.manifest(
           "0.5.2",
           %Account{id: 1, name: "tuist"},
@@ -355,7 +355,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       entitled =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
@@ -372,7 +372,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       non_entitled =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
@@ -396,7 +396,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       region = eu_region(%{mesh: true})
 
       stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
-      pulling = KubernetesController.manifest("kura-tuist-eu-central-1", "0.5.2", account, region, %Server{})
+      pulling = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
       pulling_env = Map.new(pulling["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert pulling_env["KURA_REPLICATION_PULL"] == "true"
 
@@ -411,7 +411,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                KubernetesController.manifest_revision() <> "+pull+backfill"
 
       stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
-      pushing = KubernetesController.manifest("kura-tuist-eu-central-1", "0.5.2", account, region, %Server{})
+      pushing = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
       pushing_env = Map.new(pushing["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       refute Map.has_key?(pushing_env, "KURA_REPLICATION_PULL")
 
@@ -430,7 +430,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -454,7 +454,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -504,7 +504,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{country: "FR", subdivision: "FR-IDF"}),
@@ -525,7 +525,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -548,7 +548,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -569,7 +569,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       meshed =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true}),
@@ -580,7 +580,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       unmeshed =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -606,7 +606,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       entitled =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           account,
           region,
@@ -625,7 +625,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       non_entitled =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           account,
           region,
@@ -652,7 +652,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           account,
           eu_region(%{mesh: true, egress_guaranteed_mbps: 25}),
@@ -680,7 +680,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(),
@@ -702,7 +702,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       bridged =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
@@ -710,7 +710,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           ["https://kura.acme.example:7443"]
         )
 
-      assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-west-1.kura.tuist.dev"
       assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
 
       assert bridged["spec"]["meshPublicPeerLoadBalancerAnnotations"] == %{
@@ -720,7 +720,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       unbridged =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -740,7 +740,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       host_network =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true, gateway: :host_network, hetzner_location: nil, failover_ip: "203.0.113.10"}),
@@ -757,7 +757,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       hetzner =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true}),
@@ -782,7 +782,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       moving_in =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1-m",
+          "kura-tuist-eu-west-1-m",
           "0.5.2",
           %{name: "tuist"},
           region,
@@ -794,13 +794,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # source keeps sole ownership until the target is promoted.
       refute Map.has_key?(moving_in["spec"], "publicHost")
       refute Map.has_key?(moving_in["spec"], "grpcPublicHost")
-      assert moving_in["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert moving_in["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-west-1.kura.tuist.dev"
       # And it is pinned to the destination box.
       assert moving_in["spec"]["nodeSelector"]["kubernetes.io/hostname"] == "box-2"
 
       steady_state =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           region,
@@ -813,14 +813,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       moving_out =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1-source",
+          "kura-tuist-eu-west-1-source",
           "0.5.2",
           %{name: "tuist"},
           region,
           %Server{move_phase: :moving_out}
         )
 
-      assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-west-1.kura.tuist.dev"
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
@@ -832,7 +832,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{mesh: true}),
@@ -840,7 +840,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           []
         )
 
-      assert manifest["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert manifest["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-west-1.kura.tuist.dev"
       refute Map.has_key?(manifest["spec"], "meshExternalPeers")
     end
 
@@ -855,7 +855,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       tolerated =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{tolerations: tolerations}),
@@ -866,7 +866,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       untolerated =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -885,7 +885,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-bumble-eu-central-1",
+          "kura-bumble-eu-west-1",
           "0.5.2",
           %{name: "Bumble"},
           eu_region(),
@@ -897,8 +897,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       spec = manifest["spec"]
       assert spec["accountHandle"] == "bumble"
       assert spec["tenantID"] == "bumble"
-      assert spec["publicHost"] == "bumble-eu-central-1.kura.tuist.dev"
-      assert spec["grpcPublicHost"] == "bumble-eu-central-1.kura.tuist.dev"
+      assert spec["publicHost"] == "bumble-eu-west-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "bumble-eu-west-1.kura.tuist.dev"
     end
 
     test "uses the shared regional ingress class and adds no dedicated-gateway annotation" do
@@ -921,7 +921,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
     end
 
-    test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
+    test "uses the region-configured Tuist server URL for managed eu-west Kura instances" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -930,7 +930,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{
@@ -957,7 +957,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -976,7 +976,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "50Gi"}),
@@ -1177,7 +1177,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(%{storage_size: "50Gi", replicas: 2}),
@@ -1201,7 +1201,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       for {claim, ring_gib} <- [{"50Gi", 41.95}, {"30Gi", 24.98}, {"8Gi", 5.33}] do
         manifest =
           KubernetesController.manifest(
-            "kura-tuist-eu-central-1",
+            "kura-tuist-eu-west-1",
             "0.5.2",
             %{name: "tuist"},
             eu_region(%{storage_size: "50Gi"}),
@@ -1245,7 +1245,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           eu_region(),
@@ -1322,7 +1322,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %Account{id: 1, name: "tuist"},
           region,
@@ -1445,7 +1445,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           %{name: "tuist"},
           region,
@@ -1595,7 +1595,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           account,
           region,
@@ -1630,7 +1630,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-eu-central-1",
+          "kura-tuist-eu-west-1",
           "0.5.2",
           account,
           region,
@@ -1660,13 +1660,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       expect(Client, :apply, fn manifest, [] ->
-        assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
+        assert manifest["metadata"]["name"] == "kura-tuist-eu-west-1"
         assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:0.5.2"
         {:ok, manifest}
       end)
 
       assert :ok =
-               KubernetesController.rollout("kura-tuist-eu-central-1", %{
+               KubernetesController.rollout("kura-tuist-eu-west-1", %{
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
                  server: %Server{},
@@ -1722,18 +1722,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
-      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1", [] ->
+      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-west-1", [] ->
         {:error, :not_found}
       end)
 
-      assert :ok = KubernetesController.destroy("kura-tuist-eu-central-1", eu_region())
+      assert :ok = KubernetesController.destroy("kura-tuist-eu-west-1", eu_region())
     end
   end
 
   describe "public_url/3" do
     test "interpolates the production host template with the account handle" do
       assert KubernetesController.public_url("TUIST", eu_region(), "any-ref") ==
-               "https://tuist-eu-central-1.kura.tuist.dev"
+               "https://tuist-eu-west-1.kura.tuist.dev"
     end
 
     test "uses the configured public URL for local controller regions" do
@@ -1745,7 +1745,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "grpc_public_url/3" do
     test "interpolates the gRPC host template with the account handle" do
       assert KubernetesController.grpc_public_url("TUIST", eu_region(), "any-ref") ==
-               "grpcs://tuist-eu-central-1.kura.tuist.dev"
+               "grpcs://tuist-eu-west-1.kura.tuist.dev"
     end
 
     test "returns nil when the region has no gRPC host configured" do
@@ -1826,16 +1826,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   defp eu_region(extra_config \\ %{}) do
     %Regions{
-      id: "eu-central",
+      id: "eu-west",
       provisioner_config:
         Map.merge(
           %{
-            cluster_id: "eu-central-1",
+            cluster_id: "eu-west-1",
             hetzner_location: "fsn1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             grpc_public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
-            ingress_class_name: "kura-eu-central",
+            ingress_class_name: "kura-eu-west",
             storage_class: "hcloud-volumes",
             node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"}
           },
@@ -2091,8 +2091,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "keeps a moved server's -m ref — the Service is named after the ref, not the handle" do
-      assert KubernetesController.internal_url("tuist", Regions.get("eu-central"), "kura-tuist-eu-central-1-m") ==
-               "http://kura-tuist-eu-central-1-m.kura.svc.cluster.local:4000"
+      assert KubernetesController.internal_url("tuist", Regions.get("eu-west"), "kura-tuist-eu-west-1-m") ==
+               "http://kura-tuist-eu-west-1-m.kura.svc.cluster.local:4000"
     end
 
     test "is nil for regions without an in-cluster template" do

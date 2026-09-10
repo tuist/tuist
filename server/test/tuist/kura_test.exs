@@ -463,7 +463,7 @@ defmodule Tuist.KuraTest do
       assert {:error, %Ecto.Changeset{errors: [region: {"is not available in this environment", _}]}} =
                Kura.create_server(%{
                  account_id: account.id,
-                 region: "eu-central",
+                 region: "eu-west",
                  image_tag: "0.5.2"
                })
     end
@@ -752,7 +752,7 @@ defmodule Tuist.KuraTest do
       account = Accounts.get_account_from_user(user)
 
       {:ok, source} =
-        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-move-source"}
         |> Server.create_changeset()
         |> Repo.insert()
 
@@ -760,7 +760,7 @@ defmodule Tuist.KuraTest do
         source
         |> Server.status_changeset(%{
           status: :active,
-          url: "https://acme-eu-central-1.kura.tuist.dev",
+          url: "https://acme-eu-west-1.kura.tuist.dev",
           current_image_tag: "0.5.2"
         })
         |> Repo.update()
@@ -854,8 +854,8 @@ defmodule Tuist.KuraTest do
         %Server{}
         |> Server.create_changeset(%{
           account_id: account.id,
-          region: "eu-central",
-          provisioner_node_ref: "kura-tuist-eu-central-1"
+          region: "eu-west",
+          provisioner_node_ref: "kura-tuist-eu-west-1"
         })
         |> Repo.insert()
 
@@ -872,7 +872,7 @@ defmodule Tuist.KuraTest do
       account = Accounts.get_account_from_user(user)
 
       {:ok, source} =
-        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-move-source"}
         |> Server.create_changeset()
         |> Repo.insert()
 
@@ -1014,7 +1014,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "scw-fr-par-runners"]
+        ["eu-west", "scw-fr-par-runners"]
       end)
 
       :ok
@@ -1070,7 +1070,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "scw-fr-par-runners"]
+        ["eu-west", "scw-fr-par-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1146,7 +1146,7 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "eu-central",
+          region: "eu-west",
           image_tag: "0.5.2"
         })
 
@@ -1168,7 +1168,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "scw-fr-par-runners"]
+        ["eu-west", "scw-fr-par-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1220,7 +1220,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
+        ["eu-west", "us-east", "us-west", "scw-fr-par-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -1231,25 +1231,25 @@ defmodule Tuist.KuraTest do
 
     test "hands linux fleets the in-cluster form of the instance the CLI resolves",
          %{account: account} do
-      activate_public_server!(account, "eu-central")
+      activate_public_server!(account, "eu-west")
 
       handle = String.downcase(account.name)
 
       assert Kura.runner_cache_endpoint_url(account, :linux) ==
-               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+               "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
     end
 
-    test "prefers the account's eu-central instance among the CLI's candidates", %{account: account} do
+    test "prefers the account's eu-west instance among the CLI's candidates", %{account: account} do
       activate_public_server!(account, "us-east")
-      activate_public_server!(account, "eu-central")
+      activate_public_server!(account, "eu-west")
 
       handle = String.downcase(account.name)
 
       assert Kura.runner_cache_endpoint_url(account, :linux) ==
-               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+               "http://kura-#{handle}-eu-west-1.kura.svc.cluster.local:4000"
     end
 
-    test "falls back to the account's first instance when it has none in eu-central",
+    test "falls back to the account's first instance when it has none in eu-west",
          %{account: account} do
       activate_public_server!(account, "us-west")
       activate_public_server!(account, "us-east")
@@ -1275,7 +1275,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "excludes mirrored URLs whose server is no longer active", %{account: account} do
-      server = activate_public_server!(account, "eu-central")
+      server = activate_public_server!(account, "eu-west")
 
       Server |> Repo.get!(server.id) |> Ecto.Changeset.change(status: :failed) |> Repo.update!()
 
@@ -1283,7 +1283,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "keeps a moved server's -m instance name", %{account: account} do
-      server = activate_public_server!(account, "eu-central")
+      server = activate_public_server!(account, "eu-west")
 
       handle = String.downcase(account.name)
 
@@ -1292,15 +1292,15 @@ defmodule Tuist.KuraTest do
       # on — is unchanged.
       Server
       |> Repo.get!(server.id)
-      |> Ecto.Changeset.change(provisioner_node_ref: "kura-#{handle}-eu-central-1-m")
+      |> Ecto.Changeset.change(provisioner_node_ref: "kura-#{handle}-eu-west-1-m")
       |> Repo.update!()
 
       assert Kura.runner_cache_endpoint_url(account, :linux) ==
-               "http://kura-#{handle}-eu-central-1-m.kura.svc.cluster.local:4000"
+               "http://kura-#{handle}-eu-west-1-m.kura.svc.cluster.local:4000"
     end
 
     test "never hands macOS fleets a cluster-DNS URL", %{account: account} do
-      activate_public_server!(account, "eu-central")
+      activate_public_server!(account, "eu-west")
 
       assert Kura.runner_cache_endpoint_url(account, :macos) == nil
     end
@@ -1316,7 +1316,7 @@ defmodule Tuist.KuraTest do
       stale = ~U[2020-01-01 00:00:00Z]
       Server |> Repo.get!(active_private.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
 
-      activate_public_server!(account, "eu-central")
+      activate_public_server!(account, "eu-west")
 
       # The Tart VMs can't resolve cluster Service DNS, so a stale private
       # node must fail macOS over to the public cache (nil), never to the
@@ -1325,7 +1325,7 @@ defmodule Tuist.KuraTest do
     end
 
     test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
-      activate_public_server!(account, "eu-central")
+      activate_public_server!(account, "eu-west")
 
       {:ok, private} =
         Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
@@ -1340,7 +1340,7 @@ defmodule Tuist.KuraTest do
 
     test "requires an active, CLI-visible public server", %{account: account} do
       {:ok, _server} =
-        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+        Kura.create_server(%{account_id: account.id, region: "eu-west", image_tag: "0.5.2"})
 
       assert Kura.runner_cache_endpoint_url(account, :linux) == nil
     end
@@ -1662,9 +1662,9 @@ defmodule Tuist.KuraTest do
 
     test "puts the region nearest the caller first for a multi-region account" do
       account = placed_account()
-      primary = placed_instance(account, "eu-central", :active)
+      primary = placed_instance(account, "eu-west", :active)
       secondary = placed_instance(account, "us-east", :active)
-      {:ok, _row} = PlacerRegions.put_primary(account, "eu-central")
+      {:ok, _row} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _row} = PlacerRegions.put_secondary(account, "us-east")
 
       assert [first | _] = Kura.managed_cache_endpoint_urls(account, "FR")

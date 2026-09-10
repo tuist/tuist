@@ -103,15 +103,26 @@ ingress-nginx:
           prometheus.io/port: "10254"
           prometheus.io/path: /metrics
 
-kura-eu-central-ingress-nginx:
+kura-eu-west-ingress-nginx:
   enabled: false
   controller:
     replicaCount: 2
-    electionID: kura-eu-central-ingress-nginx-leader
-    ingressClass: kura-eu-central
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
     ingressClassResource:
-      name: kura-eu-central
+      name: kura-eu-west
+      # The region was renamed from eu-central. This value is the controller's
+      # identity on an IngressClass, and Kubernetes makes that field immutable,
+      # so it keeps the string the kura-eu-central class was created with:
+      # changing it would make the upgrade patch an existing class and fail.
+      # It is an opaque identifier that nothing displays.
       controllerValue: k8s.io/kura-eu-central-ingress-nginx
+      # Until the server has re-rendered every KuraInstance in the region, its
+      # Ingresses still name the old class, and this keeps them claimed by the
+      # renamed controller. Remove once no Ingress in the region carries
+      # kura-eu-central.
+      aliases:
+        - kura-eu-central
     publishService:
       enabled: true
     service:
@@ -126,7 +137,7 @@ kura-eu-central-ingress-nginx:
     # the same validator for the Kura Ingress annotations.
     admissionWebhooks: &kuraGatewayAdmissionWebhooks
       enabled: false
-    # Anchored so all three regional Kura gateways share ONE nginx config
+    # Anchored so every regional Kura gateway shares ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
     # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
@@ -187,7 +198,7 @@ kura-ca-east-ingress-nginx:
       annotations: {}
     admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
-    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # eu-west block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
     config: *kuraGatewayNginxConfig
     metrics:
