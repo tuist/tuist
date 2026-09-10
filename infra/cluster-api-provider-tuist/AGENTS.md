@@ -16,7 +16,7 @@ machine kinds:
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
   has no user-data channel); adopts a pre-ordered box and
   **reinstalls it (wipe) on release**.
-- `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
+- `DediboxMachine` — Scaleway Dedibox bare metal (eu-west); adopts a
   pre-prepped box and reinstalls it (wipe) back to the pool on release.
 - `OVHDedicatedMachine` — OVHcloud US bare metal (the us-east / us-west /
   ap-southeast cache regions, and the Gravelines Linux runner pool); adopts a
@@ -45,7 +45,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
-| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
@@ -997,7 +997,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for the US cache regions, ADVANCE-2 for
    ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
-   for the Linux runner pool, Dedibox for eu-central. The RISE range's
+   for the Linux runner pool, Dedibox for eu-west. The RISE range's
    EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
@@ -1047,7 +1047,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 in the `ovhFleets` map and render `tuist-tuist-ovh-fleet-<key>` (e.g.
 `tuist-tuist-ovh-fleet-us-east`). The adopt marker comes from that fleet's
 values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
-Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
+Production today: tag `tuist-kura-production` (eu-west), displayName prefixes
 `tuist-kura-ovh-production-us-east` / `-us-west` / `-ap-southeast` and
 `tuist-runners-ovh-production` (OVH).
 

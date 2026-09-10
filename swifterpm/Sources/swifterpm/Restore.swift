@@ -642,13 +642,14 @@ enum WorkspaceRestorer {
             else { return }
 
             let destination = try cache.sourcePath(pin: pin)
-            if try await cachedSourceIsUsable(destination) {
+            let expectedRevision = try pin.revision()
+            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
                 return
             }
 
             let lock = try await cache.lock(namespace: "sources", key: destination.path)
             _ = lock
-            if try await cachedSourceIsUsable(destination) {
+            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
                 return
             }
 
@@ -656,6 +657,7 @@ enum WorkspaceRestorer {
                 try await fileSystem.remove(destination.absolutePath)
             }
 
+            try await writeSourceRevisionMarker(directory: checkout, revision: expectedRevision)
             try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
             do {
                 try await fileSystem.replaceWithCachedDirectory(
@@ -700,13 +702,14 @@ enum WorkspaceRestorer {
 
     static func ensureSource(cache: Cache, pin: ResolvedPin) async throws -> URL {
         let destination = try cache.sourcePath(pin: pin)
-        if try await cachedSourceIsUsable(destination) {
+        let expectedRevision = try pin.revision()
+        if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
             return destination
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         _ = lock
-        if try await cachedSourceIsUsable(destination) {
+        if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
             return destination
         }
         if try await fileSystem.exists(destination.absolutePath) {
@@ -724,10 +727,12 @@ enum WorkspaceRestorer {
                 try await shallowFetchCheckout(pin: pin, destination: temp)
             }
 
+            try await writeSourceRevisionMarker(directory: temp, revision: expectedRevision)
+
             do {
                 try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
             } catch {
-                if try await cachedSourceIsUsable(destination) {
+                if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
                     try? await fileSystem.remove(temp.absolutePath)
                     return destination
                 }
@@ -740,6 +745,14 @@ enum WorkspaceRestorer {
         return destination
     }
 
+    static let sourceRevisionMarkerFilename = ".swifterpm-source-sha"
+
+    private static func writeSourceRevisionMarker(directory: URL, revision: String) async throws {
+        try await fileSystem.atomicWrite(
+            revision, to: directory.appendingPathComponent(sourceRevisionMarkerFilename)
+        )
+    }
+
     private static func cachedSourceIsUsable(_ source: URL) async throws -> Bool {
         guard try await fileSystem.exists(
             source.appendingPathComponent("Package.swift").absolutePath
@@ -747,6 +760,24 @@ enum WorkspaceRestorer {
             return false
         }
         return try await submodulesAreMaterialized(in: source)
+    }
+
+    // Verifies the checkout in `source` was written for `expectedRevision` by reading the
+    // `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
+    // treats the entry as a miss so the next resolve refetches instead of trusting a stale
+    // Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
+    private static func cachedSourceIsUsable(_ source: URL, expectedRevision: String) async throws -> Bool {
+        guard try await cachedSourceIsUsable(source) else {
+            return false
+        }
+        let markerPath = source.appendingPathComponent(sourceRevisionMarkerFilename)
+        guard try await fileSystem.exists(markerPath.absolutePath) else {
+            return false
+        }
+        let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
+        let recorded = String(decoding: markerData, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return recorded == expectedRevision
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {

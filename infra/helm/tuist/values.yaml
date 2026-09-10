@@ -173,6 +173,9 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  # Enable managed gateway readiness reads and its Cilium backend policy.
+  privateGateway:
+    enabled: false
   namespace: kura
   replicaCount: 2
   tolerations: []
@@ -444,6 +447,11 @@ codebaseSearch:
 server:
   enabled: true
   replicaCount: 1
+  # server.image.tag is REQUIRED. The chart's .Chart.AppVersion tracks the
+  # chart itself, not the server image, which ships on its own 1.x cadence
+  # under ghcr.io/tuist/tuist. Pin an explicit tag matching a release from
+  # https://github.com/tuist/tuist/releases?q=server (for example "1.318.0").
+  # Managed deploys inject it via `helm upgrade --set server.image.tag=...`.
   image:
     repository: ghcr.io/tuist/tuist
     tag: ""
@@ -513,6 +521,15 @@ server:
     shardBundles: ""
   skipEmailConfirmation: true
   secretKeyBase: ""
+  # Name of an existing Kubernetes Secret backing TUIST_SECRET_KEY_BASE (the
+  # Phoenix session/signing key). When set, the chart routes the env var
+  # through a secretKeyRef against this Secret instead of rendering
+  # `server-secret-key-base` into its own app-secrets Secret. Use with a
+  # Vault-synced Secret, sealed-secrets, or any other out-of-band source.
+  # Mutually exclusive with `server.secretKeyBase`. Override
+  # `secretKeyBaseExistingSecretKey` to match the key in your Secret.
+  secretKeyBaseExistingSecret: ""
+  secretKeyBaseExistingSecretKey: server-secret-key-base
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
   # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
   # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
@@ -530,15 +547,12 @@ server:
       name: onepassword
     # Sync either the online Tuist license key or the air-gapped license
     # certificate from the external store. These sources are mutually
-    # exclusive. The optional verify key lets air-gapped certificates signed
-    # by an additional issuer validate during a key rotation.
+    # exclusive.
     license:
       item: ""
       field: password
       certificateItem: ""
       certificateField: password
-      verifyKeyItem: ""
-      verifyKeyField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
@@ -696,8 +710,23 @@ server:
   license:
     key: ""
     certificateBase64: ""
-    verifyKey: ""
     selfHostingDevelopmentMode: false
+    # Name of an existing Kubernetes Secret whose keys back the license
+    # environment variables. Use this when the license values live in a
+    # Secret populated out-of-band (Vault, sealed-secrets, bank-vaults, an
+    # ExternalSecret targeting a store other than 1Password, etc.) and you
+    # do not want the chart to render them into its own app-secrets Secret.
+    # Mutually exclusive with `server.license.{key,certificateBase64}`
+    # and with the ESO `server.externalSecrets.license` path.
+    #
+    # Override `existingSecretKeys` to match the key names in your Secret.
+    # An empty value under `existingSecretKeys` skips wiring the corresponding
+    # env var, which lets the Secret carry only the online key (or only the
+    # air-gapped certificate) without a placeholder for the other.
+    existingSecret: ""
+    existingSecretKeys:
+      key: server-license-key
+      certificateBase64: server-license-certificate-base64
   database:
     ssl: false
   storage:
@@ -734,7 +763,7 @@ server:
   # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
   # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
   kuraPeerFailoverIps: []
-  # - region: eu-central
+  # - region: eu-west
   #   ip: "1.2.3.4"
   #   vendor: dedibox
   #   pool: kura-dedibox
@@ -1355,6 +1384,7 @@ capi:
 # it and set the PN id. Scale with
 # `kubectl scale machinedeployment <name> --replicas=N`.
 kuraFleet:
+  # replicas counts hosts; each account has two Kura process replicas/PVCs.
   enabled: false
   replicas: 1
   # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
@@ -2684,6 +2714,11 @@ runnersController:
     limits:
       cpu: 500m
       memory: 256Mi
+# The standalone cache service is deprecated for new deployments. Hosted
+# Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
+# and disables this workload (`cache.enabled: false` in
+# values-managed-common.yaml). It is kept for existing self-hosted installs
+# that still rely on it; new deployments should skip it and plan on Kura.
 cache:
   enabled: true
   replicaCount: 1
@@ -2694,6 +2729,16 @@ cache:
     name: ""
     annotations: {}
   podSecurityContext: {}
+  # ghcr.io/tuist/cache is published as a single-arch linux/amd64 image (see
+  # .github/workflows/cache-release.yml — the build does not pass `platforms`
+  # to buildx). arm64 is not planned: the service is on the deprecation path
+  # in favor of Kura, and every managed environment runs on Hetzner amd64
+  # nodes (cx/cpx/ccx) so arm64 has never been on the roadmap for this
+  # image. The chart currently has no cache-specific scheduling fields;
+  # constrain the pod through `global.nodeSelector` / `global.tolerations`
+  # (applied to every workload in the release), or through cluster-level
+  # scheduling (a runtimeClass, admission policy, or dedicated node pool)
+  # rather than expecting a multi-arch tag.
   image:
     repository: ghcr.io/tuist/cache
     tag: "0.29.0"
@@ -2726,23 +2771,31 @@ cache:
   apiKey: ""
   secretKeyBase: ""
   guardianSecretKey: ""
-  # DATABASE_URL for the cache Phoenix app's own Postgres. Two paths:
-  #
-  #   - Self-hosted with an external Postgres: set explicitly here, like
-  #     ecto://user:pass@host:5432/db.
-  #   - Embedded mode (postgresql.mode=embedded): leave empty. The chart
-  #     composes a URL pointing at the embedded Postgres + a dedicated
-  #     `cache.embedded.database` (auto-created at first Postgres boot via
-  #     templates/postgresql-init.yaml so the cache app's migrations don't
-  #     collide with the server's).
-  #
-  # Managed-cloud envs (managedSecrets: true) bypass this entirely — the
-  # cache app reads its own DATABASE_URL from priv/secrets/<env>.yml.enc
-  # baked into the image.
+  # Name of an existing Kubernetes Secret backing the cache's three inline
+  # secrets (Tuist API key, Phoenix SECRET_KEY_BASE, Guardian SECRET_KEY).
+  # Use this when those values live in a Secret populated out-of-band
+  # (Vault, sealed-secrets, an ExternalSecret targeting a store other than
+  # 1Password, etc.) and you do not want the chart to render them into its
+  # own app-secrets Secret. Mutually exclusive with `cache.apiKey`,
+  # `cache.secretKeyBase`, and `cache.guardianSecretKey`. All three keys
+  # must be present in the referenced Secret; override `existingSecretKeys`
+  # if their names differ.
+  existingSecret: ""
+  existingSecretKeys:
+    apiKey: cache-api-key
+    secretKeyBase: cache-secret-key-base
+    guardianSecretKey: cache-guardian-secret-key
+  # Unused by the pinned cache image (0.29.x). The cache app writes its state
+  # to a SQLite database on the pod's own /data volume; there is no external
+  # Postgres to point at. Leave empty — the value is ignored and the
+  # historical embedded-Postgres composition has been removed so the chart no
+  # longer emits a DATABASE_URL that Exqlite would try to open as a file path
+  # ("Exqlite.Error: database_open_failed"). The cache service itself is
+  # deprecated for hosted use in favor of Kura (see kuraController).
   databaseUrl: ""
   embedded:
-    # Database name created in the embedded Postgres for the cache app.
-    # Only meaningful when postgresql.mode=embedded; ignored otherwise.
+    # Deprecated: the cache image no longer uses Postgres, so this field has
+    # no effect. Retained to preserve the values-file schema across upgrades.
     database: tuist_cache
   storage:
     pvc:
@@ -3287,6 +3340,15 @@ clickhouse:
     # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
     # a dedicated health-check URL instead.
     pingUrl: ""
+    # Name of an existing Kubernetes Secret whose `existingSecretKey` field
+    # holds the full TUIST_CLICKHOUSE_URL (including any embedded
+    # credentials). When set, the chart wires TUIST_CLICKHOUSE_URL through a
+    # secretKeyRef instead of rendering the URL as a literal env value, so
+    # credentials never enter the manifest. Use with a Vault-synced Secret,
+    # a sealed Secret, or any other out-of-band source. Mutually exclusive
+    # with `clickhouse.external.url`.
+    existingSecret: ""
+    existingSecretKey: clickhouse-url
   embedded:
     image:
       repository: clickhouse/clickhouse-server

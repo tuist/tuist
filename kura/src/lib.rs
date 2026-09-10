@@ -28,6 +28,7 @@ mod replication;
 mod request_observability;
 mod runtime;
 mod segment;
+mod startup;
 mod state;
 mod store;
 mod sync;

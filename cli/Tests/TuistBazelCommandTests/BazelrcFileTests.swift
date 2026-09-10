@@ -9,7 +9,7 @@ struct BazelrcFileTests {
 
     private func rendered() -> String {
         BazelrcFile.render(
-            endpoint: GRPCEndpoint(host: "acme-eu-central-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
+            endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
             accountHandle: "acme",
             projectHandle: "app",
             credentialHelperPath: try! AbsolutePath(
@@ -35,7 +35,7 @@ struct BazelrcFileTests {
         #expect(rewritten.contains("build --bes_timeout=10m"))
         #expect(!rewritten.contains("build --bes_timeout=30s"))
         #expect(rewritten.contains("build --build_event_publish_all_actions"))
-        #expect(!rewritten.contains("eu-central"))
+        #expect(!rewritten.contains("eu-west"))
     }
 
     @Test func leaves_everything_else_alone() throws {
@@ -50,16 +50,16 @@ struct BazelrcFileTests {
     }
 
     @Test func is_nothing_to_do_when_the_endpoint_has_not_moved() throws {
-        let unchanged = GRPCEndpoint(host: "acme-eu-central-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
+        let unchanged = GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
 
         #expect(BazelrcFile.replacingRemoteCache(in: rendered(), with: unchanged) == nil)
     }
 
     @Test func adds_build_event_service_settings_to_an_existing_remote_cache_file() throws {
         let legacy = """
-        build --remote_cache=grpcs://acme-eu-central-1.kura.tuist.dev
+        build --remote_cache=grpcs://acme-eu-west-1.kura.tuist.dev
         build --remote_header=x-tuist-account-handle=acme
-        build --credential_helper=acme-eu-central-1.kura.tuist.dev=/opt/tuist
+        build --credential_helper=acme-eu-west-1.kura.tuist.dev=/opt/tuist
         build --remote_instance_name=app
 
         """
@@ -78,7 +78,7 @@ struct BazelrcFileTests {
             .replacingOccurrences(of: "build --build_event_max_named_set_of_file_entries=500\n", with: "")
             .replacingOccurrences(of: "build --build_event_publish_all_actions\n", with: "")
         let unchangedEndpoint = GRPCEndpoint(
-            host: "acme-eu-central-1.kura.tuist.dev",
+            host: "acme-eu-west-1.kura.tuist.dev",
             explicitPort: nil,
             isTLS: true
         )
@@ -125,8 +125,8 @@ struct BazelrcFileTests {
         // `<host>=<path>` splits on the first `=` only; a path with one of its
         // own would otherwise be truncated and Bazel would fail to run it.
         let odd = """
-        build --remote_cache=grpcs://acme-eu-central-1.kura.tuist.dev
-        build --credential_helper=acme-eu-central-1.kura.tuist.dev=/opt/a=b/helper
+        build --remote_cache=grpcs://acme-eu-west-1.kura.tuist.dev
+        build --credential_helper=acme-eu-west-1.kura.tuist.dev=/opt/a=b/helper
 
         """
         let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: odd, with: moved))

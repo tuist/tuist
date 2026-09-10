@@ -487,7 +487,7 @@ defmodule TuistWeb.BazelCacheLive do
                 <.text_and_description_cell label={invocation.command} />
               </:col>
               <:col :let={invocation} label={dgettext("dashboard_projects", "Ran by")}>
-                <.run_ran_by_badge_cell run={invocation} />
+                <.run_ran_by_badge_cell run={invocation} ran_by_name={invocation.account_handle} />
               </:col>
               <:col :let={invocation} label={dgettext("dashboard_projects", "Hit rate")}>
                 <.text_cell label={"#{invocation.cache.hit_rate}%"} />

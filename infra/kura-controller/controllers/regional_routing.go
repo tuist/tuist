@@ -307,6 +307,9 @@ func uniqueHosts(hosts []string) []string {
 }
 
 func (r *KuraInstanceReconciler) publicHosts(ctx context.Context, instance *kurav1alpha1.KuraInstance) []string {
+	if instance.Spec.Private {
+		return uniqueHosts([]string{clientHost(instance)})
+	}
 	hosts := append([]string{instance.Spec.PublicHost}, annotationHosts(instance, legacyPublicHostsAnnotation)...)
 	if host := instance.Annotations[regionalPublicHostAnnotation]; host != "" && r.sharedPublicTLSCoversHost(ctx, instance.Namespace, host) {
 		hosts = append(hosts, host)

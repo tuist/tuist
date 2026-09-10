@@ -2262,7 +2262,9 @@ defmodule Tuist.Builds.Analytics do
   only by one of its dependencies changing (`dependency_induced`).
 
   The classification window partitions by branch so a `main` build is never compared
-  against a feature-branch build, regardless of the `:git_branch` filter.
+  against a feature-branch build, regardless of the `:git_branch` filter. Remote
+  availability evidence crosses branch and environment filters within the same
+  project and endpoint, over the retained 30-day window ending at `:end_datetime`.
 
   ## Options
     * `:project_id` - The project ID (required)
@@ -2274,8 +2276,11 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
-    `:dependency_induced`, and `:unclassified` (misses with no comparable prior
-    build: first-seen / cold / evicted).
+    `:dependency_induced`, `:evicted` (a previously remote-served exact key now
+    misses at the same endpoint), and `:unclassified` (misses without an earlier
+    observation in the comparison window, or not explained by the compared inputs).
+    These are command observations; restored cache results can be reported by
+    multiple test shards belonging to the same build.
   """
   def module_invalidations(opts \\ []) do
     opts
@@ -2283,12 +2288,17 @@ defmodule Tuist.Builds.Analytics do
     |> module_invalidations_from_breakdown(opts)
   end
 
+  @module_invalidation_batch_size 256
+  @module_cache_history_days 30
+
   @doc """
   Returns, per module and day, how often it was built and why it missed:
   `appearances`, `misses`, `changed` (its own content differed from its previous
-  build) and `upstream` (only a dependency differed). One pass over the window
-  that `module_invalidations/1` and `module_miss_reasons_timeseries/1` both
-  derive from, so a page that needs both runs it once.
+  build), `upstream` (only a dependency differed), and `evicted`
+  (an exact key previously served remotely now misses at the same endpoint). Both the module list and
+  miss-reason timeseries derive from this breakdown. Reads are batched by module
+  name so each query sorts a bounded set of independent module histories, with
+  dictionary-encoded names and branches to avoid repeating strings in memory.
 
   Takes the same options as `module_invalidations/1`, without `:limit`.
   """
@@ -2301,13 +2311,12 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     {filter_sql, filter_params} = module_invalidation_filters(opts)
-    {name_sql, name_params} = module_name_filter(opts)
 
     params =
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
-      |> Map.merge(name_params)
       |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
 
     query = """
     SELECT
@@ -2316,34 +2325,40 @@ defmodule Tuist.Builds.Analytics do
       product,
       count() AS appearances,
       countIf(hit = 'miss') AS misses,
-      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
-      countIf(
-        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
-      ) AS upstream
+      countIf(reason = 'changed') AS changed,
+      countIf(reason = 'upstream') AS upstream,
+      countIf(reason = 'evicted') AS evicted
     FROM (
+      SELECT *, #{module_cache_reason()} AS reason
+      FROM (
       SELECT
-        day, name, product, hit, own, deps, ext,
+        day, name, product, hit, own, direct_inputs, deps, ext, previously_available,
         row_number() OVER w AS rn,
         lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
         lagInFrame(deps, 1) OVER w AS prev_deps,
         lagInFrame(ext, 1) OVER w AS prev_ext
       FROM (
         SELECT
           toDate(e.ran_at) AS day,
           e.ran_at AS ran_at,
-          coalesce(e.git_branch, '') AS branch,
-          xt.name AS name,
+          toLowCardinality(coalesce(e.git_branch, '')) AS branch,
+          toLowCardinality(xt.name) AS name,
           xt.product AS product,
           xt.binary_cache_hit AS hit,
+          #{previously_available()} AS previously_available,
           xt.own_hash AS own,
+          xt.direct_inputs_hashes AS direct_inputs,
           cityHash64(xt.dependencies_hash) AS deps,
           cityHash64(xt.external_hash) AS ext
         FROM xcode_targets_by_project AS xt
         INNER JOIN command_events AS e ON xt.command_event_id = e.id
+        #{module_cache_availability_join()}
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
-          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
+          AND xt.name IN {names:Array(String)}
+          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
       )
       WINDOW w AS (
         PARTITION BY name, product, branch
@@ -2351,22 +2366,126 @@ defmodule Tuist.Builds.Analytics do
         ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
       )
     )
+    )
     GROUP BY day, name, product
     """
 
-    %{rows: rows} = ClickHouseRepo.query!(query, params)
+    # Every window partitions by name, so keeping a name's complete date range
+    # in one batch preserves comparisons across days, branches, and products.
+    # Sequential reads also keep concurrent batches from competing for memory.
+    opts
+    |> module_invalidation_names(params)
+    |> Enum.chunk_every(@module_invalidation_batch_size)
+    |> Enum.flat_map(fn names ->
+      %{rows: rows} = ClickHouseRepo.query!(query, Map.put(params, :names, names))
 
-    Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream] ->
-      %{
-        day: normalize_date(day),
-        name: name,
-        product: product,
-        appearances: appearances,
-        misses: misses,
-        changed: changed,
-        upstream: upstream
-      }
+      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, evicted] ->
+        %{
+          day: normalize_date(day),
+          name: name,
+          product: product,
+          appearances: appearances,
+          misses: misses,
+          changed: changed,
+          upstream: upstream,
+          evicted: evicted
+        }
+      end)
     end)
+  end
+
+  # Availability is shared across branches and CI/local runs, but only within
+  # the same project and recorded endpoint. Use report time, not command start:
+  # an overlapping command might not have downloaded its artifact yet.
+  defp module_cache_availability_join do
+    """
+    LEFT JOIN (
+      SELECT
+        av_xt.name AS name,
+        av_xt.product AS product,
+        av_xt.binary_cache_hash AS hash,
+        av_e.cache_endpoint AS endpoint,
+        count() AS remote_hits,
+        min(av_e.created_at) AS first_remote_hit_at
+      FROM xcode_targets_by_project AS av_xt
+      INNER JOIN command_events AS av_e ON av_xt.command_event_id = av_e.id
+      WHERE av_e.project_id = {project_id:Int64}
+        AND av_xt.project_id = {project_id:Int64}
+        AND av_xt.name IN {names:Array(String)}
+        AND av_e.ran_at >= {availability_start:DateTime64(6)}
+        AND av_e.created_at <= {availability_end:DateTime64(6)}
+        AND av_xt.inserted_at >= {availability_targets_start:DateTime64(6)}
+        AND av_xt.inserted_at <= {targets_end:DateTime64(6)}
+        AND av_xt.binary_cache_hit = 'remote'
+        AND av_xt.binary_cache_hash IS NOT NULL
+        AND notEmpty(av_xt.binary_cache_hash)
+        AND notEmpty(av_e.cache_endpoint)
+      GROUP BY name, product, hash, endpoint
+    ) AS available
+      ON available.name = xt.name
+      AND available.product = xt.product
+      AND available.hash = xt.binary_cache_hash
+      AND available.endpoint = e.cache_endpoint
+    """
+  end
+
+  defp module_cache_availability_params(end_datetime) do
+    evidence_end = Enum.min_by([end_datetime, DateTime.utc_now()], &DateTime.to_unix(&1, :microsecond))
+    evidence_start = DateTime.add(evidence_end, -@module_cache_history_days, :day)
+
+    %{
+      availability_start: evidence_start,
+      availability_end: evidence_end,
+      availability_targets_start: xcode_target_pruning_params(evidence_start, evidence_end).targets_start
+    }
+  end
+
+  defp previously_available do
+    """
+    available.remote_hits > 0
+    AND available.first_remote_hit_at < least(e.ran_at, e.created_at - toIntervalMillisecond(e.duration))
+    """
+  end
+
+  defp module_cache_reason do
+    """
+    multiIf(
+      hit != 'miss', 'hit',
+      previously_available, 'evicted',
+      rn = 1, 'cold',
+      own != prev_own OR arrayExists(
+        input -> mapContains(prev_direct_inputs, input)
+          AND coalesce(direct_inputs[input] != prev_direct_inputs[input], false),
+        mapKeys(direct_inputs)
+      ), 'changed',
+      deps != prev_deps OR ext != prev_ext, 'upstream',
+      'cold'
+    )
+    """
+  end
+
+  defp module_invalidation_names(opts, params) do
+    case Keyword.get(opts, :name) do
+      name when is_binary(name) and name != "" ->
+        [name]
+
+      _ ->
+        # This is a superset of the names matching the event filters. The
+        # classification query still applies those filters before its window.
+        # Grouping uses less memory than DISTINCT on large target histories.
+        query = """
+        SELECT xt.name
+        FROM xcode_targets_by_project AS xt
+        WHERE xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning()}
+        GROUP BY xt.name
+        """
+
+        %{rows: rows} = ClickHouseRepo.query!(query, params)
+
+        rows
+        |> Enum.map(fn [name] -> name end)
+        |> Enum.sort()
+    end
   end
 
   @doc """
@@ -2375,15 +2494,15 @@ defmodule Tuist.Builds.Analytics do
   """
   def module_invalidations_from_breakdown(breakdown, opts) do
     limit = Keyword.get(opts, :limit, 30)
-    radii = opts |> latest_graph_dependencies() |> blast_radii()
 
     breakdown
     |> Enum.group_by(&{&1.name, &1.product})
     |> Enum.map(fn {{name, product}, rows} ->
-      appearances = rows |> Enum.map(& &1.appearances) |> Enum.sum()
-      invalidations = rows |> Enum.map(& &1.misses) |> Enum.sum()
-      self_changes = rows |> Enum.map(& &1.changed) |> Enum.sum()
-      dependency_induced = rows |> Enum.map(& &1.upstream) |> Enum.sum()
+      {appearances, invalidations, self_changes, dependency_induced, evicted} =
+        Enum.reduce(rows, {0, 0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream, evicted} ->
+          {appearances + row.appearances, misses + row.misses, changed + row.changed, upstream + row.upstream,
+           evicted + row.evicted}
+        end)
 
       %{
         name: name,
@@ -2394,15 +2513,59 @@ defmodule Tuist.Builds.Analytics do
         hit_rate: percentage(appearances - invalidations, appearances),
         self_changes: self_changes,
         dependency_induced: dependency_induced,
-        unclassified: max(invalidations - (self_changes + dependency_induced), 0),
-        # nil when the latest graph carries no dependency edges (older CLI);
-        # an integer (0 for a leaf) once edges are present.
-        blast_radius: Map.get(radii, name)
+        evicted: evicted,
+        unclassified: max(invalidations - (self_changes + dependency_induced + evicted), 0)
       }
     end)
     |> Enum.filter(&(&1.invalidations > 0))
     |> Enum.sort_by(&{-&1.invalidations, -&1.appearances})
     |> Enum.take(limit)
+    |> put_blast_radii(opts)
+  end
+
+  # Only the modules that survive the limit carry a radius into the page, so the
+  # graph is read and walked for those alone. Reading it to annotate rows that
+  # were about to be dropped meant a reverse-reachability traversal per module in
+  # the project to fill in a page of thirty, and two ClickHouse reads for a page
+  # that displays no modules at all.
+  defp put_blast_radii([], _opts), do: []
+
+  defp put_blast_radii(rows, opts) do
+    case latest_graph_dependencies(opts) do
+      # nil radius when the latest graph carries no dependency edges (older CLI);
+      # an integer (0 for a leaf) once edges are present.
+      edges when map_size(edges) == 0 ->
+        Enum.map(rows, &Map.put(&1, :blast_radius, nil))
+
+      edges ->
+        reverse = reverse_edges(edges)
+
+        {rows, _walked} =
+          Enum.map_reduce(rows, %{}, fn row, walked ->
+            {radius, walked} = blast_radius(row.name, edges, reverse, walked)
+            {Map.put(row, :blast_radius, radius), walked}
+          end)
+
+        rows
+    end
+  end
+
+  # The same module appears once per product it is built as, so each name is
+  # walked once however many rows it holds.
+  defp blast_radius(name, edges, reverse, walked) do
+    case walked do
+      %{^name => radius} ->
+        {radius, walked}
+
+      _ ->
+        radius =
+          case edges do
+            %{^name => _} -> name |> downstream_dependents(reverse) |> MapSet.size()
+            _ -> nil
+          end
+
+        {radius, Map.put(walked, name, radius)}
+    end
   end
 
   @doc """
@@ -2422,7 +2585,15 @@ defmodule Tuist.Builds.Analytics do
         misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
         changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
         upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
-        {day, %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
+        evicted = rows |> Enum.map(& &1.evicted) |> Enum.sum()
+
+        {day,
+         %{
+           changed: changed,
+           upstream: upstream,
+           evicted: evicted,
+           cold: max(misses - changed - upstream - evicted, 0)
+         }}
       end)
 
     dates =
@@ -2435,15 +2606,14 @@ defmodule Tuist.Builds.Analytics do
       dates: Enum.map(dates, &Date.to_iso8601/1),
       changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
       upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
-      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
+      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end),
+      evicted: Enum.map(dates, fn d -> get_in(by_day, [d, :evicted]) || 0 end)
     }
   end
 
-  # Returns each module's most recent dependency edges (in the window/filters) as a
-  # `%{module_name => [dependency names]}` map. Uses `argMax(dependencies, ran_at)`
-  # per module so every module gets its latest known edges independently — a build
-  # that doesn't include some module doesn't drop that module's edges. Empty when no
-  # build carries edges yet, which keeps blast radius unknown (nil).
+  # Returns the latest edges per module across builds of the newest commit with
+  # edges in the requested window and filters. Older commits cannot keep removed
+  # modules in the graph. Empty when no build carries edges yet.
   defp latest_graph_dependencies(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
 
@@ -2452,43 +2622,57 @@ defmodule Tuist.Builds.Analytics do
 
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     {filter_sql, filter_params} = module_invalidation_filters(opts)
-    {filter_sql_e2, _} = module_invalidation_filters(opts, "e2")
 
     params =
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
 
-    # Grouping over the window would keep a module that newer builds no longer
-    # contain, so the graph is read from the newest commit that carries edges.
-    # A commit is usually built more than once, so it is taken across every
-    # build of that commit rather than from one.
+    # Find eligible events without building a join over the whole history.
+    # Older clients send no dependency edges, so an empty result must stop here.
     query = """
-    SELECT name, argMax(dependencies, ran_at) AS dependencies
-    FROM (
-      SELECT
-        xt.name AS name,
-        xt.dependencies AS dependencies,
-        e.ran_at AS ran_at,
-        coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) AS commit
-      FROM xcode_targets_by_project AS xt
-      INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    SELECT argMax(coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)), e.ran_at)
+    FROM command_events AS e
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}#{filter_sql}
+      AND e.id IN (
+        SELECT xt.command_event_id
+        FROM xcode_targets_by_project AS xt
+        WHERE xt.binary_cache_hash IS NOT NULL
+          AND notEmpty(xt.dependencies)#{xcode_target_pruning()}
+      )
+    """
+
+    %{rows: [[commit]]} = ClickHouseRepo.query!(query, params)
+
+    if commit in [nil, ""] do
+      %{}
+    else
+      graph_dependencies_for_commit(Map.put(params, :commit, commit), filter_sql)
+    end
+  end
+
+  defp graph_dependencies_for_commit(params, filter_sql) do
+    # Include every matching build of this commit, including leaf modules and
+    # targets uploaded later in the requested window. Filter event identifiers
+    # before reading the dependency arrays; do not tighten the ingestion range
+    # to the commit's run times, which would exclude delayed target uploads.
+    query = """
+    WITH selected_events AS (
+      SELECT e.id, e.ran_at
+      FROM command_events AS e
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
-        AND e.ran_at <= {end:DateTime64(6)}
-        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
+        AND e.ran_at <= {end:DateTime64(6)}#{filter_sql}
+        AND coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) = {commit:String}
     )
-    WHERE commit = (
-      SELECT argMax(coalesce(nullIf(e2.git_commit_sha, ''), toString(e2.id)), e2.ran_at)
-      FROM xcode_targets_by_project AS xt2
-      INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
-      WHERE e2.project_id = {project_id:Int64}
-        AND e2.ran_at >= {start:DateTime64(6)}
-        AND e2.ran_at <= {end:DateTime64(6)}
-        AND xt2.binary_cache_hash IS NOT NULL
-        AND notEmpty(xt2.dependencies)#{filter_sql_e2}#{xcode_target_pruning("xt2")}
-    )
-    GROUP BY name
+    SELECT xt.name, argMax(xt.dependencies, e.ran_at) AS dependencies
+    FROM xcode_targets_by_project AS xt
+    INNER JOIN selected_events AS e ON xt.command_event_id = e.id
+    PREWHERE xt.command_event_id IN (SELECT id FROM selected_events)#{xcode_target_pruning()}
+    WHERE xt.binary_cache_hash IS NOT NULL
+    GROUP BY xt.name
     """
 
     %{rows: rows} = ClickHouseRepo.query!(query, params)
@@ -2541,10 +2725,13 @@ defmodule Tuist.Builds.Analytics do
 
   defp do_downstream([], _reverse, visited), do: visited
 
+  # Prepending keeps the queue append proportional to the neighbours found rather
+  # than to everything still pending; only the visited set is returned, so
+  # walking depth-first reaches the same modules.
   defp do_downstream([module | rest], reverse, visited) do
     new = reverse |> Map.get(module, []) |> Enum.reject(&MapSet.member?(visited, &1))
     visited = Enum.reduce(new, visited, &MapSet.put(&2, &1))
-    do_downstream(rest ++ new, reverse, visited)
+    do_downstream(new ++ rest, reverse, visited)
   end
 
   @doc """
@@ -2596,7 +2783,7 @@ defmodule Tuist.Builds.Analytics do
     * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
     * `:git_branch` - When set, restricts to a single branch
     * `:commit_sha` - When set, matches commit shas starting with it
-    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"` or `"cold"`
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`, `"cold"` or `"evicted"`
     * `:order` - `"desc"` (default, newest first) or `"asc"`
     * `:limit` - Rows per page (default 25)
 
@@ -2605,7 +2792,7 @@ defmodule Tuist.Builds.Analytics do
     start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
     `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
     `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
-    `"changed"`, `"upstream"` or `"cold"`).
+    `"changed"`, `"upstream"`, `"cold"` or `"evicted"`).
 
     `:scheme` comes from the build run the command event belongs to and is
     empty for the commands that produce no activity log, such as `generate` and
@@ -2636,6 +2823,7 @@ defmodule Tuist.Builds.Analytics do
       %{
         project_id: project_id,
         name: name,
+        names: [name],
         start: start_datetime,
         end: end_datetime,
         # One extra row tells us whether another page exists in the direction of travel.
@@ -2646,24 +2834,21 @@ defmodule Tuist.Builds.Analytics do
       |> Map.merge(commit_params)
       |> Map.merge(cursor_params)
       |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
 
     query = """
     SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
     FROM (
       SELECT
         id, scheme, ran_at, branch, commit_sha, hit,
-        multiIf(
-          hit != 'miss', 'hit',
-          rn = 1, 'cold',
-          own != prev_own, 'changed',
-          deps != prev_deps OR ext != prev_ext, 'upstream',
-          'cold'
-        ) AS reason
+        #{module_cache_reason()} AS reason
       FROM (
         SELECT
-          id, scheme, ran_at, branch, commit_sha, hit, own, deps, ext,
+          id, scheme, ran_at, branch, commit_sha, hit, own, direct_inputs, deps, ext,
+          previously_available,
           row_number() OVER w AS rn,
           lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
           lagInFrame(deps, 1) OVER w AS prev_deps,
           lagInFrame(ext, 1) OVER w AS prev_ext
         FROM (
@@ -2674,12 +2859,15 @@ defmodule Tuist.Builds.Analytics do
             coalesce(e.git_branch, '') AS branch,
             coalesce(e.git_commit_sha, '') AS commit_sha,
             xt.binary_cache_hit AS hit,
+            #{previously_available()} AS previously_available,
             xt.product AS product,
             xt.own_hash AS own,
+            xt.direct_inputs_hashes AS direct_inputs,
             cityHash64(xt.dependencies_hash) AS deps,
             cityHash64(xt.external_hash) AS ext
           FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          #{module_cache_availability_join()}
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
           -- project and window so the join builds a small hash table.
@@ -2738,7 +2926,7 @@ defmodule Tuist.Builds.Analytics do
 
   defp build_history_reason_filter(opts) do
     case Keyword.get(opts, :reason) do
-      reason when reason in ~w(hit changed upstream cold) -> {"reason = {reason:String}", %{reason: reason}}
+      reason when reason in ~w(hit changed upstream cold evicted) -> {"reason = {reason:String}", %{reason: reason}}
       _ -> {"", %{}}
     end
   end
@@ -2994,9 +3182,9 @@ defmodule Tuist.Builds.Analytics do
   defp percentage(_count, 0), do: 0.0
   defp percentage(count, total), do: Float.round(count / total * 100, 1)
 
-  defp module_name_filter(opts) do
+  defp module_name_filter(opts, alias_name \\ "xt") do
     case Keyword.get(opts, :name) do
-      name when is_binary(name) and name != "" -> {" AND xt.name = {name:String}", %{name: name}}
+      name when is_binary(name) and name != "" -> {" AND #{alias_name}.name = {name:String}", %{name: name}}
       _ -> {"", %{}}
     end
   end
@@ -3060,9 +3248,12 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  Returns a daily breakdown of why a module missed: `changed` (its own content
-  differed from its previous build), `upstream` (only a dependency differed), and
-  `cold` (a miss with no comparable prior build — first-seen or evicted).
+  Returns a daily breakdown of reported misses: `changed` (the module's compared
+  direct inputs differed), `upstream` (only its dependency or external package hash
+  differed), `evicted` (a previously served exact key now misses at the same endpoint),
+  and `cold` (missing comparison history or an unexplained miss without earlier
+  remote availability evidence). Cold does not establish that an artifact was
+  never cached or was evicted.
 
   Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
   day instead of by module. Requires `:name`.
@@ -3131,10 +3322,23 @@ defmodule Tuist.Builds.Analytics do
       |> Date.range(DateTime.to_date(end_datetime))
       |> Enum.to_list()
 
+    # Reversing the graph is proportional to the whole project, so it is done
+    # once per distinct daily graph instead of once per day: a day with no build
+    # carries the previous day's graph forward, and a day that rebuilds the same
+    # targets produces the same graph again.
     {counts, _carried} =
-      Enum.map_reduce(dates, nil, fn date, carried ->
-        edges = edges_for_day(Map.get(edges_by_day, date), carried)
-        {dependents_count(edges, name), edges}
+      Enum.map_reduce(dates, {nil, nil}, fn date, {carried, reverse} ->
+        case edges_for_day(Map.get(edges_by_day, date), carried) do
+          nil ->
+            {0, {nil, nil}}
+
+          ^carried ->
+            {dependents_count(reverse, name), {carried, reverse}}
+
+          edges ->
+            rebuilt = reverse_edges(edges)
+            {dependents_count(rebuilt, name), {edges, rebuilt}}
+        end
       end)
 
     %{dates: Enum.map(dates, &Date.to_iso8601/1), counts: counts}
@@ -3149,7 +3353,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp dependents_count(nil, _name), do: 0
-  defp dependents_count(edges, name), do: edges |> module_transitive_dependents(name) |> length()
+  defp dependents_count(reverse, name), do: name |> downstream_dependents(reverse) |> MapSet.size()
 
   @doc """
   Returns the project's latest module dependency graph as

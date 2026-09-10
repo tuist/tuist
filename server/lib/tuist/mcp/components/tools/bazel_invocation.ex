@@ -89,9 +89,19 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "misses" => %{"type" => "integer"},
         "download_bytes" => %{"type" => "integer"},
         "upload_bytes" => %{"type" => "integer"},
+        "content_download_bytes" => %{"type" => "integer"},
+        "content_upload_bytes" => %{"type" => "integer"},
         "hit_rate" => %{"type" => ["number", "null"]}
       },
-      "required" => ["hits", "misses", "download_bytes", "upload_bytes", "hit_rate"],
+      "required" => [
+        "hits",
+        "misses",
+        "download_bytes",
+        "upload_bytes",
+        "content_download_bytes",
+        "content_upload_bytes",
+        "hit_rate"
+      ],
       "additionalProperties" => false
     }
   end

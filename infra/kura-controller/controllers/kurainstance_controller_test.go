@@ -168,7 +168,7 @@ func TestSharedSecretChangeRollsKuraPods(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -243,7 +243,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -303,8 +303,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
 		t.Fatalf("expected public regional Kura ingress to be created: %v", err)
 	}
-	if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName != "kura-eu-central" {
-		t.Fatalf("expected public ingress class kura-eu-central, got %v", ingress.Spec.IngressClassName)
+	if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName != "kura-eu-west" {
+		t.Fatalf("expected public ingress class kura-eu-west, got %v", ingress.Spec.IngressClassName)
 	}
 	if got := ingress.Spec.TLS[0].SecretName; got != publicTLSSecretName(instance) {
 		t.Fatalf("expected public ingress to terminate with cert-manager Secret, got %q", got)
@@ -1039,7 +1039,7 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	scheme := meshTestScheme(t)
 
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
-	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 	instance.Spec.MeshExternalPeers = []string{"https://kura.acme.example:7443"}
 	instance.Spec.MeshPublicPeerLoadBalancerAnnotations = map[string]string{
 		"load-balancer.hetzner.cloud/location":      "fsn1",
@@ -1093,7 +1093,7 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	if got := env["KURA_PEERS"]; got != "https://kura.acme.example:7443" {
 		t.Fatalf("expected KURA_PEERS to seed the self-hosted peer, got %q", got)
 	}
-	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-central-1.kura.tuist.dev:7443" {
+	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-west-1.kura.tuist.dev:7443" {
 		t.Fatalf("expected KURA_PEER_GATEWAY_URL to advertise the public gateway for global discovery, got %q", got)
 	}
 
@@ -1209,7 +1209,7 @@ func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
 	scheme := meshTestScheme(t)
 
 	eu := meshInstance("kura-tuist-eu-1", "tuist")
-	eu.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	eu.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 	us := meshInstance("kura-tuist-us-1", "tuist")
 	us.Spec.MeshPublicPeerHost = "peer.tuist-us-east-1.kura.tuist.dev"
 
@@ -1254,7 +1254,7 @@ func TestMeshPublicPeerServiceIsTornDownWhenHostCleared(t *testing.T) {
 	scheme := meshTestScheme(t)
 
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
-	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
@@ -1368,7 +1368,7 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -1403,8 +1403,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
 		t.Fatalf("expected gRPC regional Kura ingress to be created: %v", err)
 	}
-	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-central" {
-		t.Fatalf("expected gRPC ingress class kura-eu-central, got %v", grpcIngress.Spec.IngressClassName)
+	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-west" {
+		t.Fatalf("expected gRPC ingress class kura-eu-west, got %v", grpcIngress.Spec.IngressClassName)
 	}
 	// gRPC co-hosts on the public host: it declares no TLS of its own and
 	// relies on the public Ingress's certificate for the shared host.
@@ -1719,7 +1719,7 @@ func TestKuraInstanceReconcileFlipToPrivateDeletesPublicResources(t *testing.T) 
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -1789,7 +1789,7 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -1803,7 +1803,7 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 	legacyGRPCIngress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace},
 		Spec: networkingv1.IngressSpec{
-			IngressClassName: ptr("kura-eu-central"),
+			IngressClassName: ptr("kura-eu-west"),
 			TLS: []networkingv1.IngressTLS{{
 				Hosts:      []string{"grpc.tuist-eu-1.kura.tuist.dev"},
 				SecretName: grpcTLSSecretName(instance),
@@ -2438,7 +2438,7 @@ func dataPersistentVolumeClaim(instance *kurav1alpha1.KuraInstance, ordinal int,
 
 func TestRolloutStatusRequiresUpdatedReadyReplicas(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Generation: 2},
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-west-1", Generation: 2},
 		Spec: kurav1alpha1.KuraInstanceSpec{
 			Image: "ghcr.io/tuist/kura:0.5.3",
 		},
@@ -2469,7 +2469,7 @@ func TestRolloutStatusRequiresUpdatedReadyReplicas(t *testing.T) {
 
 func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Generation: 2},
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-west-1", Generation: 2},
 		Spec: kurav1alpha1.KuraInstanceSpec{
 			Image: "ghcr.io/tuist/kura:0.5.3",
 		},
@@ -3874,7 +3874,7 @@ func TestKuraInstanceReconcilePinsPublicPeerServiceToGatewayPod(t *testing.T) {
 	replicas := int32(2)
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
 	instance.Spec.Replicas = &replicas
-	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 	serving := func() runtimeStatus {
 		return runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
 	}
@@ -4012,7 +4012,7 @@ func TestKuraInstanceReconcileKeepsTheGatewayOffAnEvacuatingPod(t *testing.T) {
 	replicas := int32(2)
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
 	instance.Spec.Replicas = &replicas
-	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 	caughtUp := runtimeStatus{
 		Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2,
 		BackfillInitialCycle: backfillCycleComplete,
@@ -4090,7 +4090,7 @@ func TestKuraInstanceReconcileMovesThePeerPinThroughADataVolumeResize(t *testing
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
 	instance.Spec.Replicas = &replicas
 	instance.Spec.StorageSize = "400Gi"
-	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-west-1.kura.tuist.dev"
 	peerService := instancePublicPeerServiceName(instance)
 
 	claim := func(ordinal int) *corev1.PersistentVolumeClaim {
@@ -4225,7 +4225,7 @@ func sharedWildcardTLSTestInstance() *kurav1alpha1.KuraInstance {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			IngressClassName: "kura-eu-central",
+			IngressClassName: "kura-eu-west",
 			StorageClassName: "hcloud-volumes",
 		},
 	}

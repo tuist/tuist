@@ -5,6 +5,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 ## Key Boundaries
 - High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
 - Entry points: `src/main.rs`, `src/app.rs`
+- Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Public HTTP and gRPC surfaces: `src/http.rs`
 - Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol and reader-first rollout. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
 - Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. Generate the fixture with Tuist's `Project.swift` and `Tuist.swift` manifests, not another project generator. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
@@ -38,6 +39,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
+- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
@@ -64,3 +66,5 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 - Never change the on-disk segment/blob format or the replication wire format in a way that an old peer cannot read. Segment and blob files are logically append-only and reclaimed by unlink, never truncated. Active segments may receive reserved, non-overlapping positioned writes without the operating system's append flag. A failed or cancelled reservation may leave a bounded hole, but writers must never overwrite a committed range, reuse an uncertain tail offset, or truncate the file. Rotation takes the exclusive segment barrier before publishing a new active segment. Memory-mapped serving remains safe because manifests expose only fully written committed ranges and existing mappings may observe file growth; truncation could crash a process through a live mapping. Do not introduce in-place rewrites or `set_len`/`ftruncate` on those files without revisiting `src/mmap.rs` and the reservation, synchronization, and rotation protocol.
 - Node-local optimizations (caching, mmap serving, readahead) must degrade gracefully to a known-good path and must not alter response bytes or headers, so a half-rolled fleet stays consistent.
 - New dependencies must build in the release image (`Dockerfile`) without new system requirements, and config/limit changes must ship with matching Helm values in `ops/` so a rollout does not depend on out-of-band manual steps.
+
+- Private runner Kura uses the ordinary managed StatefulSet rollout and account mesh. Both replicas continuously enqueue and consume replication traffic, with initial backfill after a restart; the standby is not read-only. The stable private gateway pins reads and writes to the selected primary. Replication remains asynchronous; Kubernetes readiness alone does not prove a drained outbox or complete backfill. See `infra/kura-controller/private-runner-rollouts.md`.

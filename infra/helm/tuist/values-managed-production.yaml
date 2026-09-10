@@ -88,11 +88,6 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    # The offline-certificate license config is now the shared default in
-    # values-managed-common.yaml, so production no longer overrides it here.
-    license:
-      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
-      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
@@ -192,7 +187,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -213,24 +208,32 @@ server:
     # the time this was set over several days rather than in one pass, so the
     # first unattended moves are watched rather than found afterwards.
     #
-    # `retire` is the slowest lane because it is the only one whose cost lands
-    # before anyone can object: the instance stops serving within a minute, and
-    # an hour later the volume is deleted with no path back. Reopening the
-    # region needs `expand` to fire again, which is a fortnight of evidence
-    # away, so a wrong one costs that geography two weeks and a cold refill.
+    # `all` means no fleet-wide ceiling on that kind, which is the setting for
+    # every kind whose mistake is recoverable. What bounds those is the policy,
+    # asked per account: expansion stops at the plan's region count, relocation
+    # runs once a quarter, correction fires once in an account's life. Those
+    # scale with the fleet because they are per account. A fleet-wide count does
+    # not, and one sitting in front of a queue that grows with the account count
+    # only ever falls further behind.
     #
-    # It is on rather than held back because the rung no longer judges a window
-    # it has no history for (`Placement.history_covers_window?/2`). Without
-    # that it was the one kind partial history made *more* likely to fire, and
-    # the fleet would have retired real second regions on a floor reading a
-    # tenth of its window. With it, retirement stays quiet on its own until
-    # attribution is 90 days deep and turns itself on with no deploy.
+    # Falling behind is not merely slow here. A correction stops being available
+    # once the placement it replaces is a fortnight old, so a queue that runs
+    # long silently turns corrections into relocations, which need a quarter.
+    # The first day this ran capped, the whole fleet's allowance went in the
+    # first second: five applies, then eleven accounts waiting a full day.
     #
-    # Leaving it at zero was the alternative, and it is worse: `expand` would
-    # be a one-way ratchet, regions would only ever accumulate, and reclaiming
-    # them would be a standing manual chore nobody scheduled.
+    # `retire` keeps a ceiling because it is the only kind whose mistake cannot
+    # be taken back: the instance stops serving within a minute and the volume
+    # is deleted an hour later with no cancel path. The per-account limits say
+    # nothing about how many accounts move at once, so a rung deciding wrongly
+    # for the whole fleet has nothing else in front of it.
+    #
+    # 25 is a stop, not a throttle. Retirement is rare by construction (a region
+    # held 90 days, a full history window, under the floor, and not earning its
+    # place), so this should never bind on a real day; what it bounds is a
+    # fleet-wide misfire, to one day's worth of regions rather than all of them.
     - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
-      value: expand=2,correct=2,relocate=1,retire=1
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -364,6 +367,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -813,15 +818,15 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
 # (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
 # adoptable box hangs helm --wait.
 #
-# eu-central is a shared public region, so its capacity is the sum of its boxes
+# eu-west is a shared public region, so its capacity is the sum of its boxes
 # and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
 # ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
@@ -846,7 +851,7 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
     # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:

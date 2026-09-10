@@ -93,6 +93,48 @@ struct RestoreTests {
         }
     }
 
+    // Once a checkout populates the cache, the marker written next to Package.swift is what
+    // future resolves compare `pin.revision()` against. If the marker is missing or points to
+    // a different SHA the cache entry is treated as unusable and re-fetched, which is the
+    // second half of the fix for the 12-char cache-key collision.
+    @Test
+    func restorePackageWritesSourceRevisionMarkerIntoTheCachedSourceDirectory() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("libwebp-Xcode")
+            let submodule = root.appendingPathComponent("libwebp")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let revision = try await writeGitPackageWithRequiredSubmodule(
+                packageRepo: repo,
+                submoduleRepo: submodule
+            )
+            let pin = ResolvedPin(
+                identity: "libwebp-xcode",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                resolved: resolved,
+                progress: nil,
+                disableSandbox: true
+            )
+
+            let markerPath = try cache.sourcePath(pin: pin)
+                .appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename)
+            #expect(try await fileSystem.exists(markerPath.absolutePath))
+            let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
+            let recorded = String(decoding: markerData, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(recorded == revision)
+        }
+    }
+
     @Test
     func restorePackageRefreshesCachedSourceWhenSubmodulesAreMissing() async throws {
         try await withTemporaryDirectory { root in
@@ -555,9 +597,15 @@ struct RestoreTests {
                 to: archivePath
             )
 
+            let sourcePath = try cache.sourcePath(pin: pin)
             try await writeCachedManifest(
                 binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
-                packageDir: cache.sourcePath(pin: pin)
+                packageDir: sourcePath
+            )
+            try await fileSystem.atomicWrite(
+                pin.revision(),
+                to: sourcePath.appendingPathComponent(
+                    WorkspaceRestorer.sourceRevisionMarkerFilename)
             )
             try await writeCachedManifest(emptyManifest(), packageDir: package)
 
@@ -627,9 +675,15 @@ struct RestoreTests {
                 to: archivePath
             )
 
+            let sourcePath = try cache.sourcePath(pin: pin)
             try await writeCachedManifest(
                 binaryTargetManifest(name: "Foo", url: artifactURL, checksum: checksum),
-                packageDir: cache.sourcePath(pin: pin)
+                packageDir: sourcePath
+            )
+            try await fileSystem.atomicWrite(
+                pin.revision(),
+                to: sourcePath.appendingPathComponent(
+                    WorkspaceRestorer.sourceRevisionMarkerFilename)
             )
             try await writeCachedManifest(emptyManifest(), packageDir: package)
 

@@ -82,10 +82,10 @@ mod tests {
 
     #[test]
     fn reads_the_url_out_of_the_cli_payload() {
-        let stdout = r#"{"url":"https://acme-eu-central-1.kura.tuist.dev","token":"t","accountHandle":"acme","projectHandle":"app"}"#;
+        let stdout = r#"{"url":"https://acme-eu-west-1.kura.tuist.dev","token":"t","accountHandle":"acme","projectHandle":"app"}"#;
         assert_eq!(
             url_from_json(stdout).as_deref(),
-            Some("https://acme-eu-central-1.kura.tuist.dev")
+            Some("https://acme-eu-west-1.kura.tuist.dev")
         );
     }
 
@@ -129,10 +129,10 @@ mod tests {
     fn reads_the_url_out_of_the_cli_payload_as_the_cli_writes_it() {
         // Real `tuist cache config --json` output: snake_case keys, escaped
         // forward slashes, pretty-printed.
-        let stdout = "{\n  \"account_handle\" : \"tuist\",\n  \"url\" : \"https:\\/\\/tuist-eu-central-1-staging.kura.tuist.dev\"\n}";
+        let stdout = "{\n  \"account_handle\" : \"tuist\",\n  \"url\" : \"https:\\/\\/tuist-eu-west-1-staging.kura.tuist.dev\"\n}";
         assert_eq!(
             url_from_json(stdout).as_deref(),
-            Some("https://tuist-eu-central-1-staging.kura.tuist.dev")
+            Some("https://tuist-eu-west-1-staging.kura.tuist.dev")
         );
     }
 

@@ -52,7 +52,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 	ctx := context.Background()
 	scheme, mapper := dnsEndpointScheme(t)
 
-	instance := hostNetworkPublicInstance("kura-acme", "eu-central", "acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -84,7 +84,7 @@ func TestPublicDNSEndpointPublishesBoxIP(t *testing.T) {
 		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
 	}
 	record := endpoints[0].(map[string]interface{})
-	if record["dnsName"] != "acme-eu-central.kura.tuist.dev" {
+	if record["dnsName"] != "acme-eu-west.kura.tuist.dev" {
 		t.Fatalf("expected the account's customer host as dnsName, got %v", record["dnsName"])
 	}
 	targets := record["targets"].([]interface{})
@@ -145,7 +145,7 @@ func TestPublicDNSEndpointDeletedWhenNoBox(t *testing.T) {
 	existing.SetNamespace("kura")
 	existing.SetName("kura-acme-public-dns")
 
-	instance := hostNetworkPublicInstance("kura-acme", "eu-central", "acme-eu-central.kura.tuist.dev")
+	instance := hostNetworkPublicInstance("kura-acme", "eu-west", "acme-eu-west.kura.tuist.dev")
 	// No pods in the fake client, so instanceNodeIP finds no box -> teardown.
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()

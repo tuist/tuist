@@ -83,7 +83,18 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   # Started by `Tuist.Application`, which is also where the bound on it lives.
   @supervisor __MODULE__.TaskSupervisor
 
+  # A mutation is mirrored inside the request that issued it, so its retry
+  # budget is charged to a customer waiting on a response and has to stay
+  # small. An insert is handed to the supervisor above and nothing waits on
+  # it, so it can afford to sit out a slow destination rather than be dropped.
+  #
+  # The two were the same number, and three attempts one second apart is
+  # shorter than a single `queue_timeout` on a saturated pool. Every attempt
+  # then landed inside the same stall, and the row was lost: that is how
+  # canary lost writes while a backfill was loading the destination.
   @attempts 3
+  @detached_attempts 6
+  @max_backoff_ms 30_000
 
   # How long a mutation waits for the inserts before it, in the request that
   # issued it.
@@ -124,7 +135,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
         # still be queued, so the delete can overtake them and the row it
         # removed is written back immediately afterwards.
         await_inflight_mirrors()
-        mirror(run, kind)
+        mirror(run, kind, 1, @attempts)
       end
     end
 
@@ -163,7 +174,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
   def write?(_sql), do: false
 
   defp detach(fun, kind) do
-    case Task.Supervisor.start_child(@supervisor, fn -> mirror(fun, kind) end) do
+    case Task.Supervisor.start_child(@supervisor, fn -> mirror(fun, kind, 1, @detached_attempts) end) do
       {:ok, _pid} ->
         :ok
 
@@ -190,7 +201,10 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     # exactly where latency does not matter: under `bin/tuist eval`, and
     # during shutdown once it has stopped but the ingest buffers have not yet
     # made their final flush.
-    :exit, _reason -> mirror(fun, kind)
+    # The short budget, not the detached one: one of the two cases this covers
+    # is shutdown, where sitting out a slow destination would outlast the pod's
+    # grace period and lose the flush to a SIGKILL instead of a retry.
+    :exit, _reason -> mirror(fun, kind, 1, @attempts)
   end
 
   # Bounded, because this runs in the request that issued the mutation, and a
@@ -219,7 +233,7 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     :exit, _reason -> :ok
   end
 
-  defp mirror(fun, kind, attempt \\ 1) do
+  defp mirror(fun, kind, attempt, max_attempts) do
     # Matched rather than ignored. The raw mirrors call `query/3`, which
     # answers `{:error, exception}` instead of raising, so a rejected write
     # would otherwise be counted as a success and never retried: exactly the
@@ -227,32 +241,38 @@ defmodule Tuist.IngestRepo.ShadowWrite do
     # flushes and the mutation-based deletes.
     case fun.() do
       {:error, error} ->
-        retry_or_give_up(fun, kind, attempt, "was rejected: #{inspect(error)}")
+        retry_or_give_up(fun, kind, attempt, max_attempts, "was rejected: #{inspect(error)}")
 
       _ ->
         :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :ok})
     end
   rescue
-    error -> retry_or_give_up(fun, kind, attempt, "failed: #{Exception.message(error)}")
+    error -> retry_or_give_up(fun, kind, attempt, max_attempts, "failed: #{Exception.message(error)}")
   catch
-    :exit, reason -> retry_or_give_up(fun, kind, attempt, "exited: #{inspect(reason)}")
+    :exit, reason -> retry_or_give_up(fun, kind, attempt, max_attempts, "exited: #{inspect(reason)}")
   end
 
-  defp retry_or_give_up(fun, kind, attempt, _reason) when attempt < @attempts do
+  defp retry_or_give_up(fun, kind, attempt, max_attempts, _reason) when attempt < max_attempts do
     # Counted rather than logged: the failure worth retrying is a pool that is
     # not ready yet, and it produces a burst of them at once, so a log line per
     # attempt would bury the deploy it happened on.
     :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :retried})
 
-    Process.sleep(attempt * 1000)
-    mirror(fun, kind, attempt + 1)
+    Process.sleep(backoff_ms(attempt))
+    mirror(fun, kind, attempt + 1, max_attempts)
   end
 
-  defp retry_or_give_up(_fun, kind, _attempt, reason) do
+  defp retry_or_give_up(_fun, kind, _attempt, _max_attempts, reason) do
     :telemetry.execute([:tuist, :clickhouse, :shadow_write], %{count: 1}, %{kind: kind, result: :error})
 
     Logger.error("Shadow ClickHouse write (#{kind}) #{reason}")
     :error
+  end
+
+  # Doubling rather than linear, capped so a long stall does not turn into an
+  # unbounded sleep holding a supervisor slot.
+  defp backoff_ms(attempt) do
+    min(Bitwise.bsl(1, attempt - 1) * 1_000, @max_backoff_ms)
   end
 
   # Two conditions, not one. The repository is only in the supervision tree
