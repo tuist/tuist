@@ -38,7 +38,6 @@ defmodule Tuist.ReapiCache.CacheEvent do
     field :action_digest, Ch, type: "String"
     field :size, Ch, type: "UInt64"
     field :duration_ms, Ch, type: "UInt64"
-    field :duration_us, Ch, type: "UInt64"
     field :invocation_id, Ch, type: "String"
     field :action_mnemonic, Ch, type: "String"
     field :target_label, Ch, type: "String"
@@ -49,5 +48,10 @@ defmodule Tuist.ReapiCache.CacheEvent do
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :observed_at, Ch, type: "DateTime64(3, 'UTC')"
     field :inserted_at, Ch, type: "DateTime"
+    # Declared last to match the physical column order: ALTER TABLE ADD
+    # COLUMN appends, and inserts into this table are positional, so a
+    # field declared mid-schema shifts every value after it into the
+    # wrong column.
+    field :duration_us, Ch, type: "UInt64"
   end
 end

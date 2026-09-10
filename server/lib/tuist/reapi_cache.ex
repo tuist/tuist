@@ -29,7 +29,11 @@ defmodule Tuist.ReapiCache do
           outcome: event.outcome,
           action_digest: event.action_digest,
           size: event.size,
-          duration_ms: event.duration_us,
+          # Callers may supply either unit: the webhook sends microseconds
+          # (falling back to a not-yet-rolled node's milliseconds), while
+          # older internal callers still build events in milliseconds.
+          duration_ms: duration_ms(event),
+          duration_us: duration_us(event),
           invocation_id: event.invocation_id,
           action_mnemonic: event.action_mnemonic,
           target_label: event.target_label,
@@ -44,6 +48,20 @@ defmodule Tuist.ReapiCache do
       end)
 
     IngestRepo.insert_all(CacheEvent, entries)
+  end
+
+  defp duration_us(event) do
+    case Map.get(event, :duration_us) do
+      value when is_integer(value) -> value
+      _ -> Map.get(event, :duration_ms, 0) * 1_000
+    end
+  end
+
+  defp duration_ms(event) do
+    case Map.get(event, :duration_ms) do
+      value when is_integer(value) -> value
+      _ -> div(Map.get(event, :duration_us, 0), 1_000)
+    end
   end
 
   def summary(project_id, options \\ []) when is_list(options) do
