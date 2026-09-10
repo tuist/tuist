@@ -13,7 +13,9 @@
  * masked to a soft-edged circle (a radial gradient whose centre and
  * radius are custom properties the stylesheet reads; the hook eases the
  * radius itself, frame by frame, so it behaves the same everywhere). It
- * takes no pointer events, so the page under it keeps working. It is
+ * takes no pointer events and is inert, so the page under it keeps
+ * working and nothing in the copy can be focused or reached; its copies
+ * live in a shadow tree so their ids never duplicate the page's. It is
  * built once, on first use, and kept — at radius zero it is not rendered
  * at all — so opening the spotlight costs nothing but a few style writes; it is
  * rebuilt when the page resizes, and its copy of the sticky navbar is
@@ -181,20 +183,34 @@ export const NotFoundOutline = {
     const height = Math.max(doc.scrollHeight, doc.clientHeight);
     const overlay = document.createElement("div");
     overlay.id = OVERLAY_ID;
-    overlay.setAttribute(ATTRIBUTE, "");
     overlay.setAttribute("aria-hidden", "true");
+    // A drawing of the page, not the page: nothing in it can be focused,
+    // clicked or reached by assistive tech.
+    overlay.setAttribute("inert", "");
     overlay.style.width = `${width}px`;
     overlay.style.height = `${height}px`;
+    // The copies live in a shadow tree. Ids are scoped to it, so the copy
+    // keeps the ids the stylesheets key layout off (the three regions, the
+    // footer's theme switcher) without duplicating the page's, and label
+    // and aria references on the page keep resolving to the real elements.
+    // The page's stylesheets are linked into the tree (they come from
+    // cache) so the copy lays out exactly like the original; the outline
+    // attribute goes on a wrapper inside it, where those stylesheets can
+    // see it. The mask, the size and the custom properties stay on the
+    // host, which the outline stylesheet styles by id from outside.
+    const shadow = overlay.attachShadow({ mode: "open" });
+    for (const link of document.querySelectorAll('link[rel="stylesheet"]')) shadow.append(link.cloneNode());
+    const regions = document.createElement("div");
+    regions.setAttribute(ATTRIBUTE, "");
+    shadow.append(regions);
     for (const selector of REGIONS) {
       const el = document.querySelector(selector);
       if (!el) continue;
       const r = el.getBoundingClientRect();
       const copy = el.cloneNode(true);
       for (const node of copy.querySelectorAll(PRUNE)) node.remove();
-      // Ids stay: the stylesheets key some layout off them (the footer's
-      // theme switcher, for one), and the copy must lay out exactly like
-      // the original. The real elements come first in the document, so
-      // lookups by id still find the real ones.
+      // Ids stay on the copy (see above): inside the shadow tree they clash
+      // with nothing.
       copy.style.position = "absolute";
       copy.style.top = `${r.top + window.scrollY}px`;
       copy.style.left = `${r.left + window.scrollX}px`;
@@ -202,7 +218,7 @@ export const NotFoundOutline = {
       copy.style.height = `${r.height}px`;
       copy.style.margin = "0";
       copy.style.boxSizing = "border-box";
-      overlay.append(copy);
+      regions.append(copy);
       if (selector === NAVBAR) this.navbarCopy = copy;
     }
     document.body.append(overlay);

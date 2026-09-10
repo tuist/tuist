@@ -3689,28 +3689,33 @@ msgstr ""
 msgid "Turn app builds into runnable previews for review, testing, and feedback before they ship."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:38
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:39
 #, elixir-autogen, elixir-format
 msgid "Back to home"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:26
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Error 404"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:164
-#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:29
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:24
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Show the page's outlines"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:32
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "The page you were looking for doesn't exist or may have moved"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/new/not_found.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Error 404. Toggle the page's outline view"
 msgstr ""
