@@ -572,13 +572,10 @@ License env vars. Resolves to one mutually exclusive source:
 {{- $existingKeys := .Values.server.license.existingSecretKeys | default dict -}}
 {{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
 {{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
-{{- $useEsoVerifyKey := ne (.Values.server.externalSecrets.license.verifyKeyItem | default "") "" -}}
 {{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
 {{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
-{{- $useInlineVerifyKey := ne (.Values.server.license.verifyKey | default "") "" -}}
 {{- $useExistingKey := and (ne $existingSecret "") (ne (get $existingKeys "key" | default "") "") -}}
 {{- $useExistingCertificate := and (ne $existingSecret "") (ne (get $existingKeys "certificateBase64" | default "") "") -}}
-{{- $useExistingVerifyKey := and (ne $existingSecret "") (ne (get $existingKeys "verifyKey" | default "") "") -}}
 {{- if and $useEsoKey $useEsoCertificate -}}
 {{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
@@ -588,8 +585,8 @@ License env vars. Resolves to one mutually exclusive source:
 {{- if and $useInlineKey $useInlineCertificate -}}
 {{- fail "server.license.key and server.license.certificateBase64 are mutually exclusive; pick one license source." -}}
 {{- end -}}
-{{- if and (ne $existingSecret "") (or $useEsoKey $useEsoCertificate $useEsoVerifyKey $useInlineKey $useInlineCertificate $useInlineVerifyKey) -}}
-{{- fail "server.license.existingSecret is mutually exclusive with server.license.{key,certificateBase64,verifyKey} and with the server.externalSecrets.license path; pick one license source." -}}
+{{- if and (ne $existingSecret "") (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- fail "server.license.existingSecret is mutually exclusive with server.license.{key,certificateBase64} and with the server.externalSecrets.license path; pick one license source." -}}
 {{- end -}}
 {{- if and (ne $existingSecret "") (not (or $useExistingKey $useExistingCertificate)) -}}
 {{- fail "server.license.existingSecret is set but neither existingSecretKeys.key nor existingSecretKeys.certificateBase64 names a key; give the chart a license source." -}}
@@ -619,18 +616,6 @@ License env vars. Resolves to one mutually exclusive source:
       {{- else }}
       name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
-      {{- end }}
-{{- end }}
-{{- if or $useEsoVerifyKey $useInlineVerifyKey $useExistingVerifyKey }}
-- name: TUIST_LICENSE_VERIFY_KEY
-  valueFrom:
-    secretKeyRef:
-      {{- if $useExistingVerifyKey }}
-      name: {{ $existingSecret | quote }}
-      key: {{ get $existingKeys "verifyKey" | quote }}
-      {{- else }}
-      name: {{ ternary $esoSecret $appSecret $useEsoVerifyKey | quote }}
-      key: server-license-verify-key
       {{- end }}
 {{- end }}
 {{- end -}}
