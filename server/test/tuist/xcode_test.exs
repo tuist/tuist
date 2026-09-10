@@ -37,11 +37,13 @@ defmodule Tuist.XcodeTest do
                 "targets" => [
                   %{
                     "name" => "Library",
+                    "dependencies" => ["Core", "Networking"],
                     "destinations" => ["iphone", "ipad", "mac"],
                     "binary_cache_metadata" => %{"hash" => "binary", "subhashes" => inputs.(["iPad", "iPhone", "mac"])}
                   },
                   %{
                     "name" => "Tests",
+                    "dependencies" => ["Library"],
                     "destinations" => ["iphone", "ipad", "mac"],
                     "selective_testing_metadata" => %{"hash" => "testing", "subhashes" => inputs.(["iPad", "iPhone"])}
                   }
@@ -59,6 +61,8 @@ defmodule Tuist.XcodeTest do
       assert binary_target.hashed_destinations == ["iPad", "iPhone", "mac"]
       assert testing_target.hashed_destinations == ["iPad", "iPhone"]
       assert binary_target.embedded_product_references_hash == "embedded"
+      assert binary_target.dependencies == ["Core", "Networking"]
+      assert testing_target.dependencies == ["Library"]
       assert binary_target.foreign_build_hash == "foreign"
       assert testing_target.test_device == ""
       assert testing_target.test_runtime == ""

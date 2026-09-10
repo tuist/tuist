@@ -31,6 +31,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         XcodeFixtures.xcode_target_fixture([
           {purpose, "hash"},
           {:name, "Target"},
+          {:dependencies, ["Networking", "Core"]},
           {:xcode_project_id, xcode_project.id},
           {:destinations, ["iphone", "ipad", "mac"]},
           {:hashed_destinations, destinations},
@@ -65,6 +66,7 @@ defmodule TuistWeb.RunDetailLiveTest do
         assert Map.has_key?(historical, "hashed_destinations")
         assert library["embedded_product_references_hash"] == ""
         assert library["foreign_build_hash"] == "foreign"
+        assert library["dependencies"] == ["Core", "Networking"]
         assert library["test_device"] == ""
         assert library["test_runtime"] == ""
 

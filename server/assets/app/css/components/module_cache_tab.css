@@ -76,6 +76,18 @@
       }
     }
 
+    & [data-part="dependency-list"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2) var(--noora-spacing-5);
+    }
+
+    & [data-part="dependency-link"] {
+      color: var(--noora-surface-label-primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
     & [data-part="subhashes-list"] {
       display: flex;
       flex-direction: column;

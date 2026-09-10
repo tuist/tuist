@@ -1667,6 +1667,7 @@
     <% end %>
     <%= if @selected_tab == "module-cache" and @run.status != "processing" and @has_binary_cache_data do %>
       <.module_cache_tab
+        project={@selected_project}
         binary_cache_analytics={@binary_cache_analytics}
         binary_cache_filter={@binary_cache_filter}
         binary_cache_page={@binary_cache_page}

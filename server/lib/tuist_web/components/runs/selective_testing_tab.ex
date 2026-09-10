@@ -19,6 +19,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
   attr :run, :any, required: true
+  attr :project, :map, required: true
   attr :available_filters, :list, required: true
   attr :selective_testing_active_filters, :list, required: true
 
@@ -161,7 +162,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
               } />
             </:col>
             <:expanded_content :let={test_module}>
-              <ModuleCacheTab.subhashes_list target={test_module} />
+              <ModuleCacheTab.subhashes_list target={test_module} project={@project} />
             </:expanded_content>
             <:empty_state>
               <.table_empty_state
@@ -231,6 +232,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
       info_plist_hash: target.info_plist_hash,
       entitlements_hash: target.entitlements_hash,
       dependencies_hash: target.dependencies_hash,
+      dependencies: Enum.sort(target.dependencies),
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,

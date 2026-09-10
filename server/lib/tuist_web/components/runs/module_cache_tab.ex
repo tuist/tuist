@@ -18,6 +18,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
   attr :run, :any, required: true
+  attr :project, :map, required: true
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
 
@@ -264,7 +265,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               } />
             </:col>
             <:expanded_content :let={target}>
-              <.subhashes_list target={target} />
+              <.subhashes_list target={target} project={@project} />
             </:expanded_content>
             <:empty_state>
               <.table_empty_state
@@ -291,8 +292,11 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   end
 
   attr :target, :map, required: true
+  attr :project, :map, default: nil
 
   def subhashes_list(assigns) do
+    assigns = assign(assigns, :dependencies, Enum.sort(Map.get(assigns.target, :dependencies, [])))
+
     ~H"""
     <div data-part="subhashes-list">
       <div :if={@target.product != ""} data-part="subhash-item">
@@ -411,9 +415,31 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">{@target.entitlements_hash}</span>
       </div>
+      <div data-part="subhash-item">
+        <span data-part="subhash-label">{dgettext("dashboard_builds", "Dependencies")}:</span>
+        <span data-part="subhash-value">
+          <span :if={@dependencies == []}>
+            {dgettext("dashboard_builds", "No direct target dependencies recorded")}
+          </span>
+          <span :if={@dependencies != []} data-part="dependency-list">
+            <span :for={dependency <- @dependencies}>
+              <.link
+                :if={@project}
+                navigate={
+                  ~p"/#{@project.account.name}/#{@project.name}/module-cache/modules/#{dependency}"
+                }
+                data-part="dependency-link"
+              >
+                {dependency}
+              </.link>
+              <span :if={!@project}>{dependency}</span>
+            </span>
+          </span>
+        </span>
+      </div>
       <div :if={@target.dependencies_hash != ""} data-part="subhash-item">
         <span data-part="subhash-label">
-          {dgettext("dashboard_builds", "Dependencies")}:
+          {dgettext("dashboard_builds", "Dependencies hash")}:
         </span>
         <span data-part="subhash-value">{@target.dependencies_hash}</span>
       </div>
@@ -611,6 +637,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       info_plist_hash: target.info_plist_hash,
       entitlements_hash: target.entitlements_hash,
       dependencies_hash: target.dependencies_hash,
+      dependencies: Enum.sort(target.dependencies),
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,

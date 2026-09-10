@@ -20,3 +20,5 @@ This area owns shared UI components for LiveView and templates.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - Run cache details and JSON comparisons use individual recorded hash inputs. Missing historical destinations and other unrecorded inputs display as unavailable; recorded empty inputs remain distinguishable.
+
+- Expanded cache targets list sorted direct target dependencies, linking to module details within the selected project, and retain the aggregate dependencies hash separately. JSON comparisons include both names and the hash.

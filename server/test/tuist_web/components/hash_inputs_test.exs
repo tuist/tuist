@@ -48,4 +48,28 @@ defmodule TuistWeb.Components.HashInputsTest do
     assert html =~ "None"
     refute html =~ "Unavailable"
   end
+
+  test "lists direct dependencies as sorted links while retaining the aggregate hash" do
+    target = %XcodeTarget{dependencies: ["Networking", "Core"], dependencies_hash: "dependency-content-hash"}
+    project = %{name: "app", account: %{name: "team"}}
+    html = render_component(&ModuleCacheTab.subhashes_list/1, target: target, project: project)
+    document = Floki.parse_fragment!(html)
+    links = Floki.find(document, "[data-part=dependency-link]")
+
+    assert links |> Enum.map(&Floki.text/1) |> Enum.map(&String.trim/1) == ["Core", "Networking"]
+
+    assert Floki.attribute(links, "href") == [
+             "/team/app/module-cache/modules/Core",
+             "/team/app/module-cache/modules/Networking"
+           ]
+
+    assert html =~ "Dependencies hash"
+    assert html =~ "dependency-content-hash"
+  end
+
+  test "describes missing dependency names without implying that the aggregate hash is empty" do
+    html = render_component(&ModuleCacheTab.subhashes_list/1, target: %XcodeTarget{dependencies_hash: "sdk-hash"})
+    assert html =~ "No direct target dependencies recorded"
+    assert html =~ "sdk-hash"
+  end
 end
