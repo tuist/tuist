@@ -89,7 +89,7 @@ logo_cells = [
             <.neutral_button
               data-part="download"
               href={cell.src}
-              aria-label={cell.alt}
+              aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
               label={dgettext("marketing", "Download")}
               {[download: true]}
             >
@@ -115,7 +115,7 @@ logo_cells = [
             <.neutral_button
               data-part="download"
               href={cell.src}
-              aria-label={cell.alt}
+              aria-label={dgettext("marketing", "Download %{name}", name: cell.alt)}
               label={dgettext("marketing", "Download")}
               {[download: true]}
             >

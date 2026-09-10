@@ -506,11 +506,16 @@ leaves the subtree alone on join. --%>
   </div>
   <nav data-part="mobile-menus" aria-label="Mobile navigation">
     <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-features">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-features-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Features")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-features-dropdown">
         <.link
           :for={item <- features_items}
           href={item.href}
@@ -523,11 +528,16 @@ leaves the subtree alone on join. --%>
       </div>
     </div>
     <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-developers">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Developers")}</h3>
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-developers-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Developers")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-developers-dropdown">
         <.link
           :for={item <- developers_items}
           href={item.href}
@@ -549,11 +559,16 @@ leaves the subtree alone on join. --%>
       </div>
     </div>
     <div data-part="menu" data-static-hook="MobileMenuDropdown" id="mobile-menu-resources">
-      <div data-part="action">
-        <h3 data-part="title">{dgettext("marketing", "Resources")}</h3>
+      <button
+        type="button"
+        data-part="action"
+        aria-expanded="false"
+        aria-controls="mobile-menu-resources-dropdown"
+      >
+        <span data-part="title">{dgettext("marketing", "Resources")}</span>
         <span data-part="chevron"><.chevron_down /></span>
-      </div>
-      <div data-part="dropdown">
+      </button>
+      <div data-part="dropdown" id="mobile-menu-resources-dropdown">
         <.link
           :for={item <- resources_items}
           href={item.href}

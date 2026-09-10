@@ -429,11 +429,23 @@
         flex-direction: column;
         align-items: stretch;
 
+        /* A real button (keyboard-operable before the hook mounts), reset
+           to the row it always was; the chevron carries the hover state. */
         & > [data-part="action"] {
           display: flex;
           flex-direction: row;
           justify-content: space-between;
           align-items: center;
+          appearance: none;
+          cursor: pointer;
+          margin: 0;
+          border: 0;
+          background: none;
+          padding: 0;
+          width: 100%;
+          color: inherit;
+          font: inherit;
+          text-align: left;
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
