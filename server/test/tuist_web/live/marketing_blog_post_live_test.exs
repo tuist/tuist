@@ -6,7 +6,6 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Blog.CoverArtwork
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /blog/:year/:month/:day/:slug" do
     test "renders a blog post without errors", %{conn: conn} do
@@ -15,49 +14,14 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       assert html =~ "Build Smart Before You Build Fast"
     end
 
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
-
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the post with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
 
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
       assert html =~ "Build Smart Before You Build Fast"
     end
 
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/blog/2025/11/17/smart-before-fast")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "the new design renders the post's cover artwork inline and on the social card", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the post's cover artwork inline and on the social card", %{conn: conn} do
       stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
       stub(CoverArtwork, :svg, fn "smart-before-fast", _theme -> ~s(<svg data-part="artwork">cover</svg>) end)
 
@@ -67,20 +31,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       assert html =~ ~s(property="og:image" content=") <> Tuist.Environment.app_url(path: "/open-graph-images/")
     end
 
-    test "the legacy design keeps the raster image on the social card", %{conn: conn} do
-      stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
-
-      {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
-
-      refute html =~ "/open-graph-images/"
-    end
-
-    test "the new design closes with the three most recent other posts", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "closes with the three most recent other posts", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog/2025/11/17/smart-before-fast")
 
       expected_titles =

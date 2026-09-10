@@ -14,7 +14,6 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
 
@@ -26,52 +25,26 @@ defmodule TuistWeb.Marketing.MarketingController do
   @newsletter_verification_salt "newsletter_subscription"
   @newsletter_verification_max_age 2 * 24 * 60 * 60
 
-  def qa(conn, _params) do
-    read_more_posts = Enum.take(Blog.get_posts(), 3)
-
+  def home(conn, _params) do
     conn
-    |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(get_website_structured_data())
+    |> assign_structured_data(get_software_application_structured_data())
+    |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+      )
+    )
     |> assign(
       :head_image,
       SocialCards.image_url("home")
     )
     |> assign(:head_twitter_card, "summary_large_image")
-    |> assign(:read_more_posts, read_more_posts)
-    |> render(:home, layout: false)
-  end
-
-  def home(conn, _params) do
-    locale = Gettext.get_locale(TuistWeb.Gettext)
-
-    conn =
-      conn
-      |> assign_structured_data(get_organization_structured_data())
-      |> assign_structured_data(get_website_structured_data())
-      |> assign_structured_data(get_software_application_structured_data())
-      |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
-      |> assign(
-        :head_description,
-        dgettext(
-          "marketing",
-          "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
-        )
-      )
-      |> assign(
-        :head_image,
-        SocialCards.image_url("home")
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign(:featured_testimonials, get_featured_testimonials(locale))
-      |> assign(:testimonial_columns, get_testimonial_columns(locale))
-
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> assign(:home_new_testimonials, get_home_new_testimonials())
-      |> render(:home_new, layout: false)
-    else
-      render(conn, :home, layout: false)
-    end
+    |> assign(:home_new_testimonials, get_home_new_testimonials())
+    |> render(:home_new, layout: false)
   end
 
   # The new home's testimonial marquee: two rows in the design's order,
@@ -251,7 +224,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     }
   end
 
-  # English counterpart of the Korean quote in get_testimonial_columns("ko").
   defp get_youngjun_testimonial do
     %{
       quote:
@@ -264,84 +236,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       avatar_src: "/marketing/images/home/testimonials/youngjun-lee.jpeg",
       highlighted: false,
       logo_svg: nil
-    }
-  end
-
-  defp get_featured_testimonials("ko") do
-    %{
-      quote_line_one: "Tuist를 적용했을 뿐인데 빌드 속도가 25% 단축되었어요!",
-      quote_line_two: "한국 iOS 개발자들에게 정말 인기 있는 도구 입니다",
-      author_name: "이영준 (Youngjun Lee), 게임도우미",
-      author_avatar: "https://www.gravatar.com/avatar/placeholder"
-    }
-  end
-
-  defp get_featured_testimonials("ru") do
-    get_english_featured_testimonials()
-  end
-
-  defp get_featured_testimonials(_locale) do
-    get_english_featured_testimonials()
-  end
-
-  defp get_testimonial_columns("ko") do
-    english_columns = get_english_testimonial_columns()
-
-    [
-      [
-        %{
-          quote:
-            "Tuist는 iOS 개발자들에게 정말 멋진 도구에요. 이걸 적용한 후 더 이상 Xcode 프로젝트에서 Conflicts를 경험하지 않게 되었어요. 게다가, 빌드에 걸리는 시간도 줄여줘서 더 중요한 일에 시간을 사용할 수 있게 되었어요. 그리고 고맙게도, Tuist는 한국의 SNS에서도 피드백을 받고 있어서 문제가 있다면 언제든 도와줄 겁니다.",
-          name: "이영준 (Youngjun Lee)",
-          role: "CEO of 게임도우미",
-          avatar_src: "/marketing/images/testimonials/youngjun-lee.jpeg",
-          highlighted: true,
-          logo_svg: """
-          <!-- TODO: Add company logo SVG here if needed -->
-          """
-        },
-        %{
-          quote:
-            "Tuist를 도입한 이후 의존성 관리와 외부 라이브러리 업데이트가 훨씬 간결해졌습니다. Project.swift로 프로젝트 구조와 의존성을 정의하다 보니 구성 검토와 리팩터링이 수월해졌고, 모듈 단위로 테스트를 분리할 수 있어 TDD에 최적화되었습니다. 캐시 기능 덕분에 클린 빌드와 증분 빌드 시간이 크게 줄어 개발 루프가 빨라졌고, 스캐폴딩 기능으로 신규 기능 파일을 손쉽게 생성할 수 있어 반복 작업이 줄었습니다. 또한 .pbxproj 충돌을 없애 병합 과정이 깔끔해진 점도 만족스러웠습니다. 빠르게 변화하는 iOS 환경에 맞추어 Tuist 또한 빠른 업데이트 속도가 제일 좋았습니다.",
-          name: "Akaps",
-          role: "iOS Developer at HSociety",
-          avatar_src: "/marketing/images/testimonials/akaps.jpeg",
-          highlighted: false,
-          logo_svg: nil
-        },
-        %{
-          quote:
-            "Tuist는 비누랩스의 iOS 개발 워크플로우를 획기적으로 개선했습니다. 프로젝트 파일을 코드로 관리하고 자동 생성하는 방식 덕분에 팀원 간 pbxproj 파일 충돌이 완전히 사라졌고, Git 머지가 훨씬 수월해졌습니다. 특히 Tuist Cache를 활용해 의존성을 사전 빌드함으로써 개발 환경의 빌드 시간을 대폭 단축할 수 있었습니다. Swift Macro 모듈을 도입할 때도 바이너리 캐싱 기능 덕분에 매번 매크로를 재컴파일할 필요 없이 빠르게 개발할 수 있었습니다. 변경되지 않은 모듈은 캐시된 바이너리로 대체하고 작업 중인 모듈만 소스로 빌드하는 방식으로, 대규모 모듈화 프로젝트에서도 빠른 피드백 루프를 유지하며 팀 전체의 생산성을 크게 높일 수 있었습니다.",
-          name: "김인환 (Inhwan Kim)",
-          role: "iOS Developer at 비누랩스",
-          avatar_src: "/marketing/images/testimonials/inhwan-kim.jpg",
-          highlighted: false,
-          logo_svg: nil
-        }
-      ],
-      Enum.at(english_columns, 1),
-      Enum.at(english_columns, 2)
-    ]
-  end
-
-  defp get_testimonial_columns("ru") do
-    get_english_testimonial_columns()
-  end
-
-  defp get_testimonial_columns(_locale) do
-    get_english_testimonial_columns()
-  end
-
-  defp get_english_featured_testimonials do
-    %{
-      quote_line_one:
-        dgettext(
-          "marketing",
-          "\"We could solve our immediate problems and do so while maintaining a familiar"
-        ),
-      quote_line_two: dgettext("marketing", "core development experience\""),
-      author_name: dgettext("marketing", "Jonathan Crooke, Bumble"),
-      author_avatar: "https://www.gravatar.com/avatar/292c129cf17a552c08b4d9dcf2c6c1f8"
     }
   end
 
@@ -468,59 +362,36 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:head_title, "About Tuist")
 
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> render(:about_new, layout: false)
-    else
-      render(conn, :about, layout: false)
-    end
+    render(conn, :about_new, layout: false)
   end
 
-  # The brand page only exists in the redesign, so instead of a legacy
-  # fallback the route 404s until the :brand rollout flag is on.
   def brand(conn, _params) do
-    if Design.new?(conn) do
-      conn
-      |> assign_structured_data(get_organization_structured_data())
-      |> assign_structured_data(
-        get_breadcrumbs_structured_data([
-          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Brand"), Tuist.Environment.app_url(path: ~p"/brand")}
-        ])
+    conn
+    |> assign_structured_data(get_organization_structured_data())
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data([
+        {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+        {dgettext("marketing", "Brand"), Tuist.Environment.app_url(path: ~p"/brand")}
+      ])
+    )
+    |> assign(
+      :head_image,
+      SocialCards.image_url("brand")
+    )
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(
+      :head_description,
+      dgettext(
+        "marketing",
+        "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
       )
-      |> assign(
-        :head_image,
-        SocialCards.image_url("brand")
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign(
-        :head_description,
-        dgettext(
-          "marketing",
-          "Resources for representing the Tuist brand clearly and cohesively. Tuist trademarks, logos, and other brand assets must not be modified or used for any purpose other than representing Tuist."
-        )
-      )
-      |> assign(:head_title, dgettext("marketing", "Brand guidelines"))
-      |> assign(:new_design, true)
-      |> render(:brand_new, layout: false)
-    else
-      raise NotFoundError,
-            dgettext("marketing", "The page you are looking for doesn't exist.")
-    end
+    )
+    |> assign(:head_title, dgettext("marketing", "Brand guidelines"))
+    |> render(:brand_new, layout: false)
   end
 
-  # The download page only exists in the redesign, but /download has always
-  # redirected straight to the latest macOS app DMG — that stays as the
-  # legacy behaviour until the :download rollout flag is on.
   def download(conn, _params) do
-    latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
-
-    if Design.new?(conn) do
-      render_download(conn, latest_app_release)
-    else
-      redirect_to_macos_app_dmg(conn, latest_app_release)
-    end
+    render_download(conn, Tuist.GitHub.Releases.get_latest_app_release())
   end
 
   defp render_download(conn, latest_app_release) do
@@ -559,7 +430,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
     )
     |> assign(:head_title, dgettext("marketing", "Download Tuist"))
-    |> assign(:new_design, true)
     # The macOS demo's desktop is the biggest thing above the fold and a
     # CSS background, so it is preloaded rather than found late.
     |> assign(:head_preload_images, [~p"/marketing/images/download/macos-wallpaper.webp"])
@@ -569,17 +439,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:macos_download_url, macos_download_url)
     |> assign(:ios_download_url, Tuist.AppStore.ios_app_url())
     |> render(:download_new, layout: false)
-  end
-
-  defp redirect_to_macos_app_dmg(conn, latest_app_release) do
-    case macos_app_dmg_url(latest_app_release) do
-      nil ->
-        raise NotFoundError,
-              dgettext("marketing", "The page you are looking for doesn't exist or has been moved.")
-
-      app_download_url ->
-        conn |> redirect(external: app_download_url) |> halt()
-    end
   end
 
   defp macos_app_dmg_url(nil), do: nil
@@ -626,14 +485,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp render_newsletter(conn) do
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
-      |> render(:newsletter_new, layout: false)
-    else
-      render(conn, :newsletter, layout: false)
-    end
+    conn
+    |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
+    |> render(:newsletter_new, layout: false)
   end
 
   def newsletter_signup(conn, %{"email" => email}) do
@@ -923,45 +777,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     Content.get_entries()
   end
 
-  def blog_post(%{request_path: request_path} = conn, _params) do
-    request_path = Localization.path_without_locale(request_path)
-
-    post = Enum.find(Blog.get_posts(), &(&1.slug == String.trim_trailing(request_path, "/")))
-
-    if is_nil(post) do
-      raise NotFoundError
-    else
-      related_posts = Enum.take_random(Blog.get_posts(), 3)
-      author = Blog.get_authors()[post.author]
-      post_image_url = blog_post_image_url(post)
-
-      conn
-      |> assign(:head_title, post.title)
-      |> assign(:head_description, post.excerpt)
-      |> assign(:head_keywords, post.tags)
-      |> assign(:head_fediverse_creator, author["fediverse_username"])
-      |> assign(
-        :head_image,
-        post_image_url
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_article_head_meta(published_at: post.date, author_url: Blog.get_post_author_url(post))
-      |> assign_structured_data(get_blog_post_structured_markup_data(post))
-      |> assign_structured_data(
-        get_breadcrumbs_structured_data([
-          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Blog"), Tuist.Environment.app_url(path: ~p"/blog")},
-          {post.title, Tuist.Environment.app_url(path: post.slug)}
-        ])
-      )
-      |> assign(:post, post)
-      |> assign(:post_image_url, post_image_url)
-      |> assign(:author, author)
-      |> assign(:related_posts, related_posts)
-      |> render(:blog_post, layout: false)
-    end
-  end
-
   def case_study(%{request_path: request_path} = conn, _params) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
     request_path = Localization.path_without_locale(request_path)
@@ -983,8 +798,6 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         customers_path = Localization.localized_href("/customers", locale)
         case_study_path = Localization.localized_href(case_study.slug, locale)
-        new_design = Design.new?(conn)
-
         # The generated cover artwork (or the title card without it) — the
         # static photos are gone.
         head_image_path = TuistWeb.Marketing.MarketingCustomerCovers.og_image_path(case_study)
@@ -1010,13 +823,7 @@ defmodule TuistWeb.Marketing.MarketingController do
           |> assign(:case_study, case_study)
           |> assign(:related_case_studies, related_case_studies)
 
-        if new_design do
-          conn
-          |> assign(:new_design, true)
-          |> render(:case_study_new, layout: false)
-        else
-          render(conn, :case_study, layout: false)
-        end
+        render(conn, :case_study_new, layout: false)
     end
   end
 
@@ -1090,23 +897,10 @@ defmodule TuistWeb.Marketing.MarketingController do
         )
       )
 
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> render(:pricing_new, layout: false)
-    else
-      render(conn, :pricing, layout: false)
-    end
+    render(conn, :pricing_new, layout: false)
   end
 
-  # The compute page only exists in the redesign, so instead of falling back
-  # to a legacy template when the flag is off, it stays hidden behind a 404
-  # until :new_marketing flips.
   def compute(conn, _params) do
-    if !Design.new?(conn) do
-      raise NotFoundError, dgettext("errors", "Page not found")
-    end
-
     conn
     |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
     |> assign(
@@ -1127,18 +921,10 @@ defmodule TuistWeb.Marketing.MarketingController do
         {dgettext("marketing", "Compute"), Tuist.Environment.app_url(path: ~p"/compute")}
       ])
     )
-    |> assign(:new_design, true)
     |> render(:compute_new, layout: false)
   end
 
-  # The tests page only exists in the redesign, so instead of falling back
-  # to a legacy template when the flag is off, it stays hidden behind a 404
-  # until :new_marketing flips.
   def tests(conn, _params) do
-    if !Design.new?(conn) do
-      raise NotFoundError, dgettext("errors", "Page not found")
-    end
-
     conn
     |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
     |> assign(
@@ -1159,7 +945,6 @@ defmodule TuistWeb.Marketing.MarketingController do
         {dgettext("marketing", "Tests"), Tuist.Environment.app_url(path: ~p"/tests")}
       ])
     )
-    |> assign(:new_design, true)
     |> render(:tests_new, layout: false)
   end
 
@@ -1194,13 +979,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:page, page)
 
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> render(:page_new, layout: false)
-    else
-      render(conn, :page, layout: false)
-    end
+    render(conn, :page_new, layout: false)
   end
 
   def assign_default_head_tags(conn, _params) do
@@ -1245,32 +1024,17 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp render_newsletter_verify(conn) do
-    if Design.new?(conn) do
-      conn
-      |> assign(:new_design, true)
-      |> render(:newsletter_verify_new, layout: false)
-    else
-      render(conn, :newsletter_verify, layout: false)
-    end
-  end
-
-  defp blog_post_image_url(post) do
-    path =
-      post.og_image_path ||
-        OpenGraph.image_path(:marketing_text, title: post.title)
-
-    Tuist.Environment.app_url(path: path, marketing: true)
+    render(conn, :newsletter_verify_new, layout: false)
   end
 
   defp put_agent_discovery_links(conn, _opts) do
     put_resp_header(conn, "link", AgentDiscovery.homepage_link_header_value())
   end
 
-  # Only anonymous responses may be stored by shared caches: authenticated
-  # users can be actor-gated onto a page's redesign before its global flag
-  # flips (see TuistWeb.Marketing.Design), and nothing else would stop a
-  # shared cache from storing a previewer's variant at the ordinary URL and
-  # serving it to every visitor.
+  # Only anonymous responses may be stored by shared caches: a signed-in
+  # visitor's page can differ from the anonymous one at the same URL (the
+  # navbar's dashboard link, for one), and nothing else would stop a shared
+  # cache from serving their variant to every visitor.
   defp put_resp_header_cache_control(conn, _opts) do
     if conn.assigns[:current_user] do
       put_resp_header(conn, "cache-control", "private, no-store")

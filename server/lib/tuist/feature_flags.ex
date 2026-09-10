@@ -66,25 +66,6 @@ defmodule Tuist.FeatureFlags do
     FunWithFlags.enabled?(:kura_replication_pull, for: account)
   end
 
-  @doc """
-  Whether the marketing site should render the redesigned version instead of
-  the legacy one. The whole redesign launches behind a single boolean flag
-  (`:new_marketing`) that is flipped for everyone at once — marketing traffic
-  is mostly anonymous. The redesign can be previewed before the flip by
-  enabling the flag for a specific user (actor gate), which is what the
-  optional `user` serves. Callers should go through
-  `TuistWeb.Marketing.Design` rather than checking this flag directly.
-  """
-  def new_marketing_enabled?(user \\ nil)
-
-  def new_marketing_enabled?(nil) do
-    FunWithFlags.enabled?(:new_marketing)
-  end
-
-  def new_marketing_enabled?(user) do
-    FunWithFlags.enabled?(:new_marketing, for: user)
-  end
-
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

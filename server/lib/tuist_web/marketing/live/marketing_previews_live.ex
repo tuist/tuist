@@ -5,16 +5,11 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
 
   import TuistWeb.Marketing.StructuredMarkup
 
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.SocialCards
 
-  embed_templates "marketing_previews_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (previews_new/1) distinct from the legacy previews/1.
   embed_templates "marketing_previews_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: previews_new(assigns)
-  def render(assigns), do: previews(assigns)
+  def render(assigns), do: previews_new(assigns)
 
   def mount(_params, session, socket) do
     socket =
@@ -25,8 +20,6 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
         {:cont, assign(socket, current_path: current_path)}
       end)
       |> TuistWeb.Authentication.mount_current_user(session)
-
-    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user]))
 
     {:ok, socket}
   end

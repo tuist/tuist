@@ -5,56 +5,16 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Changelog
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /changelog" do
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/changelog")
-
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the page with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/changelog")
 
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/changelog")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
     end
   end
 
-  describe "GET /changelog (new design)" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      :ok
-    end
-
+  describe "GET /changelog (timeline)" do
     test "renders the first page of entries as a timeline", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/changelog")
 

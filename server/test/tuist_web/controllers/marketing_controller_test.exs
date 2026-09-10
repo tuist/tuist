@@ -126,57 +126,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "GET / (new design rollout)" do
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      conn = get(conn, "/")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+  describe "GET / (caching)" do
+    test "links the marketing stylesheet", %{conn: conn} do
       conn = get(conn, "/")
 
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      conn = conn |> log_in_user(user) |> get("/")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
-
-      conn = conn |> log_in_user(user) |> get("/")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
     end
 
     test "anonymous responses stay publicly cacheable", %{conn: conn} do
@@ -186,8 +141,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
 
     test "authenticated responses are not cacheable by shared caches", %{conn: conn} do
-      # An authenticated user can be actor-gated onto a redesigned page, so
-      # a shared cache must never store their variant at the ordinary URL.
       user = AccountsFixtures.user_fixture()
 
       conn = conn |> log_in_user(user) |> get("/")
@@ -197,18 +150,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /compute" do
-    test "is hidden behind a 404 while the page flag is off", %{conn: conn} do
-      assert_error_sent :not_found, fn ->
-        get(conn, "/compute")
-      end
-    end
-
-    test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the page", %{conn: conn} do
       conn = get(conn, "/compute")
 
       html = html_response(conn, 200)
@@ -228,18 +170,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /tests" do
-    test "is hidden behind a 404 while the page flag is off", %{conn: conn} do
-      assert_error_sent :not_found, fn ->
-        get(conn, "/tests")
-      end
-    end
-
-    test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the page", %{conn: conn} do
       conn = get(conn, "/tests")
 
       html = html_response(conn, 200)
@@ -250,33 +181,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /download" do
-    test "redirects to the latest macOS app DMG when the redesign flag is off", %{conn: conn} do
-      stub_latest_app_release()
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      conn = get(conn, ~p"/download")
-
-      assert redirected_to(conn) ==
-               "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
-    end
-
-    test "raises not found when the redesign flag is off and no release exists", %{conn: conn} do
-      stub(Releases, :get_latest_app_release, fn -> nil end)
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      assert_raise NotFoundError, fn ->
-        get(conn, ~p"/download")
-      end
-    end
-
     test "renders the download page with the macOS hero by default", %{conn: conn} do
       stub_latest_app_release()
       stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
 
       conn = get(conn, ~p"/download")
 
@@ -293,11 +200,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub_latest_app_release()
       stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
 
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
-
       conn =
         conn
         |> put_req_header("user-agent", @iphone_user_agent)
@@ -313,11 +215,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       stub(Releases, :get_latest_app_release, fn -> nil end)
       stub(AppStore, :get_latest_ios_app_version, fn -> nil end)
 
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
-
       conn = get(conn, ~p"/download")
 
       html = html_response(conn, 200)
@@ -328,20 +225,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /newsletter" do
-    test "renders the legacy newsletter page by default", %{conn: conn} do
-      conn = get(conn, ~p"/newsletter")
-
-      html = html_response(conn, 200)
-      assert html =~ "Tuist Digest"
-      refute html =~ ~s(id="marketing-newsletter-form")
-    end
-
-    test "renders the redesigned newsletter page when the flag is on", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
-
+    test "renders the newsletter page", %{conn: conn} do
       conn = get(conn, ~p"/newsletter")
 
       html = html_response(conn, 200)
@@ -352,12 +236,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "/marketing/assets/bundle-new.css"
     end
 
-    test "lists every past issue newest first with the sort control when the flag is on", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
-
+    test "lists every past issue newest first with the sort control", %{conn: conn} do
       conn = get(conn, ~p"/newsletter")
 
       html = html_response(conn, 200)
@@ -482,57 +361,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "GET /terms (new design rollout)" do
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      conn = get(conn, "/terms")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+  describe "GET /terms" do
+    test "renders the page with the marketing stylesheet", %{conn: conn} do
       conn = get(conn, "/terms")
 
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      conn = conn |> log_in_user(user) |> get("/terms")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
-
-      conn = conn |> log_in_user(user) |> get("/terms")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
     end
   end
 
@@ -553,58 +387,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
     end
 
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      conn = get(conn, ~p"/customers/monzo")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders a case study with its generated cover artwork on the social card", %{conn: conn} do
       conn = get(conn, ~p"/customers/monzo")
 
       html = html_response(conn, 200)
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-      # The redesign swaps the static OG photo for the generated artwork.
       assert html =~ "/open-graph-images/"
-    end
-
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      conn = conn |> log_in_user(user) |> get(~p"/customers/monzo")
-
-      html = html_response(conn, 200)
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
     end
   end
 
-  describe "GET /newsletter/verify with the redesign flag on" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _flag -> false
-      end)
-
-      :ok
-    end
-
+  describe "GET /newsletter/verify (states)" do
     test "renders the confirm state", %{conn: conn} do
       email = "test@example.com"
       token = signed_newsletter_token(email)

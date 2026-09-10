@@ -6,73 +6,25 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
 
   alias Tuist.Marketing.Blog.CoverArtwork
   alias Tuist.Marketing.Content
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "GET /blog" do
-    test "renders the legacy design and stylesheet by default", %{conn: conn} do
-      {:ok, _lv, html} = live(conn, ~p"/blog")
-
-      assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
+    test "renders the blog with the marketing stylesheet", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog")
 
       assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
     end
 
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/blog")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "the new design keeps the most recent post in the grid", %{conn: conn} do
-      {:ok, _lv, legacy_html} = live(conn, ~p"/blog")
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      {:ok, _lv, new_html} = live(conn, ~p"/blog")
+    test "keeps the most recent post in the grid", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog")
 
       latest_post_title =
         "en" |> Content.get_entries() |> List.first() |> Content.get_entry_title()
 
-      assert new_html |> posts_section() |> String.contains?(latest_post_title)
-      refute legacy_html |> posts_section() |> String.contains?(latest_post_title)
+      assert html |> posts_section() |> String.contains?(latest_post_title)
     end
   end
 
   describe "GET /blog (cover artwork)" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      :ok
-    end
-
     test "cards render the inline SVG cover for posts with artwork and the image otherwise", %{conn: conn} do
       stub(CoverArtwork, :available?, fn basename -> basename == "smart-before-fast" end)
       stub(CoverArtwork, :svg, fn "smart-before-fast", :page -> ~s(<svg data-part="artwork">cover</svg>) end)
@@ -93,16 +45,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
     end
   end
 
-  describe "GET /blog (new design view switcher)" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      :ok
-    end
-
+  describe "GET /blog (view switcher)" do
     test "defaults to the card grid", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog")
 
@@ -167,15 +110,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLiveTest do
   end
 
   describe "GET /blog (compact filters)" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      :ok
-    end
-
     test "the category dropdown lists every category plus All", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/blog")
 

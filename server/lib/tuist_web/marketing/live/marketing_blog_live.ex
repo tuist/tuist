@@ -8,7 +8,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Content
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingCustomerCovers
   alias TuistWeb.Marketing.SocialCards
@@ -22,13 +21,9 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
   # that fills a screen without a wall of scrolling.
   @posts_per_page %{"grid" => 9, "list" => 20}
 
-  embed_templates "marketing_blog_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (blog_new/1) distinct from the legacy blog/1.
   embed_templates "marketing_blog_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: blog_new(assigns)
-  def render(assigns), do: blog(assigns)
+  def render(assigns), do: blog_new(assigns)
 
   def mount(_params, session, socket) do
     all_entries = Content.get_entries(current_locale())
@@ -36,7 +31,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
 
     socket =
       socket
-      |> assign(:new_design, Design.new?(socket.assigns[:current_user]))
       |> assign(:categories, Content.get_entry_categories())
       |> assign(:search_query, "")
       |> assign(:selected_category, nil)
@@ -103,17 +97,6 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
         filtered_posts
       else
         Enum.filter(filtered_posts, &(Content.get_entry_category(&1) == category))
-      end
-
-    # The redesigned page has no highlighted post above the grid, so the most
-    # recent entry stays in the grid there.
-    filtered_posts =
-      if socket.assigns.new_design do
-        filtered_posts
-      else
-        Enum.reject(filtered_posts, fn post ->
-          Content.get_entry_slug(post) == Content.get_entry_slug(highlighted_post)
-        end)
       end
 
     # Calculate pagination
