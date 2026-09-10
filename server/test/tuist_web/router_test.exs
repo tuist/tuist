@@ -72,6 +72,11 @@ defmodule TuistWeb.RouterTest do
     assert conn |> get("/docs/") |> redirected_to(301) == "/en/docs"
   end
 
+  test "the retired flaky-tests and test-insights pages redirect to the tests page", %{conn: conn} do
+    assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    assert conn |> get("/test-insights?utm_source=test") |> redirected_to(301) == "/tests?utm_source=test"
+  end
+
   test "locale-first docs routes render documentation pages", %{conn: conn} do
     assert conn
            |> get("/en/docs/guides/install-tuist")

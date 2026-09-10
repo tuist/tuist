@@ -89,12 +89,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "includes the product pages", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
-      for path <- ["/cache", "/flaky-tests", "/test-insights", "/previews"] do
+      for path <- ["/cache", "/tests", "/compute", "/previews", "/download"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
 
-      for path <- ["/about", "/newsletter"] do
+      for path <- ["/about", "/brand", "/newsletter"] do
         assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+
+      # Folded into the tests page; their URLs redirect and are not advertised.
+      for path <- ["/flaky-tests", "/test-insights"] do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
       end
     end
 
