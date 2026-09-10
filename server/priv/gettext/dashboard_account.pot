@@ -22,7 +22,7 @@ msgstr ""
 msgid "$0.50"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:178
+#: lib/tuist_web/live/accept_invitation_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
@@ -33,7 +33,7 @@ msgid "%{month}/%{year}"
 msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:266
-#: lib/tuist_web/live/accept_invitation_live.ex:190
+#: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr ""
@@ -105,7 +105,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:773
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
-#: lib/tuist_web/live/create_organization_live.ex:84
+#: lib/tuist_web/live/create_organization_live.ex:79
 #: lib/tuist_web/live/members_live.ex:179
 #: lib/tuist_web/live/members_live.ex:227
 #: lib/tuist_web/live/members_live.ex:475
@@ -167,7 +167,7 @@ msgstr ""
 msgid "Contact sales"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:48
+#: lib/tuist_web/live/create_organization_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -209,7 +209,7 @@ msgstr ""
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:196
+#: lib/tuist_web/live/accept_invitation_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Decline"
 msgstr ""
@@ -433,7 +433,7 @@ msgstr ""
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:234
+#: lib/tuist_web/live/accept_invitation_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr ""
@@ -505,7 +505,7 @@ msgstr ""
 #: lib/tuist_web/live/authentication_settings_live.html.heex:793
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
-#: lib/tuist_web/live/create_organization_live.ex:66
+#: lib/tuist_web/live/create_organization_live.ex:61
 #: lib/tuist_web/live/webhook_endpoint_form.ex:64
 #: lib/tuist_web/live/webhooks_live.html.heex:134
 #, elixir-autogen, elixir-format
@@ -784,8 +784,8 @@ msgstr ""
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:114
-#: lib/tuist_web/live/create_organization_live.ex:39
+#: lib/tuist_web/live/accept_invitation_live.ex:112
+#: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -921,7 +921,7 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:175
+#: lib/tuist_web/live/accept_invitation_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
 msgstr ""
@@ -1164,17 +1164,17 @@ msgstr ""
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:78
+#: lib/tuist_web/live/create_organization_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:50
+#: lib/tuist_web/live/create_organization_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "Create an organization to continue. Organizations let you group related projects"
 msgstr ""
 
-#: lib/tuist_web/live/create_organization_live.ex:68
+#: lib/tuist_web/live/create_organization_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
@@ -1205,17 +1205,17 @@ msgstr ""
 msgid "OAuth2"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:206
+#: lib/tuist_web/live/accept_invitation_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:243
+#: lib/tuist_web/live/accept_invitation_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:203
+#: lib/tuist_web/live/accept_invitation_live.ex:198
 #, elixir-autogen, elixir-format
 msgid "Wrong account"
 msgstr ""
@@ -1260,7 +1260,7 @@ msgstr ""
 msgid "Created"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:262
+#: lib/tuist_web/live/accept_invitation_live.ex:257
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
@@ -1298,12 +1298,12 @@ msgstr ""
 msgid "Generate token"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:126
+#: lib/tuist_web/live/accept_invitation_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:151
+#: lib/tuist_web/live/accept_invitation_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
 msgstr ""
@@ -1387,22 +1387,22 @@ msgstr ""
 msgid "Unnamed"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:141
+#: lib/tuist_web/live/accept_invitation_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:129
+#: lib/tuist_web/live/accept_invitation_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:154
+#: lib/tuist_web/live/accept_invitation_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:166
+#: lib/tuist_web/live/accept_invitation_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
 msgstr ""
@@ -1930,7 +1930,7 @@ msgstr ""
 msgid "Expired"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:216
+#: lib/tuist_web/live/accept_invitation_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "Invitation expired"
 msgstr ""
@@ -1940,7 +1940,7 @@ msgstr ""
 msgid "Resend invitation"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:225
+#: lib/tuist_web/live/accept_invitation_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "This invitation has expired. Please ask the inviter to resend it."
 msgstr ""
