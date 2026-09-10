@@ -40,7 +40,7 @@ defmodule TuistWeb.Helpers.ModuleCache do
   def reason_description("all") do
     dgettext(
       "dashboard_cache",
-      "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Unavailable: a previously served key now misses."
+      "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
     )
   end
 

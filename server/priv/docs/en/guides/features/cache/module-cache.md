@@ -145,9 +145,9 @@ The **Misses** dropdown selects a count and explanation for one reason. The char
 | **Changed** | The module's own compared inputs changed. These include file hashes, build settings, the resolved configuration, and the compiler identifier. A source edit is only one possible cause. |
 | **Upstream** | The module's own compared inputs stayed the same, but its dependency or external-package hash changed. The module's source files can be untouched. |
 | **Cold** | There is no earlier module observation to compare with, or the reported inputs do not explain the miss and there is no qualifying evidence of earlier remote availability. Cold does not prove that the module was never cached. |
-| **Unavailable** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. |
+| **Evicted** | The exact cache key previously had a remote hit in the same project at the same recorded cache endpoint, but now misses. |
 
-The cached artifact was most likely evicted. Unavailable establishes prior remote availability, but does not confirm eviction: access problems or a failed download can also produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
+The cached artifact was most likely evicted. Evicted establishes prior remote availability, but does not confirm eviction: access problems or a failed download can also produce this result. A previous miss or local-only hit does not establish that the artifact was available remotely.
 
 For example:
 
@@ -156,7 +156,7 @@ For example:
 | A module misses with no earlier observation or qualifying remote hit | Cold |
 | A changes; B depends on A, and C depends on B; all three keys change | A is Changed; B and C are Upstream |
 | The compiler version changes after warming, with sources and settings unchanged | Affected misses are Changed when both observations report the compiler inputs |
-| An exact key was downloaded remotely, then misses after its artifact is evicted | Unavailable, when the earlier hit qualifies as evidence |
+| An exact key was downloaded remotely, then misses after its artifact is evicted | Evicted, when the earlier hit qualifies as evidence |
 | A key repeatedly misses and was never successfully warmed | It can remain Cold |
 
 Reasons describe observations; they are not permanent labels attached to a key. For example, the first miss after a compiler upgrade can be Changed, while a later miss for that new key can be Cold if it was never observed as available remotely.
@@ -165,11 +165,11 @@ Reasons describe observations; they are not permanent labels attached to a key. 
 
 Changed and Upstream compare the same module and product on the same branch, within the selected date range and environment. The previous observation may be a hit or a miss. Changing these filters can change the available comparison history.
 
-Unavailable checks the available 30-day history ending at the selected end date. It can use evidence from another branch or from a local run when inspecting CI, because those runs can share the same remote cache. It requires the same project, full nonempty key, and nonempty recorded endpoint. The earlier remote-hit report must predate both the CLI-reported command start and the server receipt time minus the command duration. This is conservative when either clock puts the start earlier, but clock skew combined with delayed reporting can still affect classification; it does not establish the time of an eviction. Future date selections use the current time as the end of the evidence window.
+Evicted checks the available 30-day history ending at the selected end date. It can use evidence from another branch or from a local run when inspecting CI, because those runs can share the same remote cache. It requires the same project, full nonempty key, and nonempty recorded endpoint. The earlier remote-hit report must predate both the CLI-reported command start and the server receipt time minus the command duration. This is conservative when either clock puts the start earlier, but clock skew combined with delayed reporting can still affect classification; it does not establish the time of an eviction. Future date selections use the current time as the end of the evidence window.
 
 The CLI does not report every input used to construct the final key. Matching inputs in the dashboard therefore do not prove that the full keys match, and do not rule out a hashing or reporting bug. Optional inputs are compared only when reported on both observations. Older observations may lack these fingerprints, including configuration/compiler inputs and effective destinations. An artifact successfully uploaded and then evicted before any recorded remote hit can still appear Cold: the CLI knows which target uploads succeeded, but that per-target outcome is not yet reported for this classification.
 
-The **Modules** count describes the latest commit on the default branch; hit and miss totals cover the selected date range and environment. Counts represent reported command observations, not unique artifacts or commits. Older CLI versions can report a build's cache results again when test-only shards restore its metadata, inflating counts for any reason, including Cold and Unavailable. Update the CLI in both the build and consuming test jobs; existing reports are not rewritten.
+The **Modules** count describes the latest commit on the default branch; hit and miss totals cover the selected date range and environment. Counts represent reported command observations, not unique artifacts or commits. Older CLI versions can report a build's cache results again when test-only shards restore its metadata, inflating counts for any reason, including Cold and Evicted. Update the CLI in both the build and consuming test jobs; existing reports are not rewritten.
 
 ### Improving the cache hit rate {#improving-cache-hit-rate}
 
@@ -177,7 +177,7 @@ The **Modules** count describes the latest commit on the default branch; hit and
 2. **Investigate Changed misses.** Open the relevant runs and compare their full keys and reported inputs. Align warming and consuming jobs on the intended Xcode/compiler version, configuration, and target destinations. Warm again after intentional changes. If volatile generated files or environment-dependent settings invalidate otherwise stable modules, investigate those inputs. Keep inputs that affect binary compatibility in the hash.
 3. **Follow Upstream misses to the changed dependency.** Inspect its history to find the direct change. Warming the resulting keys can restore reuse. If a frequently changing implementation invalidates many expensive dependents, consider smaller modules or stable interfaces as described under [Efficiency](#efficiency).
 4. **Check warming coverage for Cold misses.** Verify that warming selects the required modules, uses the consuming job's configuration and environment, and successfully uploads the artifacts. Check the full keys used by the actual CI jobs. If warming and consumption request different keys, inspect the hashing inputs before assuming the cache was evicted. Repeated misses with no earlier successful upload are possible even when the module's sources have not changed.
-5. **Use the evidence for Unavailable misses.** Confirm the consuming run's key and endpoint, then inspect the consuming run's cache warnings and the warming job's upload outcome. Check retention or eviction when applicable. Rewarm the required artifacts and verify a subsequent hit. If they still miss, share the relevant run links and logs with support.
+5. **Use the evidence for Evicted misses.** Confirm the consuming run's key and endpoint, then inspect the consuming run's cache warnings and the warming job's upload outcome. Check retention or eviction when applicable. Rewarm the required artifacts and verify a subsequent hit. If they still miss, share the relevant run links and logs with support.
 
 For a hash comparison, run this in each relevant environment, using the configuration you intend to warm and consume:
 

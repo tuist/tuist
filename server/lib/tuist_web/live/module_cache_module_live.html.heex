@@ -181,7 +181,7 @@
                 {"changed", dgettext("dashboard_cache", "Changed"), "primary"},
                 {"upstream", dgettext("dashboard_cache", "Upstream"), "secondary"},
                 {"cold", dgettext("dashboard_cache", "Cold"), "tertiary"},
-                {"unavailable", dgettext("dashboard_cache", "Unavailable"), "destructive"}
+                {"unavailable", dgettext("dashboard_cache", "Evicted"), "destructive"}
               ]
             }
             value={value}
@@ -404,7 +404,7 @@
             barMaxWidth: 18
           },
           %{
-            name: dgettext("dashboard_cache", "Unavailable"),
+            name: dgettext("dashboard_cache", "Evicted"),
             data: @miss_reasons_series.result.unavailable,
             type: "bar",
             stack: "total",

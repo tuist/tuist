@@ -210,7 +210,7 @@ defmodule TuistWeb.ModulesLive do
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
   def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
-  def miss_reason_title("unavailable"), do: dgettext("dashboard_cache", "Unavailable misses")
+  def miss_reason_title("unavailable"), do: dgettext("dashboard_cache", "Evicted misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_color("changed"), do: "primary"

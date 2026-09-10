@@ -302,7 +302,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def builds_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def builds_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def builds_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
-  def builds_reason_label("unavailable"), do: dgettext("dashboard_cache", "Unavailable")
+  def builds_reason_label("unavailable"), do: dgettext("dashboard_cache", "Evicted")
   def builds_reason_label(_), do: dgettext("dashboard_cache", "Any")
 
   def miss_reason_value(module, "changed"), do: module.self_changes
@@ -314,7 +314,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def miss_reason_title("changed"), do: dgettext("dashboard_cache", "Changed misses")
   def miss_reason_title("upstream"), do: dgettext("dashboard_cache", "Upstream misses")
   def miss_reason_title("cold"), do: dgettext("dashboard_cache", "Cold misses")
-  def miss_reason_title("unavailable"), do: dgettext("dashboard_cache", "Unavailable misses")
+  def miss_reason_title("unavailable"), do: dgettext("dashboard_cache", "Evicted misses")
   def miss_reason_title(_all), do: dgettext("dashboard_cache", "Misses")
 
   def miss_reason_legend("changed"), do: "primary"
@@ -326,7 +326,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
   def build_reason_label("changed"), do: dgettext("dashboard_cache", "Changed")
   def build_reason_label("upstream"), do: dgettext("dashboard_cache", "Upstream")
   def build_reason_label("cold"), do: dgettext("dashboard_cache", "Cold")
-  def build_reason_label("unavailable"), do: dgettext("dashboard_cache", "Unavailable")
+  def build_reason_label("unavailable"), do: dgettext("dashboard_cache", "Evicted")
   def build_reason_label(_), do: dgettext("dashboard_cache", "Cached")
 
   # The colours the miss-reason widget and its chart already use, so a row reads

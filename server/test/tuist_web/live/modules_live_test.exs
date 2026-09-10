@@ -206,7 +206,7 @@ defmodule TuistWeb.ModulesLiveTest do
 
     render_click(lv, "select_miss_reason", %{"type" => "unavailable"})
     render_async(lv, 2000)
-    assert has_element?(lv, "#widget-misses", "Unavailable misses")
+    assert has_element?(lv, "#widget-misses", "Evicted misses")
     assert has_element?(lv, "#widget-misses", "0")
     assert has_element?(lv, "#widget-misses", "same cache endpoint")
     refute has_element?(lv, "#widget-misses-tooltip", "Changed:")

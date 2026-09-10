@@ -1262,22 +1262,6 @@ msgstr ""
 msgid "and %{count} more"
 msgstr ""
 
-#: lib/tuist_web/live/module_cache_module_live.ex:317
-#: lib/tuist_web/live/modules_live.ex:213
-#, elixir-autogen, elixir-format
-msgid "Unavailable misses"
-msgstr ""
-
-#: lib/tuist_web/live/module_cache_module_live.ex:305
-#: lib/tuist_web/live/module_cache_module_live.ex:329
-#: lib/tuist_web/live/module_cache_module_live.html.heex:184
-#: lib/tuist_web/live/module_cache_module_live.html.heex:407
-#: lib/tuist_web/live/modules_live.html.heex:141
-#: lib/tuist_web/live/modules_live.html.heex:313
-#, elixir-autogen, elixir-format
-msgid "Unavailable"
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:30
 #, elixir-autogen, elixir-format
 msgid "This exact key previously had a remote hit at the same cache endpoint, but now misses. The cached artifact was most likely evicted."
@@ -1293,11 +1277,6 @@ msgstr ""
 msgid "No earlier comparison is available, or the reported inputs and remote-hit history do not explain this miss."
 msgstr ""
 
-#: lib/tuist_web/helpers/module_cache.ex:41
-#, elixir-autogen, elixir-format
-msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Unavailable: a previously served key now misses."
-msgstr ""
-
 #: lib/tuist_web/helpers/module_cache.ex:37
 #, elixir-autogen, elixir-format
 msgid "This observation reports a local or remote cache hit."
@@ -1306,4 +1285,25 @@ msgstr ""
 #: lib/tuist_web/helpers/module_cache.ex:16
 #, elixir-autogen, elixir-format
 msgid "The module's own reported inputs stayed the same, but a dependency or external package hash changed."
+msgstr ""
+
+#: lib/tuist_web/helpers/module_cache.ex:41
+#, elixir-autogen, elixir-format
+msgid "Changed: module inputs changed. Upstream: dependencies changed. Cold: insufficient evidence. Evicted: a previously served key now misses."
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.ex:305
+#: lib/tuist_web/live/module_cache_module_live.ex:329
+#: lib/tuist_web/live/module_cache_module_live.html.heex:184
+#: lib/tuist_web/live/module_cache_module_live.html.heex:407
+#: lib/tuist_web/live/modules_live.html.heex:141
+#: lib/tuist_web/live/modules_live.html.heex:313
+#, elixir-autogen, elixir-format
+msgid "Evicted"
+msgstr ""
+
+#: lib/tuist_web/live/module_cache_module_live.ex:317
+#: lib/tuist_web/live/modules_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Evicted misses"
 msgstr ""

@@ -297,9 +297,9 @@ defmodule TuistWeb.ModuleCacheModuleLiveTest do
     base = ~p"/#{organization.account.name}/#{project.name}/module-cache/modules/Core"
     {:ok, lv, _html} = live(conn, base <> "?miss-reason=unavailable&builds-reason=unavailable")
     render_async(lv, 2000)
-    assert has_element?(lv, "#widget-why-it-misses", "Unavailable misses")
+    assert has_element?(lv, "#widget-why-it-misses", "Evicted misses")
     assert has_element?(lv, "#widget-why-it-misses", "1")
-    assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Unavailable")
+    assert has_element?(lv, "#module-build-history-table [data-type=badge]", "Evicted")
 
     assert has_element?(lv, "#module-build-history-table", "The cached artifact was most likely evicted")
   end
