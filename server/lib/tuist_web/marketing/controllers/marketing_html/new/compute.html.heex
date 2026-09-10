@@ -37,14 +37,12 @@ dithered dividers. --%>
       <div data-part="migration" id="compute-hero-migration" phx-hook="ComputeHeroDiff">
         <.button_group data-part="ci-switch" aria-label={dgettext("marketing", "CI provider")}>
           <.button_group_item
-            type="button"
             label="GitHub"
             data-ci="github"
             data-selected
             aria-pressed="true"
           />
           <.button_group_item
-            type="button"
             label="Buildkite"
             data-ci="buildkite"
             aria-pressed="false"
