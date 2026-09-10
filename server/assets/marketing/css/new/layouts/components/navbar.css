@@ -837,8 +837,8 @@
    instead of fading through the navigation. */
 #marketing-navbar[data-instant],
 #marketing-navbar[data-instant] * {
-  transition: none !important;
   animation: none !important;
+  transition: none !important;
 }
 
 #marketing-navbar > [data-part="viewport"] {
