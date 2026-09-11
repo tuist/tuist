@@ -28,24 +28,32 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <p
+      <.alert
         :if={@source == "bazel" and timeline.coverage != "trace_profile"}
+        status="information"
+        type="secondary"
+        size="small"
         data-part="timeline-coverage"
-      >
-        {dgettext(
-          "dashboard_builds",
-          "The trace profile is not available yet. This timeline shows the recorded build summary; profile delivery and processing may still be in progress."
-        )}
-      </p>
-      <p
+        title={
+          dgettext(
+            "dashboard_builds",
+            "Only retained build-summary steps are available for this invocation."
+          )
+        }
+      />
+      <.alert
         :if={@source == "gradle" and timeline.time_origin == "first_recorded_timestamp"}
+        status="information"
+        type="secondary"
+        size="small"
         data-part="timeline-coverage"
-      >
-        {dgettext(
-          "dashboard_builds",
-          "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
-        )}
-      </p>
+        title={
+          dgettext(
+            "dashboard_builds",
+            "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
+          )
+        }
+      />
       <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
     </.async_result>
     """

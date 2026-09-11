@@ -22,6 +22,20 @@ defmodule TuistWeb.BuildRunLiveTest do
     %{conn: conn, user: user}
   end
 
+  test "builds without recorded steps or aligned samples hide Timeline", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "a[data-selected]", "Overview")
+  end
+
   test "loads timeline intervals when opening the timeline tab", %{
     conn: conn,
     organization: organization,
@@ -256,7 +270,25 @@ defmodule TuistWeb.BuildRunLiveTest do
     organization: organization,
     project: project
   } do
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        build_steps: [
+          %{
+            event_id: 1,
+            title: "Compile",
+            target: "App",
+            project: "App",
+            category: "swiftCompilation",
+            start_ms: 0.0,
+            duration_ms: 100.0,
+            status: "success",
+            log: "",
+            log_truncated: false
+          }
+        ]
+      )
+
     reject(Tuist.Builds, :build_timeline, 2)
     reject(Tuist.Builds, :list_build_files, 1)
     reject(Tuist.Builds, :list_build_targets, 1)

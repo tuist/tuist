@@ -20,6 +20,7 @@ defmodule Tuist.Release do
     bazel_test_invocations
     bazel_test_results
     bazel_test_summaries
+    bazel_profile_uploads
   )
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)

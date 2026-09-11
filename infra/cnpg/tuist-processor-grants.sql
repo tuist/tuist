@@ -44,7 +44,7 @@ GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
 -- correction table is written while processing xcresult test runs. The Bazel
 -- tables are the bounded durable staging area consumed by the Bazel test
 -- processor.
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries TO tuist_processor;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries, :"tuist_schema".bazel_profile_uploads TO tuist_processor;
 GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
 
 -- Read-only lookups the workers perform. These rows are not written by the

@@ -21,6 +21,30 @@ defmodule TuistWeb.GradleBuildLiveTest do
     %{project: project, conn: conn}
   end
 
+  test "legacy task durations without timestamps do not expose an empty timeline", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        tasks: [
+          %{task_path: ":compile", outcome: "executed", duration_ms: 100, started_at: nil}
+        ]
+      )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "a[data-selected]", "Overview")
+    render_patch(lv, path <> "?tab=machine-metrics")
+    refute has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "a[data-selected]", "Overview")
+  end
+
   test "timeline loads lazily and reloads metadata after leaving the tab", %{
     conn: conn,
     project: project,

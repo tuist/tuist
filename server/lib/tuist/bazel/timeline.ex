@@ -7,6 +7,13 @@ defmodule Tuist.Bazel.Timeline do
   alias Tuist.Bazel.Invocation
   alias Tuist.Bazel.Profile
 
+  def available?(invocation) do
+    case Profile.available?(invocation) do
+      nil -> Invocation.timeline_spans(invocation) != []
+      available -> available
+    end
+  end
+
   def load(invocation) do
     Profile.load(invocation) || retained_summary(invocation)
   end
