@@ -147,6 +147,162 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_reuses_precomputed_hashes_instead_of_hashing_the_graph() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [bFramework, cFramework])
+        let cGraphTarget = GraphTarget(path: path, target: cFramework, project: project)
+        let bGraphTarget = GraphTarget(path: path, target: bFramework, project: project)
+
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage,
+            precomputedTargetHashes: [
+                TargetReference(projectPath: path, name: "B"): .test(hash: "B"),
+                TargetReference(projectPath: path, name: "C"): .test(hash: "C"),
+            ]
+        )
+
+        let inputGraph = Graph.test(
+            name: "input",
+            projects: [path: project],
+            dependencies: [
+                .target(name: bFramework.name, path: bGraphTarget.path): [
+                    .target(name: cFramework.name, path: cGraphTarget.path),
+                ],
+            ]
+        )
+        let outputGraph = Graph.test(
+            name: "output",
+            projects: inputGraph.projects,
+            dependencies: inputGraph.dependencies
+        )
+        let bXCFrameworkPath = path.appending(component: "B.xcframework")
+        let cXCFrameworkPath = path.appending(component: "C.xcframework")
+
+        given(cacheStorage).fetch(
+            .value(
+                Set([
+                    CacheStorableItem(name: "B", hash: "B"),
+                    CacheStorableItem(name: "C", hash: "C"),
+                ])
+            ), cacheCategory: .value(.binaries)
+        ).willReturn([
+            .test(name: "B", hash: "B"): bXCFrameworkPath,
+            .test(name: "C", hash: "C"): cXCFrameworkPath,
+        ])
+        given(cacheGraphMutator)
+            .map(
+                graph: .any,
+                precompiledArtifacts: .any,
+                sources: .any,
+                keepSourceTargets: .any
+            )
+            .willReturn(outputGraph)
+
+        // When
+        let (got, _, _) = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(got, outputGraph)
+        verify(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
+            .called(0)
+        verify(cacheGraphMutator)
+            .map(
+                graph: .any,
+                precompiledArtifacts: .value([
+                    bGraphTarget: bXCFrameworkPath,
+                    cGraphTarget: cXCFrameworkPath,
+                ]),
+                sources: .any,
+                keepSourceTargets: .any
+            )
+            .called(1)
+    }
+
+    func test_map_does_not_reuse_precomputed_hashes_of_source_targets() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let project = Project.test(path: path, targets: [bFramework, cFramework])
+        let cGraphTarget = GraphTarget(path: path, target: cFramework, project: project)
+        let bGraphTarget = GraphTarget(path: path, target: bFramework, project: project)
+
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(
+                profile: .allPossible,
+                exceptions: [.named("B")]
+            ),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage,
+            precomputedTargetHashes: [
+                TargetReference(projectPath: path, name: "B"): .test(hash: "B"),
+                TargetReference(projectPath: path, name: "C"): .test(hash: "C"),
+            ]
+        )
+
+        let inputGraph = Graph.test(
+            name: "input",
+            projects: [path: project],
+            dependencies: [
+                .target(name: bFramework.name, path: bGraphTarget.path): [
+                    .target(name: cFramework.name, path: cGraphTarget.path),
+                ],
+            ]
+        )
+        let outputGraph = Graph.test(
+            name: "output",
+            projects: inputGraph.projects,
+            dependencies: inputGraph.dependencies
+        )
+        let cXCFrameworkPath = path.appending(component: "C.xcframework")
+
+        given(cacheStorage).fetch(
+            .value(Set([CacheStorableItem(name: "C", hash: "C")])),
+            cacheCategory: .value(.binaries)
+        ).willReturn([.test(name: "C", hash: "C"): cXCFrameworkPath])
+        given(cacheGraphMutator)
+            .map(
+                graph: .any,
+                precompiledArtifacts: .any,
+                sources: .any,
+                keepSourceTargets: .any
+            )
+            .willReturn(outputGraph)
+
+        // When
+        _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+        // Then
+        verify(cacheGraphMutator)
+            .map(
+                graph: .any,
+                precompiledArtifacts: .value([cGraphTarget: cXCFrameworkPath]),
+                sources: .value([TargetQuery(stringLiteral: "B")]),
+                keepSourceTargets: .any
+            )
+            .called(1)
+    }
+
     func test_map_when_all_binaries_are_fetched_successfully() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)
