@@ -425,6 +425,19 @@ sampled with `KURA_REQUEST_LOG_SAMPLE_RATE`. Requests exceeding
 response bytes, time to first byte, total duration, and the serving path. The rate limit uses
 constant process memory and reports the number of suppressed events on the next warning.
 
+Staged uploads distinguish incoming request-body failures from storage I/O. Recognized
+disconnects (including premature EOF and remote HTTP/2 stream cancellation) are recorded
+as 499 with `kura.response.result=client_aborted`; malformed bodies are 400 with
+`invalid_request_body`. Unknown body failures remain 500 with `request_body_error`, and
+disk failures retain their existing 5xx or capacity response. A rejected body never
+commits an artifact or multipart part. Cleanup releases its disk reservation after unlink
+succeeds; an unlink failure is logged and retains the reservation to avoid oversubscribing
+disk. Handler completion events preserve error details,
+including a bounded source chain for request-body failures. An ingress may already have
+closed the upstream connection, so correlate request IDs rather than expecting its status
+to match Kura's local completion status. These classifications cover the shared staging
+path for CAS, Gradle, Nx, Metro, multipart parts, and file-backed peer replication.
+
 HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 
 ### Node geographic attribution

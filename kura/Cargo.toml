@@ -13,6 +13,7 @@ bazel-remote-apis = "0.27.0"
 bytes = "1.11.0"
 deadpool = { version = "0.13.0", default-features = false, features = ["unmanaged"] }
 futures-util = "0.3.31"
+h2 = "0.4.19"
 hex = "0.4.3"
 hmac = "0.12.1"
 http-body = "1.0.1"

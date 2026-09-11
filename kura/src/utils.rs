@@ -297,7 +297,77 @@ pub enum BodyReadError {
     TooLarge,
     TmpDirFull(String),
     MemoryPressure,
+    Request(RequestBodyError),
     Io(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RequestBodyErrorKind {
+    ClientAborted,
+    InvalidBody,
+    Failed,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RequestBodyError {
+    pub kind: RequestBodyErrorKind,
+    pub message: String,
+}
+
+impl RequestBodyError {
+    fn from_error(error: axum::Error) -> Self {
+        let mut kind = RequestBodyErrorKind::Failed;
+        let mut messages = Vec::new();
+        let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
+        // Inspect typed causes before formatting: Hyper's outer Display often
+        // says only "error reading a body from connection".
+        for _ in 0..16 {
+            let Some(error) = source else { break };
+            let message: String = error.to_string().chars().take(1024).collect();
+            if messages.last() != Some(&message) {
+                messages.push(message);
+            }
+            if let Some(error) = error.downcast_ref::<hyper::Error>() {
+                if error.is_incomplete_message() {
+                    kind = RequestBodyErrorKind::ClientAborted;
+                } else if error.is_parse() {
+                    kind = RequestBodyErrorKind::InvalidBody;
+                }
+            }
+            if let Some(error) = error.downcast_ref::<std::io::Error>() {
+                kind = match error.kind() {
+                    std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::UnexpectedEof => RequestBodyErrorKind::ClientAborted,
+                    std::io::ErrorKind::InvalidData | std::io::ErrorKind::InvalidInput => {
+                        RequestBodyErrorKind::InvalidBody
+                    }
+                    _ => kind,
+                };
+            }
+            if let Some(error) = error.downcast_ref::<h2::Error>() {
+                // h2 exposes its I/O cause through get_io(), not Error::source().
+                if let Some(cause) = error.get_io() {
+                    source = Some(cause);
+                    continue;
+                }
+                if error.is_remote()
+                    && error.is_reset()
+                    && error.reason() == Some(h2::Reason::CANCEL)
+                {
+                    kind = RequestBodyErrorKind::ClientAborted;
+                } else if error.is_library() && error.reason() == Some(h2::Reason::PROTOCOL_ERROR) {
+                    kind = RequestBodyErrorKind::InvalidBody;
+                }
+            }
+            source = error.source();
+        }
+        Self {
+            kind,
+            message: messages.join(": ").chars().take(1024).collect(),
+        }
+    }
 }
 
 pub struct RequestBodyStaging<'a> {
@@ -359,10 +429,8 @@ pub async fn read_request_to_temp(
             Ok(chunk) => chunk,
             Err(error) => {
                 drop(file);
-                staging.io.remove_file_if_exists(&temp_path).await;
-                return Err(BodyReadError::Io(format!(
-                    "failed to read request body: {error}"
-                )));
+                cleanup.remove_and_disarm(staging.io).await;
+                return Err(BodyReadError::Request(RequestBodyError::from_error(error)));
             }
         };
         size += chunk.len() as u64;
@@ -409,6 +477,15 @@ pub async fn read_request_to_temp(
             };
             advised_through = size;
         }
+    }
+
+    if declared_bytes.is_some_and(|declared| declared != size) {
+        drop(file);
+        cleanup.remove_and_disarm(staging.io).await;
+        return Err(BodyReadError::Request(RequestBodyError {
+            kind: RequestBodyErrorKind::InvalidBody,
+            message: "request body length does not match Content-Length".into(),
+        }));
     }
 
     if let Err(error) = file.flush().await {
@@ -914,6 +991,124 @@ mod tests {
     use crate::metrics::Metrics;
     use axum::body::Body;
     use tempfile::tempdir;
+
+    #[tokio::test]
+    async fn upload_body_errors_release_staging_and_keep_typed_causes() {
+        use std::io::ErrorKind;
+
+        for (cause, expected) in [
+            (
+                ErrorKind::ConnectionReset,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (
+                ErrorKind::ConnectionAborted,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (ErrorKind::BrokenPipe, RequestBodyErrorKind::ClientAborted),
+            (
+                ErrorKind::UnexpectedEof,
+                RequestBodyErrorKind::ClientAborted,
+            ),
+            (ErrorKind::InvalidData, RequestBodyErrorKind::InvalidBody),
+            (ErrorKind::InvalidInput, RequestBodyErrorKind::InvalidBody),
+            (ErrorKind::TimedOut, RequestBodyErrorKind::Failed),
+            (ErrorKind::Other, RequestBodyErrorKind::Failed),
+        ] {
+            let directory = tempdir().unwrap();
+            let metrics = Metrics::new("local".into(), "test".into());
+            let io = IoController::new(
+                metrics.clone(),
+                8,
+                Duration::from_secs(1),
+                vec![directory.path().into()],
+            )
+            .unwrap();
+            let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+            let tmp_budget = TmpBudget::new(32);
+            let body = Body::from_stream(futures_util::stream::iter([
+                Ok(bytes::Bytes::from_static(b"partial")),
+                Err(axum::Error::new(std::io::Error::new(
+                    cause,
+                    "upload test cause",
+                ))),
+            ]));
+            let result = read_request_to_temp(
+                Request::builder()
+                    .header("content-length", "32")
+                    .body(body)
+                    .unwrap(),
+                directory.path(),
+                32,
+                RequestBodyStaging {
+                    tmp_budget: &tmp_budget,
+                    io: &io,
+                    memory: &memory,
+                    bandwidth_limiter: None,
+                },
+            )
+            .await;
+            let Err(BodyReadError::Request(error)) = result else {
+                panic!("expected request-body error: {result:?}")
+            };
+            assert_eq!(error.kind, expected, "{cause:?}");
+            assert!(error.message.contains("upload test cause"));
+            assert_eq!(tmp_budget.reserved_bytes(), 0);
+            assert_eq!(memory.transient_reserved_bytes(), 0);
+            assert!(
+                std::fs::read_dir(directory.path())
+                    .unwrap()
+                    .next()
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn upload_body_http2_remote_cancellation_is_typed() {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let (accepted, ready) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let mut connection = h2::server::handshake(server_io).await.unwrap();
+            let (request, _respond) = connection.accept().await.unwrap().unwrap();
+            let mut body = request.into_body();
+            accepted.send(()).unwrap();
+            let driver = tokio::spawn(async move { while connection.accept().await.is_some() {} });
+            let error = body.data().await.unwrap().unwrap_err();
+            assert!(error.is_remote());
+            let classified = RequestBodyError::from_error(axum::Error::new(error));
+            driver.abort();
+            classified
+        });
+        let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+        let driver = tokio::spawn(connection);
+        let (_, mut stream) = client
+            .send_request(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("https://localhost/upload")
+                    .body(())
+                    .unwrap(),
+                false,
+            )
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), ready)
+            .await
+            .unwrap()
+            .unwrap();
+        stream.send_reset(h2::Reason::CANCEL);
+        let error = tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .unwrap()
+            .unwrap();
+        driver.abort();
+        assert_eq!(error.kind, RequestBodyErrorKind::ClientAborted);
+        assert!(!error.message.is_empty());
+        // A locally synthesized cancellation is not evidence of a remote abort.
+        let local =
+            RequestBodyError::from_error(axum::Error::new(h2::Error::from(h2::Reason::CANCEL)));
+        assert_eq!(local.kind, RequestBodyErrorKind::Failed);
+    }
 
     #[test]
     fn artifact_ids_are_stable() {
