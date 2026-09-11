@@ -38,7 +38,7 @@ kuraController:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
   # chart. The controller uses it for the shared wildcard below, and for the
-  # per-instance certificate of any instance that wildcard does not cover.
+  # per-instance certificate of any client host that wildcard does not cover.
   tlsClusterIssuer: "letsencrypt-cloudflare"
   publicWildcardCertificate:
     enabled: true

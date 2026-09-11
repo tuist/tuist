@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -134,7 +135,9 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 	}
 }
 
-func TestPrivateGatewayKeepsItsCertificateWithSharedPublicTLS(t *testing.T) {
+// An ACME wildcard spans exactly one label, so a gateway host in another zone
+// keeps ordering for itself.
+func TestPrivateGatewayKeepsItsCertificateForHostOutsideWildcard(t *testing.T) {
 	ctx := context.Background()
 	instance := sharedWildcardTLSTestInstance()
 	instance.Spec.Private = true
@@ -512,5 +515,221 @@ func TestReconcileStatefulSetPreservesOperatorRolloutPause(t *testing.T) {
 	}
 	if sts.Spec.Template.Labels["tuist.dev/host-network-gateway"] != "true" {
 		t.Fatal("gateway backend must be selected by the Cilium node-identity policy")
+	}
+}
+
+// privateWildcardGatewayFixture is a converged private gateway whose host sits
+// one label under the wildcard's zone, with the shared Secret already issued.
+func privateWildcardGatewayFixture(t *testing.T) (*KuraInstanceReconciler, *kurav1alpha1.KuraInstance, *corev1.Pod) {
+	t.Helper()
+	instance := meshInstance("kura-tuist-scw-fr-par", "tuist")
+	instance.Generation = 2
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "tuist-scw-fr-par-runners.kura.tuist.dev"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.IngressClassName = "kura-runners"
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	instance.Spec.Replicas = ptr(int32(2))
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name + "-0", Namespace: instance.Namespace, Labels: selectorLabels(instance), CreationTimestamp: metav1.NewTime(time.Now().Add(-time.Hour))},
+		Spec:       corev1.PodSpec{NodeName: "node"},
+		Status:     corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "node", Labels: map[string]string{"tuist.dev/pn-ipv4": "172.16.0.2"}},
+		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}},
+	}
+	gateway := pod.DeepCopy()
+	gateway.Name = "gateway"
+	gateway.Namespace = "platform"
+	gateway.Labels = map[string]string{gatewayClassLabel: instance.Spec.IngressClassName}
+	gateway.Spec.HostNetwork = true
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	scheme := meshTestScheme(t)
+	r := &KuraInstanceReconciler{
+		Client:              fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, pod, node, gateway, wildcard).WithStatusSubresource(instance).Build(),
+		Scheme:              scheme,
+		GRPCClusterIssuer:   "letsencrypt-cloudflare",
+		PublicTLSSecretName: wildcard.Name,
+		PeerDNSResolver:     &fakePeerDNSResolver{addresses: []string{"172.16.0.2"}},
+	}
+	return r, instance, pod
+}
+
+// The whole point of the cutover: an onboarding private gateway serves from the
+// wildcard without placing an order, so growth stops consuming the ACME
+// per-registered-domain budget that wedged the scw-fr-par fleet.
+func TestPrivateGatewayCutsOverToSharedWildcard(t *testing.T) {
+	ctx := context.Background()
+	r, instance, _ := privateWildcardGatewayFixture(t)
+
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != r.PublicTLSSecretName {
+		t.Fatalf("expected the private gateway to terminate on the shared wildcard, got %q", got)
+	}
+	if got := ingress.Spec.TLS[0].Hosts[0]; got != instance.Spec.PrivateHost {
+		t.Fatalf("expected the gateway to keep serving its own hostname, got %q", got)
+	}
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no ACME order for a gateway host the wildcard covers, got %v", err)
+	}
+}
+
+// A private gateway already holding its own certificate retires it, which is
+// what stops the renewal it would otherwise spend every 60 days. Its leaf
+// Secret stays behind as the rollback path.
+func TestPrivateGatewayRetiresItsCertificateOnCutover(t *testing.T) {
+	ctx := context.Background()
+	r, instance, _ := privateWildcardGatewayFixture(t)
+	legacyCert := &unstructured.Unstructured{}
+	legacyCert.SetGroupVersionKind(certificateGVK())
+	legacyCert.SetName(publicTLSSecretName(instance))
+	legacyCert.SetNamespace(instance.Namespace)
+	if err := r.Create(ctx, legacyCert); err != nil {
+		t.Fatal(err)
+	}
+	legacySecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: publicTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, instance.Spec.PrivateHost)},
+	}
+	if err := r.Create(ctx, legacySecret); err != nil {
+		t.Fatal(err)
+	}
+
+	// The retire reads the live Ingress, which the creating pass has not
+	// published yet, so the cutover completes on the following one.
+	for i := 0; i < 2; i++ {
+		if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the per-instance Certificate to be retired, got %v", err)
+	}
+	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, &corev1.Secret{}); err != nil {
+		t.Fatalf("expected the retained leaf Secret to survive the retire as the rollback path, got %v", err)
+	}
+}
+
+// Retiring the Certificate must not take the endpoint down with it: the
+// readiness gate reads the same wildcard the Ingress terminates on, so an
+// instance with no Certificate at all still publishes.
+func TestPrivateGatewayPublishesWithoutItsOwnCertificate(t *testing.T) {
+	ctx := context.Background()
+	r, instance, pod := privateWildcardGatewayFixture(t)
+	samples := map[string]runtimeStatus{pod.Name: {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}}
+
+	observation, err := r.privateGatewayStatus(ctx, instance, pod.Name, []corev1.Pod{*pod}, samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.URL != "https://"+instance.Spec.PrivateHost {
+		t.Fatalf("expected the wildcard to satisfy the gateway TLS gate, got %+v", observation)
+	}
+}
+
+// Without a leaf spanning the host there is nothing for ingress-nginx to serve
+// but its self-signed default, so the gate must hold rather than publish a URL
+// the client cannot verify.
+func TestPrivateGatewayWaitsWhileWildcardIsUnissued(t *testing.T) {
+	ctx := context.Background()
+	r, instance, pod := privateWildcardGatewayFixture(t)
+	pending := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: r.PublicTLSSecretName, Namespace: instance.Namespace}}
+	if err := r.Update(ctx, pending); err != nil {
+		t.Fatal(err)
+	}
+	samples := map[string]runtimeStatus{pod.Name: {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}}
+
+	observation, err := r.privateGatewayStatus(ctx, instance, pod.Name, []corev1.Pod{*pod}, samples)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.URL != "" || observation.Reason != "CertificatePending" {
+		t.Fatalf("expected the gate to hold on an unissued wildcard, got %+v", observation)
+	}
+}
+
+// A private instance that never opted into a gateway has no client host, so a
+// leftover publicHost must not reach the wildcard and mint an endpoint for it.
+func TestPrivateInstanceWithoutGatewayStaysOffTheWildcard(t *testing.T) {
+	ctx := context.Background()
+	r, instance, _ := privateWildcardGatewayFixture(t)
+	instance.Spec.PublicHost = "tuist-scw-fr-par.kura.tuist.dev"
+	instance.Spec.ClientCIDRs = nil
+
+	if r.sharedPublicTLSCovers(ctx, instance) {
+		t.Fatal("a private instance without a gateway must not select the shared wildcard")
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, &networkingv1.Ingress{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no client Ingress for a leftover publicHost, got %v", err)
+	}
+}
+
+// The incident this cutover exists for: a gateway whose own Certificate is
+// wedged on the ACME per-registered-domain limit (created, never Ready, no
+// Secret) must recover on its own, and withdraw the order it can never fill.
+func TestPrivateGatewayRecoversFromRateLimitedCertificate(t *testing.T) {
+	ctx := context.Background()
+	r, instance, _ := privateWildcardGatewayFixture(t)
+	stuck := &unstructured.Unstructured{}
+	stuck.SetGroupVersionKind(certificateGVK())
+	stuck.SetName(publicTLSSecretName(instance))
+	stuck.SetNamespace(instance.Namespace)
+	stuck.SetGeneration(1)
+	unstructured.SetNestedStringSlice(stuck.Object, []string{instance.Spec.PrivateHost}, "spec", "dnsNames")
+	unstructured.SetNestedSlice(stuck.Object, []interface{}{map[string]interface{}{"type": "Ready", "status": "False", "reason": "Failed"}}, "status", "conditions")
+	if err := r.Create(ctx, stuck); err != nil {
+		t.Fatal(err)
+	}
+	instance.Finalizers = []string{KuraInstanceFinalizer}
+	instance.Spec.Replicas = ptr(int32(1))
+	instance.Spec.StorageSize = "40Gi"
+	if err := r.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	r.RuntimeStatusClient = fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 1, BackfillInitialCycle: backfillCycleComplete}}}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	for i := 0; i < 3; i++ {
+		r.clientDNSCache = nil
+		r.gatewayCache = nil
+		if _, err := r.Reconcile(ctx, req); err != nil {
+			t.Fatalf("pass %d: %v", i, err)
+		}
+	}
+	fresh := &kurav1alpha1.KuraInstance{}
+	if err := r.Get(ctx, req.NamespacedName, fresh); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Status.PrivateURL != "https://"+instance.Spec.PrivateHost {
+		t.Fatalf("stuck gateway did not recover: url=%q reason=%q message=%q", fresh.Status.PrivateURL, fresh.Status.EndpointReason, fresh.Status.EndpointMessage)
+	}
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the rate-limited Certificate withdrawn, got %v", err)
 	}
 }

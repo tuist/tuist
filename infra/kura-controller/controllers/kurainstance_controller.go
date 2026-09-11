@@ -135,9 +135,10 @@ type KuraInstanceReconciler struct {
 	GRPCClusterIssuer string
 
 	// PublicTLSSecretName is the shared wildcard TLS Secret, in the watched
-	// namespace, that every public Ingress terminates on. While it holds a
-	// certificate no per-instance Certificate is requested, so onboarding an
-	// account issues nothing against the ACME per-registered-domain limit.
+	// namespace, that every client Ingress terminates on, private gateways
+	// included. While it holds a certificate no per-instance Certificate is
+	// requested, so onboarding an account issues nothing against the ACME
+	// per-registered-domain limit.
 	PublicTLSSecretName string
 
 	OTLPTracesEndpoint  string
@@ -290,8 +291,16 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // pointed at a Secret without a leaf, or at one whose leaf does not span the
 // host, makes ingress-nginx serve its self-signed default. Coverage is checked
 // rather than presence because an ACME wildcard matches exactly one label.
+//
+// The host checked is the one the client Ingress actually serves, so a private
+// gateway is covered on its privateHost: a gateway host sits one label under
+// the same zone, terminates on the same ingress-nginx, and reads the Secret
+// from the same namespace, so nothing about it needs an order of its own. A
+// leftover publicHost on a private instance stays inert, because clientHost
+// already refuses to expose it.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	if instance.Spec.Private || r.PublicTLSSecretName == "" || instance.Spec.PublicHost == "" {
+	host := clientHost(instance)
+	if r.PublicTLSSecretName == "" || host == "" {
 		return false
 	}
 	secret := &corev1.Secret{}
@@ -306,7 +315,7 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	return leaf.VerifyHostname(instance.Spec.PublicHost) == nil
+	return leaf.VerifyHostname(host) == nil
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {

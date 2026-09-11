@@ -26,7 +26,7 @@
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
 {{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
-{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
+{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every client Ingress would fall back to the ingress controller's self-signed default." }}
 {{- end }}
 {{- if not $imageTag }}
 {{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}

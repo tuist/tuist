@@ -236,16 +236,52 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 	if !ready || !runtimeStatusServing(status) {
 		return pending("PrimaryUnavailable", "Selected primary is not Ready and serving with its writer lock")
 	}
+	// The gateway serves whichever Secret reconcilePublicIngress terminated its
+	// Ingress on, so readiness follows the same gate. A wildcard that spans the
+	// host is already issued and leaves nothing per-instance to observe; only
+	// a host it does not cover still waits on an order of its own.
+	if !r.sharedPublicTLSCovers(ctx, instance) {
+		reason, message, err := r.perInstanceCertificatePending(ctx, instance, host)
+		if err != nil {
+			return privateEndpointObservation{}, err
+		}
+		if reason != "" {
+			return pending(reason, message)
+		}
+	}
+	target, err := r.privateGatewayTarget(ctx, instance)
+	if err != nil {
+		return privateEndpointObservation{}, err
+	}
+	if target == "" {
+		return pending("GatewayUnavailable", "No Ready gateway with a private IPv4 address in the instance node pool")
+	}
+	addresses := r.privateDNSAddresses(ctx, host, target)
+	if len(addresses) == 0 {
+		return pending("DNSPending", fmt.Sprintf("Waiting for %s to resolve to %s", host, target))
+	}
+	for _, address := range addresses {
+		if address != target {
+			return pending("DNSPending", fmt.Sprintf("Expected only %s; observed %v", target, addresses))
+		}
+	}
+	return privateEndpointObservation{URL: "https://" + host, Reason: "Ready", Message: "Private gateway, certificate, DNS and serving primary are ready"}, nil
+}
+
+// perInstanceCertificatePending reports the reason an instance's own
+// Certificate cannot terminate host yet, or an empty reason when it can. It is
+// only consulted for a host the shared wildcard does not cover.
+func (r *KuraInstanceReconciler) perInstanceCertificatePending(ctx context.Context, instance *kurav1alpha1.KuraInstance, host string) (string, string, error) {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: publicTLSSecretName(instance)}, cert); err != nil {
 		if apierrors.IsNotFound(err) {
-			return pending("CertificatePending", "Gateway certificate has not been created")
+			return "CertificatePending", "Gateway certificate has not been created", nil
 		}
-		return privateEndpointObservation{}, err
+		return "", "", err
 	}
 	conditions, _, _ := unstructured.NestedSlice(cert.Object, "status", "conditions")
-	ready = false
+	ready := false
 	for _, entry := range conditions {
 		condition, ok := entry.(map[string]interface{})
 		if !ok || condition["type"] != "Ready" || condition["status"] != "True" {
@@ -266,25 +302,9 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 		}
 	}
 	if !ready || !hostCovered {
-		return pending("CertificatePending", "Certificate is not Ready for the current hostname and generation")
+		return "CertificatePending", "Certificate is not Ready for the current hostname and generation", nil
 	}
-	target, err := r.privateGatewayTarget(ctx, instance)
-	if err != nil {
-		return privateEndpointObservation{}, err
-	}
-	if target == "" {
-		return pending("GatewayUnavailable", "No Ready gateway with a private IPv4 address in the instance node pool")
-	}
-	addresses := r.privateDNSAddresses(ctx, host, target)
-	if len(addresses) == 0 {
-		return pending("DNSPending", fmt.Sprintf("Waiting for %s to resolve to %s", host, target))
-	}
-	for _, address := range addresses {
-		if address != target {
-			return pending("DNSPending", fmt.Sprintf("Expected only %s; observed %v", target, addresses))
-		}
-	}
-	return privateEndpointObservation{URL: "https://" + host, Reason: "Ready", Message: "Private gateway, certificate, DNS and serving primary are ready"}, nil
+	return "", "", nil
 }
 
 // This observation is independent of workload convergence. Run it after client
