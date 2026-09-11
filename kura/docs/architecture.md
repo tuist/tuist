@@ -151,6 +151,12 @@ A node finds peers in three ways:
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
+Mesh heartbeats and managed peer-view fetches use `src/control_plane_http.rs`
+(also used by usage delivery): connection setup, including DNS, has a 3-second
+budget within a 5-second total request deadline. A failed fetch retains the
+last-known view and retries on the configured cadence; before the first successful
+fetch, the managed node remains behind the serving gate.
+
 Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side. Nothing local is torn down for it and readiness is not clawed back: the writes missed while out of the mesh were never enqueued for the node (replication targets are computed at write time), and the backfill watermarks are durable, so the next pass re-walks from them and reconciles the gap in the background while the node keeps serving.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:
