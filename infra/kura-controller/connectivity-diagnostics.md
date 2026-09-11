@@ -5,6 +5,17 @@ bounded DNS/TCP/HTTP timings from a selected Kura instance's pods. Operators use
 the existing `pods/log` read permission; there is no new API or permission tier.
 It is disabled by default, including all managed environment overlays.
 
+## Blocking lifecycle issue — do not enable
+
+The current regular sidecar contributes to the Pod Ready condition. An image-pull
+failure or crash can remove a healthy Kura replica from Service endpoints; a
+shared failure across replicas can remove all ready backends. This is a merge
+and rollout blocker, not an accepted operational tradeoff. Native restartable
+init sidecars do not fix it: Kubernetes includes them in
+[ContainersReady](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/kubelet/status/generate.go).
+A lifecycle-independent design remains required before enabling this feature.
+The corrections below do not resolve this blocker.
+
 ## Motivation and scope
 
 During the South America connectivity investigation, the normal production
@@ -14,10 +25,14 @@ Human-approved diagnostics subsequently measured about 0.91 seconds for DNS and
 about 1.14 seconds cumulatively through TCP setup in both affected replicas.
 The one-second connect budget failed while three seconds succeeded. An absolute
 DNS name also succeeded within one second. That timeout fix is PR #13112;
-this feature changes neither Kura's client timeout nor its readiness behavior.
+this feature does not change Kura's client timeout or application readiness handler.
+The sidecar does affect Kubernetes Pod readiness, as described above.
 
 The profile specifically diagnoses the managed control-plane Service
-`tuist-tuist-server.tuist.svc.cluster.local:80/ready`. It compares the normal and
+`tuist-tuist-server.<namespace>.svc.cluster.local:80/ready`. The only accepted
+profiles are `production` (`tuist`), `staging` (`tuist-staging`), and `canary`
+(`tuist-canary`). The controller passes its deployment environment as the single
+argument; any other profile is rejected. It compares the normal and
 trailing-dot absolute name with one- and three-second combined DNS/TCP budgets.
 The existing server route maps GET `/ready` to `TuistWeb.PageController.ready/2`,
 which returns an empty HTTP 200 response without a state-changing operation.
@@ -43,7 +58,8 @@ and [privilege escalation guidance](https://kubernetes.io/docs/concepts/security
   production kubectl request as before. There is no diagnostic bypass, new
   service account, delegated exec broker, or elevation path. Logs remain subject
   to Kubernetes RBAC and the existing gateway access audit trail.
-- The probe has no listener and accepts no CLI arguments or environment config.
+- The probe has no listener or environment config. Its sole argument selects one
+  of the three fixed environment profiles; no arbitrary destination is accepted.
   Reading or following logs cannot trigger probes or increase their frequency.
   A read-only user cannot select new network targets by changing pod metadata.
 - Controller deployment configuration selects exact instance names, not a
@@ -107,10 +123,14 @@ Costs and limitations:
 - A missing/broken sidecar image or repeated sidecar crashes can prevent overall
   pod readiness; probe target failure only emits a result and never exits the
   sidecar. Resource reservations and up to four GETs per minute per replica add
-  a small steady cost. Start with a small instance set.
+  a small steady cost. Do not enable until the lifecycle blocker is resolved.
+- CPU autosizing reads only the `kura` container. Missing Kura usage is omitted,
+  not recorded as zero; sidecar CPU cannot inflate Kura's historical sizing signal.
 - The Go resolver reads the same kubelet-provided resolver file, but its search,
   retry, address ordering and timing behavior need not match libc/curl or Kura's
-  Rust client exactly. First-address-only dialing also omits Happy Eyeballs and
+  Rust client exactly. `StrictErrors` is left at its default false; temporary
+  search-query errors do not deliberately abort the remaining search-list walk.
+  First-address-only dialing also omits Happy Eyeballs and
   fallback addresses. These results diagnose the network path, not application
   client equivalence. Container-specific resolver-file edits are not observed.
 - Timings are cumulative milliseconds from request start: `dns_ms`, `connect_ms`,
@@ -127,8 +147,8 @@ Costs and limitations:
 
 ## Rollout and use
 
-No cluster operations are part of this implementation task. A later approved
-rollout should:
+No cluster operations are part of this implementation task. The following is a
+future acceptance procedure, gated on resolving the lifecycle blocker first:
 
 1. Build/publish the controller image using the existing Kura Controller Image
    workflow. Its multiarchitecture image now contains `/connectivity-probe` as
@@ -143,9 +163,15 @@ rollout should:
    credential injection, token automount false, correct security/resource limits,
    matching image with the binary, and unchanged Kura container configuration.
    Observe the normal StatefulSet rollout and readiness before proceeding.
-4. Verify with a normal, non-elevated production session that logs work and
-   `kubectl auth can-i create pods/exec -n kura` remains `no`. Do not use a live
-   elevated identity as proof of the read-only authorization boundary.
+4. A human performing the approved acceptance check must use a non-elevated
+   production session and verify that logs succeed, then attempt the actual exec
+   request through the same gateway:
+   `kubectl --context tuist-k8s-production -n kura exec <selected-pod> -c kura -- /bin/true`. Record an explicit Forbidden
+   response naming `pods/exec` and the denied identity. An executable-not-found,
+   transport failure, or success does not prove this boundary; investigate rather
+   than accepting the check. `/bin/true` is a no-op if access is unexpectedly
+   granted. Do not use `auth can-i` as the acceptance oracle or use an elevated
+   session. This is a future human-run check; it was not executed in this task.
 5. Compare the normal/absolute-name timing samples, check CPU/memory/log volume,
    and expand the reviewed selection only if useful.
 
@@ -157,11 +183,23 @@ kubectl --context tuist-k8s-production -n kura logs kura-pedidosya-sa-west-1-1 -
 ```
 
 An absent container means the capability has not rolled out to that pod; it is
-not a reason to request broader access automatically. The last resolver record
-and four subsequent sample records form one profile run. `--follow` waits for
+not a reason to request broader access automatically. Resolver configuration is
+emitted on startup and when its contents or readability changes, not every run.
+A short `--since` window may omit it: inspect earlier retained container logs for
+the last resolver record. After log rotation that record may no longer be retained;
+its absence is not a DNS failure. Each run still emits up to four timing records. `--follow` waits for
 the next scheduled sample without triggering network requests.
 
 Rollback: remove the instance names from the reviewed values and deploy the
 controller configuration through the normal process. Reconciliation removes the
 sidecar and restores the prior token-automount setting in the desired template;
 the selected pods roll again. No RBAC, database, or data migration needs undoing.
+
+## Token-hardening scope
+
+Token automount remains disabled only for selected pods in this change. Moving
+that setting into the unconditional pod template would change every managed Kura
+StatefulSet and trigger a fleet-wide rollout despite diagnostics being disabled.
+That worthwhile hardening needs a separately reviewed rollout. Removing a sidecar
+already changes the pod template; moving the token setting alone does not remove
+that rollback rollout. No claim is made that the unselected fleet is hardened.

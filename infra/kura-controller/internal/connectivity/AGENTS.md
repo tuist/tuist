@@ -5,7 +5,9 @@ in through controller deployment configuration. See
 [`../../connectivity-diagnostics.md`](../../connectivity-diagnostics.md) for the
 threat model, bounds, operational tradeoffs, and rollout procedure.
 
-Keep the destination, unauthenticated GET, and `/ready` path fixed in code.
+Keep the three environment destinations, unauthenticated GET, and `/ready` path
+fixed in code. The sole CLI argument selects production, staging, or canary;
+never accept an arbitrary namespace or URL.
 Do not add a listener, exec wrapper, configurable URL/headers, credentials,
 response content logging, redirects, proxy support, or mounts. New destinations
 need explicit review of both their ownership and GET side effects. Preserve

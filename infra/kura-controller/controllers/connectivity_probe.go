@@ -20,6 +20,7 @@ func (r *KuraInstanceReconciler) addConnectivityProbe(instance *kurav1alpha1.Kur
 		Image:           r.ConnectivityProbeImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"/connectivity-probe"},
+		Args:            []string{r.Environment},
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: ptr(true), RunAsUser: ptr(int64(65532)), RunAsGroup: ptr(int64(65532)),
 			AllowPrivilegeEscalation: ptr(false), ReadOnlyRootFilesystem: ptr(true),

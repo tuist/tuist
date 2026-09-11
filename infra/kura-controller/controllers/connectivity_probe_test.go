@@ -14,6 +14,7 @@ import (
 
 func TestConnectivityProbeReconcileAndRemoval(t *testing.T) {
 	r, instance, _ := privateGatewayFixture(t)
+	r.Environment = "production"
 	r.ConnectivityProbeImage = "controller:test"
 	r.ConnectivityProbeInstances = []string{instance.Name}
 	ctx := context.Background()
@@ -55,7 +56,7 @@ func TestConnectivityProbeOptInAndIsolation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			template := podTemplate(instance, "", "production", "", false)
 			before := template.DeepCopy()
-			r := &KuraInstanceReconciler{ConnectivityProbeImage: tc.image, ConnectivityProbeInstances: tc.instances}
+			r := &KuraInstanceReconciler{Environment: "production", ConnectivityProbeImage: tc.image, ConnectivityProbeInstances: tc.instances}
 			r.addConnectivityProbe(instance, &template)
 			if !tc.enabled {
 				if !reflect.DeepEqual(*before, template) {
@@ -73,8 +74,11 @@ func TestConnectivityProbeOptInAndIsolation(t *testing.T) {
 			if probe.Name != "connectivity-probe" || probe.Image != tc.image || !reflect.DeepEqual(probe.Command, []string{"/connectivity-probe"}) {
 				t.Fatal("wrong probe")
 			}
-			if len(probe.Env)+len(probe.EnvFrom)+len(probe.VolumeMounts)+len(probe.Ports)+len(probe.Args) != 0 {
+			if len(probe.Env)+len(probe.EnvFrom)+len(probe.VolumeMounts)+len(probe.Ports) != 0 {
 				t.Fatal("probe acquired extra inputs or mounts")
+			}
+			if !reflect.DeepEqual(probe.Args, []string{"production"}) {
+				t.Fatal("wrong fixed profile")
 			}
 			security := probe.SecurityContext
 			if !*security.RunAsNonRoot || *security.RunAsUser != 65532 || *security.AllowPrivilegeEscalation || !*security.ReadOnlyRootFilesystem || !reflect.DeepEqual(security.Capabilities.Drop, []corev1.Capability{"ALL"}) || security.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {

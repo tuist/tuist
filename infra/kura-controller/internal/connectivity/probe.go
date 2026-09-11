@@ -18,7 +18,6 @@ const (
 	Interval       = time.Minute
 	requestTimeout = 5 * time.Second
 	bodyLimit      = 4096
-	serviceHost    = "tuist-tuist-server.tuist.svc.cluster.local"
 )
 
 // Result contains only locally generated metadata; response content and error
@@ -38,25 +37,49 @@ type Result struct {
 type lookupFunc func(context.Context, string) ([]net.IPAddr, error)
 type dialFunc func(context.Context, string, string) (net.Conn, error)
 
-// Run emits four serial samples, comparing search-list and absolute names with
-// the incident's one- and three-second DNS+TCP budgets. No target is configurable.
-func Run(ctx context.Context, emit func(Result)) {
-	resolver := &net.Resolver{PreferGo: true, StrictErrors: true}
+// ProfileHost selects a reviewed destination, never an arbitrary caller URL.
+func ProfileHost(environment string) (string, error) {
+	switch environment {
+	case "production":
+		return "tuist-tuist-server.tuist.svc.cluster.local", nil
+	case "staging":
+		return "tuist-tuist-server.tuist-staging.svc.cluster.local", nil
+	case "canary":
+		return "tuist-tuist-server.tuist-canary.svc.cluster.local", nil
+	default:
+		return "", errors.New("unknown connectivity profile")
+	}
+}
+
+// Run compares search-list and absolute names with fixed DNS+TCP budgets.
+func Run(ctx context.Context, environment string, emit func(Result)) error {
+	host, err := ProfileHost(environment)
+	if err != nil {
+		return err
+	}
+	resolver := &net.Resolver{PreferGo: true}
 	dialer := &net.Dialer{}
-	for _, host := range []string{serviceHost, serviceHost + "."} {
+	runProfile(ctx, host, emit, func(ctx context.Context, host string, budget time.Duration) Result {
+		return probe(ctx, host, budget, requestTimeout, resolver.LookupIPAddr, dialer.DialContext)
+	})
+	return nil
+}
+
+func runProfile(ctx context.Context, host string, emit func(Result), sample func(context.Context, string, time.Duration) Result) {
+	for _, name := range []string{host, host + "."} {
 		for _, budget := range []time.Duration{time.Second, 3 * time.Second} {
 			if ctx.Err() != nil {
 				return
 			}
-			emit(probe(ctx, host, budget, resolver.LookupIPAddr, dialer.DialContext))
+			emit(sample(ctx, name, budget))
 		}
 	}
 }
 
-func probe(ctx context.Context, host string, budget time.Duration, lookup lookupFunc, dial dialFunc) Result {
+func probe(ctx context.Context, host string, budget, overallTimeout time.Duration, lookup lookupFunc, dial dialFunc) Result {
 	start := time.Now()
 	result := Result{Time: start.UTC(), Target: host, ConnectBudgetMS: budget.Milliseconds()}
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	ctx, cancel := context.WithTimeout(ctx, overallTimeout)
 	defer cancel()
 	// Transport callbacks can outlive Do on cancellation. Guard both recording
 	// and the final snapshot so timeout samples remain race-free.
@@ -111,7 +134,12 @@ func probe(ctx context.Context, host string, budget time.Duration, lookup lookup
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	trace := &httptrace.ClientTrace{GotFirstResponseByte: func() { mu.Lock(); result.FirstByteMS = elapsed(); mu.Unlock() }}
-	req, _ := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, "http://"+host+"/ready", nil)
+	req, requestErr := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, "http://"+host+"/ready", nil)
+	if requestErr != nil {
+		result.Outcome = "request_error"
+		result.TotalMS = *elapsed()
+		return result
+	}
 	req.Header.Set("User-Agent", "tuist-connectivity-probe/1")
 	response, err := client.Do(req)
 	outcome := "ok"

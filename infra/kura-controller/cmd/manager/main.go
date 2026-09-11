@@ -17,6 +17,7 @@ import (
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/kura-controller/controllers"
+	"github.com/tuist/tuist/infra/kura-controller/internal/connectivity"
 )
 
 var (
@@ -59,9 +60,17 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	if connectivityProbeInstances != "" && (watchNamespace == "" || connectivityProbeImage == "") {
+	probeInstances := splitNames(connectivityProbeInstances)
+	if len(probeInstances) != 0 && (watchNamespace == "" || connectivityProbeImage == "") {
 		setupLog.Error(errors.New("connectivity probes require watch-namespace and connectivity-probe-image"), "invalid probe configuration")
 		os.Exit(1)
+	}
+
+	if len(probeInstances) != 0 {
+		if _, err := connectivity.ProfileHost(deploymentEnvironment); err != nil {
+			setupLog.Error(err, "invalid probe environment")
+			os.Exit(1)
+		}
 	}
 
 	managerOptions := ctrl.Options{
@@ -99,18 +108,13 @@ func main() {
 		Environment:                deploymentEnvironment,
 		MetricsClient:              metricsClient,
 		ConnectivityProbeImage:     connectivityProbeImage,
-		ConnectivityProbeInstances: strings.Split(connectivityProbeInstances, ","),
+		ConnectivityProbeInstances: probeInstances,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
 	if publicTLSDNSNames != "" {
-		names := []string{}
-		for _, name := range strings.Split(publicTLSDNSNames, ",") {
-			if trimmed := strings.TrimSpace(name); trimmed != "" {
-				names = append(names, trimmed)
-			}
-		}
+		names := splitNames(publicTLSDNSNames)
 		if err := mgr.Add(&controllers.PublicWildcardCertificate{
 			Client:        mgr.GetClient(),
 			Namespace:     watchNamespace,
@@ -147,4 +151,14 @@ func main() {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
 	}
+}
+
+func splitNames(value string) []string {
+	var names []string
+	for _, name := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			names = append(names, trimmed)
+		}
+	}
+	return names
 }
