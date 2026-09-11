@@ -181,9 +181,7 @@ export default {
     );
     this.cancelFocus = () => cancelFocus.forEach((cancel) => cancel());
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
-    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(
-      timeline.total_count ?? this.events.length
-    );
+    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count ?? this.events.length);
     const targets = this.el.querySelector('[data-stat="targets"]');
     targets.textContent = formatNumber(timeline.target_count ?? 0);
     targets.parentElement.hidden = timeline.target_count == null;
