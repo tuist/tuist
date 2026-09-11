@@ -177,6 +177,67 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       assert updated_project.slack_channel_name == nil
     end
 
+    test "clears the project webhook when Slack returns :webhook_revoked", %{project: project} do
+      now = ~U[2025-01-15 09:00:00Z]
+
+      {:ok, _project} =
+        Projects.update_project(project, %{
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel",
+          slack_webhook_url: "https://hooks.slack.com/services/T0/B0/abcd",
+          report_frequency: :daily,
+          report_days_of_week: [Date.day_of_week(~D[2025-01-15])],
+          report_schedule_time: now,
+          report_timezone: "Etc/UTC"
+        })
+
+      stub_report_metrics(now)
+
+      expect(Client, :post_to_webhook, fn "https://hooks.slack.com/services/T0/B0/abcd", blocks ->
+        assert is_list(blocks)
+        {:error, :webhook_revoked}
+      end)
+
+      reject(&Client.post_message/3)
+
+      assert {:discard, :webhook_revoked} = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+      updated_project = Projects.get_project_by_id(project.id)
+      assert updated_project.slack_channel_id == nil
+      assert updated_project.slack_channel_name == nil
+      assert updated_project.slack_webhook_url == nil
+    end
+
+    test "discards without clearing when Slack returns an unrecognized bad request", %{project: project} do
+      now = ~U[2025-01-15 09:00:00Z]
+
+      {:ok, _project} =
+        Projects.update_project(project, %{
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel",
+          slack_webhook_url: "https://hooks.slack.com/services/T0/B0/abcd",
+          report_frequency: :daily,
+          report_days_of_week: [Date.day_of_week(~D[2025-01-15])],
+          report_schedule_time: now,
+          report_timezone: "Etc/UTC"
+        })
+
+      stub_report_metrics(now)
+
+      expect(Client, :post_to_webhook, fn _url, _blocks ->
+        {:error, {:bad_request, 400, "invalid_payload"}}
+      end)
+
+      reject(&Client.post_message/3)
+
+      assert {:discard, {:slack_bad_request, 400}} =
+               ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+      updated_project = Projects.get_project_by_id(project.id)
+      assert updated_project.slack_channel_id == "C123456"
+      assert updated_project.slack_webhook_url == "https://hooks.slack.com/services/T0/B0/abcd"
+    end
+
     test "returns an error when sending the report fails transiently", %{project: project} do
       now = ~U[2025-01-15 09:00:00Z]
 

@@ -154,18 +154,16 @@ defmodule Tuist.Slack.ClientTest do
       end
     end
 
-    test "returns transient error on 400 with an unknown body" do
+    test "returns {:bad_request, status, body} on an unrecognized 4xx" do
       stub(Req, :post, fn _url, _opts ->
         {:ok, %Req.Response{status: 400, body: "invalid_payload"}}
       end)
 
-      result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
-
-      assert {:error, message} = result
-      assert message =~ "Slack incoming-webhook responded 400 with response body"
+      assert {:error, {:bad_request, 400, "invalid_payload"}} =
+               Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
     end
 
-    test "returns error on unexpected status code (transient)" do
+    test "returns a transient error on a 5xx" do
       stub(Req, :post, fn _url, _opts ->
         {:ok, %Req.Response{status: 500, body: "boom"}}
       end)

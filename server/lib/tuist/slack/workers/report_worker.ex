@@ -83,12 +83,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
       {:webhook, webhook_url} ->
         blocks = Reports.report(project, last_report_at: project.last_reported_at)
-
-        case SlackClient.post_to_webhook(webhook_url, blocks) do
-          :ok -> mark_reported(project)
-          {:error, :webhook_revoked} -> handle_revoked_webhook(project)
-          {:error, reason} -> {:error, reason}
-        end
+        handle_webhook_result(SlackClient.post_to_webhook(webhook_url, blocks), project)
 
       {:bot_token, %Installation{access_token: token}, channel_id} ->
         blocks = Reports.report(project, last_report_at: project.last_reported_at)
@@ -99,6 +94,14 @@ defmodule Tuist.Slack.Workers.ReportWorker do
         end
     end
   end
+
+  defp handle_webhook_result(:ok, project), do: mark_reported(project)
+  defp handle_webhook_result({:error, :webhook_revoked}, project), do: handle_revoked_webhook(project)
+
+  defp handle_webhook_result({:error, {:bad_request, status, body}}, project),
+    do: handle_bad_request(project, status, body)
+
+  defp handle_webhook_result({:error, reason}, _project), do: {:error, reason}
 
   # Only a successful send advances the window; a failed/discarded attempt
   # leaves last_reported_at untouched so the next run still covers the gap.
@@ -141,6 +144,18 @@ defmodule Tuist.Slack.Workers.ReportWorker do
       {:ok, _project} -> {:discard, :webhook_revoked}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  # Any other 4xx is a client-side error we don't recognize — retrying will
+  # fail the same way, so discard the job instead of burning the remaining
+  # attempts. Leave the destination in place: it may be a bug in the payload
+  # we build, and clearing the user's config would hide that.
+  defp handle_bad_request(project, status, body) do
+    Logger.warning(
+      "Slack rejected the incoming-webhook payload for project #{project.id} (status #{status}, body #{inspect(body)})"
+    )
+
+    {:discard, {:slack_bad_request, status}}
   end
 
   defp handle_post_message_error("account_inactive", project) do

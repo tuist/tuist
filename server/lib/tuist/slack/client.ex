@@ -114,32 +114,35 @@ defmodule Tuist.Slack.Client do
     :ok
   end
 
-  # 404 from a Slack webhook URL is permanent — the webhook was revoked,
-  # the channel was deleted, or the app was uninstalled from the workspace.
-  # Surface it distinctly so callers can clear the destination instead of
-  # retrying forever.
+  # Any 4xx from Slack is a client-side error: the same request will fail
+  # the same way on retry. Split it into "the webhook is permanently dead"
+  # (caller clears the destination) and "we sent something Slack rejected"
+  # (caller discards the job without touching the destination, so we still
+  # see the failure once for investigation).
+  #
+  # 404 always maps to :webhook_revoked — a Slack hooks URL only 404s when
+  # it isn't a live webhook any more (revoked, uninstalled, deleted). The
+  # other 4xx cases only clear the destination when the body matches one of
+  # Slack's documented permanent-error strings.
   defp handle_webhook_response({:ok, %Req.Response{status: 404}}) do
     {:error, :webhook_revoked}
   end
 
-  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) when status in [400, 401, 403] do
+  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) when status in 400..499 do
     if permanent_webhook_error?(body) do
       {:error, :webhook_revoked}
     else
-      {:error, unexpected_webhook_error(status, body)}
+      {:error, {:bad_request, status, body}}
     end
   end
 
+  # 5xx is Slack's side — return a transient error so Oban retries.
   defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
-    {:error, unexpected_webhook_error(status, body)}
+    {:error, "Slack incoming-webhook responded #{status} with response body: #{inspect(body)}"}
   end
 
   defp handle_webhook_response({:error, reason}) do
     {:error, "Slack incoming-webhook request failed: #{inspect(reason)}"}
-  end
-
-  defp unexpected_webhook_error(status, body) do
-    "Slack incoming-webhook responded #{status} with response body: #{inspect(body)}"
   end
 
   defp permanent_webhook_error?(body) when is_binary(body) do
