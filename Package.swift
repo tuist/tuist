@@ -1265,6 +1265,7 @@ targets.append(contentsOf: [
         dependencies: [
             "TuistAppleArchiver",
             "TuistLoggerTesting",
+            "TuistLogging",
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             pathDependency,

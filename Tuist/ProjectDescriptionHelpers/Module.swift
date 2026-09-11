@@ -1628,6 +1628,7 @@ public enum Module: String, CaseIterable {
             case .appleArchiver:
                 [
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
