@@ -371,22 +371,10 @@ defmodule TuistWeb.BuildRunLive do
               %{state | result: AsyncResult.failed(state.result, {:exit, reason})}
           end
 
-        socket = update(socket, :task_cas_outputs_map, &Map.put(&1, key, state))
-
         socket =
-          case state.result do
-            %AsyncResult{ok?: true, result: %{outputs: []}} ->
-              socket
-              |> update(:expanded_task_keys, &MapSet.delete(&1, key))
-              |> update(:cacheable_tasks, fn tasks ->
-                Enum.map(tasks, fn task ->
-                  if task.key == key, do: %{task | has_cas_outputs: false}, else: task
-                end)
-              end)
-
-            _ ->
-              socket
-          end
+          socket
+          |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+          |> disable_empty_task_expansion(key, state.result)
 
         {:noreply, socket}
 
@@ -410,6 +398,18 @@ defmodule TuistWeb.BuildRunLive do
   def handle_async(:timeline_step, {:exit, _reason}, socket) do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
   end
+
+  defp disable_empty_task_expansion(socket, key, %AsyncResult{ok?: true, result: %{outputs: []}}) do
+    socket
+    |> update(:expanded_task_keys, &MapSet.delete(&1, key))
+    |> update(:cacheable_tasks, fn tasks ->
+      Enum.map(tasks, fn task ->
+        if task.key == key, do: %{task | has_cas_outputs: false}, else: task
+      end)
+    end)
+  end
+
+  defp disable_empty_task_expansion(socket, _key, _result), do: socket
 
   defp assign_selected_tab_data(socket, params) do
     socket = reset_task_cas_outputs(socket)

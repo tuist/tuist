@@ -3,6 +3,7 @@
 This directory contains frontend assets for the Phoenix app (LiveView, marketing, apidocs).
 
 ## Responsibilities
+
 - Expanded Xcode cache task rows append CAS outputs with a Noora Load more button; the build-run stylesheet adds spacing around the control. Loading and pagination are managed by LiveView; output IDs are not embedded in the initial table.
 
 - Timeline summary values (elapsed time, step count and target count) use small decorative separator dots.
