@@ -1,6 +1,16 @@
 /* Spinner for the compute task feed's "processing" rows. */
 /* Testimonials marquee: the track holds two identical groups, so scrolling
    half its width loops seamlessly. */
+@keyframes marketing-logos-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes marketing-testimonials-marquee {
   from {
     transform: translateX(0);
@@ -280,12 +290,45 @@
         }
       }
 
+      /* Phone marquee, built by LogoTransition: two identical sets of the
+         logos in one track that a CSS animation slides by exactly one set
+         (-50%), so the loop is seamless. Each set carries the inter-logo gap
+         as trailing padding so both halves measure the same. The hook sets
+         --marquee-duration from the measured width to keep the speed
+         constant; the animation itself runs on the compositor, unlike the
+         previous per-frame transform from a rAF loop, which stuttered
+         whenever the page's other animations held the main thread. */
       & > [data-part="track"] {
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: var(--noora-spacing-9);
+        /* Overridden inline by the hook from the measured track width. */
+        --marquee-duration: 40s;
+        animation: marketing-logos-marquee var(--marquee-duration) linear infinite;
         will-change: transform;
+        width: max-content;
+
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+        }
+
+        & > [data-part="logo-set"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-9);
+          padding-right: var(--noora-spacing-9);
+
+          /* The shared org-logo rule sizes the svg at 100% of a box whose
+             own width comes from the svg — a cycle Safari resolves to a
+             narrower box than the artwork, so neighbouring logos overlapped
+             in the marquee. Size the svg from its width/height attributes
+             (206x64 for every org logo) so the box is definite. */
+          & > [data-part="org-logo"] > svg {
+            width: auto;
+            height: 64px;
+          }
+        }
       }
 
       & > [data-part="logo-group"] {
@@ -421,9 +464,13 @@
         --chart-with-stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
         display: flex;
         flex-direction: column;
+        /* Breathing room between the stacked panels; side by side they
+           share the divider instead. */
+        gap: var(--noora-spacing-7);
 
         @media (min-width: 1024px) {
           flex-direction: row;
+          gap: 0;
           height: 322px;
         }
 
@@ -452,6 +499,15 @@
             border-bottom: 1px solid var(--marketing-stroke-default);
             height: 36px;
 
+            /* Phones: "Build time: 02m 00s" plus its badge is wider than
+               half the panel and, being nowrap, pushed the page past the
+               viewport (the sideways drag). Stack the two stats instead. */
+            @media (max-width: 599px) {
+              grid-template-columns: 1fr;
+              grid-auto-rows: 36px;
+              height: auto;
+            }
+
             & > [data-part="stat"] {
               display: flex;
               justify-content: center;
@@ -464,6 +520,11 @@
 
               &:not(:last-child) {
                 border-right: 1px solid var(--marketing-stroke-default);
+
+                @media (max-width: 599px) {
+                  border-right: none;
+                  border-bottom: 1px solid var(--marketing-stroke-default);
+                }
               }
 
               & > strong {
@@ -1752,7 +1813,8 @@
 
         /* 4×4 hairline grid over the square: only the three interior lines
            per axis, so the box borders aren't doubled at the edges. */
-        background-image: linear-gradient(
+        background-image:
+          linear-gradient(
             90deg,
             transparent calc(25% - 1px),
             var(--marketing-stroke-default) calc(25% - 1px) 25%,
@@ -1881,11 +1943,8 @@
         border-radius: var(--noora-radius-6);
         /* The tint/gloss layers are translucent and read correctly on both
            bases; only the base flips (pale lavender / translucent purple). */
-        background: radial-gradient(
-            62.73% 96.07% at 43.01% 61.96%,
-            rgba(111, 44, 255, 0.14) 0%,
-            rgba(244, 66, 119, 0.04) 100%
-          ),
+        background:
+          radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%),
           linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%),
           var(--marketing-tint-purple);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
@@ -2262,11 +2321,8 @@
           0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset,
           0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
         border-radius: var(--noora-radius-6);
-        background: radial-gradient(
-            62.73% 96.07% at 43.01% 61.96%,
-            rgba(111, 44, 255, 0.14) 0%,
-            rgba(244, 66, 119, 0.04) 100%
-          ),
+        background:
+          radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%),
           linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%), var(--noora-purple-50);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
       }

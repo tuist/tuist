@@ -230,6 +230,16 @@
   }
 }
 
+/* Sideways panning on phones: iOS lets touch pan into overflow that
+   overflow-x: hidden leaves scrollable (it propagates from body to the
+   viewport, which iOS ignores for touch), and the page then sticks off to
+   the side. clip removes the overflow from the scrollable area on both
+   elements and, unlike hidden, turns neither into a scroll container, so
+   the sticky navbar keeps the viewport as its scroller. */
+html {
+  overflow-x: clip;
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -241,7 +251,7 @@ body {
   margin-left: 0;
   background: var(--noora-surface-background-primary);
   padding: 0px;
-  overflow-x: hidden;
+  overflow-x: clip;
   font-family: var(--noora-font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

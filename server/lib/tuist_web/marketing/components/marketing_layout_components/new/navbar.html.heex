@@ -141,8 +141,13 @@ resources_items = [
 <%!-- phx-update="ignore": static markup whose hooks (data-static-hook)
 are mounted by mountStaticHooks (marketing.js) rather than by LiveView, so
 the menus work on LiveView pages before the socket has joined; LiveView
-leaves the subtree alone on join. --%>
-<header id="marketing-navbar" phx-update="ignore">
+leaves the subtree alone on join. The ignore sits on a wrapper in the
+marketing layout (display: contents) rather than on this header because
+LiveView still syncs an ignored element's own data-* attributes with the
+server render on every patch — join, reconnect, any update — which stripped
+the data-mobile-menu-open the MobileMenu hook sets here and closed the open
+mobile menu underneath the user. --%>
+<header id="marketing-navbar">
   <div data-part="bar">
     <div data-part="brand" id="marketing-navbar-brand" data-static-hook="LogoContextMenu">
       <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
@@ -385,14 +390,33 @@ leaves the subtree alone on join. --%>
         id="mobile-menu-button"
         data-state="closed"
       >
-        <Noora.Icon.icon
+        <%!-- Hamburger <-> X drawn as the two bars of Noora's menu icon and
+        animated with CSS transforms off the button's data-state (see
+        navbar.css) rather than Noora's JS path morph: the morph rewrites
+        the path every frame from a rAF spring, and on phones that competes
+        with the menu's own open/close layout work, so it dropped frames
+        and stuttered. Transforms run on the compositor. --%>
+        <svg
           id="mobile-menu-icon"
-          name="menu"
-          active_name="close"
-          transition="morph"
-          watch="[data-part='mobile-menu-button']"
-          active_state="open"
-        />
+          class="icon icon-tabler icons-tabler-outline icon-tabler-menu"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            data-part="bar-top"
+            d="M20 7.25C20.4142 7.25 20.75 7.58579 20.75 8C20.75 8.41421 20.4142 8.75 20 8.75H4C3.58579 8.75 3.25 8.41421 3.25 8C3.25 7.58579 3.58579 7.25 4 7.25H20Z"
+            fill="currentColor"
+          />
+          <path
+            data-part="bar-bottom"
+            d="M20 15.25C20.4142 15.25 20.75 15.5858 20.75 16C20.75 16.4142 20.4142 16.75 20 16.75H4C3.58579 16.75 3.25 16.4142 3.25 16C3.25 15.5858 3.58579 15.25 4 15.25H20Z"
+            fill="currentColor"
+          />
+        </svg>
       </.neutral_button>
     </nav>
   </div>
