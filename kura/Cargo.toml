@@ -33,7 +33,7 @@ prost-types = "0.14.3"
 prometheus-client = "0.24.1"
 rand = "0.9.4"
 rcgen = "0.14.5"
-reqwest = { version = "0.12.24", default-features = false, features = ["http2", "json", "rustls-tls", "stream"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "http2", "json", "rustls-tls", "stream"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["bindgen-runtime", "lz4"] }
 rustls = "0.23.35"
 rustls-pemfile = "2.2.0"
