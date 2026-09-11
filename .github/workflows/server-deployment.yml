@@ -972,8 +972,8 @@ jobs:
         # `--timeout 60m` is generous on purpose: a complex migration
         # (the pre-upgrade hook runs inside this budget) plus the
         # `--wait` rollout can genuinely take a while, and undershooting
-        # would kill a legitimately-slow deploy mid-migration. The 160m
-        # step budget also covers preparation (60m), readiness (10m), and the
+        # would kill a legitimately-slow deploy mid-migration. The 180m
+        # step budget also covers preparation (60m), readiness (40m), and the
         # in-process `--atomic` rollback. The job's `timeout-minutes`
         # ceiling sits above this (helm < step < job): that ordering is
         # what makes a stuck deploy hit helm's own timeout first (clean

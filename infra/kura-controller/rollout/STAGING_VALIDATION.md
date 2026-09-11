@@ -113,3 +113,52 @@ and update strategy were restored. No validation Job remained. The two
 server-managed staging accounts were rechecked after cleanup: both retained
 canonical URLs, complete workload revisions, verified public TLS and working
 peer mutual TLS. Local copies of test credentials were removed.
+
+
+## Review follow-up — 2026-09-11
+
+The controller-only follow-up deployed `sha-f7e660ce42d6` to staging after
+[its image workflow](https://github.com/tuist/tuist/actions/runs/34578437746)
+passed controller tests, vet, formatting and all 19 publication-gate tests.
+The server publication map, runtime image and ingress topology were retained.
+Both controller replicas rolled successfully. The local controller race suite
+also passed on this source revision.
+
+Live inspection found an unfinished ownerless peer LoadBalancer from the
+older EU Central deployment. Its original peer hostname was absent from the
+instance's later EU West alias snapshot, so merely resuming retirement against
+known aliases was insufficient. The corrected controller recovered that active
+hostname from the fallback's exact instance selector and stored original host,
+preserved the later alias, expanded the peer leaf SANs and rolled both cache
+replicas. Both public accounts then reported Ready with 2/2 replicas and
+matching current/update StatefulSet revisions.
+
+The follow-up performed ten hostname/address checks:
+
+- Four HTTPS `/up` checks passed: canonical and legacy public names for both
+  remaining public accounts through `195.154.155.12`, with verified TLS.
+- Five authenticated peer status checks passed through the regional address:
+  both canonical names, both EU West aliases and the recovered EU Central
+  alias. These verified the certificate actually served after the pod roll.
+- The original fallback at `49.12.23.12:7443` timed out, both from the controller
+  and the bounded probe Job. Its Service had the repaired Cluster policy and
+  ready EndpointSlice backends, but the cause of the public listener timeout
+  was not isolated. It remains in `repairing-fallback`; the controller does not
+  bypass the old-path check or delete the LoadBalancer. Full live retirement
+  is therefore not established. The four-phase regression passes with regional
+  routing both enabled and disabled.
+
+The endpoint results are in [review-results.json](review-results.json). The
+initial probe stopped at the same fallback timeout; the final pass recorded
+all paths independently. All temporary probe Jobs and pods were removed.
+Canary/production prerequisite reads found no matching legacy peer LoadBalancer
+in their enabled regions; neither environment was changed during this follow-up.
+
+The IPv6 owning-node Job transport was also exercised in staging over IPv4,
+including public HTTPS and authenticated peer status. Staging advertised no
+IPv6 addresses, so actual IPv6 reachability remains unvalidated live; the
+node-local probe does not establish external IPv6 reachability. The full
+publication gate was not rerun under the human staging role, which cannot read
+DNSEndpoints. The previous CI deployment's DNS record checks remain the live
+record-count evidence. These targeted follow-up probes do not repeat or add to
+the earlier 960/12,288-operation traffic counts.

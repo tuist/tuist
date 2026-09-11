@@ -1,0 +1,70 @@
+{
+  "results": [
+    {
+      "protocol": "https",
+      "host": "kura-smoke-staging-dedicated.eu-west.staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "https",
+      "host": "kura-smoke-staging-dedicated-eu-west-1-staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "kura-smoke-staging-dedicated.peer.eu-west.staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "peer.kura-smoke-staging-dedicated-eu-central-1-staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "peer.kura-smoke-staging-dedicated-eu-central-1-staging.kura.tuist.dev",
+      "address": "49.12.23.12",
+      "result": "fail",
+      "error": "peer validation job command failed: peer.kura-smoke-staging-dedicated-eu-central-1-staging.kura.tuist.dev via 49.12.23.12:7443: peer probe failed: timed out\ncommand terminated with exit code 1"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "peer.kura-smoke-staging-dedicated-eu-west-1-staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "https",
+      "host": "tuist.eu-west.staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "https",
+      "host": "tuist-eu-west-1-staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "tuist.peer.eu-west.staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    },
+    {
+      "protocol": "peer-mtls",
+      "host": "peer.tuist-eu-west-1-staging.kura.tuist.dev",
+      "address": "195.154.155.12",
+      "result": "pass"
+    }
+  ],
+  "probe_job": "kura-regional-probe-0881637fd614",
+  "cleanup_verified": true,
+  "controller_image": "ghcr.io/tuist/kura-controller:sha-f7e660ce42d6",
+  "date": "2026-09-11",
+  "legacy_fallback_phase": "repairing-fallback"
+}
