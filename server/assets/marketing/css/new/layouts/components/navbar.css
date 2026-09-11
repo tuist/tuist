@@ -450,6 +450,112 @@
     overscroll-behavior: contain;
     pointer-events: none;
 
+    /* The rows below are styled here, not under the open state: the panel
+       stays in the tree while closed and only fades, so gating them on
+       data-mobile-menu-open would swap every row between native button /
+       link defaults and its styled look on each toggle. The action and
+       chevron transitions (further down) then animated that swap as a grey
+       flash on open, and on close the rows lost their styling while the
+       panel was still fading out.
+
+       Accordion list items. */
+    & [data-part="dropdown"] > [data-part="item"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+      text-decoration: none;
+    }
+
+    /* Top-level entries (Pricing, Blog, Slack, GitHub) share the
+       section-heading treatment. */
+    & > [data-part="item"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+      text-decoration: none;
+    }
+
+    & > [data-part="menu"] {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+
+      /* A real button (keyboard-operable before the hook mounts), reset
+         to the row it always was; the chevron carries the hover state. */
+      & > [data-part="action"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        appearance: none;
+        cursor: pointer;
+        margin: 0;
+        border: 0;
+        background: none;
+        padding: 0;
+        width: 100%;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+        }
+
+        /* Chevron dressed as a neutral button, like the burger icon.
+           Points right when collapsed, rotates down when open. */
+        & > [data-part="chevron"] {
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          border-radius: var(--noora-radius-3);
+          padding: var(--noora-spacing-3);
+          color: var(--noora-button-neutral-label);
+
+          & svg {
+            transform: rotate(-90deg);
+            transition: transform 0.2s ease;
+            width: 20px;
+            height: 20px;
+          }
+        }
+
+        &:hover > [data-part="chevron"] {
+          background: var(--noora-button-neutral-background-hover);
+        }
+
+        &[data-open="true"] > [data-part="chevron"] svg {
+          transform: rotate(0deg);
+        }
+      }
+
+      & > [data-part="dropdown"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+
+        /* Title-to-first-item spacing lives INSIDE the height-animated
+           box (child margin, not container padding): container padding
+           pops in before the height transition starts and makes the
+           sections below jump. */
+        & > [data-part="item"]:first-child {
+          margin-top: var(--noora-spacing-5);
+        }
+      }
+    }
+
+    /* Theme row: static placeholder until dark mode ships. */
+    & > [data-part="theme"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+      }
+    }
+
     @media (min-width: 960px) {
       display: none;
     }
@@ -469,104 +575,6 @@
         transform 0.2s var(--ease-out-cubic),
         visibility 0s;
       pointer-events: auto;
-
-      /* Accordion list items. */
-      & [data-part="dropdown"] > [data-part="item"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
-        text-decoration: none;
-      }
-
-      /* Top-level entries (Pricing, Blog, Slack, GitHub) share the
-         section-heading treatment. */
-      & > [data-part="item"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
-        text-decoration: none;
-      }
-
-      & > [data-part="menu"] {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-
-        /* A real button (keyboard-operable before the hook mounts), reset
-           to the row it always was; the chevron carries the hover state. */
-        & > [data-part="action"] {
-          display: flex;
-          flex-direction: row;
-          justify-content: space-between;
-          align-items: center;
-          appearance: none;
-          cursor: pointer;
-          margin: 0;
-          border: 0;
-          background: none;
-          padding: 0;
-          width: 100%;
-          color: inherit;
-          font: inherit;
-          text-align: left;
-
-          & > [data-part="title"] {
-            color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
-          }
-
-          /* Chevron dressed as a neutral button, like the burger icon.
-             Points right when collapsed, rotates down when open. */
-          & > [data-part="chevron"] {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            border-radius: var(--noora-radius-3);
-            padding: var(--noora-spacing-3);
-            color: var(--noora-button-neutral-label);
-
-            & svg {
-              transform: rotate(-90deg);
-              transition: transform 0.2s ease;
-              width: 20px;
-              height: 20px;
-            }
-          }
-
-          &:hover > [data-part="chevron"] {
-            background: var(--noora-button-neutral-background-hover);
-          }
-
-          &[data-open="true"] > [data-part="chevron"] svg {
-            transform: rotate(0deg);
-          }
-        }
-
-        & > [data-part="dropdown"] {
-          display: flex;
-          flex-direction: column;
-          gap: var(--noora-spacing-5);
-
-          /* Title-to-first-item spacing lives INSIDE the height-animated
-             box (child margin, not container padding): container padding
-             pops in before the height transition starts and makes the
-             sections below jump. */
-          & > [data-part="item"]:first-child {
-            margin-top: var(--noora-spacing-5);
-          }
-        }
-      }
-
-      /* Theme row: static placeholder until dark mode ships. */
-      & > [data-part="theme"] {
-        display: flex;
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-
-        & > [data-part="title"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
-        }
-      }
     }
   }
 }
