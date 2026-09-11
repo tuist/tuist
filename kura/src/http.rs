@@ -419,6 +419,13 @@ impl UploadPartQuery {
 #[derive(Debug, Deserialize)]
 struct CompleteMultipartRequest {
     parts: Vec<u32>,
+    // Lowercase hex SHA-256 of the ASSEMBLED object, when the client declares
+    // one. The module lane's `hash` query parameter is a cache key derived
+    // from build inputs, not a hash of these bytes, so this is the only claim
+    // the server can verify the assembly against. Optional so existing
+    // clients' completes keep working unverified.
+    #[serde(default)]
+    checksum_sha256: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2353,6 +2360,7 @@ async fn upload_module_part(
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: None,
+            compute_sha256: false,
         },
     )
     .await
@@ -2427,6 +2435,18 @@ async fn upload_module_part(
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
+        // Unreachable from add_multipart_part (nothing declares a checksum
+        // there); kept explicit so a future refactor cannot silently map a
+        // refused write to a success status.
+        Err(MultipartError::ChecksumMismatch { expected, actual }) => {
+            state.metrics.record_multipart_part("error");
+            error_response(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!(
+                    "Part does not match declared checksum: declared {expected}, received {actual}"
+                ),
+            )
+        }
         Err(MultipartError::MemoryPressure) => capacity_shed_response(
             &state.metrics,
             "upload_memory",
@@ -2446,6 +2466,19 @@ async fn complete_module_upload(
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+    let checksum_sha256 = match &body.checksum_sha256 {
+        None => None,
+        Some(value) => {
+            let value = value.to_ascii_lowercase();
+            if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "checksum_sha256 must be 64 hex characters",
+                );
+            }
+            Some(value)
+        }
+    };
     let usage = state
         .store
         .multipart_upload(&query.upload_id)
@@ -2459,7 +2492,12 @@ async fn complete_module_upload(
     let targets = replication_targets(&state);
     match state
         .store
-        .complete_multipart_upload_and_enqueue(&query.upload_id, &body.parts, &targets)
+        .complete_multipart_upload_and_enqueue(
+            &query.upload_id,
+            &body.parts,
+            checksum_sha256.as_deref(),
+            &targets,
+        )
         .await
     {
         Ok(manifest) => {
@@ -2479,6 +2517,20 @@ async fn complete_module_upload(
         Err(MultipartError::NotFound) => error_response(StatusCode::NOT_FOUND, "Upload not found"),
         Err(MultipartError::PartsMismatch) => {
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch or missing parts")
+        }
+        Err(MultipartError::ChecksumMismatch { expected, actual }) => {
+            // The refusal that keeps a corrupted part out of the cache: the
+            // upload and its parts survive, so the client re-uploads and
+            // completes again instead of restarting from /start.
+            state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Module, "checksum_mismatch", 0);
+            error_response(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!(
+                    "Assembled object does not match checksum_sha256: declared {expected}, assembled {actual}"
+                ),
+            )
         }
         Err(MultipartError::TotalSizeExceeded) => error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -3670,6 +3722,7 @@ async fn internal_replicate_artifact(
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: state.replication_bandwidth_limiter.as_deref(),
+            compute_sha256: false,
         },
     )
     .await
@@ -3899,12 +3952,46 @@ async fn get_artifact(
     }
 }
 
+/// The request header a client sets to the lowercase hex SHA-256 of the body
+/// it is uploading. The blob lanes' keys are cache keys derived from build
+/// INPUTS, not from the artifact bytes, so without this declaration the server
+/// has nothing to verify an upload against — it would store whatever arrived,
+/// corrupted in client RAM or on the wire included. Opt-in per request so
+/// existing clients keep working; the REAPI lane's validate_digest_bytes is the
+/// reference semantics this mirrors.
+const CHECKSUM_SHA256_HEADER: &str = "tuist-checksum-sha256";
+
+/// The declared body SHA-256, when the request carries one: Ok(None) when the
+/// header is absent, Err on a value that is not 64 hex characters (rejecting
+/// beats silently skipping verification the client asked for). Normalized to
+/// lowercase so the comparison is byte-for-byte against hex::encode output.
+fn declared_checksum_sha256(headers: &HeaderMap) -> Result<Option<String>, String> {
+    let Some(value) = headers.get(CHECKSUM_SHA256_HEADER) else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| format!("{CHECKSUM_SHA256_HEADER} is not valid ASCII"))?
+        .to_ascii_lowercase();
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!(
+            "{CHECKSUM_SHA256_HEADER} must be 64 hex characters"
+        ));
+    }
+    Ok(Some(value))
+}
+
 async fn put_blob_artifact(
     state: SharedState,
     producer: ArtifactProducer,
     request: Request,
     spec: BlobPutSpec<'_>,
 ) -> Response {
+    let declared_sha256 = match declared_checksum_sha256(request.headers()) {
+        Ok(declared) => declared,
+        Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+    };
+
     match state
         .store
         .artifact_exists(producer, spec.namespace_id, spec.key)
@@ -3929,6 +4016,7 @@ async fn put_blob_artifact(
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: None,
+            compute_sha256: declared_sha256.is_some(),
         },
     )
     .await
@@ -3966,6 +4054,27 @@ async fn put_blob_artifact(
             );
         }
     };
+
+    // Verify the staged bytes against the declared digest BEFORE persist, the
+    // REAPI lane's validate_digest_bytes semantics: a mismatch refuses the
+    // write outright rather than storing bytes that no longer are what the
+    // client built. The hash was streamed during staging, so this is a string
+    // compare, not a second read.
+    if let Some(declared) = declared_sha256 {
+        let actual = temp.sha256_hex.clone().unwrap_or_default();
+        if actual != declared {
+            temp.remove_and_disarm(&state.io).await;
+            state
+                .metrics
+                .record_artifact_write(producer, "checksum_mismatch", 0);
+            return error_response(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!(
+                    "Body does not match {CHECKSUM_SHA256_HEADER}: declared {declared}, received {actual}"
+                ),
+            );
+        }
+    }
 
     let targets = replication_targets(&state);
     let result = state
@@ -8354,6 +8463,195 @@ mod tests {
             Some("17")
         );
         assert_eq!(response_text(get).await, "part-one-part-two");
+    }
+
+    // The module lane's `hash` parameter is an input-derived cache key, so
+    // checksum_sha256 at complete time is the only claim the server can verify
+    // the assembled bytes against. A mismatch must refuse the persist AND keep
+    // the upload's parts, so the client repairs and completes again instead of
+    // the corruption becoming the cached artifact.
+    #[tokio::test]
+    async fn multipart_complete_verifies_the_declared_checksum() {
+        use sha2::{Digest, Sha256};
+
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let start = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-2&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build start request"),
+            )
+            .await
+            .expect("start request failed");
+        let payload: Value = serde_json::from_str(&response_text(start).await)
+            .expect("failed to decode start payload");
+        let upload_id = payload["upload_id"]
+            .as_str()
+            .expect("upload id should be present")
+            .to_owned();
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/api/cache/module/part?upload_id={upload_id}&part_number=1"
+                    ))
+                    .body(Body::from("bytes-the-client-hashed"))
+                    .expect("failed to build part request"),
+            )
+            .await
+            .expect("part request failed");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let complete = |checksum: String| {
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/cache/module/complete?upload_id={upload_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(format!(
+                    r#"{{"parts":[1],"checksum_sha256":"{checksum}"}}"#
+                )))
+                .expect("failed to build complete request")
+        };
+
+        // A malformed digest is a client bug, refused outright rather than
+        // silently skipping the verification the client asked for.
+        let response = app
+            .clone()
+            .oneshot(complete("not-a-digest".into()))
+            .await
+            .expect("complete request failed");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // The declared hash does not match the assembled bytes: refused, and
+        // nothing is served under the key.
+        let response = app
+            .clone()
+            .oneshot(complete("0".repeat(64)))
+            .await
+            .expect("complete request failed");
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        let head = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/api/cache/module/m?tenant_id=acme&namespace_id=ios&hash=hash-2&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build head request"),
+            )
+            .await
+            .expect("head request failed");
+        assert_eq!(head.status(), StatusCode::NOT_FOUND);
+
+        // The refusal kept the upload and its parts: the same complete with
+        // the right digest succeeds without re-uploading anything.
+        let correct = hex::encode(Sha256::digest(b"bytes-the-client-hashed"));
+        let response = app
+            .clone()
+            .oneshot(complete(correct))
+            .await
+            .expect("complete request failed");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let get = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/module/m?tenant_id=acme&namespace_id=ios&hash=hash-2&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get.status(), StatusCode::OK);
+        assert_eq!(response_text(get).await, "bytes-the-client-hashed");
+    }
+
+    // The single-PUT blob lanes share put_blob_artifact, so gradle stands in
+    // for nx/metro/xcode too: a declared tuist-checksum-sha256 the body does
+    // not reproduce refuses the write before persist, and a request without
+    // the header keeps the pre-checksum behaviour.
+    #[tokio::test]
+    async fn blob_put_verifies_the_declared_checksum() {
+        use sha2::{Digest, Sha256};
+
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put = |key: &str, checksum: Option<String>, body: &'static str| {
+            let mut builder = Request::builder().method("PUT").uri(format!(
+                "/api/cache/gradle/{key}?tenant_id=acme&namespace_id=android"
+            ));
+            if let Some(checksum) = checksum {
+                builder = builder.header(CHECKSUM_SHA256_HEADER, checksum);
+            }
+            builder
+                .body(Body::from(body))
+                .expect("failed to build put request")
+        };
+        let get = |key: &str| {
+            Request::builder()
+                .uri(format!(
+                    "/api/cache/gradle/{key}?tenant_id=acme&namespace_id=android"
+                ))
+                .body(Body::empty())
+                .expect("failed to build get request")
+        };
+
+        // Malformed header: a client bug, refused before reading the body.
+        let response = app
+            .clone()
+            .oneshot(put("g-1", Some("nope".into()), "gradle-bytes"))
+            .await
+            .expect("put request failed");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // Declared hash does not match the received bytes: refused, nothing
+        // stored under the key.
+        let response = app
+            .clone()
+            .oneshot(put("g-1", Some("0".repeat(64)), "gradle-bytes"))
+            .await
+            .expect("put request failed");
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let response = app
+            .clone()
+            .oneshot(get("g-1"))
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        // Matching hash: stored and served.
+        let correct = hex::encode(Sha256::digest(b"gradle-bytes"));
+        let response = app
+            .clone()
+            .oneshot(put("g-1", Some(correct), "gradle-bytes"))
+            .await
+            .expect("put request failed");
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = app
+            .clone()
+            .oneshot(get("g-1"))
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response_text(response).await, "gradle-bytes");
+
+        // No header: accepted unverified, exactly as before the checksum.
+        let response = app
+            .clone()
+            .oneshot(put("g-2", None, "unverified-bytes"))
+            .await
+            .expect("put request failed");
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 
     #[tokio::test]

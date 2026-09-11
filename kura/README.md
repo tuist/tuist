@@ -39,6 +39,8 @@ Actively supported:
 
 The Xcode compilation-cache plugin negotiates the existing split/splice methods to upload missing chunks and reuse verified local chunks during downloads. Existing clients retain ordinary blob reads. See [Xcode client chunking](docs/client-chunking.md) for compression boundaries, compatibility, output-by-output investigation, and reproducible benchmarks. Gradle and binary/module-artifact transfers are unchanged.
 
+Uploads on these HTTP lanes can opt into ingest verification, since their keys are input-derived cache keys rather than content hashes: a single-request PUT may declare the body's SHA-256 in a `tuist-checksum-sha256` header (64 hex characters), and a module-cache complete may declare the assembled object's SHA-256 as `checksum_sha256` in its JSON body. The server hashes the received bytes while they stream in and refuses the write with `422` when they do not reproduce the declared digest; a multipart refusal keeps the upload and its parts so the client re-uploads and completes again. Requests that declare nothing are stored unverified, as before. The REAPI lanes verify digests unconditionally, as the protocol requires.
+
 Compatibility surfaces:
 
 - `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
