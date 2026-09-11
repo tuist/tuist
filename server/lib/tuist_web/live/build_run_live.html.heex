@@ -1207,17 +1207,12 @@
               <.table
                 id="cacheable-tasks-table"
                 rows={@cacheable_tasks}
-                row_key={fn task -> task.key end}
-                row_expandable={
-                  fn task ->
-                    if is_map(@task_cas_outputs_map) do
-                      not Enum.empty?(Map.get(@task_cas_outputs_map, task.key, []))
-                    else
-                      false
-                    end
-                  end
+                row_key={fn task -> cacheable_task_row_id(task.key) end}
+                row_expandable={fn task -> task.has_cas_outputs end}
+                row_toggle={
+                  fn task -> JS.push("toggle-task-cas-outputs", value: %{key: task.key}) end
                 }
-                expanded_rows={MapSet.to_list(@expanded_task_keys)}
+                expanded_rows={Enum.map(@expanded_task_keys, &cacheable_task_row_id/1)}
               >
                 <:col
                   :let={task}
@@ -1283,45 +1278,75 @@
                   </.button_cell>
                 </:col>
                 <:expanded_content :let={task}>
-                  <div data-part="cas-outputs-list">
-                    <div
-                      :for={cas_output <- Map.get(@task_cas_outputs_map, task.key, [])}
-                      data-part="cas-output-item"
-                    >
-                      <span data-part="cas-output-text">
-                        <span data-part="cas-output-label">
-                          {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
-                        </span>
-                        <.popover
-                          id={"cas-output-popover-#{cas_output.node_id}"}
-                          tabindex="-1"
-                          placement="top"
+                  <%= if state = MapSet.member?(@expanded_task_keys, task.key) && Map.get(@task_cas_outputs_map, task.key) do %>
+                    <.async_result :let={page} assign={state.result}>
+                      <:loading>
+                        <div data-part="task-cas-loading">
+                          <.skeleton_box width="100%" height="80px" />
+                        </div>
+                      </:loading>
+                      <:failed><.error_state data-part="task-cas-error" /></:failed>
+                      <div data-part="cas-outputs-list">
+                        <.table_empty_state
+                          :if={page.outputs == []}
+                          title={dgettext("dashboard_builds", "No CAS outputs found")}
+                        />
+                        <div
+                          :for={cas_output <- page.outputs}
+                          data-part="cas-output-item"
                         >
-                          <:trigger :let={attrs}>
-                            <span {attrs} data-part="cas-output-hash">
-                              {String.slice(cas_output.node_id, 0, 40)}
+                          <span data-part="cas-output-text">
+                            <span data-part="cas-output-label">
+                              {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
                             </span>
-                          </:trigger>
-                          <div data-part="hash-tooltip-content">
-                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
-                            <.button
-                              id={"cas-output-copy-#{cas_output.node_id}"}
-                              variant="secondary"
-                              size="small"
-                              label={dgettext("dashboard_builds", "Copy")}
-                              phx-hook="Clipboard"
+                            <.popover
+                              id={"#{cacheable_task_row_id(task.key <> ":" <> cas_output.node_id)}-popover"}
                               tabindex="-1"
-                              data-clipboard-value={cas_output.node_id}
-                              phx-click={JS.dispatch("pointerdown", to: "body")}
+                              placement="top"
                             >
-                              <:icon_right><.copy /></:icon_right>
-                            </.button>
-                          </div>
-                        </.popover>
-                        <span data-part="cas-output-label">...</span>
-                      </span>
-                    </div>
-                  </div>
+                              <:trigger :let={attrs}>
+                                <span {attrs} data-part="cas-output-hash">
+                                  {String.slice(cas_output.node_id, 0, 40)}
+                                </span>
+                              </:trigger>
+                              <div data-part="hash-tooltip-content">
+                                <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
+                                <.button
+                                  id={"#{cacheable_task_row_id(task.key <> ":" <> cas_output.node_id)}-copy"}
+                                  variant="secondary"
+                                  size="small"
+                                  label={dgettext("dashboard_builds", "Copy")}
+                                  phx-hook="Clipboard"
+                                  tabindex="-1"
+                                  data-clipboard-value={cas_output.node_id}
+                                  phx-click={JS.dispatch("pointerdown", to: "body")}
+                                >
+                                  <:icon_right><.copy /></:icon_right>
+                                </.button>
+                              </div>
+                            </.popover>
+                            <span data-part="cas-output-label">...</span>
+                          </span>
+                        </div>
+                      </div>
+                      <.error_state :if={state.result.failed} data-part="task-cas-error" />
+                      <div :if={page.has_next?} data-part="task-cas-actions">
+                        <.button
+                          variant="secondary"
+                          label={
+                            if state.result.loading,
+                              do: dgettext("dashboard_builds", "Loading..."),
+                              else: dgettext("dashboard_builds", "Load more")
+                          }
+                          disabled={state.result.loading != nil}
+                          data-part="task-cas-load-more"
+                          phx-click={
+                            JS.push("load-more-task-cas-outputs", value: %{key: task.key})
+                          }
+                        />
+                      </div>
+                    </.async_result>
+                  <% end %>
                 </:expanded_content>
                 <:empty_state>
                   <.table_empty_state

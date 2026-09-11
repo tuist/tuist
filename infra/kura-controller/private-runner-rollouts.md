@@ -90,6 +90,50 @@ Moving the gateway's host changes DNS and requires clients to reconnect and
 re-resolve, exactly as in the public bare-metal regions. The configured fleet
 currently has one host; two process replicas do not provide host redundancy.
 
+## Resource sizing
+
+Runner caches use the same account disk sizing and plan memory/CPU profiles as
+public managed regions. New instances and cold returns start with the account's
+sized claim (or the plan default: 8Gi for Air/Pro, 16Gi for Enterprise). The
+storage-sizing worker includes runner-region occupancy and eviction telemetry
+in the existing account-wide decision, so a runner region can drive growth and
+must agree with the other measured regions before a shrink.
+
+The enrollment migration immediately pins previously unpinned live runner rows
+to the account's sized claim, or the current plan default if none exists. The
+one-time enrollment is capped at the historical 50Gi: it can release reservations
+but cannot grow them without admission checks. Existing explicit pins stay
+unchanged. The migration locks only eligible instance rows and validates the
+whole batch before writing. Unsupported claim formats fail explicitly and
+require repair; the 8Gi/16Gi defaults remain frozen for deterministic historical
+replay. This deliberately permits warm-cache eviction to unblock scheduling;
+it does not wait for the ordinary 30-day shrink confirmation. Subsequent sizing
+uses the normal measured policy. Rollback retains the applied pins, because
+restoring 50Gi would reintroduce the blockage without recovering evicted data.
+
+The production deployment runs the migration in its pre-upgrade hook after the
+release pipeline reaches production. The server reconciler runs every minute;
+its disk revision changes when the pin changes, so even an existing server
+process can begin applying the new disk budget after the migration commits.
+The controller re-templates the StatefulSet, retains larger existing PVCs, and
+rolls replicas to their smaller runtime budgets and ephemeral-storage requests.
+Unscheduled Pending pods still carrying the old larger reservation are recreated
+once the smaller template is observed, so the ordered readiness gate cannot
+strand them indefinitely. Resource-version preconditions protect pods scheduled
+in the meantime. Operator OnDelete or partition pauses remain respected.
+Convergence still depends on controller rollout, scheduling and pod readiness;
+there is no fixed merge-to-recovery deadline. This does not resolve independent
+private gateway certificate failures.
+
+Memory requests and limits follow the standard plan profiles. CPU requests stay
+measured by the controller; CPU limits follow the same plan profiles. The runner
+hosts do not advertise `tuist.dev/memory-ceiling-mib`, so they must not request
+that extended resource. Their memory floor remains a scheduler reservation;
+kernel MemoryQoS protection depends on the host configuration. Capacity accounting
+without a pin or loaded account retains a conservative 50Gi regional fallback;
+governed provisioning still pins the account claim. The native disk reservation
+continues to count both replicas' full claims against the host.
+
 ## Migration order (no deployment performed by this change)
 
 1. Render and install the platform gateway, updated CRD, and controller with

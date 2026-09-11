@@ -90,14 +90,14 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     server
   end
 
-  defp seed_churn_rollups(account, days, end_day) do
+  defp seed_churn_rollups(account, days, end_day, region \\ "us-east") do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
       for offset <- (days - 1)..0//-1 do
         %{
           account_id: account.id,
-          region: "us-east",
+          region: region,
           date: Date.add(end_day, -offset),
           eviction_count: 40,
           evicted_bytes: 10 * @gibibyte,
@@ -129,6 +129,50 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       assert proposal.current_claim_size == "8Gi"
       assert proposal.recommended_claim_size == "20Gi"
       assert proposal.evidence["signal"] == "shed_age_below_retention_floor"
+    end
+
+    test "sizes a runner-only account from its runner telemetry and preserved claim", %{
+      account: account,
+      server: server
+    } do
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", storage_claim_size: "50Gi")
+      |> Repo.update!()
+
+      seed_churn_rollups(account, 14, @today, "scw-fr-par-runners")
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.region == "scw-fr-par-runners"
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.direction == :grow
+      assert proposal.recommended_claim_size == "64Gi"
+
+      assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(Server, server.id).storage_claim_size == "64Gi"
+    end
+
+    test "shrinks a runner claim only after the measured low-occupancy window", %{account: account, server: server} do
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", storage_claim_size: "50Gi")
+      |> Repo.update!()
+
+      assert {:ok, %{evaluated: 1, open: 0}} = ClaimProposals.sweep(@today)
+
+      seed_churn_rollups(account, 30, @today, "scw-fr-par-runners")
+
+      Repo.update_all(StorageRollup,
+        set: [eviction_count: 0, max_occupancy_percent: 5, max_live_segment_bytes: 2 * @gibibyte]
+      )
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.direction == :shrink
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.recommended_claim_size == "25Gi"
+
+      assert {:ok, _result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Repo.get!(Server, server.id).storage_claim_size == "25Gi"
     end
 
     test "measures against what the instance is pinned at, not the plan's default", %{

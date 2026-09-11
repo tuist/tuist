@@ -343,7 +343,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Tuist Digest"
       assert html =~ ~s(id="marketing-newsletter-form")
       assert html =~ ~s(phx-hook="NewsletterForm")
-      assert html =~ "Supercharge your app development"
+      assert html =~ "Supercharge your development"
       assert html =~ "/marketing/assets/bundle-new.css"
     end
 

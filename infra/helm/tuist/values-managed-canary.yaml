@@ -357,39 +357,35 @@ clickhouse:
     # the deploy that turns dual writes on above has finished rolling out: the
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
-    # Step 5, the initial replication: everything canary wrote before the
-    # cutoff still lives only on Cloud, and this copies it.
+    # Step 6a: the full parity gate, before reads move anywhere.
     #
-    # A post-upgrade hook, by inheriting `background: false`, which is the mode
-    # staging used successfully. The previous attempt set `background: true` on
-    # the belief that helm does not wait on ordinary Jobs. Helm 3 does not;
-    # helm 4 does, so the Job blocked the release and a failing one rolled
-    # three canary deploys back. Background mode stays unusable until there is
-    # a mechanism helm does not wait on, and that is a production problem:
-    # canary's dataset is small enough to wait for.
+    # Step 5 is done here. The backfill copied 260 chunks across 50 tables with
+    # 101 skipped and none failed, in 58 seconds, and a second run finished in
+    # 7 with everything skipped, which is the ledger doing its job.
     #
-    # Two bugs that stopped every previous run are fixed and deployed here:
-    # the advisory lock's connection is no longer capped at fifteen seconds,
-    # and the destination is waited for rather than raced.
+    # This is a different check from the hourly worker, and that distinction is
+    # the point. The worker compares a two-hour window, so it says recent
+    # writes agree. `check_clickhouse_parity` compares every copied table over
+    # the whole dataset, schemas included, which is what the backfill's
+    # coverage of history has never been measured against. The worker reporting
+    # "all 62 copied table(s) agree" is not evidence for this.
     #
-    # `cutoff` is later than the last mirror error rather than the moment dual
-    # writes rolled out. Terminal shadow-write errors are rows that reached
-    # Cloud and not the destination, so a cutoff before them leaves those rows
-    # covered by neither side. The counter last moved at about 11:30Z and has
-    # been flat since, so this is comfortably after it.
+    # It raises rather than reports, and that is deliberate: it is the gate for
+    # the cutover, and schema drift in particular is fatal here because from
+    # the flip onward a missing column breaks the ingest path rather than
+    # costing one mirrored write.
     #
-    # It will not reach clean parity in one run, by construction: this deploy
-    # restarts the server pods, and the writes lost while their mirror warms up
-    # land after the cutoff. The repair is another run with a later cutoff,
-    # which is what the runbook prescribes and what production will do anyway.
+    # Consequence worth stating: a post-upgrade hook that raises fails the
+    # release, and the deploy runs with `--atomic`, so a parity failure rolls
+    # canary back. That is correct for a gate and it is also how three canary
+    # releases were lost last week. If it fails, read the Job, then disarm this
+    # rather than redeploying into the same wall.
     #
-    # Gate: every chunk recorded done in the ledger with no failures, read from
-    # the Job afterwards.
+    # `cutoff` is gone with the backfill it belonged to.
     migration:
       enabled: true
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-10T12:20:00Z"
+      name: parity
+      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
