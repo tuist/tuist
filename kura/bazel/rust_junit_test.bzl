@@ -26,7 +26,7 @@ load("@rules_rs//rs:rust_test.bzl", "rust_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 def rust_junit_test(name, tags = None, size = "medium", **kwargs):
-    binary_name = name + ".binary"
+    binary_name = name + "_binary"
     inner_tags = ["manual"] + (tags or [])
 
     # The underlying rust_test is only ever built, never executed, so its
