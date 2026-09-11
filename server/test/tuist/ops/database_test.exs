@@ -141,26 +141,27 @@ defmodule Tuist.Ops.DatabaseTest do
     # `Repo.query/1` has no schema-level casting, so a Postgres `uuid` comes
     # back as a raw 16-byte binary. Rendering it as-is would produce non-UTF-8
     # bytes and crash Jason with `invalid byte 0xBE` — the Hive incident that
-    # motivated this fix routed through `Phoenix.Controller.json/2`, which is
-    # backed by Jason, so pin the regression against Jason (not `JSON`).
+    # motivated this fix routed through `Phoenix.Controller.json/2`. Both the
+    # built-in `JSON` module and Jason reject invalid UTF-8, so the encoder
+    # here pins the same regression.
     test "to_json_map/1 renders postgres uuid values as canonical UUID strings" do
       {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
       %{rows: [row]} = Database.to_json_map(result)
       assert row["id"] == "be426704-1c61-4e38-a7b5-e8bb42042a81"
-      assert result |> Database.to_json_map() |> Jason.encode!() =~ "be426704-1c61-4e38-a7b5-e8bb42042a81"
+      assert result |> Database.to_json_map() |> JSON.encode!() =~ "be426704-1c61-4e38-a7b5-e8bb42042a81"
     end
 
     test "to_json/1 renders postgres uuid values as canonical UUID strings" do
       {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
       json = Database.to_json(result)
-      assert [%{"id" => "be426704-1c61-4e38-a7b5-e8bb42042a81"}] = Jason.decode!(json)
+      assert [%{"id" => "be426704-1c61-4e38-a7b5-e8bb42042a81"}] = JSON.decode!(json)
     end
 
     test "to_json_map/1 renders non-utf8 bytea values as postgres-style hex" do
       {:ok, result} = Database.execute(~s|SELECT '\\xdeadbe'::bytea AS b|)
       %{rows: [row]} = Database.to_json_map(result)
       assert row["b"] == "\\xdeadbe"
-      assert result |> Database.to_json_map() |> Jason.encode!() =~ "\\\\xdeadbe"
+      assert result |> Database.to_json_map() |> JSON.encode!() =~ "\\\\xdeadbe"
     end
 
     # A `uuid[]` column would previously fall through to `inspect/1` (safe UTF-8
@@ -179,7 +180,7 @@ defmodule Tuist.Ops.DatabaseTest do
                "00000000-0000-0000-0000-000000000000"
              ]
 
-      assert result |> Database.to_json_map() |> Jason.encode!() =~
+      assert result |> Database.to_json_map() |> JSON.encode!() =~
                "be426704-1c61-4e38-a7b5-e8bb42042a81"
     end
 
