@@ -402,24 +402,20 @@ jobs:
         uses: ./.github/actions/mise
         with:
           working_directory: mise/tasks/marketing
-          install_args: --locked github:ImageMagick/ImageMagick
-      - name: Extract ImageMagick for use without FUSE
-        working-directory: ${{ github.workspace }}/mise/tasks/marketing
-        run: |
-          appimage="$(mise where github:ImageMagick/ImageMagick)/magick"
-          image_dir="$RUNNER_TEMP/image-budget-imagemagick"
-          mkdir -p "$image_dir/bin"
-          cd "$image_dir"
-          "$appimage" --appimage-extract > /dev/null
-          ln -s "$image_dir/squashfs-root/AppRun" "$image_dir/bin/magick"
-          echo "$image_dir/bin" >> "$GITHUB_PATH"
-          "$image_dir/bin/magick" -version
+          install_args: conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
       - name: Test image budget guard
         working-directory: ${{ github.workspace }}
         run: bash mise/tasks/marketing/image-budget-test.sh
       - name: Check served image budgets
         working-directory: ${{ github.workspace }}
         run: ./mise/tasks/marketing/image-budget.sh
+      - name: Upload resolved ImageMagick dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-budget-mise-lock
+          path: mise/tasks/marketing/mise.lock
   esbuild:
     name: esbuild
     runs-on: tuist-linux
