@@ -1943,10 +1943,13 @@ extension ProjectDescription.Product {
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
         }
-        for product in products {
-            if let productType = productTypes[product.name] {
-                return ProjectDescription.Product.from(product: productType)
-            }
+        let pinnedProducts = products.lazy.compactMap { product in
+            productTypes[product.name].map { (name: product.name, type: $0) }
+        }
+        if let pinnedProduct = pinnedProducts.min(by: {
+            $0.type.isStatic == $1.type.isStatic ? $0.name < $1.name : $0.type.isStatic
+        }) {
+            return ProjectDescription.Product.from(product: pinnedProduct.type)
         }
 
         var hasAutomaticProduct = false
