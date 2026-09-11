@@ -54,6 +54,15 @@
     padding: var(--noora-spacing-5);
   }
 
+  & [data-part="average-build-time-card-section"] {
+    position: unset;
+    & [data-part="view-more"] {
+      position: absolute;
+      top: var(--noora-spacing-9);
+      right: var(--noora-spacing-9);
+    }
+  }
+
   & [data-part="legends"] {
     display: flex;
     flex-direction: row;

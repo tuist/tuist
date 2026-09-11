@@ -69,7 +69,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
     {:ok, build} = Gradle.get_build(id)
     timeline = Gradle.Timeline.load(build)
     assert timeline.time_origin == "first_recorded_timestamp"
-    assert [%{start_ms: 0.0, duration_ms: 100}] = timeline.events
+    assert [%{start_ms: start_ms, duration_ms: 100}] = timeline.events
+    assert start_ms == 0
   end
 
   test "timeline loads lazily and reloads metadata after leaving the tab", %{

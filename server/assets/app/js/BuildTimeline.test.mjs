@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
-// scheduling and transport without mounting Noora's DOM controls.
+// scheduling and transport without mounting Noora's DOM controls. Keep the
+// real number formatter so summary values exercise the production behavior.
 const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "noora")
       return {
-        url: "data:text/javascript,export function bindScrollIndicator() {}",
+        url: `data:text/javascript,export function bindScrollIndicator() {} export { formatNumber } from "${new URL("../../../../noora/js/formatters.js", import.meta.url).href}";`,
         shortCircuit: true,
       };
     return nextResolve(specifier, context);
@@ -515,4 +516,24 @@ test("receiving recorded steps retains source categories and hides unknown targe
   assert.equal(view.logsAvailable, true);
   assert.equal(view.allEvents[0].kind, "package");
   assert.equal(view.part("target-count").hidden, true);
+});
+
+test("receiving steps humanizes large summary counts and preserves small counts", () => {
+  const view = fixture();
+  const stats = new Map();
+  view.el = {
+    querySelector(selector) {
+      if (!stats.has(selector)) stats.set(selector, {});
+      return stats.get(selector);
+    },
+  };
+  view.filter = () => {};
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 121755, target_count: 24420 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "121.8K");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "24.4K");
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 836, target_count: 466 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "836");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "466");
 });

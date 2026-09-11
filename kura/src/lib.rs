@@ -9,6 +9,7 @@ mod backpressure;
 mod bandwidth;
 mod bazel_test_artifacts;
 mod config;
+mod connectivity;
 mod constants;
 mod control_plane_http;
 mod enrollment;

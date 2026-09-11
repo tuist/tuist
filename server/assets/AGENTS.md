@@ -57,3 +57,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Hash-input detail values wrap long values within the cache and selective-testing tables.
 
 - Direct dependency links wrap within expanded target rows in both cache tabs.
+
+- Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
+
+- Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.

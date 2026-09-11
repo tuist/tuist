@@ -84,7 +84,14 @@ checks and the distinction between verified bots and unrecognized automation
 are documented in `helm/k8s-monitoring/alerts.md` under Browser LCP percentiles.
 
 ### `kura-controller/` — Kura endpoint controller
+
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle. Customer-plane TLS is one `*.kura.tuist.dev` Certificate per cluster, rendered by the chart next to the controller (`kuraController.publicWildcardCertificate`) rather than owned by any one `KuraInstance`; the controller points every public Ingress at its Secret. See `kura-controller/AGENTS.md`.
+
+Opt-in read-only connectivity diagnostics use a fixed-profile background worker
+in Kura and existing `pods/log` access, without `pods/exec` or a gateway bypass.
+The controller deployment selects exact instances; defaults remain disabled.
+See [`kura-controller/connectivity-diagnostics.md`](kura-controller/connectivity-diagnostics.md)
+for the threat model and the separate approved rollout required to add it to pods.
 
 ### `egress-tree-agent/` — per-node shared egress HTB tree
 Go DaemonSet that enforces the kura per-tenant egress floors (`egress_guaranteed_mbps`), ceilings (`egress_burst_mbps`), and the node's advertised egress budget (`tuist.dev/egress-mbps`) with one shared HTB tree per node (tuist/tuist#12363). Shaped packets take a tcx BPF veth-trampoline detour (attached ahead of `cil_from_container`, returned to the same hook afterwards) so Cilium policy/identity/masquerade stay fully applied — the classic ifb detour measurably bypasses NetworkPolicy and must not come back. Consumes the `tuist.dev/egress-class` pod annotation rendered by kura-controller; co-located replica sync takes an unshaped bypass. Deliberately no pod-level qdisc underneath. See `egress-tree-agent/AGENTS.md`.
@@ -116,7 +123,7 @@ forwards with the token it already holds. Installed and drift-rolled by
 Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `registry.tuist.dev`. The ingress hostname is an origin, not a separately advertised registry endpoint.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
-SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban and Bazel staging tables, including `bazel_profile_uploads`; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
+SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables and scoped updates to Bazel staging rows, including `bazel_profile_uploads`; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
 
 ### `clickhouse/` — ClickHouse access recovery
 Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md).

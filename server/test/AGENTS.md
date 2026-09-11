@@ -23,4 +23,6 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - `processor_role_privileges_test.exs` runs profile publication and invalid-profile rejection with `ProcessorRole.as_processor/1`, using release-time PostgreSQL grants. Timeline regressions cover unavailable direct links, late profile publication, expired indexed steps and valid metrics-only builds.
 
+- GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
+
 - Runner sizing coverage must include runner-only accounts in claim proposals, account-sized claims on creation, immediate enrollment budgets with plan resolution, sized-claim precedence, a 50Gi growth cap and preservation of existing pins, capacity accounting without an account preload, creation/cold-return manifest pinning, and manifests that apply memory profiles without requesting an unadvertised memory-ceiling resource.

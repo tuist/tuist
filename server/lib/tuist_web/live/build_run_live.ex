@@ -901,7 +901,7 @@ defmodule TuistWeb.BuildRunLive do
               </span>
             </div>
             <.badge
-              label={Enum.count(@issues)}
+              label={format_number(Enum.count(@issues))}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
               size="large"

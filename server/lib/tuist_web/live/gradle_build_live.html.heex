@@ -912,7 +912,7 @@
                 {dgettext("dashboard_gradle", "Cacheable tasks:")}
               </span>
               <span data-part="value">
-                {@build.cacheable_tasks_count || 0}
+                {format_number(@build.cacheable_tasks_count || 0)}
               </span>
             </div>
             <.chart

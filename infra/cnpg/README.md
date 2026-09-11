@@ -67,7 +67,8 @@ kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
 
 Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows write privileges on the Oban tables and read-only privileges on the lookup tables the processors use.
 
-Bazel profile processing also needs read/write access to `bazel_profile_uploads`.
+Bazel profile processing also needs `SELECT` on `bazel_profile_uploads` and
+column-scoped `UPDATE` on `compressed`, `state`, `error`, and `updated_at`.
 A missing grant prevents both reading the staged body and recording a terminal
 failure, so an upload can remain `pending` after its Oban job is discarded.
 After deploying the grant correction, retry only the affected

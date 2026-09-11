@@ -1,5 +1,5 @@
 Code.require_file(
-  Path.expand("../../../../priv/repo/migrations/20260910160000_pin_runner_kura_storage_claims.exs", __DIR__)
+  Path.expand("../../../../priv/repo/migrations/20260911090100_pin_runner_kura_storage_claims.exs", __DIR__)
 )
 
 defmodule Tuist.Repo.Migrations.PinRunnerKuraStorageClaimsTest do

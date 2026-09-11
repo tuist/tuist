@@ -12126,72 +12126,81 @@ mod tests {
         );
     }
 
-    // The tag is a read-modify-write over the stored manifest, so it is only as
-    // sound as the serialization around it. Two builds publishing the same shared
-    // action concurrently (routine: one namespace, many machines) must not be able
-    // to interleave their read and their commit, or the feature build writes the
-    // `feature` tag it decided on when the key looked absent, over the `main` the
-    // trunk build committed meanwhile, and with a version nothing downstream
-    // rejects. The failpoint pins that interleaving instead of racing for it.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    // Control both the read/commit interleaving and the LWW versions. Local
+    // writes are stamped at staging time, so spacing their start times does
+    // not prevent equal-millisecond versions from short-circuiting tagging.
+    #[tokio::test]
     async fn a_concurrent_feature_publish_cannot_overwrite_the_trunk_tag() {
-        let (_temp_dir, _config, store) = temp_store();
-        let store = Arc::new(store);
-        store.failpoints().set_once(
-            FailpointName::AfterInlineManifestReadBeforeCommit,
-            FailpointAction::Sleep(std::time::Duration::from_millis(300)),
-        );
+        for (first_branch, second_branch) in [("feature", "main"), ("main", "feature")] {
+            let (_temp_dir, _config, store) = temp_store();
+            let reached = Arc::new(Notify::new());
+            let resume = Arc::new(Notify::new());
+            store.failpoints().set_once(
+                FailpointName::AfterInlineManifestReadBeforeCommit,
+                FailpointAction::Pause {
+                    reached: reached.clone(),
+                    resume: resume.clone(),
+                },
+            );
 
-        let feature_store = Arc::clone(&store);
-        // Reads first (and stalls on the failpoint holding nothing but its own
-        // read), so it is the one whose decision is stale by the time it writes.
-        let feature = tokio::spawn(async move {
-            feature_store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            let publish = |branch, version_ms| {
+                store.apply_replicated_inline_artifact_from_bytes(
                     ArtifactProducer::Reapi,
                     "ios",
                     "action_cache/aa/10",
                     "application/x-protobuf",
-                    b"graph-from-feature",
-                    &[],
-                    Some("feature"),
+                    b"graph",
+                    version_ms,
+                    Some(branch),
                     Some("main"),
                 )
-                .await
-                .expect("feature publish should persist");
-        });
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let trunk_store = Arc::clone(&store);
-        let trunk = tokio::spawn(async move {
-            trunk_store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
-                    ArtifactProducer::Reapi,
-                    "ios",
-                    "action_cache/aa/10",
-                    "application/x-protobuf",
-                    b"graph-from-trunk",
-                    &[],
-                    Some("main"),
-                    Some("main"),
-                )
-                .await
-                .expect("trunk publish should persist");
-        });
-        feature.await.expect("feature task");
-        trunk.await.expect("trunk task");
+            };
+            let mut first = Box::pin(publish(first_branch, 100));
+            assert!(futures_util::poll!(&mut first).is_pending());
+            assert!(futures_util::poll!(Box::pin(reached.notified())).is_ready());
 
-        let trunk_view = store
-            .action_cache_manifests("ios", 10, Some("main"))
-            .expect("trunk scan should succeed");
-        let keys: Vec<&str> = trunk_view
-            .iter()
-            .map(|manifest| manifest.key.as_str())
-            .collect();
-        assert_eq!(
-            keys,
-            vec!["action_cache/aa/10"],
-            "the key stays in the trunk baseline whichever publish commits first"
-        );
+            let artifact_id = artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &store.tenant_id,
+                "ios",
+                "action_cache/aa/10",
+            );
+            assert!(
+                store
+                    .artifact_write_lock_for(&artifact_id)
+                    .try_lock()
+                    .is_err(),
+                "the first publisher must hold the write lock after reading the manifest"
+            );
+            let mut second = Box::pin(publish(second_branch, 200));
+            assert!(futures_util::poll!(&mut second).is_pending());
+            resume.notify_one();
+
+            let (first, second) = tokio::time::timeout(Duration::from_secs(60), async {
+                tokio::join!(first, second)
+            })
+            .await
+            .expect("both publishers must finish after the paused read is released");
+            assert_eq!(first.expect("first publish"), ArtifactApplyOutcome::Applied);
+            assert_eq!(
+                second.expect("second publish"),
+                ArtifactApplyOutcome::Applied
+            );
+
+            let trunk_view = store
+                .action_cache_manifests("ios", 10, Some("main"))
+                .expect("trunk scan should succeed");
+            let keys: Vec<&str> = trunk_view
+                .iter()
+                .map(|manifest| manifest.key.as_str())
+                .collect();
+            assert_eq!(
+                keys,
+                vec!["action_cache/aa/10"],
+                "the key stays in the trunk baseline when {first_branch} publishes first"
+            );
+            assert_eq!(trunk_view[0].version_ms, 200);
+        }
     }
 
     #[tokio::test]

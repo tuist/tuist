@@ -188,4 +188,53 @@ defmodule Tuist.ProcessorRolePrivilegesTest do
 
     assert :ok == ProcessorRole.as_processor(fn -> ProcessTestInvocationWorker.perform(job) end)
   end
+
+  for outcome <- [:processed, :rejected] do
+    @outcome outcome
+    test "the Bazel profile ingestion path can mark uploads #{@outcome} with processor privileges", %{project: project} do
+      invocation_id = "profile-#{@outcome}"
+
+      compressed =
+        if @outcome == :processed do
+          :zlib.gzip(
+            JSON.encode!(%{
+              otherData: %{build_id: invocation_id},
+              traceEvents: [%{ph: "X", name: "Compile", ts: 1000, dur: 1000}]
+            })
+          )
+        else
+          "bad gzip"
+        end
+
+      assert :ok = ProfileUpload.stage(project, invocation_id, compressed)
+
+      job = %Oban.Job{
+        args: %{"project_id" => project.id, "invocation_id" => invocation_id},
+        attempt: 1,
+        max_attempts: 5
+      }
+
+      expected = if @outcome == :processed, do: :ok, else: {:discard, :invalid_profile}
+      assert ProcessorRole.as_processor(fn -> ProcessProfileWorker.perform(job) end) == expected
+
+      upload = Repo.one(ProfileUpload.query(project.id, invocation_id))
+      assert upload.state == to_string(@outcome)
+      assert upload.compressed == nil
+      assert upload.error == if(@outcome == :rejected, do: "invalid_profile")
+    end
+  end
+
+  test "profile processor privileges exclude upload creation, deletion and identity changes" do
+    assert %{rows: [[false, false, false, false, false]]} =
+             ProcessorRole.as_processor(fn ->
+               Ecto.Adapters.SQL.query!(Repo, """
+               SELECT
+                 has_table_privilege(current_user, 'bazel_profile_uploads', 'INSERT'),
+                 has_table_privilege(current_user, 'bazel_profile_uploads', 'DELETE'),
+                 has_column_privilege(current_user, 'bazel_profile_uploads', 'project_id', 'UPDATE'),
+                 has_column_privilege(current_user, 'bazel_profile_uploads', 'invocation_id', 'UPDATE'),
+                 has_column_privilege(current_user, 'bazel_profile_uploads', 'inserted_at', 'UPDATE')
+               """)
+             end)
+  end
 end

@@ -2,7 +2,7 @@ import { TimelineMetrics } from "./BuildTimelineMetrics.mjs";
 import { densityLayout } from "./BuildTimelineDensity.mjs";
 import { debounce, hitInLane } from "./BuildTimelineInteractions.mjs";
 import { bindInspectorResize } from "./BuildTimelineResize.mjs";
-import { bindScrollIndicator } from "noora";
+import { bindScrollIndicator, formatNumber } from "noora";
 import {
   normalizeEvents,
   matchesEvent,
@@ -84,8 +84,8 @@ export default {
     this.part("step-count").hidden = false;
     this.part("target-count").hidden = timeline.target_count == null;
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
-    this.el.querySelector('[data-stat="tasks"]').textContent = timeline.total_count.toLocaleString();
-    this.el.querySelector('[data-stat="targets"]').textContent = timeline.target_count;
+    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count);
+    this.el.querySelector('[data-stat="targets"]').textContent = formatNumber(timeline.target_count);
     this.filter();
   },
 
@@ -181,11 +181,9 @@ export default {
     );
     this.cancelFocus = () => cancelFocus.forEach((cancel) => cancel());
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
-    this.el.querySelector('[data-stat="tasks"]').textContent = (
-      timeline.total_count ?? this.events.length
-    ).toLocaleString();
+    this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count ?? this.events.length);
     const targets = this.el.querySelector('[data-stat="targets"]');
-    targets.textContent = timeline.target_count ?? 0;
+    targets.textContent = formatNumber(timeline.target_count ?? 0);
     targets.parentElement.hidden = timeline.target_count == null;
     on(
       this.control("search"),
