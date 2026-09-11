@@ -18,8 +18,14 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
       assert BazelShowcase.load("missing") == {:error, :not_found}
     end
 
+    test "returns not found for a private project" do
+      project = private_project()
+
+      assert BazelShowcase.load("#{project.account.name}/#{project.name}") == {:error, :not_found}
+    end
+
     test "aggregates the project's Bazel analytics without identifying fields" do
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      project = public_project()
       project_id = project.id
 
       stub(Bazel, :summary, fn ^project_id, _opts ->
@@ -58,7 +64,7 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
     end
 
     test "reports no success rate when there are no invocations" do
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      project = public_project()
 
       stub(Bazel, :summary, fn _project_id, _opts ->
         %{total: 0, successful: 0, failed: 0, median_duration_ms: 0}
@@ -80,12 +86,19 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
       assert BazelShowcase.load_timeline_invocation("missing/project") == {:error, :not_found}
     end
 
-    test "picks the recent invocation with the richest timeline, preferring the newest on ties" do
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+    test "returns not found for a private project" do
+      project = private_project()
+
+      assert BazelShowcase.load_timeline_invocation("#{project.account.name}/#{project.name}") == {:error, :not_found}
+    end
+
+    test "picks the richest timeline from the analytics period, preferring the newest on ties" do
+      project = public_project()
       project_id = project.id
 
       stub(Bazel, :recent_invocations, fn ^project_id, opts ->
         assert Keyword.get(opts, :limit) == 50
+        assert DateTime.diff(opts[:end_datetime], opts[:start_datetime], :day) == BazelShowcase.period_days()
 
         [
           %Invocation{invocation_id: "newest-without-timeline", build_timeline_span_start_ms: []},
@@ -95,12 +108,16 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
         ]
       end)
 
-      assert {:ok, %{project: %{id: ^project_id}, invocation: %Invocation{invocation_id: "richest"}}} =
-               BazelShowcase.load_timeline_invocation("#{project.account.name}/#{project.name}")
+      assert {:ok,
+              %{
+                project: %{id: ^project_id},
+                invocation: %Invocation{invocation_id: "richest"},
+                timeline: %{coverage: "retained_action_spans"}
+              }} = BazelShowcase.load_timeline_invocation("#{project.account.name}/#{project.name}")
     end
 
     test "returns not found when no recent invocation has a timeline" do
-      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      project = public_project()
 
       stub(Bazel, :recent_invocations, fn _project_id, _opts ->
         [%Invocation{invocation_id: "without-timeline", build_timeline_span_start_ms: []}]
@@ -110,4 +127,56 @@ defmodule Tuist.Marketing.BazelShowcaseTest do
                {:error, :not_found}
     end
   end
+
+  describe "load_timeline_steps/2" do
+    test "returns the invocation's timeline without machine metrics" do
+      project = public_project()
+      project_id = project.id
+
+      invocation = %Invocation{
+        invocation_id: "invocation-id",
+        project_id: project_id,
+        project_handle: project.name,
+        duration_ms: 1_000,
+        build_timeline_duration_ms: 1_000,
+        build_timeline_span_lanes: [0],
+        build_timeline_span_start_ms: [100],
+        build_timeline_span_durations_ms: [400],
+        build_timeline_span_categories: ["execution"],
+        build_timeline_span_descriptions: ["Rustc //app:lib"]
+      }
+
+      stub(Bazel, :get_invocation, fn ^project_id, "invocation-id", _opts -> {:ok, invocation} end)
+
+      assert {:ok, steps} = BazelShowcase.load_timeline_steps("#{project.account.name}/#{project.name}", "invocation-id")
+
+      assert [%{title: "Rustc //app:lib", start_ms: 100, duration_ms: 400}] = steps.events
+      refute Map.has_key?(steps, :machine_metrics)
+    end
+
+    test "returns not found when the invocation doesn't exist" do
+      project = public_project()
+
+      stub(Bazel, :get_invocation, fn _project_id, _invocation_id, _opts -> {:error, :not_found} end)
+
+      assert BazelShowcase.load_timeline_steps("#{project.account.name}/#{project.name}", "missing") ==
+               {:error, :not_found}
+    end
+
+    test "returns not found for a private project" do
+      project = private_project()
+
+      assert BazelShowcase.load_timeline_steps("#{project.account.name}/#{project.name}", "invocation-id") ==
+               {:error, :not_found}
+    end
+  end
+
+  describe "timeline_steps/1" do
+    test "returns not found for an invocation that isn't the showcase's" do
+      assert BazelShowcase.timeline_steps("any-invocation") == {:error, :not_found}
+    end
+  end
+
+  defp public_project, do: Repo.preload(ProjectsFixtures.project_fixture(visibility: :public), :account)
+  defp private_project, do: Repo.preload(ProjectsFixtures.project_fixture(visibility: :private), :account)
 end
