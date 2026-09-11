@@ -357,35 +357,46 @@ clickhouse:
     # the deploy that turns dual writes on above has finished rolling out: the
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
-    # Step 6a: the full parity gate, before reads move anywhere.
+    # A repair pass, and a step back from 6a.
     #
-    # Step 5 is done here. The backfill copied 260 chunks across 50 tables with
-    # 101 skipped and none failed, in 58 seconds, and a second run finished in
-    # 7 with everything skipped, which is the ledger doing its job.
+    # The full parity gate ran and failed, which is the gate working: 13 of 69
+    # copied tables differ over the whole dataset, and the deploy rolled back
+    # with it. The shape is consistent. Both servers report the same min_time
+    # and max_time, and the destination simply holds fewer rows: shard_plans
+    # short by 299, xcode_targets by 232, command_events by 215, and the test
+    # family by 24 to 55 each. Rows missing from the middle of the range, not a
+    # truncated range.
     #
-    # This is a different check from the hourly worker, and that distinction is
-    # the point. The worker compares a two-hour window, so it says recent
-    # writes agree. `check_clickhouse_parity` compares every copied table over
-    # the whole dataset, schemas included, which is what the backfill's
-    # coverage of history has never been measured against. The worker reporting
-    # "all 62 copied table(s) agree" is not evidence for this.
+    # That is writes the mirror lost, and the hourly worker could never have
+    # seen it: it compares a two-hour window, so this history slid past it
+    # every hour while reporting agreement. The full check is the first thing
+    # to look at all of it.
     #
-    # It raises rather than reports, and that is deliberate: it is the gate for
-    # the cutover, and schema drift in particular is fatal here because from
-    # the flip onward a missing column breaks the ingest path rather than
-    # costing one mirrored write.
+    # Most of it is explained. The xcresult-processor mirrored nothing at all
+    # until it had a tailnet route, so every test row written between the last
+    # backfill's cutoff and that landing reached Cloud alone, and the rest is
+    # the deploy churn of the last two days.
     #
-    # Consequence worth stating: a post-upgrade hook that raises fails the
-    # release, and the deploy runs with `--atomic`, so a parity failure rolls
-    # canary back. That is correct for a gate and it is also how three canary
-    # releases were lost last week. If it fails, read the Job, then disarm this
-    # rather than redeploying into the same wall.
+    # The repair is this, not something new: a chunk fills gaps by row identity
+    # rather than appending, so re-running with a later cutoff copies only what
+    # the destination lacks and cannot duplicate what it already holds.
     #
-    # `cutoff` is gone with the backfill it belonged to.
+    # The cutoff is deliberately ahead of now. The deploy that arms this
+    # restarts the server pods, and anything their mirror drops while warming
+    # up would otherwise land after the cutoff and survive the repair. Reaching
+    # past it costs nothing, because rows that arrive before the job runs are
+    # copied and rows after are covered by a mirror that has been clean since
+    # 08:00 today, with no error or retried series at all.
+    #
+    # One thing this will not fix: build_runs_new has identical row counts on
+    # both sides and sum_duration differing by 820. A value discrepancy, not a
+    # missing row, so a copy cannot repair it. Same family as the legacy_id
+    # default, and it needs its own look before the cutover.
     migration:
       enabled: true
-      name: parity
-      task: Tuist.Release.check_clickhouse_parity
+      name: backfill
+      task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-11T12:00:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"
