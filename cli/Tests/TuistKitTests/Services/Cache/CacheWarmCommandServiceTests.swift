@@ -14,6 +14,7 @@
     import TuistHasher
     import TuistServer
     import TuistSupport
+    import TuistXCActivityLog
     import TuistXcodeBuildProducts
     import XcodeGraph
 
@@ -22,7 +23,6 @@
     @testable import TuistTesting
 
     struct CacheWarmCommandServiceTests {
-        private let config = Tuist.test()
         private let cacheStorage = MockCacheStoring()
         private let localCacheStorage = MockCacheStoring()
         private let cacheStorageFactory = MockCacheStorageFactorying()
@@ -37,6 +37,8 @@
         private let cacheGraphContentHasher = MockCacheGraphContentHashing()
         private let configLoader = MockConfigLoading()
         private let fileSystem = FileSystem()
+        private let xcActivityLogController = MockXCActivityLogControlling()
+        private let uploadBuildRunService = MockUploadBuildRunServicing()
 
         @Test(.inTemporaryDirectory) func run_usesLocalCacheStorage_whenNoUpload() async throws {
             try await run(noUpload: true)
@@ -252,6 +254,181 @@
             }
         }
 
+        @Test(.inTemporaryDirectory, arguments: [false, true], [false, true])
+        func run_uploadsBuildLogBeforeCleanup_andPreservesBuildOutcome(buildFails: Bool, uploadFails: Bool) async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let config = Tuist.test(fullHandle: "tuist/fixture")
+            let recorder = BuildRecorder()
+
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willProduce { _, _, _, _, derivedDataPath, _, _, passthroughArguments in
+                    let derivedDataPath = try #require(derivedDataPath)
+                    let index = try #require(passthroughArguments.firstIndex(of: "-resultBundlePath"))
+                    let resultBundlePath = try AbsolutePath(validating: passthroughArguments[index + 1])
+                    recorder.recordResultBundle(resultBundlePath)
+                    try FileManager.default.createDirectory(at: resultBundlePath.url, withIntermediateDirectories: true)
+                    #expect(FileManager.default.createFile(
+                        atPath: derivedDataPath.appending(component: "build.xcactivitylog").pathString,
+                        contents: Data("build log".utf8)
+                    ))
+                    if buildFails { throw BuildFailure.compiler }
+                }
+            given(xcActivityLogController)
+                .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+                .willProduce { derivedDataPath, filter in
+                    let log = XCActivityLogFile.test(path: derivedDataPath.appending(component: "build.xcactivitylog"))
+                    #expect(filter(log))
+                    return log
+                }
+            given(uploadBuildRunService)
+                .uploadBuildRun(
+                    activityLogPath: .any,
+                    projectPath: .value(temporaryDirectory),
+                    config: .value(config),
+                    scheme: .value("Bundles-Cache-iOS"),
+                    configuration: .value("Release")
+                )
+                .willProduce { activityLogPath, _, _, _, _ in
+                    #expect(FileManager.default.fileExists(atPath: activityLogPath.pathString))
+                    let resultBundlePath = try #require(recorder.resultBundlePaths.first)
+                    #expect(FileManager.default.fileExists(atPath: resultBundlePath.pathString))
+                    if uploadFails { throw BuildFailure.upload }
+                    return URL(string: "https://tuist.dev/tuist/fixture/builds/123")!
+                }
+
+            if buildFails {
+                await #expect(throws: BuildFailure.compiler) {
+                    try await run(
+                        noUpload: false,
+                        config: config,
+                        configuration: "Release",
+                        schemes: [.test(name: "Bundles-Cache-iOS")]
+                    )
+                }
+            } else {
+                try await run(
+                    noUpload: false,
+                    config: config,
+                    configuration: "Release",
+                    schemes: [.test(name: "Bundles-Cache-iOS")]
+                )
+            }
+
+            verify(uploadBuildRunService)
+                .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+                .called(1)
+            for resultBundlePath in recorder.resultBundlePaths {
+                #expect(try await fileSystem.exists(resultBundlePath) == false)
+                #expect(try await fileSystem.exists(resultBundlePath.parentDirectory) == false)
+            }
+        }
+
+        @Test(.inTemporaryDirectory, arguments: [false, true])
+        func run_doesNotUploadMissingOrPreviousBuildLog(hasPreviousLog: Bool) async throws {
+            stubBuild()
+            given(xcActivityLogController)
+                .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+                .willProduce { _, filter in
+                    guard hasPreviousLog else { return nil }
+                    let previousLog = XCActivityLogFile.test(timeStoppedRecording: .distantPast)
+                    #expect(!filter(previousLog))
+                    return filter(previousLog) ? previousLog : nil
+                }
+
+            try await run(
+                noUpload: false,
+                config: .test(fullHandle: "tuist/fixture"),
+                schemes: [.test(name: "Bundles-Cache-iOS")]
+            )
+
+            verify(uploadBuildRunService)
+                .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory, arguments: [false, true])
+        func run_skipsBuildUploadsWithoutHandleOrWhenNoUpload(noUpload: Bool) async throws {
+            stubBuild()
+            try await run(
+                noUpload: noUpload,
+                config: .test(fullHandle: noUpload ? "tuist/fixture" : nil),
+                schemes: [.test(name: "Bundles-Cache-iOS")]
+            )
+
+            verify(xcActivityLogController)
+                .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+                .called(0)
+            verify(uploadBuildRunService)
+                .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+                .called(0)
+        }
+
+        @Test(.inTemporaryDirectory)
+        func run_uploadsEachDestinationBuild() async throws {
+            stubBuild()
+            given(xcActivityLogController)
+                .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+                .willProduce { _, _ in .test() }
+            given(uploadBuildRunService)
+                .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+                .willReturn(URL(string: "https://tuist.dev/tuist/fixture/builds/123")!)
+
+            try await run(
+                noUpload: false,
+                config: .test(fullHandle: "tuist/fixture"),
+                schemes: [.test(name: "Binaries-Cache-iOS"), .test(name: "Binaries-Cache-macOS")]
+            )
+
+            verify(uploadBuildRunService)
+                .uploadBuildRun(
+                    activityLogPath: .any,
+                    projectPath: .any,
+                    config: .any,
+                    scheme: .value("Binaries-Cache-iOS"),
+                    configuration: .value("Debug")
+                )
+                .called(2)
+            verify(uploadBuildRunService)
+                .uploadBuildRun(
+                    activityLogPath: .any,
+                    projectPath: .any,
+                    config: .any,
+                    scheme: .value("Binaries-Cache-macOS"),
+                    configuration: .value("Debug")
+                )
+                .called(1)
+        }
+
+        private func stubBuild() {
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willReturn()
+        }
+
+        private enum BuildFailure: Error, Equatable {
+            case compiler
+            case upload
+        }
+
         private final class BuildRecorder: Sendable {
             private struct State {
                 var iOSOutputAtLastBuild: [AbsolutePath]?
@@ -274,6 +451,7 @@
 
         private func run(
             noUpload: Bool,
+            config: Tuist = .test(),
             configuration: String? = nil,
             scratchDirectory: AbsolutePath? = nil,
             schemes: [Scheme] = [],
@@ -372,7 +550,9 @@
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: cacheGraphContentHasher,
                 cacheStorageFactory: cacheStorageFactory,
-                configLoader: configLoader
+                configLoader: configLoader,
+                xcActivityLogController: xcActivityLogController,
+                uploadBuildRunService: uploadBuildRunService
             )
         }
     }
