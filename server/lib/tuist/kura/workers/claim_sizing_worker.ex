@@ -16,10 +16,14 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
     ]
 
   alias Tuist.Kura
+  alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
   alias Tuist.Kura.ClaimSizing
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageTelemetry
+  alias Tuist.Kura.Telemetry
+
+  require Logger
 
   # A rate, not a per-pass count, so cadence changes cannot multiply it.
   @max_automatic_applies_per_hour 5
@@ -78,9 +82,29 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorker do
       budget when budget > 0 ->
         budget
         |> ClaimProposals.open_proposals()
-        |> Enum.each(&Kura.apply_claim_proposal(&1, "automatic"))
+        |> Enum.each(&apply_proposal/1)
 
       _exhausted ->
+        :ok
+    end
+  end
+
+  # A refusal is the only signal that sizing has stopped moving: the proposal
+  # stays open and every later pass retries it, so a dropped error reads exactly
+  # like an account nothing has proposed for.
+  defp apply_proposal(%ClaimProposal{} = proposal) do
+    case Kura.apply_claim_proposal(proposal, "automatic") do
+      {:ok, _outcome} ->
+        :ok
+
+      {:error, reason} ->
+        Telemetry.claim_apply_refused(proposal.region, reason)
+
+        Logger.warning(
+          "[Kura.ClaimSizing] refused #{proposal.current_claim_size} -> " <>
+            "#{proposal.recommended_claim_size} in #{proposal.region}: #{inspect(reason)}"
+        )
+
         :ok
     end
   end

@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -131,6 +132,45 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPrivateGatewayUsesSharedWildcardWhenItCoversTheHost(t *testing.T) {
+	ctx := context.Background()
+	instance := sharedWildcardTLSTestInstance()
+	instance.Spec.Private = true
+	instance.Spec.PrivateHost = "acme-scw-fr-par-runners.kura.tuist.dev"
+	instance.Spec.PublicHostNetwork = true
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+	wildcard := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-public-wildcard-tls", Namespace: instance.Namespace},
+		Data:       map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")},
+	}
+	scheme := meshTestScheme(t)
+	r := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, wildcard).Build(),
+		Scheme: scheme, GRPCClusterIssuer: "letsencrypt", PublicTLSSecretName: wildcard.Name,
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if ingress.Spec.TLS[0].SecretName != wildcard.Name || ingress.Spec.TLS[0].Hosts[0] != instance.Spec.PrivateHost {
+		t.Fatalf("a private host the wildcard spans must serve the shared secret: %v", ingress.Spec.TLS)
+	}
+	// Ordering one per instance is what spends the ACME per-registered-domain
+	// allowance that stranded this region for a day.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("a covered private host must not order a certificate of its own: %v", err)
 	}
 }
 
