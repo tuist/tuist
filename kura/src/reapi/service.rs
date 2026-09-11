@@ -56,11 +56,10 @@ use crate::{
     },
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
-    replication::replication_targets,
     state::SharedState,
     store::{
         ArtifactReader, RefreshTrigger, SEGMENT_COPY_BUFFER_BYTES, StagedArtifactPath,
-        is_outbox_full_error, try_allocate_exact_vec,
+        try_allocate_exact_vec,
     },
     utils::{
         TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
@@ -750,7 +749,6 @@ impl ReapiService {
             drop(file);
         }
 
-        let targets = replication_targets(&self.state);
         // The persist reports `already_present` from under the store's
         // per-artifact write lock, which decides billing below: a re-uploaded
         // blob (retry, or a client that skips FindMissingBlobs) must not be
@@ -760,35 +758,29 @@ impl ReapiService {
         let persisted = if let Some(payload) = memory_payload.as_deref() {
             self.state
                 .store
-                .persist_admitted_artifact_from_bytes_and_enqueue(
+                .persist_admitted_artifact_from_bytes_and_replicate(
                     ArtifactProducer::Reapi,
                     &resource.namespace_id,
                     &resource.key,
                     "application/octet-stream",
                     payload,
                     file_cache_policy,
-                    &targets,
                 )
                 .await
         } else {
             self.state
                 .store
-                .persist_artifact_from_path_and_enqueue(
+                .persist_artifact_from_path_and_replicate(
                     ArtifactProducer::Reapi,
                     &resource.namespace_id,
                     &resource.key,
                     "application/octet-stream",
                     StagedArtifactPath::new(temp_path, file_cache_policy),
-                    &targets,
                 )
                 .await
         }
         .map_err(|error| {
-            if is_outbox_full_error(&error) {
-                Status::resource_exhausted(format!(
-                    "replication backlog is full while persisting CAS blob: {error}"
-                ))
-            } else if is_fd_pool_exhausted_error(&error) {
+            if is_fd_pool_exhausted_error(&error) {
                 Status::resource_exhausted(format!(
                     "file descriptor pool exhausted while persisting CAS blob: {error}"
                 ))
@@ -796,7 +788,6 @@ impl ReapiService {
                 Status::internal(format!("failed to persist CAS blob: {error}"))
             }
         })?;
-        self.state.notify.notify_one();
         self.state.metrics.record_artifact_write(
             ArtifactProducer::Reapi,
             "ok",
@@ -1766,13 +1757,12 @@ impl ActionCache for ReapiService {
             .expect("action result was checked before authorization");
         let bytes = action_result.encode_to_vec();
         // Reject an action result we could never replicate. Entries are stored
-        // inline and pushed to peers inline, and the inline replication path
+        // inline and fetched by peers inline, and the inline catch-up path
         // buffers the whole body in RAM, so it is bounded by
         // MAX_INLINE_REPLICATION_BODY_BYTES. Accepting a larger entry would
-        // strand it on this node (peers 413 the oversized inline push) and
-        // churn a poison outbox message forever. failed_precondition is
-        // non-retriable, so Bazel records the miss and moves on instead of
-        // retrying the doomed write.
+        // strand it on this node, where no peer could ever fetch it.
+        // failed_precondition is non-retriable, so Bazel records the miss and
+        // moves on instead of retrying the doomed write.
         if bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
             // Count the rejection but report 0 written bytes, matching the other
             // failed-write sites, so a rejected write never inflates
@@ -1786,23 +1776,20 @@ impl ActionCache for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let targets = replication_targets(&self.state);
         let (manifest, applied) = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf",
                 &bytes,
-                &targets,
                 branch.as_deref(),
                 trunk.as_deref(),
             )
             .await
             .map_err(|error| store_write_status("failed to store action result", error))?;
-        self.state.notify.notify_one();
         // A damped refresh (identical bytes, fresh version) counts under its own
         // result and books no bytes: it stored nothing and wrote no replication
         // feed row, so folding it into "ok" both overstates ingest and makes the
@@ -2015,13 +2002,10 @@ impl ContentAddressableStorage for ReapiService {
                         status: Some(rpc_status(0, "")),
                     })
                 }
-                Err(error) => {
-                    let code = if is_outbox_full_error(&error) { 8 } else { 13 };
-                    responses.push(reapi::batch_update_blobs_response::Response {
-                        digest: Some(digest),
-                        status: Some(rpc_status(code, error)),
-                    })
-                }
+                Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
+                    digest: Some(digest),
+                    status: Some(rpc_status(13, error)),
+                }),
             }
         }
 
@@ -2347,23 +2331,20 @@ impl ContentAddressableStorage for ReapiService {
         // the recipe before those chunks; the composite presence and read
         // gates keep it unavailable until every dependency arrives.
         let key = recipe_key(&digest_key(&blob_digest)?);
-        let targets = replication_targets(&self.state);
         let manifest = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_and_enqueue(
+            .persist_inline_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
                 "application/x-protobuf; message=tuist.kura.ChunkedBlobRecipe",
                 &recipe_bytes,
-                &targets,
                 None,
                 None,
             )
             .await
             .map_err(|error| store_write_status("failed to store blob recipe", error))?;
-        self.state.notify.notify_one();
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
@@ -3632,19 +3613,16 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let targets = replication_targets(state);
     let persisted = state
         .store
-        .persist_artifact_from_bytes_and_enqueue(
+        .persist_artifact_from_bytes_and_replicate(
             ArtifactProducer::Reapi,
             namespace_id,
             &key,
             "application/octet-stream",
             bytes,
-            &targets,
         )
         .await?;
-    state.notify.notify_one();
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
@@ -3971,11 +3949,7 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
 }
 
 fn store_write_status(context: &str, error: String) -> Status {
-    if is_outbox_full_error(&error) {
-        Status::resource_exhausted(format!("{context}: {error}"))
-    } else {
-        Status::internal(format!("{context}: {error}"))
-    }
+    Status::internal(format!("{context}: {error}"))
 }
 
 fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
@@ -4870,57 +4844,6 @@ mod tests {
         assert!(!is_reapi_write_path(
             "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
         ));
-    }
-
-    #[tokio::test]
-    async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
-        let context = crate::test_support::test_context(|config| {
-            config.outbox_max_depth = Some(1);
-        })
-        .await;
-        context
-            .state
-            .store
-            .enqueue(crate::replication::outbox_message::OutboxMessage {
-                target: "http://peer".into(),
-                operation: crate::replication::operation::ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 1,
-                },
-            })
-            .expect("seed full outbox");
-        let app = axum::Router::new()
-            .fallback(|| async { axum::http::StatusCode::NO_CONTENT })
-            .layer(axum::middleware::from_fn_with_state(
-                context.state.clone(),
-                reject_overloaded_grpc_writes,
-            ));
-
-        let rejected = app
-            .clone()
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(ACTION_CACHE_UPDATE_PATH)
-                    .body(axum::body::Body::empty())
-                    .expect("write request"),
-            )
-            .await
-            .expect("write response");
-        assert_eq!(rejected.status(), axum::http::StatusCode::OK);
-        assert_eq!(rejected.headers().get("grpc-status").unwrap(), "8");
-
-        let allowed = app
-            .oneshot(
-                axum::http::Request::builder()
-                    .uri(
-                        "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs",
-                    )
-                    .body(axum::body::Body::empty())
-                    .expect("read request"),
-            )
-            .await
-            .expect("read response");
-        assert_eq!(allowed.status(), axum::http::StatusCode::NO_CONTENT);
     }
 
     fn bytestream_admission(
@@ -10076,9 +9999,8 @@ mod tests {
     }
 
     // An action result larger than the inline replication ceiling can never be
-    // pushed to peers (the inline replicate path 413s it), so we reject the
-    // write with a non-retriable status instead of storing an entry that would
-    // strand on this node and churn a poison outbox message forever.
+    // fetched by a peer, so we reject the write with a non-retriable status
+    // instead of storing an entry that would strand on this node.
     #[tokio::test]
     async fn update_action_result_rejects_oversized_action_result() {
         let context = test_context(|config| {
@@ -10124,7 +10046,7 @@ mod tests {
             .expect_err("oversized action result should be rejected");
         assert_eq!(status.code(), tonic::Code::FailedPrecondition);
 
-        // Nothing was stored, so no poison outbox message can exist.
+        // Nothing was stored.
         let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
         assert!(
             context

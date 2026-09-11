@@ -25,7 +25,7 @@ use crate::{
     http::BackfillEntriesPage,
     replication::read_bounded_body,
     state::SharedState,
-    sync::coordinator::{LinkPhase, LinkStatusCell, backoff, pass_backoff},
+    sync::coordinator::{LinkPhase, LinkStatusCell, PEER_UNSUPPORTED, backoff, pass_backoff},
     utils::{BackfillRecordKind, now_ms, url_encode},
 };
 
@@ -44,7 +44,7 @@ async fn run_pass(
     source: PassSource,
     window: BackfillWindow,
 ) -> BackfillPassOutcome {
-    let guard = app.backfill.claims().register_pass();
+    let guard = app.backfill_claims.register_pass();
     run_backfill_pass_with_tuning(app, peer, window, guard, cancel, tuning(app, source)).await
 }
 
@@ -77,6 +77,10 @@ async fn request_page(
         .await
         .map_err(|error| format!("region listing request failed: {error}"))?;
     let status = response.status();
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::METHOD_NOT_ALLOWED
+    {
+        return Err(format!("{PEER_UNSUPPORTED}: {status}"));
+    }
     if !status.is_success() {
         return Err(format!("region listing answered {status}"));
     }
@@ -180,6 +184,7 @@ pub async fn run(
                 pass_failures.store(0, Ordering::Relaxed);
                 status.update(|status| {
                     status.settled = true;
+                    status.unsupported = false;
                     status.last_success = Some(Instant::now());
                 });
                 break;
@@ -188,6 +193,30 @@ pub async fn run(
                 if error == "cancelled" {
                     return;
                 }
+                if error.starts_with(PEER_UNSUPPORTED) {
+                    let first = status.snapshot();
+                    status.update(|status| {
+                        status.settled = true;
+                        status.unsupported = true;
+                        status.phase = LinkPhase::Retrying;
+                    });
+                    if !first.unsupported {
+                        app.metrics.record_backfill_pass_event("unsupported");
+                        warn!(
+                            peer,
+                            region,
+                            error,
+                            "remote gateway runs a release that predates pull; its writes arrive through the push receivers until it is upgraded"
+                        );
+                    }
+                    tokio::select! {
+                        biased;
+                        _ = cancel.cancelled() => return,
+                        _ = tokio::time::sleep(pass_backoff(u32::MAX)) => {}
+                    }
+                    continue;
+                }
+                status.update(|status| status.unsupported = false);
                 let failures = pass_failures
                     .fetch_add(1, Ordering::Relaxed)
                     .saturating_add(1);

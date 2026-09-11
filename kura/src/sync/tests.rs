@@ -867,7 +867,7 @@ fn listed_versions(page: &Value) -> Vec<u64> {
 // cursor the requester was given earlier still reaches it once it is not.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
-    let context = test_context(|config| config.replication_pull = true).await;
+    let context = test_context(|_| {}).await;
     let store = &context.state.store;
     let base = now_ms() - 60_000;
     for (key, version_ms) in [("early", base + 10), ("late", base + 20)] {
@@ -899,8 +899,6 @@ async fn the_ascending_listing_stops_at_the_replica_link_frontier() {
             region: "local".to_owned(),
             serving: true,
             draining: false,
-            pulling: true,
-            knows_me: true,
         }]);
     context.state.sync.evaluate(&context.state);
 
@@ -970,10 +968,11 @@ async fn without_a_feed_the_bound_is_the_settle_window() {
     );
 }
 
-// The status probe advertises what the role rule needs.
+// The status probe advertises what the role rule needs, and `pulling` for
+// peers on a pre-pull release.
 #[tokio::test]
 async fn status_advertises_traffic_state_pulling_and_incarnation() {
-    let context = test_context(|config| config.replication_pull = true).await;
+    let context = test_context(|_| {}).await;
     let _ = snapshot(&context).await;
     assert!(context.state.store.sync_feed().enabled());
     let response = internal_router(context.state.clone())
@@ -993,74 +992,13 @@ async fn status_advertises_traffic_state_pulling_and_incarnation() {
         Some(16),
         "incarnation is a 16-hex-digit id"
     );
-    assert!(context.state.set_replication_pull(false));
-    assert!(!context.state.replication_pull());
-    assert!(
-        context.state.store.sync_feed().enabled(),
-        "rollback can leave a feed active for an older sibling until its stale window expires"
-    );
 }
 
-// A-25 (design §11.2): a pulling peer whose advertised membership view does
-// not name this node cannot dial back, so pull reaches it in neither
-// direction and push stays its only leg.
-#[tokio::test]
-async fn a_pulling_peer_that_cannot_dial_back_stays_a_push_target() {
-    let context = test_context(|config| {
-        config.replication_pull = true;
-        config.node_url = "http://runner:7443".into();
-        config.peers = vec!["http://selfhosted:7443".into()];
-    })
-    .await;
-    let state = &context.state;
-    let view = |url: &str, knows_me: bool| crate::sync::roles::PeerView {
-        url: url.into(),
-        region: "local".into(),
-        serving: true,
-        draining: false,
-        pulling: true,
-        knows_me,
-    };
-
-    state.apply_peer_views(vec![view("http://selfhosted:7443", false)]);
-    let targets = state.rebuild_replication_targets().await;
-    assert_eq!(
-        *targets,
-        vec!["http://selfhosted:7443".to_string()],
-        "a pulling peer that does not name us is still pushed to"
-    );
-
-    // The same peer while unreachable: the stickiness of D-20 never applied
-    // to it, so it does not drift off the push targets during its absence.
-    state.apply_peer_views(vec![]);
-    let targets = state.rebuild_replication_targets().await;
-    assert_eq!(
-        *targets,
-        vec!["http://selfhosted:7443".to_string()],
-        "an absent peer that never knew us keeps its push leg"
-    );
-
-    // Its view now names us: it can dial back, and pull replaces push.
-    state.apply_peer_views(vec![view("http://selfhosted:7443", true)]);
-    let targets = state.rebuild_replication_targets().await;
-    assert!(
-        targets.is_empty(),
-        "a pulling peer that names us leaves the push targets, got {targets:?}"
-    );
-
-    // And now D-20 applies: it keeps its exemption across an absence.
-    state.apply_peer_views(vec![]);
-    let targets = state.rebuild_replication_targets().await;
-    assert!(
-        targets.is_empty(),
-        "a peer that pulled and knew us stays off push while unreachable, got {targets:?}"
-    );
-}
-
-// A-25: the status probe advertises the membership view the rule above reads.
+// A-25: the status probe advertises the membership view a peer on a
+// pre-pull release reads (design §11.2).
 #[tokio::test]
 async fn status_advertises_the_membership_view_node_urls() {
-    let context = test_context(|config| config.replication_pull = true).await;
+    let context = test_context(|_| {}).await;
     let status = |state: SharedState| async move {
         let response = internal_router(state)
             .oneshot(
@@ -1088,65 +1026,9 @@ async fn status_advertises_the_membership_view_node_urls() {
             region: "local".into(),
             serving: true,
             draining: false,
-            pulling: true,
-            knows_me: true,
         }]);
     let body = status(context.state.clone()).await;
     assert_eq!(body["peers"][0], "http://sibling:7443");
-}
-
-// D-20: a pulling peer that stops answering stays off the push targets
-// until it comes back saying otherwise.
-#[tokio::test]
-async fn a_pulling_peer_stays_off_push_while_unreachable() {
-    let context = test_context(|config| {
-        config.replication_pull = true;
-        config.peers = vec!["http://sibling:7443".into(), "http://old:7443".into()];
-    })
-    .await;
-    let state = &context.state;
-    let view = |url: &str, pulling: bool| crate::sync::roles::PeerView {
-        url: url.into(),
-        region: "local".into(),
-        serving: true,
-        draining: false,
-        pulling,
-        knows_me: true,
-    };
-    state.apply_peer_views(vec![
-        view("http://sibling:7443", true),
-        view("http://old:7443", false),
-    ]);
-    let targets = state.rebuild_replication_targets().await;
-    assert_eq!(
-        *targets,
-        vec!["http://old:7443".to_string()],
-        "the pulling sibling is not pushed to"
-    );
-
-    // The sibling stops answering: it leaves the view but keeps its flag.
-    state.apply_peer_views(vec![view("http://old:7443", false)]);
-    let targets = state.rebuild_replication_targets().await;
-    assert_eq!(
-        *targets,
-        vec!["http://old:7443".to_string()],
-        "still not pushed to while unreachable"
-    );
-
-    // It comes back rolled back to a binary that does not pull.
-    state.apply_peer_views(vec![
-        view("http://sibling:7443", false),
-        view("http://old:7443", false),
-    ]);
-    let mut targets = (*state.rebuild_replication_targets().await).clone();
-    targets.sort();
-    assert_eq!(
-        targets,
-        vec![
-            "http://old:7443".to_string(),
-            "http://sibling:7443".to_string()
-        ]
-    );
 }
 
 // A-26: the serving aggregate follows the membership view unless pinned.
@@ -1158,8 +1040,6 @@ async fn the_peer_serving_aggregate_follows_the_membership_view() {
         region: "local".to_owned(),
         serving: true,
         draining: false,
-        pulling: false,
-        knows_me: true,
     };
     let derived = test_context(|config| {
         config.sync_peer_bodies_slots_per_peer = 2;
@@ -1185,4 +1065,64 @@ async fn the_peer_serving_aggregate_follows_the_membership_view() {
     .await;
     pinned.state.apply_peer_views((0..20).map(view).collect());
     assert_eq!(pinned.state.backfill_bodies_peer_slots.max_inflight(), 3);
+}
+
+// A sibling on a release that predates pull answers 404 to the feed. The
+// link settles at once as unsupported — never degraded, never a bootstrap
+// failure — so readiness and the rollout gate read the peer as a
+// capability gap while its writes keep arriving through the push receivers.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_sibling_that_predates_pull_settles_the_link_as_unsupported() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let address = listener.local_addr().expect("address");
+    let app = axum::Router::new().fallback(|| async { StatusCode::NOT_FOUND });
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+
+    let context = test_context(|_| {}).await;
+    let sibling = format!("http://{address}");
+    context
+        .state
+        .apply_peer_views(vec![crate::sync::roles::PeerView {
+            url: sibling.clone(),
+            region: "local".to_owned(),
+            serving: true,
+            draining: false,
+        }]);
+    context.state.sync.evaluate(&context.state);
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let links = context.state.sync.link_statuses();
+        if links.iter().any(|link| link.settled && link.unsupported) {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the link never settled as unsupported: {links:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    assert!(context.state.sync.bootstrap_settled());
+    let catch_up = context.state.catch_up_status();
+    assert_eq!(catch_up.initial_cycle, crate::state::CatchUpMode::Complete);
+    assert_eq!(catch_up.backfilling_peers, 0);
+    assert_eq!(catch_up.budget_exhausted_real, 0);
+    assert_eq!(catch_up.budget_exhausted_capability, 1);
+    assert_eq!(
+        context.state.sync.bootstrap_failures(&sibling),
+        0,
+        "a peer that predates pull charges no bootstrap failure"
+    );
+    assert_eq!(
+        context.state.sync.listing_bound(&context.state),
+        now_ms()
+            .saturating_sub(context.state.config.sync_region_settle_ms)
+            .min(context.state.sync.listing_bound(&context.state)),
+        "an unsupported link does not hold the serving listing"
+    );
 }
