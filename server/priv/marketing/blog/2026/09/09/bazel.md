@@ -2,7 +2,7 @@
 title: "Bazel remote caching and insights in Tuist"
 category: "product"
 tags: ["product", "bazel"]
-excerpt: "TODO: Add a short description of the announcement."
+excerpt: "Tuist now supports Bazel remote caching and insights. Here's how we got there, from a low-latency cache network to the protocols Bazel speaks."
 author: pepicrft
 live: true
 ---
@@ -11,11 +11,21 @@ If there's one build system that's ahead of the rest in helping teams with the c
 
 I went back and forth a few times on how to approach this blog post. An agent could look at Bazel's documentation and our implementation, give it some structure, and call it done. But that felt wrong. Not just because of the writing style, but because it's tiring to read blog posts that are a sequence of facts, one after another. So I took a step back and asked myself: what would I want to read if I had been following Tuist and, all of a sudden, saw these folks talking about Bazel? That's what I want this post to be, and I hope you like it (and that Codex doesn't leave any typos anywhere).
 
+## See it for yourself
+
+Before I tell you how we got here, let me show you where we landed. We wired up the build and test pipelines of [Kura](https://github.com/tuist/tuist/tree/main/kura), a project I'll tell you more about in a moment, and data started flowing. I could paste a few screenshots here, but they'd likely be outdated a few years from now, and that sucks. So I thought, why not tap into the amazing capabilities of the technology that makes Tuist possible, Elixir and the Erlang VM, and render a live view of how the Bazel data shows up in the dashboard? We care a lot about the infrastructure being fast and reliable, but just as much about the presentation layer: the dashboard, and the APIs agents consume, carefully designed so that agents are effective and humans have a great time navigating the data. The [Kura dashboard](https://tuist.dev/tuist/kura) is public, so you can poke around yourself, but here's what its builds look like right now:
+
+<.live_component module={TuistWeb.Marketing.Components.BazelDashboardLab} id="bazel-dashboard-lab" />
+
+Every invocation also comes with an interactive timeline, so you can explore what happened step by step. Here's one of Kura's latest:
+
+<div>{live_render(@socket, TuistWeb.Marketing.BazelTimelineShowcaseLive, id: "bazel-timeline-showcase")}</div>
+
 ## Kura
 
-In [a previous blog post](/blog/2026/08/25/the-physics-of-build-systems), I talked about the importance of low latency for small cache artifacts. Bazel's cache artifacts can be very granular, which means that before building an integration with Bazel, **we had to shorten the latency between compute and cache**. And let me tell you, that's quite a challenge. Many services colocate compute and cache and call it done. We offer that too, but it only solves the problem for remote automation like CI. What about developers working from other regions? Then we're talking about a distributed system, where the cache needs to be replicated across all those nodes. We built a technology, [Kura](https://github.com/tuist/tuist/tree/main/kura), and a [Kubernetes](https://kubernetes.io)-based deployment system to solve that, but it's so cool that it deserves its own blog post. For now, I'll just say that we have a regional network of cache servers where we can dedicate resources, and we've designed the economics so that anyone can access the cache and have a good experience with it. And if the closest region still isn't close enough, you can bring Kura **into your office's private network**: a [self-hosted node](https://tuist.dev/en/docs/guides/features/cache/self-hosting) joins your account's cache mesh, replicates the cache, and Tuist points the machines around it to that node.
+In [a previous blog post](/blog/2026/08/25/the-physics-of-build-systems), I talked about the importance of low latency for small cache artifacts. Bazel's cache artifacts can be very granular, which means that before building an integration with Bazel, **we had to shorten the latency between compute and cache**. And let me tell you, that's quite a challenge. Many services colocate compute and cache and call it done. We offer that too, but it only solves the problem for remote automation like CI. What about developers working from other regions? Then we're talking about a distributed system, where the cache needs to be replicated across all those nodes. We built a technology, Kura, and a [Kubernetes](https://kubernetes.io)-based deployment system to solve that, but it's so cool that it deserves its own blog post. For now, I'll just say that we have a regional network of cache servers where we can dedicate resources, and we've designed the economics so that anyone can access the cache and have a good experience with it. And if the closest region still isn't close enough, you can bring Kura **into your office's private network**: a [self-hosted node](https://tuist.dev/en/docs/guides/features/cache/self-hosting) joins your account's cache mesh, replicates the cache, and Tuist points the machines around it to that node.
 
-And that's very important to us. Caching is something everyone wants (who says no to shorter build times?). Like everyone else, we'd love to sell the bundle, since its economics are much more attractive than selling cache to an indie developer. But we think that's short-sighted, because that developer might join a company in the future or build something unprecedented, and we want to be part of that journey. **Our cache must be fast and reasonably priced for anyone, from anywhere.**
+And that's very important to us. Caching is something everyone wants (who says no to shorter build times?). Like everyone else, we'd love to sell caching to large companies as part of a bigger package, since the economics of those deals are much more attractive than selling cache to an indie developer. But we think that's short-sighted, because that developer might join a company in the future or build something unprecedented, and we want to be part of that journey. **Our cache must be fast and reasonably priced for anyone, from anywhere.**
 
 Dogfooding is crucial for improving the product, so guess which build system we use to build Kura, which is written in [Rust](https://www.rust-lang.org), with its own cache: Bazel. So if you see me mentioning Kura around, now you know what it is.
 
@@ -98,16 +108,6 @@ graph LR
 My first reaction was that I'd have designed it differently, because integrating with it felt unnecessarily complicated. But things like this are usually done for a reason, so, like any modern software developer, I asked Codex to dig into why. And there's a good one. With remote execution or remote caching, **the machine sending the events often doesn't have those files**. The test might have run on a remote worker or come straight from the cache, and Bazel [avoids downloading outputs it doesn't need](https://blog.bazel.build/2023/10/06/bwob-in-bazel-7.html). All it has is the hash, so a reference is the only thing it can send without downloading the file just to upload it again. On top of that, test reports can be arbitrarily large, and stuffing them into an ordered stream would hold up every event behind them. And the cache already knows how to store and deduplicate files, so there's no reason for a second way of moving them.
 
 Once that clicked, the design worked in our favor. Kura is both the cache and the event receiver, so when an event points at a test report, the file is already sitting in its storage. Kura reads it locally, sends a bounded copy to the server along with the invocation, and **your build never waits for any of it**.
-
-## See it for yourself
-
-With caching and insights in place, we wired up Kura's build and test pipelines, and data started flowing. I could paste a few screenshots here, but they'd likely be outdated a few years from now, and that sucks. So I thought, why not tap into the amazing capabilities of the technology that makes Tuist possible, Elixir and the Erlang VM, and render a live view of how the Bazel data shows up in the dashboard? As I said, we care a lot about the infrastructure being fast and reliable, but just as much about the presentation layer: the dashboard, and the APIs agents consume, carefully designed so that agents are effective and humans have a great time navigating the data. The [Kura dashboard](https://tuist.dev/tuist/kura) is public, so you can poke around yourself, but here's what its builds look like right now:
-
-<.live_component module={TuistWeb.Marketing.Components.BazelDashboardLab} id="bazel-dashboard-lab" />
-
-Every invocation also comes with an interactive timeline, so you can explore what happened step by step. Here's one of Kura's latest:
-
-<div>{live_render(@socket, TuistWeb.Marketing.BazelTimelineShowcaseLive, id: "bazel-timeline-showcase")}</div>
 
 
 ## What this means for Tuist
