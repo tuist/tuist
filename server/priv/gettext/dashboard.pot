@@ -206,7 +206,7 @@ msgstr ""
 msgid "N/A"
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:60
+#: lib/tuist_web/components/app_components.ex:62
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -253,7 +253,7 @@ msgstr ""
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
 
-#: lib/tuist_web/components/app_components.ex:51
+#: lib/tuist_web/components/app_components.ex:53
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""

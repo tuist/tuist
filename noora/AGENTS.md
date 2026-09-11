@@ -45,3 +45,5 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - The LiveView chart hook supports opt-in `data-lazy="true"` initialization near
   the viewport. Keep offscreen updates and destruction safe, and register resize
   listeners once per hook lifetime rather than once per render.
+
+- Charts humanize plain numeric tooltip values and value-axis labels from 10,000 upward using `formatNumber` (K/M/B/T, up to one decimal). Explicit unit formatters and category/time axes retain their formats; series values remain numeric.

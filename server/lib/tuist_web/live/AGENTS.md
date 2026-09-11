@@ -41,4 +41,6 @@ This area owns LiveView pages and components for the web UI.
 
 - Gradle and Bazel detail tabs follow Xcode: Overview, Timeline, then cache and source-specific tabs. Gradle machine metrics appear only in Timeline; legacy `tab=machine-metrics` links open Timeline without eagerly loading samples on other tabs.
 
+- Humanize display counts with `format_number/2` (10,000+ uses K/M/B/T), including table cells and dropdown values. Keep chart series, sort keys, filters, and pagination inputs numeric.
+
 - GitLab edit forms submit the connection identifier as `_id` and remap it to the context’s `id`; never use `name="id"` on an input because it shadows the form DOM property used by LiveView.
