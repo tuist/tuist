@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +35,59 @@ func TestVMUnmarshalSizeAcceptsListAndGetEncodings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression for the same warm-path miss from the other direction: Tart
+// reports an absent VM as `the specified VM "x" does not exist`, which the
+// not-found matcher did not recognize. Get surfaced that as an error rather
+// than (nil, nil), so ensureGolden logged every first materialization of a
+// digest as a warm-path probe failure — erasing the distinction those lines
+// exist to draw, between a golden that was never here and one that should
+// have been.
+func TestGetReportsMissingVMAsNotFound(t *testing.T) {
+	cases := map[string]string{
+		"tart 2.x":          `the specified VM "tuist-golden-abc" does not exist`,
+		"older phrasing":    `VM not found`,
+		"bare not found":    `tuist-golden-abc: not found`,
+		"trailing newline":  "the specified VM \"tuist-golden-abc\" does not exist\n",
+		"capitalized start": `The specified VM "tuist-golden-abc" does not exist`,
+	}
+	for name, stderr := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := &Client{Binary: fakeTart(t, stderr, 2)}
+
+			vm, err := c.Get(context.Background(), "tuist-golden-abc")
+			if err != nil {
+				t.Fatalf("Get(%q) returned error %v, want nil", stderr, err)
+			}
+			if vm != nil {
+				t.Fatalf("Get(%q) returned %+v, want nil", stderr, vm)
+			}
+		})
+	}
+}
+
+// The cold path re-pulls a multi-GB image, so a probe that failed for any
+// other reason must stay an error: reading it as "absent" would turn a
+// transient `tart get` failure into a needless pull on a host that already
+// holds the golden.
+func TestGetSurfacesProbeFailuresOtherThanNotFound(t *testing.T) {
+	c := &Client{Binary: fakeTart(t, "tart: could not acquire lock", 1)}
+
+	if _, err := c.Get(context.Background(), "tuist-golden-abc"); err == nil {
+		t.Fatal("Get returned nil error for a failed probe, want the failure surfaced")
+	}
+}
+
+// fakeTart writes a stub `tart` that prints stderr and exits with code.
+func fakeTart(t *testing.T, stderr string, code int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "faketart")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' %s >&2\nexit %d\n", shellEscape(stderr), code)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 // TestCloneTimeoutKillsHungProcess verifies the per-op watchdog: a
