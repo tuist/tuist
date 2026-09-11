@@ -816,4 +816,213 @@ defmodule Tuist.Kura.CapacityTest do
 
     %{"status" => %{"phase" => Keyword.get(opts, :phase, "Running")}, "spec" => spec}
   end
+
+  # The scheduler places each replica whole on one node, so a region with room
+  # in aggregate is not a region that can take an instance. These read the same
+  # nodes `reserved_gib/1` sums, one at a time.
+  describe "placeable?/2" do
+    test "refuses an instance the region has aggregate room for and no node can take" do
+      # 30 GiB left across three boxes covers two 12Gi replicas on paper, and
+      # takes neither of them: the scheduler does not split a replica.
+      stub_placement([
+        placement_box("box-1", "100Gi", [{"neighbour", 90}]),
+        placement_box("box-2", "100Gi", [{"neighbour", 90}]),
+        placement_box("box-3", "100Gi", [{"neighbour", 90}])
+      ])
+
+      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "12Gi"}) ==
+               false
+    end
+
+    test "has room when one node covers every replica" do
+      stub_placement([placement_box("box-1", "100Gi", [])])
+
+      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
+               true
+    end
+
+    test "counts back what the instance's own replicas release" do
+      # 40 GiB left with the account's own two 30Gi replicas on the box. The
+      # rebuild hands those 60 GiB back, which is the only reason two 40Gi
+      # replicas fit.
+      account = placement_account()
+      stub_placement([placement_box("box-1", "100Gi", [{handle(account), 30}, {handle(account), 30}])])
+
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == true
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "55Gi"}) == false
+    end
+
+    test "refuses a raise the instance's own box cannot take, however empty its siblings are" do
+      # The 2026-09-11 refusal: the region had hundreds of gibibytes free on
+      # another box, and both replicas were pinned by their local volumes to
+      # the one that could not hold them at the new size.
+      account = placement_account()
+
+      stub_placement([
+        placement_box("roomy", "800Gi", []),
+        placement_box("pinned", "100Gi", [{handle(account), 30}, {handle(account), 30}])
+      ])
+
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "60Gi"}) == false
+    end
+
+    test "counts every pod on the node against it, whoever owns it" do
+      # 35 GiB left on the box and 25 of it taken by a neighbour. The account's
+      # own 40 comes back on the rebuild; the neighbour's does not, and it is
+      # what decides a 38Gi raise the box would otherwise take.
+      account = placement_account()
+
+      stub_placement([
+        placement_box("box-1", "100Gi", [{"neighbour", 25}, {handle(account), 20}, {handle(account), 20}])
+      ])
+
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "37Gi"}) == true
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "38Gi"}) == false
+    end
+
+    test "judges a placed instance only where its volumes already are" do
+      # One replica of the two placed, and no room for the second. That replica
+      # was Pending before this claim moved and stays Pending after it, so
+      # refusing the raise would block the account's growth over a condition the
+      # raise neither caused nor worsens.
+      account = placement_account()
+
+      stub_placement([placement_box("box-1", "100Gi", [{"neighbour", 60}, {handle(account), 20}])])
+
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == true
+    end
+
+    test "ignores a pod that has finished, which holds nothing" do
+      stub_placement([placement_box("box-1", "100Gi", [{"neighbour", 80, [phase: "Failed"]}])])
+
+      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
+               true
+    end
+
+    test "resolves the account's pods from the row when it carries no preload" do
+      account = placement_account()
+      stub_placement([placement_box("box-1", "100Gi", [{handle(account), 30}, {handle(account), 30}])])
+
+      assert Capacity.placeable?(region(), %Server{account_id: account.id, storage_claim_size: "40Gi"}) == true
+    end
+
+    test "leaves every reading it cannot take unknown rather than full" do
+      account = placement_account()
+
+      # A box restarting is NotReady for minutes, and refusing every claim the
+      # fleet grows in that window is the failure this reading exists to avoid.
+      stub_placement([placement_box("box-1", "100Gi", [], ready?: false)])
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+
+      stub_placement([placement_box("box-1", "100Gi", [])])
+      stub(Client, :list_nodes, fn _selector, _opts -> {:error, :unavailable} end)
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+
+      stub_placement([placement_box("box-1", "100Gi", [])])
+      stub(Client, :list_pods, fn _namespace, _selector, _opts -> {:error, :unavailable} end)
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+
+      # A node whose allocatable this cannot parse would otherwise read as a
+      # node with nothing on it, which is the direction that refuses.
+      stub_placement([placement_box("box-1", "eight hundred", [])])
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+
+      # Pods on a node the region's Ready set does not contain cannot be
+      # weighed against it.
+      stub_placement([placement_box("box-1", "100Gi", []), placement_box("gone", "100Gi", [], ready?: false)])
+      stub_account_placement([{"gone", handle(account), 30}])
+      assert Capacity.placeable?(region(), %Server{account: account, storage_claim_size: "40Gi"}) == nil
+    end
+
+    test "is unknown for a row whose account cannot be named" do
+      stub_placement([placement_box("box-1", "100Gi", [])])
+
+      assert Capacity.placeable?(region(), %Server{storage_claim_size: "40Gi"}) == nil
+    end
+
+    test "bounds every read, so a hanging apiserver costs seconds" do
+      stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+      stub(Client, :list_nodes, fn _selector, opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, %{"items" => [placement_node(placement_box("box-1", "100Gi", []))]}}
+      end)
+
+      stub(Client, :list_pods, fn "kura", _selector, opts ->
+        assert opts[:timeout] == to_timeout(second: 5)
+        {:ok, []}
+      end)
+
+      assert Capacity.placeable?(region(), %Server{account: placement_account(), storage_claim_size: "40Gi"}) ==
+               true
+    end
+  end
+
+  defp placement_account, do: account()
+
+  defp handle(%Account{name: name}), do: String.downcase(name)
+
+  # A box, what it makes allocatable, and the claims pinned to it as
+  # `{account_handle, gib}` or `{account_handle, gib, pod_opts}`.
+  defp placement_box(name, allocatable, claims, opts \\ []) do
+    %{name: name, allocatable: allocatable, claims: claims, ready?: Keyword.get(opts, :ready?, true)}
+  end
+
+  defp stub_placement(boxes) do
+    stub(KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+
+    stub(Client, :list_nodes, fn _selector, _opts ->
+      {:ok, %{"items" => Enum.map(boxes, &placement_node/1)}}
+    end)
+
+    pods =
+      Enum.flat_map(boxes, fn box ->
+        Enum.map(box.claims, fn claim ->
+          {owner, gib, opts} =
+            case claim do
+              {owner, gib} -> {owner, gib, []}
+              {owner, gib, opts} -> {owner, gib, opts}
+            end
+
+          placement_pod(owner, gib, box.name, opts)
+        end)
+      end)
+
+    stub(Client, :list_pods, fn "kura", selector, _opts -> {:ok, matching(pods, selector)} end)
+  end
+
+  # Pods of one account on a node the region's node list does not answer for.
+  defp stub_account_placement(claims) do
+    pods = Enum.map(claims, fn {node, owner, gib} -> placement_pod(owner, gib, node) end)
+
+    stub(Client, :list_pods, fn "kura", selector, _opts -> {:ok, matching(pods, selector)} end)
+  end
+
+  defp matching(pods, selector) do
+    case Regex.run(~r{tuist\.dev/account=([^,]+)}, selector) do
+      [_match, handle] -> Enum.filter(pods, &(&1["metadata"]["labels"]["tuist.dev/account"] == handle))
+      nil -> pods
+    end
+  end
+
+  defp placement_node(box) do
+    %{
+      "metadata" => %{"name" => box.name},
+      "status" => %{
+        "conditions" => [%{"type" => "Ready", "status" => if(box.ready?, do: "True", else: "False")}],
+        "allocatable" => %{"ephemeral-storage" => box.allocatable}
+      }
+    }
+  end
+
+  defp placement_pod(owner, gib, node, opts \\ []) do
+    %{
+      "metadata" => %{"labels" => %{"tuist.dev/account" => owner}},
+      "status" => %{"phase" => Keyword.get(opts, :phase, "Running")},
+      "spec" => %{
+        "nodeName" => node,
+        "containers" => [%{"resources" => %{"requests" => %{"ephemeral-storage" => "#{gib}Gi"}}}]
+      }
+    }
+  end
 end
