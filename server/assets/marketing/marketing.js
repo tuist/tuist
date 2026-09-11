@@ -6,9 +6,20 @@ import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { mountStaticHooks } from "./js/lib/static-hooks.js";
-import Noora from "noora";
-// The dashboard's build timeline, embedded in the Bazel announcement post.
-import BuildTimeline from "../app/js/BuildTimeline.js";
+// Individual Noora hooks rather than the prebuilt `noora` runtime: that
+// runtime pulls in every hook, including the ECharts-backed chart, and was
+// over half of this bundle. The marketing pages render only these.
+import NooraCollapsible from "noora/hooks/Collapsible.js";
+import NooraDropdown from "noora/hooks/Dropdown.js";
+import NooraIconTransition from "noora/hooks/IconTransition.js";
+import NooraModal from "noora/hooks/Modal.js";
+import NooraPopover from "noora/hooks/Popover.js";
+import NooraScrollArea from "noora/hooks/ScrollArea.js";
+import NooraSelect from "noora/hooks/Select.js";
+import NooraTable from "noora/hooks/Table.js";
+import NooraTabs from "noora/hooks/Tabs.js";
+import NooraToggle from "noora/hooks/Toggle.js";
+import NooraTooltip from "noora/hooks/Tooltip.js";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -17,7 +28,47 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 // Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
 const liveSocketFallbackMs = 10000;
 
-const hooks = { ...Noora.Hooks, ...Hooks, BuildTimeline, ...colocatedHooks };
+const NooraHooks = {
+  NooraCollapsible,
+  NooraDropdown,
+  NooraIconTransition,
+  NooraModal,
+  NooraPopover,
+  NooraScrollArea,
+  NooraSelect,
+  NooraTable,
+  NooraTabs,
+  NooraToggle,
+  NooraTooltip,
+};
+
+// Loads a hook on demand, like the KaTeX hook, so its dependencies land in
+// their own chunk and only the pages that render it download them. Once the
+// module arrives, its callbacks replace this stub on the hook instance.
+function lazyHook(load) {
+  return {
+    mounted() {
+      load().then(({ default: hook }) => {
+        if (this.lazyHookDestroyed || !this.el.isConnected) return;
+        Object.assign(this, hook);
+        this.mounted?.();
+      });
+    },
+    destroyed() {
+      this.lazyHookDestroyed = true;
+    },
+  };
+}
+
+const hooks = {
+  ...NooraHooks,
+  ...Hooks,
+  // Dashboard components embedded in the Bazel announcement post: the chart
+  // bundles ECharts and the build timeline imports the full Noora runtime.
+  NooraChart: lazyHook(() => import("noora/hooks/Chart.js")),
+  BuildTimeline: lazyHook(() => import("../app/js/BuildTimeline.js")),
+  ...colocatedHooks,
+};
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,

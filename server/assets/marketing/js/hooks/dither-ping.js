@@ -101,7 +101,9 @@ export const DitherPing = {
 
     this.resize = () => {
       const rect = this.host.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.h = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.w * dpr;
@@ -239,6 +241,9 @@ export const DitherPing = {
     // first pulse is still travelling it only exists behind the crest.
     const reach = this.settled ? Infinity : radius;
     const falloff = this.maxDist * AMBIENT_HALF;
+    // Dots are collected per shade and filled three times, instead of a
+    // fillStyle string and a fillRect per dot.
+    const byShade = shades.map(() => new Path2D());
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const d = dist[y * cols + x] * PITCH;
@@ -265,10 +270,13 @@ export const DitherPing = {
         const s = Math.min(2, (n / 0.3) * 2);
         const lo = Math.floor(s);
         const hi = Math.min(2, lo + 1);
-        const shade = s - lo > noise2(x + 31, y + 17) ? shades[hi] : shades[lo];
-        ctx.fillStyle = `rgb(${shade[0]}, ${shade[1]}, ${shade[2]})`;
-        ctx.fillRect(x * PITCH, y * PITCH, DOT, DOT);
+        const shade = s - lo > noise2(x + 31, y + 17) ? hi : lo;
+        byShade[shade].rect(x * PITCH, y * PITCH, DOT, DOT);
       }
+    }
+    for (let i = 0; i < shades.length; i++) {
+      ctx.fillStyle = `rgb(${shades[i][0]}, ${shades[i][1]}, ${shades[i][2]})`;
+      ctx.fill(byShade[i]);
     }
   },
 };

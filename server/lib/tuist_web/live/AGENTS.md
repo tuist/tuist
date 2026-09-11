@@ -37,10 +37,12 @@ This area owns LiveView pages and components for the web UI.
 
 - Runner job detail omits the whole Insights card unless at least one build or test run matches the runner job; candidate account projects alone do not justify an empty card. GitLab jobs link to their GitLab instance and omit the structured Steps card, which currently receives data only from GitHub completion webhooks; GitLab execution output remains available in Logs.
 
-- `BuildTimelineLoader` owns lazy metric bootstrapping, build identity, versioning, tab reentry and forced refresh for Xcode, Gradle and Bazel. It cancels superseded bootstrap tasks and rejects stale/inactive-tab hook requests. Step metadata stays out of LiveView state: every source supplies an authorized HTTP URL to `build_timeline_section`, which shares loading/error UI and preserves source-specific coverage notices. Xcode keeps cancellable server navigation/log tasks; Gradle and Bazel navigate downloaded steps locally, with Bazel logs loaded separately when available.
+- `BuildTimelineLoader` owns lazy metric bootstrapping, build identity, versioning, tab reentry and forced refresh for Xcode, Gradle and Bazel. It cancels superseded bootstrap tasks and rejects stale/inactive-tab hook requests. Step metadata stays out of LiveView state: every source supplies an authorized HTTP URL to `build_timeline_section`, which shares loading/error UI. Xcode keeps cancellable server navigation/log tasks; Gradle and Bazel navigate downloaded steps locally, with Bazel logs loaded separately when available.
 
 - Gradle and Bazel detail tabs follow Xcode: Overview, Timeline, then cache and source-specific tabs. Gradle machine metrics appear only in Timeline; legacy `tab=machine-metrics` links open Timeline without eagerly loading samples on other tabs.
 
 - Humanize display counts with `format_number/2` (10,000+ uses K/M/B/T), including table cells and dropdown values. Keep chart series, sort keys, filters, and pagination inputs numeric.
 
 - GitLab edit forms submit the connection identifier as `_id` and remap it to the context’s `id`; never use `name="id"` on an input because it shadows the form DOM property used by LiveView.
+
+- Only expose Timeline when the selected build has recorded steps or aligned machine samples. Shared `BuildTimelineLoader.select_tab/3` falls back to Overview for unavailable direct links; Xcode processing refreshes recheck availability. Bazel requires a published profile; retained summary spans alone do not qualify. Availability checks use scoped existence/scalar queries, never full step downloads.

@@ -6,6 +6,21 @@ defmodule Tuist.Bazel.ProfileTest do
   alias Tuist.Bazel.Timeline
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  test "availability accepts metric-only profiles and excludes empty profiles and padded samples" do
+    project = ProjectsFixtures.project_fixture(build_system: :bazel)
+
+    for {id, events, available} <- [
+          {"empty", [], false},
+          {"padding", [%{ph: "C", name: "Memory usage (total)", ts: 0, args: %{"system memory" => 0}}], false},
+          {"metrics", [%{ph: "C", name: "Memory usage (total)", ts: 0, args: %{"system memory" => 1000}}], true}
+        ] do
+      assert :ok =
+               Profile.ingest(project, id, :zlib.gzip(JSON.encode!(%{otherData: %{build_id: id}, traceEvents: events})))
+
+      assert Timeline.available?(%Invocation{project_id: project.id, invocation_id: id}) == available
+    end
+  end
+
   test "retains every profile interval beyond the summary limit and converts resource units" do
     events =
       Enum.map(0..99, fn i ->

@@ -57,6 +57,16 @@ defmodule Tuist.Gradle.Timeline do
     end
   end
 
+  def available?(build) do
+    origin = timestamp(build.started_at) || recorded_origin(build)
+
+    ClickHouseRepo.exists?(step_query(build, origin)) or
+      (is_number(origin) and
+         ClickHouseRepo.exists?(
+           from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id and m.timestamp * 1000 >= ^origin)
+         ))
+  end
+
   def bootstrap(build) do
     metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^build.id))
     origin = timestamp(build.started_at) || recorded_origin(build)
@@ -66,8 +76,9 @@ defmodule Tuist.Gradle.Timeline do
     |> Map.drop([:events, :total_count, :target_count])
   end
 
-  def step_query(build) do
-    origin = timestamp(build.started_at) || recorded_origin(build)
+  def step_query(build), do: step_query(build, timestamp(build.started_at) || recorded_origin(build))
+
+  defp step_query(build, origin) do
     origin_available = not is_nil(origin)
     origin_microseconds = round((origin || 0) * 1000)
 

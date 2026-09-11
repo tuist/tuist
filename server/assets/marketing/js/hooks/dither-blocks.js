@@ -130,7 +130,9 @@ export const DitherBlocks = {
     const rect = host.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+    // any visible gain for 2px dither dots and hairline strokes.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.cssWidth = rect.width;
     this.cssHeight = rect.height;
     this.canvas.width = Math.round(rect.width * dpr);
@@ -205,22 +207,26 @@ export const DitherBlocks = {
     for (const block of this.blocks) {
       // Later blocks replace what's beneath them, keeping edges crisp.
       ctx.clearRect(block.bx * pitch, block.by * pitch, block.bw * pitch, block.bh * pitch);
-      ctx.fillStyle = block.color;
 
       const x0 = Math.max(0, block.bx);
       const x1 = Math.min(this.cols, block.bx + block.bw);
       const y0 = Math.max(0, block.by);
       const y1 = Math.min(this.rows, block.by + block.bh);
 
+      // One path per block, filled once — a fillRect per dot was the
+      // dominant cost of a redraw.
+      const dots = new Path2D();
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           let threshold = BAYER8[(y % 8) * 8 + (x % 8)] / 64;
           if (amp > 0) threshold += (cellHash(x, y, this.tick) - 0.5) * amp;
           if (threshold < block.density) {
-            ctx.fillRect(x * pitch, y * pitch, this.dot, this.dot);
+            dots.rect(x * pitch, y * pitch, this.dot, this.dot);
           }
         }
       }
+      ctx.fillStyle = block.color;
+      ctx.fill(dots);
     }
 
     ctx.globalAlpha = 1;

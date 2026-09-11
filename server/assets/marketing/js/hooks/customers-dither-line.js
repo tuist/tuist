@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Dithered line graph behind the Trendyol customer story card — the
  * companion to customers-dither-dots.js (Monzo), sharing its grain,
@@ -101,7 +102,9 @@ export const CustomersDitherLine = {
 
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.canvas.width = this.w * dpr;
       this.canvas.height = HEIGHT * dpr;
@@ -123,10 +126,20 @@ export const CustomersDitherLine = {
       this.hover = this.hoverTarget > this.hover ? Math.min(1, this.hover + step) : Math.max(0, this.hover - step);
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.lastNow = 0;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();
@@ -138,7 +151,7 @@ export const CustomersDitherLine = {
 
   render(now) {
     const { ctx, shades, hoverShades, hover, seed } = this;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = this.canvas.width / dpr;
     ctx.clearRect(0, 0, w, HEIGHT);
     const angle = (now / PERIOD_MS) * TAU;

@@ -20,6 +20,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -1877,5 +1878,58 @@ func TestReconcileLeavesRecentlyDeletedPodAlone(t *testing.T) {
 
 	if err := c.Get(context.Background(), nn(sa.Namespace, sa.Name), &corev1.ServiceAccount{}); err != nil {
 		t.Fatalf("draining Pod's ServiceAccount was reaped early: %v", err)
+	}
+}
+
+// TestReconcile_FinalizerWriteDoesNotClaimSpec guards the field-manager
+// ownership of `spec.autoscaling.minWarmPoolFloor`.
+//
+// The finalizer used to be persisted with a full-object `Update`, which
+// sends every field the controller decoded — including the warm floor
+// the API server had just filled in from the CRD's `default: 1` because
+// helm had not rendered one. That write both pinned the floor at 1 and
+// moved the field's manager from `helm` to `manager`, after which helm
+// could no longer set it: production 2026-09-11 had six Linux pools at
+// floor 1 against a chart that says 0, five of them serving zero jobs
+// in seven days while holding 24,250m and 74.5 GiB of a 186,000m /
+// 703 GiB fleet.
+//
+// A patch sends only the diff, so the finalizer no longer drags spec
+// along with it.
+func TestReconcile_FinalizerWriteDoesNotClaimSpec(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+
+	var poolUpdates int
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Update: func(ctx context.Context, cl client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				if _, ok := obj.(*tuistv1.RunnerPool); ok {
+					poolUpdates++
+				}
+				return cl.Update(ctx, obj, opts...)
+			},
+		}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	stored := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), stored); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(stored, runnerPoolFinalizer) {
+		t.Fatalf("expected the drain finalizer to be added, finalizers = %v", stored.Finalizers)
+	}
+	if poolUpdates != 0 {
+		t.Fatalf("RunnerPool spec written back via %d full Update(s); the finalizer must be patched so helm keeps ownership of spec.autoscaling.minWarmPoolFloor", poolUpdates)
 	}
 }

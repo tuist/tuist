@@ -179,7 +179,9 @@ export const TestGrid = {
 
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.h = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.w * dpr;

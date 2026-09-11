@@ -1722,7 +1722,22 @@ runnersFleetLinux:
     # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
     # shape), so memory reservation is what runs out on this fleet while
     # CPU does not. This rung is bought for memory and priced for it.
-    - { vcpus: 16, memoryGb: 64 }
+    #
+    # Warm floor 1, unlike every other long-tail shape. This Pod needs a
+    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
+    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # to be manufactured by draining a host. The drain cannot converge
+    # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
+    # queues behind run a p50 of 28m, so the reservation expires and the
+    # node then rests for `reservationCooldown`. Production 2026-09-11
+    # spent 36 minutes queued that way with the fleet at 88% committed
+    # and the account 96 GB under its own limit. Holding one Pod costs
+    # the same 66.5 GiB continuously and removes both the cold start and
+    # the drain, against ~4 jobs/day at a 46-minute median.
+    - vcpus: 16
+      memoryGb: 64
+      autoscaling:
+        minWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

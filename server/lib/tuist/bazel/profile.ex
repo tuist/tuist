@@ -100,6 +100,34 @@ defmodule Tuist.Bazel.Profile do
     end
   end
 
+  def available?(invocation) do
+    metadata =
+      ClickHouseRepo.one(
+        from(p in __MODULE__,
+          where: p.project_id == ^invocation.project_id and p.invocation_id == ^invocation.invocation_id,
+          order_by: [desc: p.inserted_at],
+          limit: 1,
+          select: %{
+            version: fragment("JSONExtractString(?, 'steps_version')", p.payload),
+            events: fragment("JSONLength(?, 'events')", p.payload),
+            metrics: fragment("JSONLength(?, 'machine_metrics')", p.payload)
+          }
+        )
+      )
+
+    case metadata do
+      nil ->
+        nil
+
+      %{version: "", events: count, metrics: metrics} ->
+        count > 0 or (metrics > 0 and load(invocation, include_steps: false).has_metrics)
+
+      %{version: version, metrics: metrics} ->
+        ProfileSteps.available?(invocation, version) or
+          (metrics > 0 and load(invocation, include_steps: false).has_metrics)
+    end
+  end
+
   def steps_version(%{project_id: nil}), do: nil
   def steps_version(%{invocation_id: nil}), do: nil
 

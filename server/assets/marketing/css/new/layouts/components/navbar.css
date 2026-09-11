@@ -1,8 +1,18 @@
+/* LiveView's phx-update="ignore" boundary (see the navbar template); it
+   must not generate a box, so the header keeps the page as its sticky
+   containing block and flex parent. */
+#marketing-navbar-root {
+  display: contents;
+}
+
 #marketing-navbar {
   /* Cursor position for the bottom-hairline glow; the home page's
      PlatformBackground hook writes real values inline. */
   --hx: -9999px;
   --hy: -9999px;
+  /* Bar height, measured inline by the MobileMenu hook when the menu opens;
+     the open panel hangs from it. */
+  --marketing-navbar-height: 0px;
   display: flex;
   position: sticky;
   top: 0;
@@ -17,8 +27,15 @@
   background: var(--noora-surface-background-primary);
 
   /* Cursor-proximity recolor of the bottom hairline — fed --hx/--hy by the
-     PlatformBackground hook on the home page; inert everywhere else. */
+     PlatformBackground hook on the home page; inert everywhere else. Only
+     for pointers that can hover: on touch screens a tap fires a synthetic
+     mousemove, so the glow parked under the finger and never left, and the
+     masked layer cost every frame for nothing. */
   &::after {
+    @media (hover: none) {
+      display: none;
+    }
+
     position: absolute;
     -webkit-mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
     mask-image: radial-gradient(170px circle at var(--hx) var(--hy), var(--marketing-edge-glow-stops));
@@ -366,53 +383,97 @@
         @media (min-width: 960px) {
           display: none;
         }
+
+        /* Hamburger <-> X: each bar spins about its own centre while
+           sliding 4 units to the icon's middle. Same 0.2s ease as the
+           desktop chevrons. Lengths on SVG elements are user units. */
+        & > svg > path {
+          transform-box: fill-box;
+          transform-origin: center;
+          transition: transform 0.2s ease;
+        }
+
+        &[data-state="open"] > svg > [data-part="bar-top"] {
+          transform: translateY(4px) rotate(45deg);
+        }
+
+        &[data-state="open"] > svg > [data-part="bar-bottom"] {
+          transform: translateY(-4px) rotate(-45deg);
+        }
       }
     }
   }
 
+  /* The mobile menu panel. The header stays the sticky bar it always is, in
+     normal flow, and only this panel overlays the page, hung from the bar's
+     bottom edge and sized to the rest of the viewport. Turning the whole
+     header into a fixed full-screen box (the previous approach) pulled the
+     bar out of the flow, which relaid out and repainted the entire page
+     beneath on every open and close, and stretched the bar's masked ::after
+     glow across the full screen — the stall before the menu appeared.
+
+     Closed, the panel stays in the tree but hidden (visibility + opacity +
+     a small lift), so closing can play the same 0.18s fade-and-slide as the
+     desktop dropdowns; both are compositor properties, and visibility flips
+     only after the fade so the panel neither blocks taps nor pops. */
   & > [data-part="mobile-menus"] {
-    display: none;
+    display: flex;
+    position: fixed;
+    /* The MobileMenu hook measures the bar into --marketing-navbar-height
+       on open, so the panel starts right under it and fills the rest of
+       the viewport. dvh follows the mobile browser toolbar, where 100vh
+       would leave the last rows unreachable while the toolbar is up. (An
+       absolute panel with height: calc(100dvh - 100%) was the first
+       attempt; iOS resolved it to the content height, exposing the page
+       below the menu.) */
+    top: var(--marketing-navbar-height);
+    right: 0;
+    left: 0;
+    flex-direction: column;
+    align-items: stretch;
+    /* spacing-8 (24px) between top-level rows. */
+    gap: var(--noora-spacing-8);
+    transform: translateY(-6px);
+    visibility: hidden;
+    opacity: 0;
+    z-index: var(--noora-z-index-10);
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s var(--ease-out-cubic),
+      visibility 0s linear 0.18s;
+    box-sizing: border-box;
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+    height: calc(100vh - var(--marketing-navbar-height));
+    height: calc(100dvh - var(--marketing-navbar-height));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: none;
+
+    @media (min-width: 960px) {
+      display: none;
+    }
   }
 
   &[data-mobile-menu-open="true"] {
-    display: flex;
-    position: fixed;
-    flex-direction: column;
-    align-items: stretch;
-    z-index: var(--noora-z-index-10);
-    margin-top: 0;
-    margin-right: 0;
-    margin-bottom: 0;
-    margin-left: 0;
-    inset: 0;
-    border-radius: 0;
-    background: var(--noora-surface-background-primary);
-    max-width: none;
-    height: 100vh;
-    overflow-y: auto;
-
-    /* Keep the bar pinned while the opened menu scrolls beneath it. */
     & > [data-part="bar"] {
-      position: sticky;
-      top: 0;
-      z-index: var(--noora-z-index-2);
       box-shadow: none;
-      border-bottom: 1px solid var(--marketing-stroke-default);
-      background: var(--noora-surface-background-primary);
     }
 
     & > [data-part="mobile-menus"] {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      /* spacing-7 rhythm between top-level rows. */
-      gap: var(--noora-spacing-7);
-      padding: var(--noora-spacing-7) var(--noora-spacing-4);
+      transform: none;
+      visibility: visible;
+      opacity: 1;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s var(--ease-out-cubic),
+        visibility 0s;
+      pointer-events: auto;
 
       /* Accordion list items. */
       & [data-part="dropdown"] > [data-part="item"] {
         color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
         text-decoration: none;
       }
 
@@ -420,7 +481,7 @@
          section-heading treatment. */
       & > [data-part="item"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
         text-decoration: none;
       }
 
@@ -449,7 +510,7 @@
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+            font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
           }
 
           /* Chevron dressed as a neutral button, like the burger icon.
@@ -503,7 +564,7 @@
 
         & > [data-part="title"] {
           color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+          font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
         }
       }
     }
@@ -678,15 +739,6 @@
   }
 }
 
-/* Mobile menu container animation */
-#marketing-navbar {
-  &[data-mobile-menu-open="true"] {
-    & > [data-part="mobile-menus"] {
-      animation: mobileMenuContentFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s backwards;
-    }
-  }
-}
-
 /* Mobile menu dropdown animations */
 #marketing-navbar > [data-part="mobile-menus"] {
   & > [data-part="menu"] {
@@ -802,17 +854,6 @@
     opacity: 0;
   }
   to {
-    opacity: 1;
-  }
-}
-
-@keyframes mobileMenuContentFadeIn {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -1322,6 +1363,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #marketing-navbar [data-part="mobile-menu-button"] > svg > path {
+    transition: none;
+  }
+
+  #marketing-navbar > [data-part="mobile-menus"] {
+    transition: none;
+  }
+
   #marketing-navbar > [data-part="viewport"] {
     transition: none;
 
