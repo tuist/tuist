@@ -1,3 +1,7 @@
+// Phone marquee speed in CSS px per second (the old rAF loop moved 0.5px
+// per frame, i.e. 30px/s at 60fps).
+const MARQUEE_SPEED = 30;
+
 export const LogoTransition = {
   mounted() {
     // A bfcache restore re-mounts hooks without ever calling destroyed() on
@@ -13,7 +17,6 @@ export const LogoTransition = {
     this.isAnimating = false;
     this.intervalId = null;
     this.cleanupTimeout = null;
-    this.animationFrame = null;
     this.originalHTML = this.el.innerHTML;
     this.currentMode = null;
 
@@ -129,38 +132,36 @@ export const LogoTransition = {
       }
     });
 
+    // Two identical sets in one track; the CSS animation (home.css) slides
+    // the track by one set, so the loop is seamless and runs on the
+    // compositor instead of a rAF loop nudging a transform every frame.
     container.innerHTML = "";
     const track = document.createElement("div");
     track.setAttribute("data-part", "track");
 
-    uniqueLogos.forEach((logo) => {
-      track.appendChild(logo.cloneNode(true));
-    });
-
-    uniqueLogos.forEach((logo) => {
-      const clone = logo.cloneNode(true);
-      clone.setAttribute("aria-hidden", "true");
-      clone.setAttribute("tabindex", "-1");
-      track.appendChild(clone);
-    });
+    const buildSet = (hidden) => {
+      const set = document.createElement("div");
+      set.setAttribute("data-part", "logo-set");
+      if (hidden) set.setAttribute("aria-hidden", "true");
+      uniqueLogos.forEach((logo) => {
+        const clone = logo.cloneNode(true);
+        if (hidden) clone.setAttribute("tabindex", "-1");
+        set.appendChild(clone);
+      });
+      return set;
+    };
+    track.appendChild(buildSet(false));
+    track.appendChild(buildSet(true));
 
     container.appendChild(track);
     container.setAttribute("data-animation-mode", "mobile");
 
-    let scrollPosition = 0;
-    const scroll = () => {
-      scrollPosition += 0.5;
-
-      const maxScroll = track.scrollWidth / 2;
-      if (scrollPosition >= maxScroll) {
-        scrollPosition = 0;
-      }
-
-      track.style.transform = `translateX(-${scrollPosition}px)`;
-      this.animationFrame = requestAnimationFrame(scroll);
-    };
-
-    this.animationFrame = requestAnimationFrame(scroll);
+    // Constant speed regardless of how many logos there are: one set's
+    // width at MARQUEE_SPEED px/s.
+    const setWidth = track.scrollWidth / 2;
+    if (setWidth > 0) {
+      track.style.setProperty("--marquee-duration", `${setWidth / MARQUEE_SPEED}s`);
+    }
   },
 
   transition() {
@@ -239,10 +240,8 @@ export const LogoTransition = {
   },
 
   cleanupMobile() {
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame);
-      this.animationFrame = null;
-    }
+    // The marquee is a CSS animation on the track; restoring the original
+    // markup (restoreOriginal) is all the teardown it needs.
   },
 
   handleResize() {
