@@ -15,7 +15,7 @@ defmodule TuistWeb.Components.BuildTimeline do
 
   def build_timeline_section(assigns) do
     ~H"""
-    <.async_result :let={timeline} assign={@timeline}>
+    <.async_result assign={@timeline}>
       <:loading>
         <.card title={dgettext("dashboard_builds", "Build Timeline")} icon="timeline_event">
           <.card_section data-part="timeline-skeleton" aria-busy="true">
@@ -28,19 +28,6 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <.alert
-        :if={@source == "bazel" and timeline.coverage != "trace_profile"}
-        status="information"
-        type="secondary"
-        size="small"
-        data-part="timeline-coverage"
-        title={
-          dgettext(
-            "dashboard_builds",
-            "Only retained build-summary steps are available for this invocation."
-          )
-        }
-      />
       <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
     </.async_result>
     """

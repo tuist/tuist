@@ -25,6 +25,7 @@ defmodule Tuist.Bazel.ProfileStepsTest do
       build_timeline_span_descriptions: ["Retained action"]
     }
 
+    refute Timeline.available?(build)
     assert {:ok, %{steps: [%{id: id}]}} = RecordedSteps.list(build, %{})
 
     compressed =
