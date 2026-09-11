@@ -7,7 +7,6 @@ use std::{
 
 use axum::{
     Router,
-    body::Body,
     http::{Request, StatusCode},
 };
 use hyper::{body::Incoming, service::service_fn};
@@ -347,7 +346,7 @@ where
         let router = router.clone();
         async move {
             router
-                .oneshot(request.map(Body::new))
+                .oneshot(crate::utils::guard_incoming_request(request))
                 .await
                 .map_err(std::io::Error::other)
         }

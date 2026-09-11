@@ -961,6 +961,46 @@ every public route, holds for 250. It also surfaces something the original could
 not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
 the old rule never looked at.
 
+#### Upload-body failures and misleading 500s
+
+In Kura `0.41.2`, `read_request_to_temp` classified errors from the incoming
+body stream as storage I/O, and the upload handler converted them to 500.
+The handler completion log also discarded the error cause. Thus the alert's
+"client aborts are 499" description did not cover uploads.
+
+Correlate Kura and ingress logs by request ID before attributing these failures.
+An ingress 400 with no upstream response does not establish why the request
+body was rejected or mean the uploader received Kura's recorded 500. Check pod
+readiness, restarts, auth-unavailable and capacity-shed counters, and successful
+upload traffic. An alert clearing after traffic stops does not demonstrate
+recovery under load.
+
+The corrected staging path distinguishes typed premature EOF/reset/cancellation
+(499, `client_aborted`), invalid bodies (400, `invalid_request_body`), and
+incoming-body timeouts (408, `request_timeout`) from unknown body failures
+(500, `request_body_error`) and local disk failures
+(their existing 5xx/capacity response). It covers CAS, Gradle, Nx, Metro,
+multipart parts, key-value uploads, and inline/file-backed peer replication.
+Rejected body reads increment the existing domain failure counters
+(`result="error"` for writes/parts, `outcome="error"` for replication apply).
+Completion events carry the cause through upload-specific response extensions;
+client-body failures use a separate warning limiter from server faults.
+The HTTP/2 adapter also rejects EOF without END_STREAM because Hyper suppresses
+some reset errors. If the transport cancels the handler entirely, no completion
+status is emitted. Match `http.request.id` against ingress before attributing
+an upload alert.
+
+Roll out through the normal canary-to-production release, without changing
+this alert's query or threshold. Confirm the running image contains the fix;
+older and newer pods can safely coexist because no storage or replication
+format changes. Validate that interrupted or invalid uploads produce
+499/400/408 rather than 500, temporary files are reclaimed, retries store complete artifacts, and
+actual staging I/O faults still appear as 5xx with a nonempty cause. Monitor
+successful upload traffic and domain write failures as well as the 5xx rate.
+A rollback restores the previous transport, classification, and logging behavior; it requires no data migration. Until that
+rollout is verified, the live annotation must not be treated as a guarantee
+that upload-side disconnects are excluded.
+
 #### Before you call a 5xx a fault, check the shed
 
 Capacity shedding reached 429 in two steps, and a node can be running either

@@ -18,8 +18,37 @@ tokio::task_local! {
     static CURRENT_REQUEST: Arc<RequestContext>;
 }
 
-static SLOW_REQUEST_LOG_LIMITER: AtomicLogLimiter = AtomicLogLimiter::new();
-static FAILED_REQUEST_LOG_LIMITER: AtomicLogLimiter = AtomicLogLimiter::new();
+static REQUEST_LOG_LIMITERS: RequestLogLimiters = RequestLogLimiters::new();
+
+struct RequestLogLimiters {
+    slow: AtomicLogLimiter,
+    failed: AtomicLogLimiter,
+    client: AtomicLogLimiter,
+}
+
+impl RequestLogLimiters {
+    const fn new() -> Self {
+        Self {
+            slow: AtomicLogLimiter::new(),
+            failed: AtomicLogLimiter::new(),
+            client: AtomicLogLimiter::new(),
+        }
+    }
+
+    fn for_completion(&self, status: u16, result: &str, slow: bool) -> Option<&AtomicLogLimiter> {
+        // Client-side body failures must not consume the warning budget for
+        // server faults, even when the client failure volume is much higher.
+        if (400..500).contains(&status) && result != "ok" {
+            Some(&self.client)
+        } else if result != "ok" || status >= 500 {
+            Some(&self.failed)
+        } else if slow {
+            Some(&self.slow)
+        } else {
+            None
+        }
+    }
+}
 
 pub struct RequestContext {
     request_id: String,
@@ -105,14 +134,7 @@ pub fn current_request() -> Option<Arc<RequestContext>> {
 pub fn log_request_completion(context: &RequestContext, completion: RequestCompletion<'_>) {
     let slow = !context.slow_request_threshold.is_zero()
         && completion.total_duration >= context.slow_request_threshold;
-    let failed = completion.result != "ok" || completion.status >= 500;
-    let limiter = if failed {
-        Some(&FAILED_REQUEST_LOG_LIMITER)
-    } else if slow {
-        Some(&SLOW_REQUEST_LOG_LIMITER)
-    } else {
-        None
-    };
+    let limiter = REQUEST_LOG_LIMITERS.for_completion(completion.status, completion.result, slow);
     let warning_permit = limiter.and_then(|limiter| limiter.acquire(context.warning_log_interval));
 
     if warning_permit.is_none() && !context.sampled {
@@ -484,6 +506,44 @@ mod tests {
         assert_eq!(throttle.record_failure(), None);
         assert_eq!(throttle.record_success(), Some((2, 1)));
         assert_eq!(throttle.record_success(), None);
+    }
+
+    #[test]
+    fn client_body_failures_do_not_suppress_server_fault_warnings() {
+        let limiters = RequestLogLimiters::new();
+        let interval = Duration::from_secs(60);
+        let abort = limiters
+            .for_completion(499, "client_aborted", false)
+            .unwrap();
+        assert_eq!(abort.acquire(interval), Some(0));
+        for (status, result) in [
+            (499, "client_aborted"),
+            (400, "invalid_request_body"),
+            (408, "request_timeout"),
+        ] {
+            assert_eq!(
+                limiters
+                    .for_completion(status, result, false)
+                    .unwrap()
+                    .acquire(interval),
+                None
+            );
+        }
+        assert_eq!(
+            limiters
+                .for_completion(500, "request_body_error", false)
+                .unwrap()
+                .acquire(interval),
+            Some(0)
+        );
+        assert_eq!(
+            limiters
+                .for_completion(500, "server_error", false)
+                .unwrap()
+                .acquire(interval),
+            None
+        );
+        assert!(limiters.for_completion(404, "ok", false).is_none());
     }
 
     #[test]

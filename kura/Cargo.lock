@@ -1377,6 +1377,7 @@ dependencies = [
  "bytes",
  "deadpool",
  "futures-util",
+ "h2",
  "hex",
  "hmac",
  "http-body",
