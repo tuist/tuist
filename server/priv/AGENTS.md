@@ -34,7 +34,14 @@ This directory contains database migrations and other private assets.
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
 
+- GitLab runner assignments retain encrypted execution payloads temporarily; migration changes must preserve the documented cleanup and disjoint job-ID range. Connections are unique per account and instance URL; routing errors are retained as non-secret assignment metadata.
+
+
 - The runner Kura sizing enrollment migration pins live, previously unpinned `scw-fr-par-runners` rows immediately to the account-sized claim or current plan default, capped at the historical 50Gi. This intentionally allows cache eviction to release scheduler reservations without waiting for measured shrink confirmation. Growth still requires normal admission. The migration locks only enrollable rows, validates every selected claim before writing, and rejects unsupported quantities rather than silently substituting a budget. Plan defaults are frozen historical values so replay is deterministic; future changes need a new migration or measured sizing. Rollback retains the applied pins to avoid restoring the scheduling blockage.
 - Gradle build start timestamps are nullable for backward compatibility and use `Nullable(DateTime64(6))` in ClickHouse. They align recorded operations and machine samples; no upload-time backfill is valid.
 
-- Migration version `20260910160000` belongs to the older Bazel profile upload table migration. Runner claim enrollment uses `20260911080617` to avoid the upstream duplicate-version collision; replay only fills unpinned claims and preserves existing pins.
+- GitLab live-assignment expiry and connection lookups use concurrent partial indexes restricted to `payload IS NOT NULL`; retain historical metadata without making polling scan completed jobs.
+
+- Migration versions must be unique within each repository even when already applied. The GitLab routing migration uses `20260911080000`; its prototype `20260910160000` collided with main’s Bazel profile migration. Any prototype database needs its version history reconciled against the actual schema before migrating.
+
+- Runner Kura enrollment uses `20260911090100` after its incoming main-branch migration collided with Bazel’s `20260910160000`. Re-execution is safe: enrollment selects only live rows without an existing storage pin.

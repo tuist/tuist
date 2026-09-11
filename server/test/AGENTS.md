@@ -23,4 +23,6 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Regional DNS environment parsing tests inject the raw JSON configuration string; do not copy or mutate the OS environment.
 
+- GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
+
 - Runner sizing coverage must include runner-only accounts in claim proposals, account-sized claims on creation, immediate enrollment budgets with plan resolution, sized-claim precedence, a 50Gi growth cap and preservation of existing pins, capacity accounting without an account preload, creation/cold-return manifest pinning, and manifests that apply memory profiles without requesting an unadvertised memory-ceiling resource.
