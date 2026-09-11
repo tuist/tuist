@@ -19,6 +19,11 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
+  `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
+  migrate-time processor grants and CNPG fallback SQL in sync; profile upload
+  creation and expiration remain web-runtime responsibilities.
+
 - Build ingestion no longer reads `feature_flags`. Its processor read grant in
   `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
   with older processor releases during rolling deployments and rollbacks.

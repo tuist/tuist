@@ -654,11 +654,14 @@ defmodule Tuist.Release do
     # blanket `GRANT … ON ALL` would.
     [
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      # Table-level REVOKE does not remove column-level privileges.
+      "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
-      "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+      "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}"
     ]
   end
 
