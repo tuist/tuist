@@ -14,6 +14,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
@@ -1484,6 +1485,71 @@ defmodule Tuist.RunnersTest do
       assert credential.kind == :buildkite
       assert credential.token == "bkjat_opaque"
       assert credential.job_uuid == "job-uuid"
+      # The job needs this to report its own log and outcome; without it
+      # the Linux fleet would have no way to report at all.
+      assert credential.report_token == "report-token"
+    end
+
+    test "dispatches the exact GitLab assignment with an execution binding and no cache grant" do
+      %{account: account} = organization_fixture(preload: [:account])
+      candidate = %{buildkite_candidate(account) | provider: "gitlab"}
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image)}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources ->
+        assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "tuist-macos", runner_labels: ["self-hosted", "macOS", "ARM64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      # GitHub is never consulted for a GitLab job, in either the mint
+      # or the fork check.
+      reject(&GitHubClient.generate_jit_config/3)
+      reject(&GitHubClient.get_workflow_run/1)
+
+      expect(GitLab, :mint_acquisition, fn account_id, job_id ->
+        assert account_id == account.id
+        assert job_id == candidate.workflow_job_id
+
+        {:ok,
+         %{
+           url: "https://gitlab.com",
+           payload: %{"id" => 42, "token" => "job-token"},
+           report_token: "report-token"
+         }}
+      end)
+
+      stub(Claims, :mark_running, fn _job_id, _runner_name, _claimed_at -> :ok end)
+      stub(Jobs, :record_running, fn _job_id, _runner_name -> :ok end)
+
+      expect(Claims, :record_execution, fn _runner_name, job_id, account_id ->
+        assert job_id == candidate.workflow_job_id
+        assert account_id == account.id
+        :matched
+      end)
+
+      assert {:ok, %{credential: credential, cache_signing_grant: nil, volume_head: nil}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert credential.kind == :gitlab
+      assert credential.payload == %{"id" => 42, "token" => "job-token"}
       # The job needs this to report its own log and outcome; without it
       # the Linux fleet would have no way to report at all.
       assert credential.report_token == "report-token"
