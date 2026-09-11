@@ -6,6 +6,7 @@ defmodule TuistWeb.BuildRunLive do
   import Phoenix.Component
   import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyTabStateBackground
+  import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
@@ -328,7 +329,60 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  def cacheable_task_row_id(key), do: "cacheable-task-" <> Base.url_encode64(key, padding: false)
+
+  defp reset_task_cas_outputs(socket) do
+    socket =
+      Enum.reduce(socket.assigns.task_cas_outputs_map, socket, fn {key, _}, acc ->
+        cancel_async(acc, {:task_cas_outputs, key})
+      end)
+
+    socket
+    |> assign(:expanded_task_keys, MapSet.new())
+    |> assign(:task_cas_outputs_map, %{})
+  end
+
+  defp load_task_cas_outputs(socket, key) do
+    run_id = socket.assigns.run.id
+    state = Map.get(socket.assigns.task_cas_outputs_map, key, %{page: 0, result: AsyncResult.loading()})
+    page = state.page + 1
+    state = %{state | result: AsyncResult.loading(state.result)}
+
+    socket
+    |> cancel_async({:task_cas_outputs, key})
+    |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+    |> start_async({:task_cas_outputs, key}, fn ->
+      Builds.list_cacheable_task_cas_outputs(run_id, key, page)
+    end)
+  end
+
   @impl true
+  def handle_async({:task_cas_outputs, key}, outcome, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => state} ->
+        state =
+          case outcome do
+            {:ok, page} ->
+              previous_outputs = if state.result.ok?, do: state.result.result.outputs, else: []
+              result = AsyncResult.ok(state.result, %{page | outputs: previous_outputs ++ page.outputs})
+              %{state | page: state.page + 1, result: result}
+
+            {:exit, reason} ->
+              %{state | result: AsyncResult.failed(state.result, {:exit, reason})}
+          end
+
+        socket =
+          socket
+          |> update(:task_cas_outputs_map, &Map.put(&1, key, state))
+          |> disable_empty_task_expansion(key, state.result)
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_async(:timeline_log, {:ok, log}, socket) do
     {:noreply, push_event(socket, "timeline-log", %{request_id: socket.assigns.timeline_log_request, log: log})}
   end
@@ -345,7 +399,21 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, push_event(socket, "timeline-step", %{request_id: socket.assigns.timeline_step_request, error: true})}
   end
 
+  defp disable_empty_task_expansion(socket, key, %AsyncResult{ok?: true, result: %{outputs: []}}) do
+    socket
+    |> update(:expanded_task_keys, &MapSet.delete(&1, key))
+    |> update(:cacheable_tasks, fn tasks ->
+      Enum.map(tasks, fn task ->
+        if task.key == key, do: %{task | has_cas_outputs: false}, else: task
+      end)
+    end)
+  end
+
+  defp disable_empty_task_expansion(socket, _key, _result), do: socket
+
   defp assign_selected_tab_data(socket, params) do
+    socket = reset_task_cas_outputs(socket)
+
     case {socket.assigns.selected_tab, socket.assigns.selected_breakdown_tab, socket.assigns.selected_cache_tab} do
       {"overview", "file", _} ->
         assign_file_breakdown(socket, params)
@@ -422,6 +490,35 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event("load-timeline-log", _params, socket), do: {:reply, %{error: true}, socket}
+
+  def handle_event("toggle-task-cas-outputs", %{"key" => key}, socket) do
+    if socket.assigns.selected_tab == "xcode-cache" and socket.assigns.selected_cache_tab == "cacheable-tasks" and
+         Enum.any?(socket.assigns.cacheable_tasks, &(&1.key == key and &1.has_cas_outputs)) do
+      if MapSet.member?(socket.assigns.expanded_task_keys, key) do
+        {:noreply, update(socket, :expanded_task_keys, &MapSet.delete(&1, key))}
+      else
+        socket = update(socket, :expanded_task_keys, &MapSet.put(&1, key))
+
+        case socket.assigns.task_cas_outputs_map do
+          %{^key => %{result: %{ok?: true}}} -> {:noreply, socket}
+          %{^key => %{result: %{loading: loading}}} when not is_nil(loading) -> {:noreply, socket}
+          _ -> {:noreply, load_task_cas_outputs(socket, key)}
+        end
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("load-more-task-cas-outputs", %{"key" => key}, socket) do
+    case socket.assigns.task_cas_outputs_map do
+      %{^key => %{result: %{ok?: true, loading: nil, result: %{has_next?: true}}}} ->
+        {:noreply, load_task_cas_outputs(socket, key)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
 
   def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
     {:ok, refreshed_run} = Builds.get_build(run.id, project_id: run.project_id)
@@ -1162,27 +1259,8 @@ defmodule TuistWeb.BuildRunLive do
     }
 
     {:ok, {tasks, tasks_meta}} =
-      cached_build_run_query(run.id, :cacheable_tasks, options, fn ->
-        Builds.list_cacheable_tasks(options)
-      end)
-
-    # Fetch CAS outputs for all tasks on the current page
-    all_node_ids =
-      tasks
-      |> Enum.flat_map(& &1.cas_output_node_ids)
-      |> Enum.uniq()
-
-    cas_outputs = Builds.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
-
-    # Create a map from task key to its CAS outputs
-    task_cas_outputs_map =
-      Map.new(tasks, fn task ->
-        outputs =
-          Enum.filter(cas_outputs, fn output ->
-            output.node_id in task.cas_output_node_ids
-          end)
-
-        {task.key, outputs}
+      cached_build_run_query(run.id, :cacheable_task_summaries, options, fn ->
+        Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
       end)
 
     filters =
@@ -1196,7 +1274,17 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:cacheable_tasks_active_filters, filters)
     |> assign(:cacheable_tasks_sort_by, cacheable_tasks_sort_by)
     |> assign(:cacheable_tasks_sort_order, cacheable_tasks_sort_order)
-    |> assign(:task_cas_outputs_map, task_cas_outputs_map)
+    |> preload_task_cas_outputs()
+  end
+
+  defp preload_task_cas_outputs(socket) do
+    if connected?(socket) do
+      socket.assigns.cacheable_tasks
+      |> Enum.filter(& &1.has_cas_outputs)
+      |> Enum.reduce(socket, fn task, acc -> load_task_cas_outputs(acc, task.key) end)
+    else
+      socket
+    end
   end
 
   # Wraps ClickHouse-heavy Flop-driven queries the public build-run
