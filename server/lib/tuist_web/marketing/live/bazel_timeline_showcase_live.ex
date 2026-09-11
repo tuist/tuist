@@ -3,7 +3,9 @@ defmodule TuistWeb.Marketing.BazelTimelineShowcaseLive do
   Embeds the dashboard's build timeline for a recent Bazel invocation in the
   Bazel announcement post. It runs as its own LiveView so the timeline hook's
   events reach a process that holds the invocation, the same way they reach
-  the invocation page in the dashboard.
+  the invocation page in the dashboard. Unlike the dashboard, the timeline and
+  its steps come from the showcase cache, so a visit doesn't read the trace
+  profile.
   """
   # Mounted as a nested LiveView inside the blog post, so it can't use
   # `TuistWeb, :live_view`: its timezone hook reads connect params, which only
@@ -17,6 +19,7 @@ defmodule TuistWeb.Marketing.BazelTimelineShowcaseLive do
 
   import TuistWeb.Components.BuildTimeline
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.RecordedSteps
   alias Tuist.Marketing.BazelShowcase
   alias TuistWeb.BuildTimelineLoader
@@ -25,15 +28,15 @@ defmodule TuistWeb.Marketing.BazelTimelineShowcaseLive do
     socket = assign(socket, :selected_tab, "timeline")
 
     case BazelShowcase.timeline_invocation() do
-      {:ok, %{project: project, invocation: invocation}} ->
+      {:ok, %{invocation: invocation, timeline: timeline}} ->
         {:ok,
          socket
-         |> assign(:project, project)
          |> assign(:invocation, invocation)
-         |> BuildTimelineLoader.assign_timeline("timeline", invocation)}
+         |> assign(:timeline_version, 1)
+         |> assign(:timeline, AsyncResult.ok(timeline))}
 
       _ ->
-        {:ok, assign(socket, project: nil, invocation: nil)}
+        {:ok, assign(socket, :invocation, nil)}
     end
   end
 
@@ -70,9 +73,7 @@ defmodule TuistWeb.Marketing.BazelTimelineShowcaseLive do
           duration={@invocation.duration_ms}
           version={@timeline_version}
           source="bazel"
-          url={
-            ~p"/#{@project.account.name}/#{@project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
-          }
+          url={~p"/blog/bazel/timeline.json?#{[invocation_id: @invocation.invocation_id]}"}
         />
       <% else %>
         <p data-part="empty">No Bazel invocation with a timeline yet.</p>

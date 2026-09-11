@@ -326,6 +326,13 @@ defmodule TuistWeb.Router do
     get "/sitemap.xml", MarketingController, :sitemap, metadata: @marketing_route_metadata
   end
 
+  scope "/", TuistWeb.Marketing do
+    pipe_through [:non_authenticated_api]
+
+    # Steps for the build timeline embedded in the Bazel announcement post.
+    get "/blog/bazel/timeline.json", BazelShowcaseController, :timeline, metadata: %{type: :marketing, robots_txt: false}
+  end
+
   scope "/" do
     pipe_through [
       :open_api,
