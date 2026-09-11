@@ -55,4 +55,4 @@ Retries, cross-run flakiness detection, and per-case quarantine (Mute and Skip) 
 
 ## Data retention {#data-retention}
 
-Tuist retains Bazel test data for 90 days. See <.localized_link href="/guides/server/data-retention">data retention</.localized_link> for the full policy.
+Tuist retains the Bazel invocation that produced a test run, its logs, and the pending test ingestion records for 90 days. Test cases and their run history use the same model as every other build system and are not covered by that window. See <.localized_link href="/guides/server/data-retention">data retention</.localized_link> for the full policy.

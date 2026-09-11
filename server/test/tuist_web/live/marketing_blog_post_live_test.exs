@@ -24,7 +24,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -42,7 +42,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 
@@ -54,7 +54,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "the new design renders the post's cover artwork inline and on the social card", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -77,7 +77,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
 
     test "the new design closes with the three most recent other posts", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_blog_post -> true
+        :new_marketing -> true
         _ -> false
       end)
 

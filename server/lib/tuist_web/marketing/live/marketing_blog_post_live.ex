@@ -29,7 +29,7 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     {:ok,
      socket
      |> assign(:csp_nonce, get_csp_nonce())
-     |> assign(:new_design, Design.new?(socket.assigns[:current_user], :blog_post))}
+     |> assign(:new_design, Design.new?(socket.assigns[:current_user]))}
   end
 
   def handle_params(_params, url, socket) do

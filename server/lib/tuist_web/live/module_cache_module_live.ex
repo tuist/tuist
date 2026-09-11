@@ -12,6 +12,7 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
   alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.ModuleCache
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
@@ -78,9 +79,18 @@ defmodule TuistWeb.ModuleCacheModuleLive do
       end
 
     {:noreply,
-     push_patch(socket,
-       to: "/#{account.name}/#{project.name}/module-cache/modules/#{module_name}?#{query_params}"
-     )}
+     socket
+     |> assign(
+       ModuleCache.analytics_period_assigns(
+         %{
+           "analytics-date-range" => preset,
+           "analytics-start-date" => start_date,
+           "analytics-end-date" => end_date
+         },
+         %{}
+       )
+     )
+     |> push_patch(to: "/#{account.name}/#{project.name}/module-cache/modules/#{module_name}?#{query_params}")}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -117,31 +127,14 @@ defmodule TuistWeb.ModuleCacheModuleLive do
 
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  # The hit rate chart is derived from the same daily counts rather than a
-  # second query: a day with no builds has no rate, so it plots as 0.
-  defp with_hit_rates(timeseries) do
-    hit_rates =
-      Enum.zip_with(timeseries.invalidations, timeseries.reuses, fn misses, hits ->
-        case misses + hits do
-          0 -> 0.0
-          total -> Float.round(hits / total * 100, 1)
-        end
-      end)
-
-    Map.put(timeseries, :hit_rates, hit_rates)
-  end
-
   defp assign_module(%{assigns: %{module_name: name}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_activity"
     selected_miss_reason = normalize_miss_reason(params["miss-reason"])
 
-    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
-
     socket =
       socket
-      |> assign(:analytics_preset, preset)
-      |> assign(:analytics_period, period)
+      |> assign(ModuleCache.analytics_period_assigns(params, socket.assigns))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:selected_miss_reason, selected_miss_reason)
@@ -149,25 +142,69 @@ defmodule TuistWeb.ModuleCacheModuleLive do
     opts = analytics_opts(socket.assigns)
 
     socket = assign(socket, builds_filters(params))
-    history_opts = build_history_opts(opts, name, params, socket.assigns)
+    history_opts = history_opts(opts, name, params, socket.assigns)
 
     project_id = socket.assigns.selected_project.id
-    {start_datetime, end_datetime} = period
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
 
     socket =
-      assign_async(socket, [:build_history, :cache_branches], fn ->
-        {:ok,
-         %{
-           build_history: Analytics.module_build_history(history_opts),
-           cache_branches:
-             Analytics.cache_branches(
-               project_id: project_id,
-               start_datetime: start_datetime,
-               end_datetime: end_datetime
-             )
-         }}
-      end)
+      if history_opts == socket.assigns[:history_opts] and !socket.assigns.build_history.failed do
+        socket
+      else
+        socket
+        |> assign(:history_opts, history_opts)
+        |> assign_async(:build_history, fn ->
+          {:ok, %{build_history: Analytics.module_build_history(history_opts)}}
+        end)
+      end
 
+    same_opts? = opts == socket.assigns[:module_opts]
+
+    socket =
+      if same_opts? and !socket.assigns.cache_branches.failed do
+        socket
+      else
+        assign_async(socket, :cache_branches, fn ->
+          {:ok,
+           %{
+             cache_branches:
+               Analytics.cache_branches(
+                 project_id: project_id,
+                 start_datetime: start_datetime,
+                 end_datetime: end_datetime
+               )
+           }}
+        end)
+      end
+
+    socket =
+      if same_opts? and !socket.assigns.module.failed do
+        socket
+      else
+        assign_module_analytics(socket, opts, name)
+      end
+
+    assign(socket, :module_opts, opts)
+  end
+
+  defp history_opts(opts, name, params, assigns) do
+    history_opts = build_history_opts(opts, name, params, assigns)
+    previous_opts = assigns[:history_opts] || []
+    snapshot_keys = [:start_datetime, :end_datetime, :after, :before]
+
+    filters_changed? = Keyword.drop(history_opts, snapshot_keys) != Keyword.drop(previous_opts, snapshot_keys)
+
+    # New filters start a fresh relative window so recent builds appear. Cursor
+    # navigation retains that window, keeping comparison history consistent.
+    if filters_changed? or opts != assigns[:module_opts] do
+      %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
+      Keyword.merge(history_opts, start_datetime: start_datetime, end_datetime: end_datetime)
+    else
+      Keyword.merge(history_opts, Keyword.take(previous_opts, [:start_datetime, :end_datetime]))
+    end
+  end
+
+  defp assign_module_analytics(socket, opts, name) do
     assign_async(
       socket,
       [:module, :timeseries, :dependents_series, :miss_reasons_series],
@@ -177,65 +214,43 @@ defmodule TuistWeb.ModuleCacheModuleLive do
         # the cutoff, so ask for it by name.
         module_opts = Keyword.put(opts, :name, name)
         breakdown = Analytics.module_invalidation_breakdown(module_opts)
-        row = breakdown |> Analytics.module_invalidations_from_breakdown(module_opts) |> List.first()
-
-        timeseries =
-          opts
-          |> Keyword.put(:name, name)
-          |> Analytics.module_invalidation_timeseries()
-          |> with_hit_rates()
-
-        module = build_module(row, name, timeseries, opts)
+        series = Analytics.module_timeseries_from_breakdown(breakdown, module_opts)
+        timeseries = ModuleCache.with_hit_rates(series.timeseries)
+        module = build_module(breakdown, name, series, opts)
 
         dependents_series =
           Analytics.module_dependents_timeseries(Keyword.put(opts, :name, name))
-
-        miss_reasons_series =
-          Analytics.miss_reasons_timeseries_from_breakdown(breakdown, module_opts)
 
         {:ok,
          %{
            module: module,
            timeseries: timeseries,
            dependents_series: dependents_series,
-           miss_reasons_series: miss_reasons_series
+           miss_reasons_series: series.miss_reasons_series
          }}
       end
     )
   end
 
-  # When a module has invalidations its row exists; otherwise synthesize a
-  # zeroed row from the time series so the page still renders (e.g. a module
-  # that only ever reused from cache in the window).
-  defp build_module(nil, name, timeseries, opts) do
-    invalidations = Enum.sum(timeseries.invalidations)
-    reuses = Enum.sum(timeseries.reuses)
+  defp build_module(breakdown, name, series, opts) do
+    invalidations = Enum.sum(series.timeseries.invalidations)
+    reuses = Enum.sum(series.timeseries.reuses)
     appearances = invalidations + reuses
 
     %{
       name: name,
-      product: "",
+      product: breakdown |> Enum.map(& &1.product) |> Enum.uniq() |> Enum.sort() |> Enum.join(", "),
       invalidations: invalidations,
       reuses: reuses,
       appearances: appearances,
       invalidation_rate: rate(invalidations, appearances),
       hit_rate: rate(reuses, appearances),
-      self_changes: 0,
-      dependency_induced: 0,
-      unclassified: invalidations,
-      evicted: 0,
-      # A module with no misses still has dependents; the graph knows them even
-      # though there is no invalidation row to read them from.
+      self_changes: Enum.sum(series.miss_reasons_series.changed),
+      dependency_induced: Enum.sum(series.miss_reasons_series.upstream),
+      unclassified: Enum.sum(series.miss_reasons_series.cold),
+      evicted: Enum.sum(series.miss_reasons_series.evicted),
       blast_radius: Analytics.module_dependents_count(Keyword.put(opts, :name, name))
     }
-  end
-
-  defp build_module(row, _name, timeseries, _opts) do
-    reuses = Enum.sum(timeseries.reuses)
-
-    row
-    |> Map.put(:reuses, reuses)
-    |> Map.put(:hit_rate, rate(reuses, row.invalidations + reuses))
   end
 
   defp rate(_invalidations, 0), do: 0.0

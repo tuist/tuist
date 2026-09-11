@@ -64,7 +64,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:featured_testimonials, get_featured_testimonials(locale))
       |> assign(:testimonial_columns, get_testimonial_columns(locale))
 
-    if Design.new?(conn, :home) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> assign(:home_new_testimonials, get_home_new_testimonials())
@@ -441,7 +441,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:head_title, "About Tuist")
 
-    if Design.new?(conn, :about) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> render(:about_new, layout: false)
@@ -453,7 +453,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   # The brand page only exists in the redesign, so instead of a legacy
   # fallback the route 404s until the :brand rollout flag is on.
   def brand(conn, _params) do
-    if Design.new?(conn, :brand) do
+    if Design.new?(conn) do
       conn
       |> assign_structured_data(get_organization_structured_data())
       |> assign_structured_data(
@@ -489,7 +489,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   def download(conn, _params) do
     latest_app_release = Tuist.GitHub.Releases.get_latest_app_release()
 
-    if Design.new?(conn, :download) do
+    if Design.new?(conn) do
       render_download(conn, latest_app_release)
     else
       redirect_to_macos_app_dmg(conn, latest_app_release)
@@ -599,7 +599,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp render_newsletter(conn) do
-    if Design.new?(conn, :newsletter) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> assign(:issues, Enum.sort_by(Newsletter.issues(), & &1.number, :desc))
@@ -954,7 +954,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
         customers_path = Localization.localized_href("/customers", locale)
         case_study_path = Localization.localized_href(case_study.slug, locale)
-        new_design = Design.new?(conn, :case_study)
+        new_design = Design.new?(conn)
 
         # The generated cover artwork (or the title card without it) — the
         # static photos are gone.
@@ -1061,7 +1061,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         )
       )
 
-    if Design.new?(conn, :pricing) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> render(:pricing_new, layout: false)
@@ -1072,9 +1072,9 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   # The compute page only exists in the redesign, so instead of falling back
   # to a legacy template when the flag is off, it stays hidden behind a 404
-  # until :new_marketing_compute flips.
+  # until :new_marketing flips.
   def compute(conn, _params) do
-    if !Design.new?(conn, :compute) do
+    if !Design.new?(conn) do
       raise NotFoundError, dgettext("errors", "Page not found")
     end
 
@@ -1104,9 +1104,9 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   # The tests page only exists in the redesign, so instead of falling back
   # to a legacy template when the flag is off, it stays hidden behind a 404
-  # until :new_marketing_tests flips.
+  # until :new_marketing flips.
   def tests(conn, _params) do
-    if !Design.new?(conn, :tests) do
+    if !Design.new?(conn) do
       raise NotFoundError, dgettext("errors", "Page not found")
     end
 
@@ -1165,7 +1165,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
       |> assign(:page, page)
 
-    if Design.new?(conn, :page) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> render(:page_new, layout: false)
@@ -1216,7 +1216,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp render_newsletter_verify(conn) do
-    if Design.new?(conn, :newsletter) do
+    if Design.new?(conn) do
       conn
       |> assign(:new_design, true)
       |> render(:newsletter_verify_new, layout: false)

@@ -35,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
 
     socket =
       socket
-      |> assign(:new_design, Design.new?(socket.assigns[:current_user], :changelog))
+      |> assign(:new_design, Design.new?(socket.assigns[:current_user]))
       |> assign(:entries, paginated_entries)
       |> assign(:all_entries, filtered_entries)
       |> assign(:categories, categories)

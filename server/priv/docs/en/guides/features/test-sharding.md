@@ -13,26 +13,23 @@ In those cases, you need a system that distributes tests across multiple CI runn
 
 Tuist uses historical test timing data to intelligently balance the load across shards using a [bin-packing algorithm](https://en.wikipedia.org/wiki/Bin_packing_problem), so each runner finishes at roughly the same time. Results from all shards are automatically aggregated in <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link>, giving you a single unified view of your test suite across all shards.
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Xcode"
-        details="Shard Xcode tests across parallel CI runners."
-        linkText="Xcode test sharding"
-        link="/guides/features/test-sharding/xcode"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
-        title="Generated projects"
-        details="Shard tests in Tuist generated projects across parallel CI runners."
-        linkText="Generated projects test sharding"
-        link="/guides/features/test-sharding/generated-projects"/>
-    <HomeCard
-        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
-        title="Gradle"
-        details="Shard Gradle tests across parallel CI runners."
-        linkText="Gradle test sharding"
-        link="/guides/features/test-sharding/gradle"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="Xcode"
+    details="Shard Xcode tests across parallel CI runners."
+    link="/guides/features/test-sharding/xcode"
+/>
+  <.home_card
+    title="Generated projects"
+    details="Shard tests in Tuist generated projects across parallel CI runners."
+    link="/guides/features/test-sharding/generated-projects"
+/>
+  <.home_card
+    title="Gradle"
+    details="Shard Gradle tests across parallel CI runners."
+    link="/guides/features/test-sharding/gradle"
+/>
+</.home_cards>
 
 > [!WARNING]
 > **Requirements**

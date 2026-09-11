@@ -12,6 +12,9 @@ This directory contains ExUnit tests for the Tuist Server.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- Recorded timeline coverage includes Gradle clock alignment, all-operation loading, legacy reports, Bazel retained-span limits, opaque IDs, filtered navigation, tab reopening, and API/MCP parent authorization. Shared lifecycle coverage also checks source/project identity, forced refresh, stale and inactive-tab bootstrap requests, and authenticated HTTP metadata downloads for all three build systems.
+
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`.
 
 - Kura private gateway coverage belongs in the region and Kubernetes provisioner suites, with dispatch/activation coverage in `tuist/kura_test.exs`. Cover stale generations, expired observations, incomplete gateway readiness, environment hostname isolation, two replicas and retained legacy NodePorts.

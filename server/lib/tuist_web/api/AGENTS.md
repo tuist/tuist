@@ -13,3 +13,5 @@ This area owns the OpenAPI spec and schema definitions for the server API.
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- `Schemas.Builds.BuildStep` owns step properties, query parameters and errors for the three build systems. Preserve source-specific opaque ID formats and Xcode’s non-null log contract.
