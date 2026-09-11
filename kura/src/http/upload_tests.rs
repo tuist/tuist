@@ -308,15 +308,86 @@ async fn upload_body_inline_size_limits_remain_413() {
                 .is_none()
         );
     }
+    let metrics = context.state.metrics.render();
     assert!(
-        context
-            .state
-            .metrics
-            .render()
+        metrics
             .lines()
             .any(|line| line.contains("action=\"keyvalue_payload_rejected\"")
                 && line.ends_with(" 2"))
     );
+    // A refused payload never reached a write, so it must not land in the
+    // counter that reports writes which failed after being accepted.
+    assert!(
+        !metrics.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total_total{")
+                && line.contains("result=\"error\"")
+                && !line.ends_with(" 0")
+        }),
+        "{metrics}"
+    );
+}
+
+#[tokio::test]
+async fn backfill_bodies_request_failures_are_classified_like_other_uploads() {
+    let context = test_context(|_| {}).await;
+    let app = router(context.state.clone());
+    for (kind, status, result) in [
+        (ErrorKind::ConnectionReset, 499, "client_aborted"),
+        (ErrorKind::InvalidData, 400, "invalid_request_body"),
+        (ErrorKind::TimedOut, 408, "request_timeout"),
+        (ErrorKind::Other, 500, "request_body_error"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/_internal/backfill/bodies")
+                    .body(failed_body(kind))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status().as_u16(), status, "{kind:?}");
+        let details = response.extensions().get::<ObservedHandlerError>().unwrap();
+        assert_eq!(details.result, result);
+        assert!(details.message.contains("upload regression cause"));
+    }
+
+    // The route's own size ceiling still answers 413, and it is not an
+    // inline key-value rejection, so it claims no memory action.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/_internal/backfill/bodies")
+                .body(Body::from(vec![
+                    b'x';
+                    MAX_BACKFILL_BODIES_REQUEST_BYTES as usize
+                        + 1
+                ]))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert!(
+        response
+            .extensions()
+            .get::<ObservedHandlerError>()
+            .is_none()
+    );
+    let metrics = context.state.metrics.render();
+    assert!(!metrics.contains("action=\"keyvalue_payload_rejected\""));
+    let invalid: u64 = metrics
+        .lines()
+        .filter(|line| {
+            line.starts_with("kura_backfill_bodies_peer_requests_total_total{")
+                && line.contains("outcome=\"invalid\"")
+        })
+        .map(|line| line.rsplit(' ').next().unwrap().parse::<u64>().unwrap())
+        .sum();
+    assert_eq!(invalid, 5, "{metrics}");
 }
 
 #[test]
