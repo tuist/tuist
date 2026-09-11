@@ -17,6 +17,7 @@ use rocksdb::{
     ReadOptions, WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Digest as _;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify, RwLock, Semaphore},
@@ -6454,14 +6455,22 @@ impl Store {
         upload_id: &str,
         expected_parts: &[u32],
     ) -> Result<ArtifactManifest, MultipartError> {
-        self.complete_multipart_upload_and_enqueue(upload_id, expected_parts, &[])
+        self.complete_multipart_upload_and_enqueue(upload_id, expected_parts, None, &[])
             .await
     }
 
+    /// `expected_sha256`, when the client declared one at complete time, is the
+    /// lowercase hex SHA-256 the ASSEMBLED bytes must reproduce. The assembly
+    /// loop below already streams every byte through a copy buffer, so the hash
+    /// rides that pass for free; a mismatch refuses the persist and keeps the
+    /// upload's parts for the client to repair (mirroring the REAPI lane's
+    /// validate_digest_bytes — the artifact key here is an input-derived cache
+    /// key, so this declaration is the only content claim the server can check).
     pub async fn complete_multipart_upload_and_enqueue(
         &self,
         upload_id: &str,
         expected_parts: &[u32],
+        expected_sha256: Option<&str>,
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, MultipartError> {
         if expected_parts.is_empty()
@@ -6502,6 +6511,7 @@ impl Store {
         let mut assembled_bytes = 0_u64;
         let mut advised_through = 0_u64;
         let mut copy_buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+        let mut hasher = expected_sha256.map(|_| sha2::Sha256::new());
 
         for part_number in expected_parts {
             let part = upload
@@ -6527,6 +6537,9 @@ impl Store {
                     })?;
                 if read == 0 {
                     break;
+                }
+                if let Some(hasher) = hasher.as_mut() {
+                    hasher.update(&copy_buffer[..read]);
                 }
                 assembled
                     .write_all(&copy_buffer[..read])
@@ -6571,6 +6584,19 @@ impl Store {
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
         })?;
+
+        // Refuse before persist: the early return drops `cleanup`, which
+        // removes the assembled temp file, while the upload record and its
+        // parts stay for the client to re-upload and complete again.
+        if let (Some(expected), Some(hasher)) = (expected_sha256, hasher) {
+            let actual = hex::encode(hasher.finalize());
+            if actual != expected {
+                return Err(MultipartError::ChecksumMismatch {
+                    expected: expected.to_owned(),
+                    actual,
+                });
+            }
+        }
 
         let key = module_key(&upload.category, &upload.hash, &upload.name);
         let manifest = self
@@ -19314,7 +19340,7 @@ mod tests {
                 .is_err()
         );
         store
-            .complete_multipart_upload_and_enqueue(&uploads[0], &[1], &[])
+            .complete_multipart_upload_and_enqueue(&uploads[0], &[1], None, &[])
             .await
             .expect("a session above the reduced cap should still complete");
         assert_eq!(store.snapshot().unwrap().multipart_uploads, 8);

@@ -233,6 +233,7 @@ defmodule Tuist.Runners do
       %{
         generation: (head && head.generation) || 0,
         digest: head && head.tree_digest,
+        content_digest: head && head.content_digest,
         download_url: download_url
       }
     end
@@ -251,15 +252,29 @@ defmodule Tuist.Runners do
   traversal-free object-key component under the account's own prefix. Returns
   `:error` for an invalid account or digest, or a URL that would target a
   non-public host (SSRF guard, the write-side twin of the download guard).
+
+  `content_digest`, when the guest reports one (a 64-char SHA-256 hex of the
+  image bytes it is about to PUT), is signed into the URL as an
+  `x-amz-checksum-sha256` header so the object store verifies the received
+  bytes at ingest — corruption in the uploader or on the wire fails the PUT
+  instead of becoming the fleet's master. Returns `{:ok, url, checksum}` where
+  `checksum` is the base64 value the guest MUST send as that header (the URL's
+  signature covers it), or nil when nothing was signed (no digest reported, an
+  invalid one, or a storage provider that cannot sign upload headers) — the
+  guest then PUTs with no checksum header, the status quo.
   """
-  def volume_master_upload_url(account_id, tree_digest) when is_integer(account_id) and is_binary(tree_digest) do
+  def volume_master_upload_url(account_id, tree_digest, content_digest \\ nil)
+
+  def volume_master_upload_url(account_id, tree_digest, content_digest)
+      when is_integer(account_id) and is_binary(tree_digest) do
     if valid_inventory_digest?(tree_digest) do
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
            key = volume_master_object_key(account_id, tree_digest),
+           {checksum, upload_opts} = upload_checksum_and_opts(account, reported_content_digest(content_digest)),
            url when is_binary(url) <-
-             Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+             Storage.generate_upload_url(key, account, upload_opts),
            true <- Tuist.URL.public_host_url?(url) do
-        {:ok, url}
+        {:ok, url, checksum}
       else
         _ -> :error
       end
@@ -270,7 +285,22 @@ defmodule Tuist.Runners do
     _ -> :error
   end
 
-  def volume_master_upload_url(_account_id, _tree_digest), do: :error
+  def volume_master_upload_url(_account_id, _tree_digest, _content_digest), do: :error
+
+  # The base64 SHA-256 to sign into the presigned PUT, plus the storage opts
+  # that sign it. No digest — or a provider whose presigned URLs cannot carry
+  # signed headers — signs nothing, and the guest is told so (nil) rather than
+  # sending a header the URL's signature does not cover.
+  defp upload_checksum_and_opts(account, content_digest) do
+    base_opts = [expires_in: @volume_master_url_ttl_seconds]
+
+    if is_binary(content_digest) and Storage.supports_signed_upload_headers?(account) do
+      checksum = content_digest |> Base.decode16!(case: :lower) |> Base.encode64()
+      {checksum, base_opts ++ [signed_headers: [{"x-amz-checksum-sha256", checksum}]]}
+    else
+      {nil, base_opts}
+    end
+  end
 
   @doc """
   Whether a promote built on `base_generation` could still win `account_id`'s
@@ -311,6 +341,16 @@ defmodule Tuist.Runners do
 
   defp reported_unverifiable_digest(_digest), do: nil
 
+  # A reported content digest is honored only as a 64-char SHA-256 hex. An
+  # absent or malformed one reads as unreported, so the HEAD row carries no
+  # content digest and converging hosts skip the content check — exactly what
+  # every promote did before the guest began hashing its image.
+  defp reported_content_digest(digest) when is_binary(digest) do
+    if Regex.match?(~r/^[a-f0-9]{64}$/, digest), do: digest
+  end
+
+  defp reported_content_digest(_digest), do: nil
+
   @doc """
   Records a runner's promote of `account_id`'s cache volume: fast-forwards the
   account's HEAD to `tree_digest` published from `node_name`, but ONLY when
@@ -332,11 +372,24 @@ defmodule Tuist.Runners do
   wedged the same way (see `Tuist.Runners.VolumeHeads`). Validated like
   `tree_digest`, since it too reaches a query.
 
+  `content_digest`, when the runner reports one, is the SHA-256 of the image
+  bytes it uploaded (the same digest its PUT was checksum-verified against).
+  Stored on the HEAD row so converging hosts can verify the downloaded object
+  bit-for-bit before adopting it. Optional for rollout: an absent or malformed
+  value stores nil and hosts skip the content check for that HEAD.
+
   Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
   base is stale (another host advanced the HEAD first), or `:error` on an invalid
   digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest, base_generation, unverifiable_digest \\ nil) do
+  def report_volume_head(
+        account_id,
+        node_name,
+        tree_digest,
+        base_generation,
+        unverifiable_digest \\ nil,
+        content_digest \\ nil
+      ) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
 
@@ -346,7 +399,8 @@ defmodule Tuist.Runners do
              tree_digest,
              base_generation,
              VolumeHeads.reserved_tuist_cache(),
-             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest)
+             unverifiable_digest: reported_unverifiable_digest(unverifiable_digest),
+             content_digest: reported_content_digest(content_digest)
            ) do
         {:ok, generation} ->
           # This digest is now HEAD, so it is no longer an orphan candidate even if

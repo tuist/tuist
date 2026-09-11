@@ -66,7 +66,8 @@ defmodule Tuist.Storage do
 
         presigned_url_opts = [
           query_params: query_params,
-          expires_in: Keyword.get(opts, :expires_in, 3600)
+          expires_in: Keyword.get(opts, :expires_in, 3600),
+          headers: Keyword.get(opts, :signed_headers, [])
         ]
 
         {:ok, url} =
@@ -74,6 +75,19 @@ defmodule Tuist.Storage do
 
         url
     end
+  end
+
+  @doc """
+  Whether presigned upload URLs for this actor's storage can carry signed
+  request headers (e.g. `x-amz-checksum-sha256`, which makes the object store
+  verify the received bytes at ingest). True for S3-compatible providers, whose
+  SigV4 query URLs sign header names into the signature; false for Azure Blob,
+  where the SAS-based URLs carry no signed headers. Callers that would tell a
+  client to send such a header must check this first — an unsigned checksum
+  header on a URL that did not cover it fails the request outright.
+  """
+  def supports_signed_upload_headers?(actor) do
+    storage_provider(actor) == :s3
   end
 
   def multipart_complete_upload(object_key, upload_id, parts, actor) do
