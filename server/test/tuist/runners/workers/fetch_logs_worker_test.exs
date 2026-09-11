@@ -171,7 +171,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       )
     end
 
-    test "returns the error so Oban retries when GitHub hasn't published the log yet (404)" do
+    test "snoozes without noise while the log archive is still being finalised (404)" do
       account = account_fixture()
       enqueue(account, 9_910_002)
       stub_gh_installation_token()
@@ -180,14 +180,35 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
         {:ok, %Req.Response{status: 404, body: ""}}
       end)
 
-      assert {:error, :log_not_ready_yet} =
+      # A 404 is the expected response for ~30s after job completion while
+      # GitHub finalises the archive. Snoozing keeps the retry off Sentry.
+      assert {:snooze, seconds} =
                FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id), attempt: 1, max_attempts: 5})
+
+      assert seconds > 0
 
       assert JobLogs.list_for_job(9_910_002) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_002})
     end
 
-    test "gives up quietly on the last attempt when GitHub never publishes a log (404)" do
+    test "keeps snoozing on later attempts inside the snooze budget (404)" do
+      account = account_fixture()
+      enqueue(account, 9_910_007)
+      stub_gh_installation_token()
+
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 404, body: ""}}
+      end)
+
+      # A 4th attempt is still inside the snooze budget covering GitHub's
+      # publication delay, so we keep snoozing rather than surfacing an error.
+      assert {:snooze, seconds} =
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_007, account.id), attempt: 4, max_attempts: 8})
+
+      assert seconds > 0
+    end
+
+    test "gives up quietly after the snooze budget is exhausted (404)" do
       account = account_fixture()
       enqueue(account, 9_910_004)
       stub_gh_installation_token()
@@ -196,10 +217,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
         {:ok, %Req.Response{status: 404, body: ""}}
       end)
 
-      # A permanent 404 (a job that never ran a step) is not actionable,
-      # so the last attempt completes rather than discarding with an error.
+      # After the snooze budget, a persistent 404 (a job that never ran
+      # a step, an archive GitHub never published) is not actionable, so
+      # the worker completes rather than discarding with an error.
       assert :ok =
-               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id), attempt: 5, max_attempts: 5})
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id), attempt: 6, max_attempts: 10})
 
       assert JobLogs.list_for_job(9_910_004) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_004})

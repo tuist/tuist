@@ -136,12 +136,12 @@
       <div data-part="legends">
         <.legend
           title={dgettext("dashboard_account", "Total")}
-          value={Integer.to_string(@delivery_stats.total)}
+          value={format_number(@delivery_stats.total)}
           style="primary"
         />
         <.legend
           title={dgettext("dashboard_account", "Failed")}
-          value={Integer.to_string(@delivery_stats.failed)}
+          value={format_number(@delivery_stats.failed)}
           style="destructive"
         />
       </div>

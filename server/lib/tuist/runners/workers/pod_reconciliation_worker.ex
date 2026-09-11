@@ -127,12 +127,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
     cleared =
       present
       |> Enum.filter(&(&1.pod_missing_since != nil))
-      |> Enum.map(& &1.workflow_job_id)
+      |> Enum.map(& &1.pod_name)
       |> Claims.clear_pods_missing()
 
     marked =
       missing
-      |> Enum.map(& &1.workflow_job_id)
+      |> Enum.map(& &1.pod_name)
       |> Claims.mark_pods_missing(now)
 
     released = release_confirmed(now)
@@ -159,14 +159,14 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
       confirmed_before
       |> Claims.list_pods_missing_since(@max_releases_per_tick)
       |> Enum.filter(&recover_one/1)
-      |> Enum.map(& &1.workflow_job_id)
+      |> Enum.map(& &1.pod_name)
 
     count = length(released)
 
     if count > 0 do
       Logger.warning("runners: released claims whose Pod is gone",
         count: count,
-        workflow_job_ids: Enum.take(released, 10),
+        pods: Enum.take(released, 10),
         confirmed_absent_seconds: @confirm_seconds
       )
 
@@ -243,9 +243,12 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorker do
   # Freeing the slot is only half the job — the workflow_job must be
   # claimable again. `release_pod_missing/2` deletes the claim and
   # re-queues the lifecycle row in one transaction; a terminal row never
-  # matches the requeue guard, so a finished job is never resurrected.
-  defp recover_one(%{workflow_job_id: workflow_job_id, pod_missing_since: handle}) do
-    Claims.release_pod_missing(workflow_job_id, handle) == :ok
+  # matches the requeue guard, so a finished job is never resurrected. A
+  # claim whose job was displaced onto another runner has no row left to
+  # re-queue — it went back to the queue when GitHub reported the
+  # displacement — and only its slot is freed here.
+  defp recover_one(%{pod_name: pod_name, pod_missing_since: handle}) do
+    Claims.release_pod_missing(pod_name, handle) == :ok
   end
 
   defp terminal_completions([]), do: %{}

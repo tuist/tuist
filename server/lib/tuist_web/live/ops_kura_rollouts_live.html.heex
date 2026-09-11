@@ -1,0 +1,22 @@
+<div id="ops-kura-rollouts" data-part="ops-kura-page">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Kura Rollout History")}</h1>
+    <.button variant="secondary" label="Back to overview" size="medium" navigate={~p"/ops/kura"} />
+  </div>
+
+  <.card title="Rollouts" icon="stack_2">
+    <.card_section>
+      <.rollouts_table id="kura-rollouts-table" rollouts={@rollouts} />
+      <.pagination_group
+        :if={@meta.total_pages > 1}
+        current_page={@current_page}
+        number_of_pages={@meta.total_pages}
+        page_patch={
+          fn page ->
+            ~p"/ops/kura/rollouts?#{Map.put(@query_params, "page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>

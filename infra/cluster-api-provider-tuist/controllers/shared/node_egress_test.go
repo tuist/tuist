@@ -60,3 +60,37 @@ func TestReconcileNodeEgressCapacity(t *testing.T) {
 		t.Fatalf("cloud node (zero budget) must not advertise egress capacity")
 	}
 }
+
+// A zero budget removes a capacity the controller advertised earlier, leaving the
+// kubelet-managed resources alone; a node that never advertised it is untouched.
+func TestReconcileNodeEgressCapacityRemovesTheKeyOnZero(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add scheme: %v", err)
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "rated"},
+		Status: corev1.NodeStatus{Capacity: corev1.ResourceList{
+			corev1.ResourceCPU: resource.MustParse("8"),
+			EgressMbpsResource: resource.MustParse("5000"),
+		}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(node).WithStatusSubresource(node).Build()
+
+	if err := ReconcileNodeEgressCapacity(context.Background(), c, node, 0); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	got := &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "rated"}, got); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if _, ok := got.Status.Capacity[EgressMbpsResource]; ok {
+		t.Fatal("egress capacity should have been removed")
+	}
+	if q := got.Status.Capacity[corev1.ResourceCPU]; q.Value() != 8 {
+		t.Fatalf("cpu capacity = %d, want 8 preserved", q.Value())
+	}
+	if NodeEgressMbps(got) != 0 {
+		t.Fatal("NodeEgressMbps should read 0 once removed")
+	}
+}

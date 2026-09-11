@@ -151,9 +151,9 @@ Users need to clear their cache after updating.
 
 ## Release workflows
 
-The server, app, cache, Gradle plugin, skills, Noora, and infrastructure components release through `.github/workflows/release.yml`. It runs on pushes to main, uses git cliff for change detection, and handles the full process including artifacts and GitHub releases.
+The server, Kura, the Helm chart, and the infrastructure images release through `.github/workflows/server-production-deployment.yml`. It runs on pushes to main and cascades canary → acceptance tests → production. The app, cache, Gradle plugin, skills, Noora, and the standalone infra controllers each have a dedicated `*-release.yml` workflow. All of them share change detection: `mise/tasks/release/components.json` declares each component's tag prefix and include paths, and git cliff turns the matching commits into release notes.
 
-The CLI has its own set of workflows (it is excluded from `release.yml`):
+The CLI has its own set of workflows:
 
 - `cli-release.yml` - publishes a canary on every CLI-touching push to main
 - `cli-rc.yml` - manually cuts or iterates a release candidate

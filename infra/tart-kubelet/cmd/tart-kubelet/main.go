@@ -71,6 +71,8 @@ func main() {
 		vncControlDir      string
 		vncRelayHost       string
 		vncRelayPort       int
+		vncRelayPortCount  int
+		minGoldensKept     int
 		disableVMGC        bool
 		runnerCacheRoot    string
 		cacheVolumeCapGiB  int
@@ -98,9 +100,12 @@ func main() {
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
-		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
-			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
-			"instances per host); Tart refuses to start a third VM.")
+		"Pod ceiling advertised as the Node's pods capacity. NOT the "+
+			"concurrent-VM limit: the scheduler counts terminated Pods against "+
+			"this until GC deletes them, so a host is given guests x 2 + 1. "+
+			"Apple's macOS SLA caps simultaneous virtualized macOS instances at "+
+			"2 per host, and Tart enforces that itself regardless of this value. "+
+			"The default of 2 is one guest slot plus one terminating predecessor.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
 		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
 			"this is left at the default `:8080`, the bind address is "+
@@ -116,7 +121,17 @@ func main() {
 	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
 		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
 	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
-		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
+		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service. "+
+			"With --vnc-relay-port-count > 1 this is the base of a contiguous range.")
+	flag.IntVar(&vncRelayPortCount, "vnc-relay-port-count", envIntOr("TART_KUBELET_VNC_RELAY_PORT_COUNT", 1),
+		"How many contiguous ports from --vnc-relay-port a relay may bind, walked in order until one is free. "+
+			"A pinned port is a per-host resource while a relay is per-Pod, so a host that runs more than one guest "+
+			"needs one port per guest or the second guest's relay fails to bind. Every port in the range must be "+
+			"declared on whatever fronts the host. Ignored when --vnc-relay-port is 0.")
+	flag.IntVar(&minGoldensKept, "min-goldens-kept", envIntOr("TART_KUBELET_MIN_GOLDENS_KEPT", 0),
+		"Floor on how many golden base VMs the disk-pressure reclaim may leave on the host. 0 uses the built-in "+
+			"default of 1. A host that runs guests from more than one pool wants at least one golden per pool, "+
+			"otherwise reclaiming under pressure strands a pool into a full cold image pull.")
 	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
 		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
@@ -126,9 +141,12 @@ func main() {
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
 		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache). "+
-			"This is the CAS's byte BUDGET within that shared image: it sets the CAS's share of --cache-volume-cap-gib "+
-			"(staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes), and the binary cache gets the rest minus a "+
-			"filesystem reserve (max(2 GiB, 5%)), so the two pruners never over-commit the one image. Persisted across VMs, riding the binary "+
+			"This is the CAS's FOOTPRINT allowance within that shared image: it sets the CAS's share of "+
+			"--cache-volume-cap-gib, and the binary cache gets the rest minus a filesystem reserve (max(2 GiB, 5%)), "+
+			"so the two pruners never over-commit the one image. The guest is given HALF of it as "+
+			"COMPILATION_CACHE_LIMIT_SIZE, because that setting bounds one GENERATION and a store keeps two (a "+
+			"primary plus the demoted upstream that is still the warm cache) — so budget this for what the store "+
+			"should OCCUPY, not for what one generation may reach. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
@@ -149,6 +167,14 @@ func main() {
 
 	if vncRelayPort < 0 || vncRelayPort > 65535 {
 		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
+
+	// Reject a range that runs off the end of the port space at parse
+	// time rather than letting the last offsets fail to bind at the
+	// moment an operator is trying to open a session.
+	if vncRelayPort > 0 && (vncRelayPortCount < 1 || vncRelayPort+vncRelayPortCount-1 > 65535) {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port-count %d for base port %d", vncRelayPortCount, vncRelayPort), "parse flag")
 		os.Exit(1)
 	}
 
@@ -281,6 +307,8 @@ func main() {
 			// burst clones from it instead of re-pulling the whole VM
 			// image. Zero would fall back to the same default.
 			GoldenRetention: 24 * time.Hour,
+			// 0 falls back to the collector's own default (1).
+			MinGoldensKept: minGoldensKept,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -344,6 +372,7 @@ func main() {
 		VNCControlDir:      vncControlDir,
 		VNCRelayHost:       vncRelayHost,
 		VNCRelayPort:       vncRelayPort,
+		VNCRelayPortCount:  vncRelayPortCount,
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,

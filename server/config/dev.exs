@@ -12,14 +12,26 @@ server_source_path = Path.expand("..", __DIR__)
 escaped_noora_source_path = Regex.escape(noora_source_path)
 deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
 code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
+# Plug.Debugger replaces the real error pages (TuistWeb.ErrorHTML) with its
+# stack-trace page on every raised exception. Disable it to preview the 404 and
+# other error pages the way production renders them. Phoenix bakes this option
+# into TuistWeb.Endpoint at compile time, so flipping it needs that module
+# recompiled: `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam`
+# before starting (or `mix compile --force`).
+debug_errors_enabled = System.get_env("TUIST_DEV_DISABLE_DEBUG_ERRORS") not in ["1", "true"]
 
-# Base watchers for esbuild
+# Base watchers for esbuild. Source maps are emitted as separate .map files
+# (devtools fetch them on demand) rather than inlined: inline maps made the
+# marketing bundle ~25 MB, which every page navigation on a phone had to
+# download and parse before its hooks could mount.
 base_watchers = [
-  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap=inline --watch)]},
-  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
+  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap --watch)]},
+  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap --watch)]},
+  esbuild_marketing_new: {Esbuild, :install_and_run, [:marketing_new, ~w(--sourcemap --watch)]},
+  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap --watch)]},
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap --watch)]}
 ]
 
 # ## SSL Support
@@ -52,7 +64,7 @@ base_live_reload_patterns = [
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/docs/.*(ex|heex)$",
-  ~r"priv/marketing/blog/*/.*(md)$",
+  ~r"priv/marketing/blog/.*\\.md$",
   ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
   ~r"#{escaped_noora_source_path}/js/.*(js)$",
   ~r"#{escaped_noora_source_path}/css/.*(css)$",
@@ -82,15 +94,29 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
+      "--alias:noora/hooks=#{noora_source_path}/js",
       "--alias:noora=#{noora_source_path}/js/index.js",
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -180,7 +206,7 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
   code_reloader: code_reloader_enabled,
-  debug_errors: true,
+  debug_errors: debug_errors_enabled,
   reloadable_apps: [:tuist, :noora],
   watchers: if(code_reloader_enabled, do: base_watchers, else: []),
   live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
@@ -193,3 +219,8 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# One session cookie per dev server. See `@session_options` in
+# `TuistWeb.Endpoint`: cookies ignore the port, so a shared name lets
+# concurrent worktree servers clobber each other's sessions.
+config :tuist, session_cookie_key: "_tuist_key_" <> (System.get_env("TUIST_SERVER_PORT") || "8080")

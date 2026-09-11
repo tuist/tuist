@@ -76,6 +76,40 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
+#### Dependency installation on continuous-integration runners
+
+Tuist uses [SwifterPM](https://github.com/tuist/swifterpm) for `tuist install`. SwifterPM maintains a local source cache and restores package checkouts from it when possible. On an ephemeral continuous-integration runner, every job starts without that cache, so installation follows the native [Swift Package Manager](https://www.swift.org/package-manager/) path. No additional configuration is needed.
+
+Package manifests can read process environment variables while declaring dependencies. The package-manifest cache therefore accounts for those variables. Job-specific values can change on every run without changing the declared dependencies, which would otherwise prevent a cache hit.
+
+Tuist handles this automatically for [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), and [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). When it recognizes one of those environments, it hides only volatile run metadata, such as GitHub Actions run identifiers, retry counts, and per-step temporary paths, before evaluating `Package.swift` and calculating package-manifest cache keys. Branch, reference, commit, workflow, and other configuration values remain visible. These defaults apply on both ephemeral and persistent runners.
+
+If a package manifest intentionally uses one of the automatic exclusions to declare dependencies, restore that variable explicitly in `Tuist.swift`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        installOptions: .options(
+            packageManifestEnvironment: .automatic(
+                including: ["CI_JOB_ID"]
+            )
+        )
+    )
+)
+```
+
+Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Tuist supplies the resulting environment to the package resolver as well as `Package.swift`, so never exclude credentials or another value needed to fetch a dependency. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
+
+#### Faster warm installations on persistent runners
+
+This is an optional optimization for a runner whose local cache survives between jobs. Keep SwifterPM's source cache at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. With a warm source cache, pass `--cached-directory-materialization=symlink` to link each worktree to the cached checkouts instead of copying them into `.build`:
+
+```bash
+tuist install --cached-directory-materialization=symlink
+```
+
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 
 Coding agents and human contributors increasingly work in parallel: a developer keeps a worktree open for the feature they are reviewing while one or more agents iterate on their own branches in sibling worktrees. A few project choices make this much smoother.

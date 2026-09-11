@@ -245,7 +245,7 @@ defmodule TuistWeb.LayoutLive do
     # rather than re-querying accounts/organizations/users_roles per project.
     user_belongs_to_account? =
       not is_nil(current_user) and
-        Accounts.owns_account_or_belongs_to_account_organization?(current_user, %{id: account.id})
+        Accounts.owns_account_or_is_member_of_account_organization?(current_user, %{id: account.id})
 
     account
     |> Projects.get_all_project_accounts()
@@ -289,5 +289,6 @@ defmodule TuistWeb.LayoutLive do
 
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
   defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
   defp build_system_badge(_), do: nil
 end

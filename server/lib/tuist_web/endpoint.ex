@@ -9,12 +9,19 @@ defmodule TuistWeb.Endpoint do
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
   alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
+  alias TuistWeb.Webhooks.BazelActionsController
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
+  # Browser cookies are scoped to host and ignore the port, so every dev
+  # server on localhost otherwise shares one session cookie: loading a
+  # page on one port rewrites the session another port's form embedded
+  # its CSRF token into, and the next form post there fails as an
+  # invalid CSRF token. Dev derives the name from the port to give each
+  # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
     store: :cookie,
-    key: "_tuist_key",
+    key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
     same_site: "Lax"
   ]
@@ -95,6 +102,46 @@ defmodule TuistWeb.Endpoint do
     handler: TuistWeb.Webhooks.GradleCacheController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/reapi-cache",
+    handler: TuistWeb.Webhooks.ReapiCacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-invocations",
+    handler: TuistWeb.Webhooks.BazelInvocationsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions/batch",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 12_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-profiles",
+    handler: TuistWeb.Webhooks.BazelProfilesController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 45_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-test-artifacts",
+    handler: TuistWeb.Webhooks.BazelTestArtifactsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
 
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.

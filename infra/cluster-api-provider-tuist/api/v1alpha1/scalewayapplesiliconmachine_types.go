@@ -93,6 +93,102 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// +optional
 	HostMemoryMB int `json:"hostMemoryMB,omitempty"`
 
+	// GuestCapacity is how many Tart guests this host is expected to
+	// run concurrently. Falls back to the operator's
+	// `--tartkubelet-guest-capacity` global default (1) when unset.
+	//
+	// This is the SKU's INTENT, not an enforcement point. What
+	// actually bounds the guest count is (a) kube-scheduler fitting
+	// Pods into HostCPU/HostMemoryMB and (b) Tart refusing to start a
+	// third VM per Apple's SLA. GuestCapacity exists because several
+	// host-level resources are sized per guest and would otherwise
+	// each need their own field:
+	//
+	//   * the VNC relay port range — a pinned relay port is per-host
+	//     but a relay is per-Pod, so a second guest needs a second
+	//     port (and the per-Mac egress Service has to declare it).
+	//   * the disk-pressure goldens floor — a host running guests from
+	//     two pools wants one golden per pool, or reclaiming under
+	//     pressure strands a pool into a full cold image pull.
+	//
+	// Keep it consistent with HostCPU/HostMemoryMB: the value should be
+	// what those two actually admit at the fleet's Pod shape. Setting
+	// it higher does not create capacity, it only over-provisions the
+	// per-guest resources above; setting it lower silently degrades the
+	// second guest (no relay port, a golden it has to re-pull).
+	// +optional
+	GuestCapacity int `json:"guestCapacity,omitempty"`
+
+	// MaxPods is the Pod ceiling tart-kubelet advertises on its Node
+	// (`--max-pods`). Falls back to the operator's
+	// `--tartkubelet-max-pods` global default (2) when unset.
+	//
+	// It counts EVERY Pod bound to the Node, not just Tart-VM Pods,
+	// and a Pod stays bound after it finishes — a terminal Pod holds
+	// its slot until GC collects it. Measured on the live fleet
+	// (2026-08-25): a single-guest host was carrying its Running Pod
+	// plus the previous rollout's Succeeded one. So size this as
+	// guests x 2 + 1: each guest slot can transiently hold its running
+	// Pod and one not-yet-collected predecessor, and the +1 is margin.
+	// 3 for a single-guest host, 5 for a dual-guest one.
+	//
+	// Keep the margin. HostCPU/HostMemoryMB bind the guest count before
+	// MaxPods does, so a higher value admits no extra guest; but a node
+	// sitting exactly at its ceiling rejects Pods with "Too many pods"
+	// while the autoscaler still counts its slots as available, so it
+	// keeps targeting a node that cannot take them until GC catches up.
+	//
+	// No allowance for host-system Pods. hcloud-csi-node, the usual
+	// suspect, is kept off macOS by a `kubernetes.io/os NotIn [darwin]`
+	// required nodeAffinity — not by the macOS taint, which its blanket
+	// `Exists` tolerations ignore — and nothing else targets these
+	// Nodes.
+	//
+	// This is not where Apple's 2-guest SLA is enforced and does not
+	// need to be: Tart refuses to start a third VM, and
+	// HostCPU/HostMemoryMB bind the guest count before MaxPods does.
+	// The error costs are lopsided — too low stalls a real guest slot
+	// until GC catches up, too high admits nothing extra — so it is
+	// sized for the worst case.
+	// +optional
+	MaxPods int `json:"maxPods,omitempty"`
+
+	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
+	// volume host bootstrap provisions to hold per-account cache-volume
+	// images. Unset (nil) falls back to the operator's
+	// `--runner-cache-volume-gib` global default; an explicit 0
+	// disables cache volumes on this host entirely (every VM boots on
+	// the cold path).
+	//
+	// A pointer, unlike its sibling sizing fields, because 0 is a
+	// meaningful value here and nonsense for them — a host with no CPU
+	// or no Pod ceiling does not exist, but a host with cache volumes
+	// switched off is an ordinary thing to want. With a scalar the two
+	// states collapse and an operator asking a SKU to run cold gets the
+	// fleet default instead, silently. That matters when bringing a new
+	// SKU into a fleet whose global is already non-zero: staging the
+	// host cold first and enabling the cache once it is validated is
+	// how this feature was rolled out in the first place.
+	//
+	// Per-Machine because the right quota is a function of the SKU's
+	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
+	// above ~80 GiB once the ~85 GB goldens and a job VM's transient
+	// CoW growth are accounted for, while a 2 TB M4 can hold several
+	// times that. Resident masters scale as
+	// `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
+	// can have two live branches, so a host that runs two VMs needs a
+	// LARGER quota than a single-guest host just to hold the same
+	// number of accounts hot.
+	//
+	// The provisioning script never resizes an existing volume (see
+	// renderRunnerCacheVolumeScript), so changing this on a live host
+	// is inert until that host is replaced. That is why it is safe to
+	// vary per Machine even though it participates in the host-config
+	// hash: a drifted host re-runs an idempotent script that early-
+	// returns on the already-mounted volume.
+	// +optional
+	RunnerCacheVolumeGiB *int `json:"runnerCacheVolumeGiB,omitempty"`
+
 	// AdoptPoolPrefix is the Scaleway-side name prefix the controller
 	// scans when claiming a Mac mini for this Machine. The controller
 	// has no auto-order path, so a prefix must resolve from somewhere:
@@ -208,6 +304,13 @@ type GHActionsRunnerConfig struct {
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.
 type ScalewayAppleSiliconMachineStatus struct {
+	// HostAgentStatus carries the phase, terminal-failure fields and
+	// host-config drift bookkeeping shared with every other macOS machine
+	// kind. Embedded, so the wire shape is unchanged (`.status.phase`,
+	// `.status.hostConfigHash`, ...) and the shared helpers in
+	// controllers/macos operate on one definition of those rules.
+	HostAgentStatus `json:",inline"`
+
 	// Ready is set to true once the Mac mini has joined the cluster
 	// and the corresponding Node object reports Ready=True. CAPI core
 	// reads this to mark the parent Machine Ready.
@@ -225,99 +328,10 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	Addresses []clusterv1.MachineAddress `json:"addresses,omitempty"`
 
-	// Phase tracks lifecycle: Pending | Provisioning | Bootstrapping |
-	// Ready | Deleting | Failed. Operator-facing only; CAPI core
-	// drives off Ready + Conditions.
-	// +optional
-	Phase string `json:"phase,omitempty"`
-
-	// FailureReason / FailureMessage are set on terminal failures. CAPI
-	// core surfaces them on the Machine object and prevents auto-retry.
-	// +optional
-	FailureReason *string `json:"failureReason,omitempty"`
-	// +optional
-	FailureMessage *string `json:"failureMessage,omitempty"`
-
 	// Conditions are CAPI-style condition entries (Provisioned,
 	// Bootstrapped, NodeReady).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
-
-	// TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary
-	// currently installed on the Mac mini. Drift between this and the
-	// operator's own baked-in binary SHA triggers a rolling update of
-	// the agent on each reconcile.
-	// +optional
-	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
-
-	// HostConfigHash is the fleet-wide canonical hash of every host
-	// config the operator pushes — the rendered install scripts plus the
-	// embedded binaries (bootstrap.HostConfigHash). Drift between this
-	// and the operator's own computed hash re-pushes the host config on
-	// the next reconcile, so a change to ANY pushed config (a script
-	// tweak, a fleet CIDR, or a re-baked binary) rolls to existing hosts
-	// instead of only a tart-kubelet binary change.
-	// +optional
-	HostConfigHash string `json:"hostConfigHash,omitempty"`
-
-	// FailedHostConfigHash records the desired HostConfigHash that
-	// exhausted its update-retry budget and drove the CR into the terminal
-	// Failed state. A broken config can never be applied, so HostConfigHash
-	// never advances to it and comparing desired-vs-last-applied would see
-	// drift forever and reset the retry cap every reconcile. Comparing
-	// desired-vs-FailedHostConfigHash instead keeps the cap for an unchanged
-	// broken config while still retrying a genuinely new one.
-	// +optional
-	FailedHostConfigHash string `json:"failedHostConfigHash,omitempty"`
-
-	// TartKubeletUpdateAttempts counts consecutive failures of the
-	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
-	// Once it crosses the operator's max-attempts threshold the CR
-	// transitions to a terminal Failed state with FailureReason set
-	// to "TartKubeletUpdateExceededRetries"; CAPI core surfaces that
-	// on the parent Machine and stops auto-driving it. Recovery is
-	// manual: clear FailureReason + zero this counter to resume the
-	// loop. Without this cap a persistently-broken host (binary
-	// corruption, disk-full, network partition) gets SSH-hammered
-	// every 60s indefinitely with no terminal-failure signal.
-	// +optional
-	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
-
-	// LastUpdateFailureTime is when the drift loop last recorded an
-	// update failure for this host. It exists so the terminal Failed
-	// state can expire: FailedHostConfigHash alone only lifts it when a
-	// NEW config ships, which is right for a config the host rejected
-	// but wrong for the far more common verdict — the host was simply
-	// unreachable (`dial tcp ...:22: i/o timeout`). Those hosts stayed
-	// terminal indefinitely while remaining Ready and schedulable, so
-	// they kept running jobs on a host config frozen at whatever the
-	// operator last managed to push. Re-arming after a cooldown lets a
-	// host that has since come back take the current config on its own,
-	// while a genuinely broken config still backs off to a handful of
-	// attempts per cooldown instead of hammering every reconcile.
-	// +optional
-	LastUpdateFailureTime *metav1.Time `json:"lastUpdateFailureTime,omitempty"`
-
-	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
-	// failures on the currently-adopted host. Reset to zero on a
-	// successful bootstrap or whenever the underlying ServerID
-	// changes (mini swapped out). Drives the tiered recovery
-	// escalation in the BootstrapFailed path: at the reboot threshold
-	// the controller asks Scaleway to reboot the host to clear
-	// volatile state (PAM lockouts, sshd throttling, half-open
-	// connections); at the release threshold it returns the host to
-	// the adopt pool so the next reconcile claims a different mini.
-	// +optional
-	BootstrapAttempts int32 `json:"bootstrapAttempts,omitempty"`
-
-	// BootstrapRebootIssued records that a recovery reboot has
-	// already been triggered for the current host. Prevents
-	// re-rebooting the same host on every retry after the threshold
-	// crossing. Cleared when the underlying ServerID changes (mini
-	// swapped out, e.g., via release-to-pool) or on successful
-	// bootstrap.
-	// +optional
-	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
 }
 
 // +kubebuilder:object:root=true

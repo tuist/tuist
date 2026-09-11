@@ -5,7 +5,7 @@ defmodule Tuist.Runners.Catalog do
 
     * `:runner_linux_shapes` — Linux shape catalog.
     * `:runner_linux_pools` — operator-defined Linux pools.
-    * `:runner_macos_shapes` — macOS shape catalog (M2-L only today).
+    * `:runner_macos_shapes` — macOS shape catalog.
     * `:runner_macos_xcode_versions` — Xcode versions runnable on the
       macOS fleet.
 
@@ -227,9 +227,10 @@ defmodule Tuist.Runners.Catalog do
     * `:linux` — `<linux-prefix>-<vcpus>vcpu-<memory_gb>gb` (e.g.
       `tuist-runner-pool-linux-4vcpu-16gb`). Prefix injected via
       `TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX`.
-    * `:macos` — `<macos-prefix>-<xcode-version-dashes>` (e.g.
-      `tuist-runner-pool-macos-26-5`). M2-L is implicit today;
-      when additional shapes ship, the shape suffix joins. Prefix
+    * `:macos` — `<macos-prefix>-<xcode-version-dashes>` for the
+      catalog's default shape (e.g. `tuist-runner-pool-macos-26-5`),
+      with `-<vcpus>vcpu-<memory_gb>gb` appended for any other shape
+      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). Prefix
       injected via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
 
   Accepts any map with the relevant fields — `%Profile{}` works, as
@@ -240,10 +241,34 @@ defmodule Tuist.Runners.Catalog do
     "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
   end
 
-  def pool_name(%{platform: :macos, xcode_version: xcode_version})
+  def pool_name(%{platform: :macos, xcode_version: xcode_version} = profile)
       when is_binary(xcode_version) and xcode_version != "" do
-    "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+    base = "#{Tuist.Environment.runners_macos_pool_name_prefix()}-#{xcode_version_tag(xcode_version)}"
+
+    case macos_shape_suffix(profile) do
+      nil -> base
+      suffix -> "#{base}-#{suffix}"
+    end
   end
+
+  # The default shape's pools carry no shape suffix, so every name that
+  # existed before the catalog gained a second macOS shape still resolves
+  # to the same pool. Renaming them would strand `queued` rows whose
+  # `fleet_name` points at the old pool (a runner only claims work for
+  # its own pool) and split the fleet's analytics history at the deploy.
+  #
+  # Non-default shapes therefore carry `-<vcpus>vcpu-<memory_gb>gb`.
+  # `templates/runner-pool.yaml` renders pool names by the same rule, so
+  # the two stay in step.
+  defp macos_shape_suffix(%{vcpus: vcpus, memory_gb: memory_gb}) when is_integer(vcpus) and is_integer(memory_gb) do
+    case default_shape(:macos) do
+      nil -> nil
+      %{vcpus: ^vcpus, memory_gb: ^memory_gb} -> nil
+      _ -> "#{vcpus}vcpu-#{memory_gb}gb"
+    end
+  end
+
+  defp macos_shape_suffix(_), do: nil
 
   @doc """
   `fleet_name` prefixes that identify `platform` jobs in
@@ -290,16 +315,29 @@ defmodule Tuist.Runners.Catalog do
   New lifecycle rows persist resources at webhook enqueue time, so
   this is primarily a rollout fallback for queued rows created before
   resource columns existed. Linux profile and operator-defined pools
-  are matched against their configured resources; macOS pools use the
-  catalog default shape because the current Xcode-keyed pools all run
-  on the same machine shape. Legacy `linux-…` names use the Linux
-  default, while an unconfigured catalog pool is rejected.
+  are matched against their configured resources; macOS pools are
+  matched on the shape suffix `pool_name/1` appends, falling back to
+  the catalog default shape, which is what the unsuffixed pools run.
+  Legacy `linux-…` names use the Linux default, while an unconfigured
+  catalog pool is rejected.
   """
   def resources_for_fleet(fleet_name) when is_binary(fleet_name) do
     case fleet_platform(fleet_name) do
       :linux -> linux_resources_for_fleet(fleet_name)
-      :macos -> default_resources(:macos)
+      :macos -> macos_resources_for_fleet(fleet_name)
       nil -> {:error, :invalid_resources}
+    end
+  end
+
+  defp macos_resources_for_fleet(fleet_name) do
+    shape =
+      Enum.find(shapes(:macos), fn shape ->
+        not shape.default? and String.ends_with?(fleet_name, "-" <> shape.key)
+      end)
+
+    case shape do
+      nil -> default_resources(:macos)
+      shape -> {:ok, %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
     end
   end
 

@@ -7,32 +7,71 @@ defmodule Tuist.Kura.AccountPolicies do
   stored. A Kura instance holds exactly those, so an account that named a
   region is served from it and never from another, whatever the plan.
 
-  Air runs in United States East for an account that named no region, and in
-  whichever region the deployment serves Air from in Europe for an account that
-  named Europe. Paid accounts with a country group resolve deterministically to
-  that group's pool. A paid account
-  that allows every region has stated no constraint, so it resolves in this
-  order:
+  Every plan resolves over the same set: the regions the account's residency
+  admits and this deployment serves. Air is not held to a narrower one — what
+  bounds a region is the capacity `Tuist.Kura.Admission` finds there, not the
+  tier of the account asking. Resolution runs in this order:
 
-    1. its explicit versioned assignment, if an operator made one,
-    2. the region its live public instance is already in, so resolution never
-       relocates a running account, and
-    3. United States East, the deterministic default a dormant account
-       receives before its next provisioning demand.
+    1. its explicit versioned assignment, if an operator made one and the
+       account's residency still admits it,
+    2. the region placement decided for it (`PlacerRegions.primary_region/1`),
+    3. the region its live public instance is already in, so resolution never
+       relocates a running account,
+    4. the region nearest where its cache traffic comes from, counted by
+       `Tuist.Kura.Origins` and mapped by `Tuist.Kura.OriginMap`, and
+    5. the residency default, which a dormant account with no attributable
+       traffic receives before its next provisioning demand.
 
-  An assignment is also the only route to a region no preference derives to.
-  `accounts.region` is `all | europe | usa`, so nothing resolves to United
-  States West on its own; an account is opted into it per account, for latency.
+  Steps 2 and 4 are what reach a region no storage-region preference names.
+  `accounts.region` is `all | europe | usa`, so nothing *derives* to United
+  States West or Asia Pacific Southeast from the preference alone — but an
+  account whose traffic comes from Taiwan and whose residency constrains
+  nothing resolves to Asia Pacific Southeast at step 4 with no operator
+  involved.
 
-  Step 2 counts only live instances in public regions, and picks one when there
+  An assignment is therefore no longer the only route to those regions. What
+  it is instead is placement's per-account rollback: the sweep skips an
+  account holding one entirely, so pinning an account stops it being placed
+  automatically rather than merely deciding where it sits today.
+
+  Step 4 decides only for an account with nothing already running, because
+  steps 2 and 3 outrank it. Moving an account that is being served is a
+  relocation, which `Tuist.Kura.Placement` decides on a far longer window of
+  evidence and which is applied through the endpoint drain.
+
+  Resolution is not the only way an account gets a server in a region, and this
+  module is not a gate on that. A customer can also add one directly from
+  account settings in any region `Regions.selectable/0` offers, which never
+  consults this module. What resolution decides is where the control plane
+  *places* an account — demand, lifecycle, provisioning — not what the customer
+  is permitted to pick.
+
+  Step 3 counts only live instances in public regions, and picks one when there
   are several; `live_service_regions/1` carries the reasoning for both, and for
   why an archive does not hold an account to its region.
 
-  Step 2 is what keeps the default from being a migration. Without it an
+  Step 3 is what keeps the default from being a migration. Without it an
   account already serving from elsewhere would start recording demand against
   the default region, cold-provision a second instance there, and leave the
   original holding its allocation with no reclamation path on the plans that
   are never archived.
+
+  First placement, an account with nothing running and no decision recorded
+  for it, goes to the region nearest its traffic that has room for it. A
+  preferred region the cluster says is full is skipped for a permitted sibling
+  that is not (`Tuist.Kura.Capacity.room_for?/2`). Once the account's origin is
+  known, the skip is counted (`Tuist.Kura.Telemetry.placement_capacity_spill/3`)
+  and the region chosen is recorded as a placement decision, so the account
+  does not flip back once the reading moves. Residency is never crossed for
+  room: an account whose residency admits one region waits in it, exactly as
+  before. `resolvable?/1` answers whether an account resolves at
+  all without reading room or recording anything, for the request path.
+
+  The record of a spill is a guess, not a decision (`PlacerRegion.guess?/1`),
+  so the placer's fast first-placement correction stays open for it, and the
+  placer maps traffic onto `placeable_regions_with_room/3`, so no rung proposes
+  a region the scheduler could not place in and the preferred region comes back
+  into consideration the hour it has room.
   """
 
   import Ecto.Query
@@ -42,24 +81,26 @@ defmodule Tuist.Kura.AccountPolicies do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Kura.AccountRegionPolicy
+  alias Tuist.Kura.Capacity
+  alias Tuist.Kura.OriginMap
+  alias Tuist.Kura.Origins
+  alias Tuist.Kura.PlacerRegion
+  alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.Telemetry
   alias Tuist.Repo
   alias Tuist.Time
 
-  @paid_service_regions %{
-    europe: "eu-central",
-    usa: "us-east"
+  # Where an account is placed when nothing else decides: no assignment, no
+  # placement decision, nothing already running, and no origin to read. A
+  # deterministic default breaks no residency promise, and it is what these
+  # accounts resolve to today.
+  @residency_defaults %{
+    europe: "eu-west",
+    usa: "us-east",
+    all: "us-east"
   }
-
-  # Where a paid account that has named no storage region is placed when it has
-  # neither an explicit assignment nor a live instance. "All regions" in account
-  # settings states no residency constraint, so a deterministic United States
-  # default breaks no promise, and it is what replaces a refusal that left these
-  # accounts unable to provision at all. `assign_service_region/4` remains the
-  # override for one that later needs Europe.
-  @default_paid_service_region "us-east"
 
   @doc """
   Returns the effective plan and service region for an account.
@@ -72,10 +113,34 @@ defmodule Tuist.Kura.AccountPolicies do
   no signal that they are.
   """
   def resolve(%Account{} = account) do
-    resolve(account, %{
+    resolve(account, default_lookups())
+  end
+
+  @doc """
+  Whether the account resolves to a service region at all.
+
+  The request path's question: an endpoint answer for an account with no
+  instance yet says whether one is expected, and re-asks every 30 seconds.
+  Which region it would be is not part of the answer, and room cannot change
+  whether there is one, since a region known to be full is only ever skipped
+  for another the account may use. So room is not read here, which keeps a
+  slow apiserver off the request path, and no spill is recorded, which keeps a
+  request that carries no origin yet from binding the account to a region its
+  traffic never asked for. Both wait for the demand flush, which folds origins
+  in before it resolves.
+  """
+  def resolvable?(%Account{} = account) do
+    match?({:ok, _resolution}, resolve(account, %{default_lookups() | room: fn _region, _plan -> nil end}))
+  end
+
+  defp default_lookups do
+    %{
       assignment: &current_service_region_assignment/1,
-      live_region: &current_live_service_region/1
-    })
+      live_region: &current_live_service_region/1,
+      placer_region: &PlacerRegions.primary_region/1,
+      origin: &majority_origin/1,
+      room: &Capacity.room_for?/2
+    }
   end
 
   @doc """
@@ -90,20 +155,59 @@ defmodule Tuist.Kura.AccountPolicies do
   def resolve_all(accounts) when is_list(accounts) do
     assignments = current_service_region_assignments(accounts)
     live_regions = live_service_regions(accounts)
+    placer_regions = PlacerRegions.primary_regions(accounts)
+    origins = majority_origins(accounts)
 
     Map.new(accounts, fn %Account{id: id} = account ->
       {id,
        resolve(account, %{
          assignment: fn _account -> Map.get(assignments, id) end,
-         live_region: fn _account -> Map.get(live_regions, id) end
+         live_region: fn _account -> Map.get(live_regions, id) end,
+         placer_region: fn _account -> Map.get(placer_regions, id) end,
+         origin: fn _account -> Map.get(origins, id) end,
+         room: &Capacity.room_for?/2
        })}
+    end)
+  end
+
+  @doc """
+  `serving_regions/1` for many accounts at once, for the demand-flush hot
+  path. Returns `{:ok, [region | secondaries]}` or the resolution's error, per
+  account id.
+  """
+  def serving_regions_all(accounts) when is_list(accounts) do
+    resolutions = resolve_all(accounts)
+    secondaries = PlacerRegions.serving_regions_all(accounts)
+
+    Map.new(accounts, fn %Account{id: id} = account ->
+      case Map.fetch!(resolutions, id) do
+        {:ok, %{service_region: primary}} ->
+          permitted = permitted_regions(account)
+
+          extra =
+            secondaries
+            |> Map.get(id, [])
+            |> Enum.reject(&(&1 == primary))
+            |> Enum.filter(&(&1 in permitted))
+
+          {id, {:ok, [primary | extra]}}
+
+        {:error, reason} ->
+          {id, {:error, reason}}
+      end
     end)
   end
 
   defp resolve(%Account{} = account, lookups) do
     plan = Billing.effective_plan(account)
 
-    case effective_service_region(account, plan, lookups) do
+    resolution =
+      case held_unknown_region(account, lookups) do
+        nil -> effective_service_region(account, plan, lookups)
+        _region -> {:error, :region_unknown}
+      end
+
+    case resolution do
       {:ok, service_region} ->
         {:ok, %{plan: plan, service_region: service_region}}
 
@@ -111,6 +215,17 @@ defmodule Tuist.Kura.AccountPolicies do
         Telemetry.resolution_refused(plan, reason)
         {:error, reason}
     end
+  end
+
+  # The rows can name a region this code has never heard of for the length of
+  # a deploy that renames one. Resolving past it to a default would place the
+  # account a second time, on the very KuraInstance name it already holds, so
+  # an account holding such a region is refused and left where it is.
+  defp held_unknown_region(account, lookups) do
+    Enum.find(
+      [lookups.placer_region.(account), lookups.live_region.(account)],
+      &(is_binary(&1) and not Regions.exists?(&1))
+    )
   end
 
   @doc """
@@ -201,42 +316,321 @@ defmodule Tuist.Kura.AccountPolicies do
     )
   end
 
-  defp effective_service_region(%Account{region: region}, :air, _lookups) when region in [:all, :usa],
-    do: {:ok, Environment.kura_air_region(region)}
-
-  # An Air account that chose Europe is refused rather than placed in the United
-  # States pool the rest of Air runs in: the storage region it chose names the
-  # module cache binaries a Kura instance holds. Which European region serves
-  # Air is a deployment decision, so this resolves only once one names a region
-  # and that region is actually served. Nothing names one today, so these
-  # accounts keep exactly the answer they get now.
-  defp effective_service_region(%Account{region: :europe}, :air, _lookups) do
-    case Environment.kura_air_region(:europe) do
-      region when is_binary(region) ->
-        if Regions.available?(region), do: {:ok, region}, else: {:error, :service_region_unavailable}
-
-      _ ->
+  defp effective_service_region(%Account{} = account, :air, lookups) do
+    # Air is placed like any other plan: wherever its residency admits and the
+    # deployment serves. It used to be admitted only to regions carrying an
+    # explicit Air budget, which collapsed every Air account onto the one
+    # funded region whatever its traffic said, and refused outright the
+    # accounts whose residency admitted no funded region at all. What bounds a
+    # region is capacity rather than plan: `Tuist.Kura.Admission` refuses an
+    # instance a region cannot hold, which is a decision taken against the
+    # disk that is actually there instead of against a list maintained by
+    # hand.
+    case account |> permitted_regions() |> Enum.filter(&Regions.available?/1) do
+      [] ->
         {:error, :service_region_unavailable}
+
+      placeable ->
+        {:ok, place(account, :air, placeable, placeable, lookups) || default_within(account, placeable)}
     end
   end
 
-  defp effective_service_region(%Account{region: region}, plan, _lookups)
-       when plan in [:pro, :enterprise] and region in [:europe, :usa],
-       do: {:ok, Map.fetch!(@paid_service_regions, region)}
+  defp effective_service_region(%Account{} = account, plan, lookups) when plan in [:pro, :enterprise] do
+    permitted = permitted_regions(account)
 
-  defp effective_service_region(%Account{region: :all} = account, plan, lookups) when plan in [:pro, :enterprise] do
-    case lookups.assignment.(account) do
-      %AccountRegionPolicy{service_region: service_region} ->
-        {:ok, service_region}
+    assignment = lookups.assignment.(account)
 
-      nil ->
-        {:ok, lookups.live_region.(account) || @default_paid_service_region}
+    # Residency outranks the assignment, and is re-checked here rather than
+    # only where the assignment is written: a customer can narrow their storage
+    # region in account settings long after an operator pinned them, and
+    # honouring a pin that now sits outside the promise would keep serving them
+    # from a region they have just said their data may not live in. The row is
+    # left alone; it resolves again if the promise widens.
+    honoured = assignment && assignment.service_region in permitted
+
+    case assignment do
+      %AccountRegionPolicy{service_region: service_region} when honoured ->
+        served_service_region(service_region)
+
+      _assignment_absent_or_outside_residency ->
+        # Only a served region can be chosen fresh. Resolving into one the
+        # catalog lists but the deployment does not serve would record demand
+        # in a region `Lifecycle.lifecycle_regions/0` never iterates, which is
+        # the same trap `served_service_region/1` guards against. The filter
+        # covers what placement picks; the check below covers the residency
+        # default it falls back to, and a placer or live region that is still
+        # permitted but no longer served.
+        placeable = Enum.filter(permitted, &Regions.available?/1)
+        service_region = place(account, plan, permitted, placeable, lookups) || residency_default(account)
+
+        served_service_region(service_region)
     end
   end
 
   defp effective_service_region(%Account{}, :open_source, _lookups), do: {:error, :plan_not_supported}
 
   defp effective_service_region(%Account{}, _plan, _lookups), do: {:error, :service_region_unavailable}
+
+  # Where an Air account lands when nothing has decided for it: the residency
+  # default where the deployment serves it, which is where these accounts have
+  # always resolved, and the first region it does serve otherwise.
+  #
+  # The paid plans refuse at this point instead, and Air cannot. A deployment
+  # is free not to serve the default region — staging serves neither American
+  # one — and refusing there would leave the free tier unresolvable in the
+  # environment its lifecycle is exercised in. Ordering decides only among
+  # regions the residency already admits, so falling back breaks no promise.
+  defp default_within(account, placeable) do
+    default = residency_default(account)
+
+    if default in placeable, do: default, else: List.first(placeable)
+  end
+
+  # In order: what placement decided, then where the account is already served
+  # from, then where its traffic comes from, then the residency default.
+  #
+  # Placement outranks stickiness because an applied relocation is exactly a
+  # decision to stop being sticky; stickiness outranks origin because moving a
+  # running account is a relocation, which is a decision taken on a window of
+  # evidence rather than on the request in hand. So origin decides for accounts
+  # with nothing running, which is what first placement is.
+  #
+  # Room is read on that last step only. The first two name an instance that
+  # exists or is meant to, and its region being full is not a reason to resolve
+  # the account somewhere else.
+  defp place(account, plan, permitted, placeable, lookups) do
+    from_placement = Enum.find([lookups.placer_region.(account), lookups.live_region.(account)], &(&1 in permitted))
+
+    from_placement || from_origin(account, plan, placeable, lookups)
+  end
+
+  # An unattributed account still comes through here, because the mapping
+  # table's default order is also the order to choose in when there is nothing
+  # to go on. What an origin adds is a different order, not the only one.
+  #
+  # A region known to have no room is taken out of what origin may choose from,
+  # and put back if that leaves nothing, so an account whose residency admits a
+  # single region resolves exactly as it did: into that region, where the
+  # instance waits for room. Where the reading does change the answer, the
+  # region chosen is recorded as a placement decision, and the next resolution
+  # finds it on the first step of `place/5` rather than re-deriving it against
+  # a reading that may have moved and flipping the account back into the full
+  # region before anything was provisioned. Nothing has to move for that: the
+  # account has no instance yet, which is the only time this runs.
+  defp from_origin(account, plan, placeable, lookups) do
+    origin = lookups.origin.(account)
+    preferred = OriginMap.preferred(origin, placeable)
+
+    # Only an account we can locate can be served further away than it should
+    # be. An unattributed one expresses no preference, so there is nothing here
+    # to leave unmet and nothing to procure against.
+    if not is_nil(origin) do
+      wanted = origin |> OriginMap.candidates() |> hd()
+
+      if preferred != wanted, do: Telemetry.placement_preference_unmet(origin, wanted, preferred)
+    end
+
+    case OriginMap.preferred(origin, with_room(placeable, account, lookups)) do
+      nil -> preferred
+      ^preferred -> preferred
+      spilled -> spill(account, plan, origin, placeable, preferred, spilled)
+    end
+  end
+
+  # `placeable` less the regions the cluster says have no room for an instance
+  # of the account's plan, or `placeable` itself when that is all of them. A
+  # region whose room cannot be read keeps its place, so a cluster that cannot
+  # be reached leaves placement exactly as it was.
+  defp with_room(placeable, account, lookups) do
+    sizing_plan = sizing_plan(account)
+
+    case Enum.reject(placeable, &(lookups.room.(&1, sizing_plan) == false)) do
+      [] -> placeable
+      roomy -> roomy
+    end
+  end
+
+  # The preferred region was skipped for room, which is the evidence that it
+  # needs another box: the account is served further from its traffic than the
+  # catalog could serve it, for as long as the box is missing.
+  #
+  # Counted and recorded only once the account is attributed. An unattributed
+  # spill is usually the account's first request, resolved before the flush
+  # that carries its origin, and a decision recorded then would outrank the
+  # origin once it lands: a European account arriving while the default
+  # region is full would be bound to the other American region for good, with
+  # Europe standing open. The demand flush folds origins in before it
+  # resolves, so the resolution that writes the lifecycle row is the attributed
+  # one. Until then the spill steers this resolution and binds nothing.
+  #
+  # Recorded insert-only, and the record decides the answer. Two demand
+  # flushes on two nodes can spill the same account at once and, from their
+  # separately cached room readings, into different regions; whichever wrote
+  # first is the placement, and this resolution follows it rather than
+  # demoting it to a second serving region. The spill is counted only by the
+  # resolution whose record stood, so a race counts once.
+  defp spill(_account, _plan, nil, _placeable, _wanted, served), do: served
+
+  defp spill(account, plan, _origin, placeable, wanted, served) do
+    evidence = %{
+      "signal" => PlacerRegion.capacity_spill_signal(),
+      "preferred_region" => wanted,
+      "plan" => to_string(plan)
+    }
+
+    case PlacerRegions.record_first_primary(account, served, evidence) do
+      {:recorded, _row} ->
+        Telemetry.placement_capacity_spill(plan, wanted, served)
+        served
+
+      # Followed only where this account may still be placed. A primary that
+      # predates a narrowed storage region, or a region the deployment stopped
+      # serving, names one the account may no longer use; `place/5` passed
+      # that row over to get here, and following it now would resolve the
+      # account outside its residency.
+      {:existing, %PlacerRegion{region: recorded}} ->
+        if recorded in placeable, do: recorded, else: served
+
+      {:error, _changeset} ->
+        served
+    end
+  end
+
+  # Where an account lands when nothing else decides. Unchanged from what these
+  # accounts resolve to today, so an origin nobody could attribute and a region
+  # nobody has funded both leave the answer exactly as it was.
+  defp residency_default(%Account{region: region}), do: Map.fetch!(@residency_defaults, region)
+
+  # Which regions the account's residency admits. The promise is about where
+  # data may live, and more than one region can keep it: an account that
+  # answered "United States" is admitted to both American regions, and never to
+  # either European one.
+  @doc """
+  Every region the account should be running an instance in: its service
+  region, plus the secondaries placement added alongside it.
+
+  `resolve/1` still answers with one region, because one region is what a
+  demand row, a provisioning decision and an endpoint answer are each about.
+  This is the set that has more than one member, and the lifecycle iterates it.
+  """
+  def serving_regions(%Account{} = account) do
+    case resolve(account) do
+      {:ok, %{service_region: primary}} ->
+        secondaries =
+          account
+          |> PlacerRegions.serving_regions()
+          |> Enum.reject(&(&1 == primary))
+          |> Enum.filter(&(&1 in permitted_regions(account)))
+
+        [primary | secondaries]
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  @doc """
+  The regions an account may actually be placed in: the ones its residency
+  admits and this deployment serves.
+
+  The constraint resolver the placer consumes. `resolve/1` decides where an
+  account goes; this says where it is allowed to go, and the difference
+  between the two is what a placement decision is.
+
+  Plan-blind, because the two things that narrow this are the account's
+  residency promise and what the deployment runs, and neither is bought. What
+  a plan decides is how large an instance is and how many regions it may hold
+  at once (`Tuist.Kura.Placement`), not which regions are eligible.
+  """
+  def placeable_regions(%Account{} = account) do
+    account
+    |> permitted_regions()
+    |> Enum.filter(&Regions.available?/1)
+  end
+
+  @doc """
+  `placeable_regions/1` less the regions the cluster says have no room for an
+  instance of `plan`, keeping every region in `serving` whatever it says.
+
+  What the placer maps an account's traffic onto. A region with no room is one
+  no rung may propose adding an instance in, so it leaves the map the hour it
+  fills and returns the hour it has room again, and the rungs react to the
+  traffic on their own cadence from there. A region the account already serves
+  stays in the map full or not: its instance needs no room, and traffic that
+  maps onto it is traffic already served rather than a reason to move. A region
+  whose room cannot be read stays too, as it does at first placement.
+
+  The plan is the one thing here that is not plan-blind: which regions are
+  eligible does not depend on it, but how large an instance has to fit does.
+  """
+  def placeable_regions_with_room(%Account{} = account, plan, serving) when is_list(serving) do
+    account
+    |> placeable_regions()
+    |> Enum.filter(&(&1 in serving or Capacity.room_for?(&1, plan) != false))
+  end
+
+  defp permitted_regions(%Account{region: residency}) do
+    Regions.admitted_by_residency(residency)
+  end
+
+  # How far back first placement reads. Long enough that a weekend does not
+  # erase where an account works, short enough to still be "where its traffic
+  # comes from" rather than where it once came from. Relocating an account
+  # already running is a decision the placer takes on much longer windows;
+  # this only answers for an account with nothing to relocate.
+  @origin_window_days 7
+
+  defp majority_origin(%Account{id: account_id} = account) do
+    account
+    |> List.wrap()
+    |> majority_origins()
+    |> Map.get(account_id)
+  end
+
+  defp majority_origins(accounts) do
+    since = Date.add(Date.utc_today(), -@origin_window_days)
+
+    accounts
+    |> Enum.map(& &1.id)
+    |> Origins.rollups_since(since)
+    |> Map.new(fn {account_id, rollups} -> {account_id, majority_origin_of(rollups)} end)
+  end
+
+  # Runs decide. Resolutions decide only when there are no runs at all, which
+  # is the account whose very first request this is: biased evidence about
+  # where it is beats no evidence and the default region.
+  defp majority_origin_of(rollups) do
+    by_origin = Enum.group_by(rollups, & &1.origin)
+
+    leader(by_origin, & &1.run_count) || leader(by_origin, & &1.demand_count)
+  end
+
+  defp leader(by_origin, count) do
+    by_origin
+    |> Enum.map(fn {origin, rollups} -> {origin, rollups |> Enum.map(count) |> Enum.sum()} end)
+    |> Enum.reject(fn {_origin, total} -> total == 0 end)
+    |> case do
+      [] -> nil
+      totals -> totals |> Enum.max_by(fn {origin, total} -> {total, origin} end) |> elem(0)
+    end
+  end
+
+  # An assignment names a region; `Regions.available?/1` decides whether it is
+  # served. Both gates are needed: an assignment to an unserved region would
+  # otherwise resolve cleanly, record demand under a region
+  # `Lifecycle.lifecycle_regions/0` never iterates, and report `provisioning:
+  # true` from `Demand.instance_expected?/1` indefinitely.
+  #
+  # Refused rather than fallen back to the default region, because silently
+  # relocating an explicitly assigned account is what an assignment exists to
+  # prevent. The row is untouched and resolves once the region is served.
+  defp served_service_region(service_region) do
+    if Regions.available?(service_region) do
+      {:ok, service_region}
+    else
+      {:error, :service_region_unavailable}
+    end
+  end
 
   # The region an account is already being served from, or `nil` when it has no
   # live instance.
@@ -309,6 +703,10 @@ defmodule Tuist.Kura.AccountPolicies do
     |> Map.new(&{&1.account_id, &1})
   end
 
+  # An assignment may name any region the account's residency admits, not only
+  # the ones an unconstrained account can reach. A customer restricted to the
+  # United States has two regions to be served from, and pinning it to the
+  # nearer one breaks no promise it made.
   defp validate_explicit_assignment(account, service_region) do
     plan = Billing.effective_plan(account)
 
@@ -316,11 +714,11 @@ defmodule Tuist.Kura.AccountPolicies do
       plan not in [:pro, :enterprise] ->
         {:error, :plan_not_supported}
 
-      account.region != :all ->
-        {:error, :service_region_is_derived}
-
       service_region not in AccountRegionPolicy.service_regions() ->
         {:error, :service_region_unavailable}
+
+      service_region not in permitted_regions(account) ->
+        {:error, :service_region_outside_residency}
 
       true ->
         :ok

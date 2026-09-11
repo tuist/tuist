@@ -3,6 +3,7 @@ defmodule TuistWeb.Authentication do
   A module that provides functions for authenticating requests.
   """
   use TuistWeb, :verified_routes
+  use Gettext, backend: TuistWeb.Gettext
 
   import Phoenix.Controller
   import Plug.Conn
@@ -16,6 +17,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Errors.NotFoundError
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -467,19 +469,32 @@ defmodule TuistWeb.Authentication do
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
         opts
       ) do
-    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
+    # An unknown project is a 404 for everyone, signed in or not, so the
+    # public not-found page renders instead of a login redirect; a private
+    # one still sends anonymous visitors to log in.
+    case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
+      nil ->
+        raise NotFoundError, dgettext("dashboard", "The project you are looking for doesn't exist or has been moved.")
 
-    if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
-      do: require_authenticated_user(conn, opts),
-      else: conn
+      project ->
+        if Authorization.authorize(:dashboard_read, nil, project) == :ok,
+          do: conn,
+          else: require_authenticated_user(conn, opts)
+    end
   end
 
   def require_authenticated_user_for_private_accounts(%{path_params: %{"account_handle" => account_handle}} = conn, opts) do
-    account = Accounts.get_account_by_handle(account_handle)
+    # Same as for projects: an unknown handle (e.g. tuist.dev/r) is a 404
+    # rather than a login redirect.
+    case Accounts.get_account_by_handle(account_handle) do
+      nil ->
+        raise NotFoundError, dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
 
-    if is_nil(account) or Authorization.authorize(:account_dashboard_read, nil, account) != :ok,
-      do: require_authenticated_user(conn, opts),
-      else: conn
+      account ->
+        if Authorization.authorize(:account_dashboard_read, nil, account) == :ok,
+          do: conn,
+          else: require_authenticated_user(conn, opts)
+    end
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do

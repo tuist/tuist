@@ -3,7 +3,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   use Oban.Worker,
     max_attempts: 1,
     queue: :default,
-    unique: [fields: [:worker], period: :infinity, states: [:available, :scheduled, :executing]]
+    unique: [fields: [:worker], period: :infinity, states: :incomplete]
 
   import Ecto.Query
 

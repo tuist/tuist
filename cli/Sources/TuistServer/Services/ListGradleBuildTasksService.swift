@@ -93,6 +93,10 @@ public struct ListGradleBuildTasksService: ListGradleBuildTasksServicing {
             case let .json(error):
                 throw ListGradleBuildTasksServiceError.notFound(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListGradleBuildTasksServiceError.unknownError(statusCode)
         }

@@ -361,6 +361,36 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 	}
 }
 
+// cacheFleetTaints is what every cache fleet template stamps on its boxes, and
+// what tells the self-join that tenant volumes will land on this /data.
+func cacheFleetTaints() []corev1.Taint {
+	return []corev1.Taint{{Key: kuraCacheTaintKey, Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+}
+
+// A runner box has no tenant volumes on /data, so the image-store quota bounds
+// nothing there and only adds a ceiling that nothing can clear: XFS reports a
+// blown project quota as ENOSPC, and the kubelet's image GC keys on the
+// FILESYSTEM's free space, which on an 828 GiB /data is nowhere near a
+// threshold. A runner Pod's whole writable layer lives in that store, so the
+// quota is reached by ordinary CI and the box then fails every job it accepts
+// until it is drained.
+func TestContainerdQuotaSkippedOnFleetsWithoutCacheVolumes(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName: "runner-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", KataRuntime: true,
+		Taints: []corev1.Taint{{Key: "tuist.dev/runner-tier", Value: "bare-metal", Effect: corev1.TaintEffectNoSchedule}},
+	})
+
+	if strings.Contains(script, containerdQuotaPath) {
+		t.Fatalf("expected no image-store quota on a fleet with no cache volumes, got:\n%s", script)
+	}
+	// The relocation itself must stay: the image store still belongs on the big
+	// disk rather than the ~20G root, quota or not.
+	if !strings.Contains(script, "mkdir -p /data/containerd") {
+		t.Fatalf("expected the image-store relocation to survive, got:\n%s", script)
+	}
+}
+
 // The image store is the one consumer of /data that is not a tenant, and it is
 // otherwise unbounded: the kubelet's image GC triggers on the FILESYSTEM being
 // nearly full, so on a box whose tenants are light containerd can grow into the
@@ -371,7 +401,7 @@ func TestBootstrapInstallsXFSTools(t *testing.T) {
 func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) {
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName: "kura-1", KubeconfigYAML: "kubeconfig\n", K8sMinor: "v1.34",
-		BootstrapUser: "ubuntu", InstanceType: "ovh",
+		BootstrapUser: "ubuntu", InstanceType: "ovh", Taints: cacheFleetTaints(),
 	})
 
 	quotaIdx := strings.Index(script, "bash "+containerdQuotaPath)
@@ -393,7 +423,7 @@ func TestBootstrapBoundsContainerdImageStoreAfterItsPrerequisites(t *testing.T) 
 // join. Every tenant on the box is bounded either way; what is lost is defence
 // in depth on the shared pool, which is the state the box was in before.
 func TestContainerdQuotaDoesNotFailTheJoin(t *testing.T) {
-	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34"})
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", K8sMinor: "v1.34", Taints: cacheFleetTaints()})
 	line := "bash " + containerdQuotaPath + " || echo"
 	if !strings.Contains(script, line) {
 		t.Fatalf("expected the containerd quota step to be tolerated, got:\n%s", script)
@@ -410,5 +440,74 @@ func TestContainerdProjectIDCannotCollideWithAVolume(t *testing.T) {
 	}
 	if !strings.Contains(containerdQuotaScript, "bhard=$bytes") || strings.Contains(containerdQuotaScript, "ihard=") {
 		t.Fatal("expected a byte ceiling and no inode ceiling on the image store")
+	}
+}
+
+// TestRenderLinux_KataRuntime pins both halves of the runner-fleet opt-in: a box
+// that asked for kata gets the runtime AND the label the kata-qemu RuntimeClass
+// selects on, and a box that did not gets neither. The negative half is the one
+// that matters operationally — the four Kura cache fleets share this renderer,
+// and silently handing them a kata download plus a containerd runtime block is a
+// change to a live cache node's runtime for no reason.
+func TestRenderLinux_KataRuntime(t *testing.T) {
+	opts := linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-ovh-fleet-runners-linux-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	}
+
+	optsKata := opts
+	optsKata.KataRuntime = true
+	withKata := renderLinuxBootstrapScript(optsKata)
+
+	for _, want := range []string{
+		"kata-static-" + kataVersion + "-amd64.tar.zst",
+		"runtime_path = \"/opt/kata/bin/containerd-shim-kata-v2\"",
+		"katacontainers.io/kata-runtime=true",
+		"tuist.dev/kata-runtime=true",
+		kataSharedMemoryScript,
+		kataSharedMemoryUnit,
+		// Set on the handler itself: the earlier rewrite only touches what the
+		// generated default emitted, and this block is appended after it.
+		"SystemdCgroup = true",
+	} {
+		if !strings.Contains(withKata, want) {
+			t.Errorf("kata-enabled render is missing %q", want)
+		}
+	}
+
+	// The handler is registered under containerd's v3 config syntax, so a box
+	// whose containerd still emits v2 would accept the join and then fail every
+	// kata Pod. The guard has to abort the join instead.
+	if !strings.Contains(withKata, "grep -q '^version = 3' /etc/containerd/config.toml") {
+		t.Errorf("kata-enabled render must refuse to join a box whose containerd config is not version 3")
+	}
+
+	// Appending twice on a re-bootstrap would give containerd a duplicate
+	// runtime table, so the append is guarded.
+	if !strings.Contains(withKata, `grep -q "runtimes.kata-qemu" /etc/containerd/config.toml ||`) {
+		t.Errorf("the kata containerd block must be appended idempotently")
+	}
+
+	// Ordering: the handler has to be registered before containerd restarts,
+	// or kubelet talks to a containerd that has never seen it.
+	kataIdx := strings.Index(withKata, "runtimes.kata-qemu")
+	restartIdx := strings.Index(withKata, "systemctl restart containerd")
+	if kataIdx < 0 || restartIdx < 0 || kataIdx > restartIdx {
+		t.Errorf("expected the kata block before the containerd restart (kata=%d restart=%d)", kataIdx, restartIdx)
+	}
+
+	shmIdx := strings.Index(withKata, "systemctl restart tuist-kata-shared-memory.service")
+	if shmIdx < 0 || shmIdx > restartIdx {
+		t.Fatal("shared memory must be sized before containerd restarts")
+	}
+
+	// Cache fleets: nothing kata anywhere, including the node labels.
+	withoutKata := renderLinuxBootstrapScript(opts)
+	for _, unwanted := range []string{"kata-static", "kata-qemu", "katacontainers.io/kata-runtime", "tuist-kata-shared-memory"} {
+		if strings.Contains(withoutKata, unwanted) {
+			t.Errorf("cache-fleet render must not contain %q", unwanted)
+		}
 	}
 }

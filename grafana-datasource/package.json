@@ -81,6 +81,8 @@
   "description": "Grafana data source for Tuist build and test duration metrics.",
   "private": true,
   "overrides": {
-    "serialize-javascript": "7.0.5"
+    "serialize-javascript": "7.0.5",
+    "immutable": "^5.1.9",
+    "js-cookie": "^3.0.8"
   }
 }

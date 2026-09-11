@@ -15,10 +15,19 @@ defmodule Tuist.Runners.BillingTest do
   defp session_fixture(account, attrs) do
     attrs = Map.new(attrs)
 
+    # Every real session records the machine it ran on, and the billing
+    # aggregates weight elapsed time by that machine's multiplier. The
+    # default here is the macOS baseline, so one elapsed millisecond is
+    # one compute unit and a case that only cares about interval maths
+    # can keep asserting wall-clock figures.
     defaults = %{
       account_id: account.id,
       workflow_job_id: System.unique_integer([:positive]),
       fleet_name: "fleet-a",
+      platform: :macos,
+      vcpus: 6,
+      memory_gb: 14,
+      billing_multiplier: 10_000,
       pod_name: "pod-#{System.unique_integer([:positive])}",
       runner_name: "",
       started_at: nil,
@@ -197,6 +206,60 @@ defmodule Tuist.Runners.BillingTest do
     end
   end
 
+  describe "compute-unit weighting" do
+    # Stripe is metered on elapsed time scaled by the machine's
+    # multiplier, so every aggregate the dashboard and the allowance read
+    # has to be scaled the same way. Summing raw elapsed milliseconds
+    # lets a 2x machine burn half the allowance it should and reads as
+    # half its real cost.
+    setup do
+      account = account_fixture()
+
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:00:00.000000Z],
+        ended_at: ~U[2026-05-10 12:05:00.000000Z],
+        platform: :macos,
+        vcpus: 12,
+        memory_gb: 28,
+        billing_multiplier: 20_000,
+        repository: "tuist/tuist"
+      )
+
+      %{
+        account: account,
+        period_start: ~U[2026-05-01 00:00:00.000000Z],
+        period_end: ~U[2026-05-31 23:59:59.999999Z]
+      }
+    end
+
+    test "compute_milliseconds/3 scales a non-baseline shape", ctx do
+      # 5 minutes on a 2x machine is 10 baseline minutes.
+      assert Billing.compute_milliseconds(ctx.account.id, ctx.period_start, ctx.period_end) == 10 * 60 * 1_000
+    end
+
+    test "compute_milliseconds/3 agrees with what Stripe is metered on", ctx do
+      metered =
+        ctx.account.id
+        |> Billing.compute_units_by_platform(ctx.period_start, ctx.period_end)
+        |> Enum.map(& &1.total_units)
+        |> Enum.sum()
+
+      assert Billing.compute_milliseconds(ctx.account.id, ctx.period_start, ctx.period_end) == metered
+    end
+
+    test "compute_milliseconds_per_bucket/5 scales a non-baseline shape", ctx do
+      buckets = Billing.compute_milliseconds_per_bucket(ctx.account.id, ctx.period_start, ctx.period_end, :day)
+
+      assert Map.get(buckets, ~D[2026-05-10]) == 10 * 60 * 1_000
+    end
+
+    test "compute_milliseconds_per_repository/3 scales a non-baseline shape", ctx do
+      rows = Billing.compute_milliseconds_per_repository(ctx.account.id, ctx.period_start, ctx.period_end)
+
+      assert [%{date: ~D[2026-05-10], repository: "tuist/tuist", total_ms: 600_000}] = rows
+    end
+  end
+
   describe "compute_milliseconds_by_machine/4" do
     test "groups usage by platform and machine specification" do
       account = account_fixture()
@@ -243,6 +306,10 @@ defmodule Tuist.Runners.BillingTest do
 
       session_fixture(account,
         fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 2, memory_gb: 8}),
+        platform: nil,
+        vcpus: nil,
+        memory_gb: nil,
+        billing_multiplier: nil,
         started_at: ~U[2026-05-01 10:00:00.000000Z],
         ended_at: ~U[2026-05-01 10:03:00.000000Z]
       )
@@ -338,6 +405,7 @@ defmodule Tuist.Runners.BillingTest do
         platform: :linux,
         vcpus: 4,
         memory_gb: 16,
+        billing_multiplier: nil,
         started_at: ~U[2026-05-01 10:00:00.000000Z],
         ended_at: ~U[2026-05-01 10:05:00.000000Z]
       )

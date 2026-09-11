@@ -37,6 +37,7 @@ k8s-monitoring:
         includeMetrics:
           - kube_customresource_kubeadmcontrolplane_.*
           - kube_customresource_machinedeployment_.*
+          - kube_customresource_kustomization_.*
 
   integrations:
     alloy:
@@ -74,6 +75,9 @@ k8s-monitoring:
             verbs: ["list", "watch"]
           - apiGroups: ["cluster.x-k8s.io"]
             resources: ["machinedeployments"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+            resources: ["kustomizations"]
             verbs: ["list", "watch"]
       customResourceState:
         enabled: true
@@ -190,3 +194,42 @@ k8s-monitoring:
                       type: Gauge
                       gauge:
                         path: [status, replicas]
+              # Flux Kustomizations. Flux 2.9.5 exports gotk_reconcile_duration
+              # and gotk_event_* but NOT gotk_reconcile_condition, so nothing
+              # off the controllers themselves says whether a reconcile
+              # SUCCEEDED: the duration histogram counts failures too. A
+              # Kustomization that fetches and then fails to apply every
+              # interval looks identical to a healthy one in those metrics,
+              # which is the state Flux is meant to protect against - drift
+              # stops being corrected while reconciliation appears to run.
+              #
+              # spec.suspend is exported alongside the condition because
+              # suspending is a normal operation (see the suspend and resume
+              # section in infra/flux/mgmt/README.md) and a suspended
+              # Kustomization keeps whatever Ready condition it last had. An
+              # alert that ignores this pages every time someone suspends one
+              # to fix git.
+              - groupVersionKind:
+                  group: kustomize.toolkit.fluxcd.io
+                  version: v1
+                  kind: Kustomization
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  kustomization: [metadata, name]
+                metrics:
+                  - name: kustomization_status_condition
+                    help: Flux Kustomization status conditions, 1 when the condition holds.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, conditions]
+                        labelsFromPath:
+                          type: ["type"]
+                        valueFrom: ["status"]
+                  - name: kustomization_spec_suspend
+                    help: 1 when the Kustomization is suspended and not reconciling.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, suspend]
+                        nilIsZero: true

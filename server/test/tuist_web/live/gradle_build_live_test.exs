@@ -21,6 +21,98 @@ defmodule TuistWeb.GradleBuildLiveTest do
     %{project: project, conn: conn}
   end
 
+  test "legacy task durations without timestamps do not expose an empty timeline", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        tasks: [
+          %{task_path: ":compile", outcome: "executed", duration_ms: 100, started_at: nil}
+        ]
+      )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    refute has_element?(lv, "a", "Timeline")
+    refute has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "a[data-selected]", "Overview")
+    render_patch(lv, path <> "?tab=machine-metrics")
+    refute has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "a[data-selected]", "Overview")
+  end
+
+  test "legacy reports with timed operations keep their timeline without an internal clock banner", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        started_at: nil,
+        tasks: [
+          %{task_path: ":compile", outcome: "executed", duration_ms: 100, started_at: ~U[2026-09-09 10:00:01Z]}
+        ]
+      )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=timeline")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline[data-source=gradle]")
+    refute has_element?(lv, "[data-part=timeline-coverage]")
+    refute render(lv) =~ "no build start timestamp"
+
+    {:ok, build} = Gradle.get_build(id)
+    timeline = Gradle.Timeline.load(build)
+    assert timeline.time_origin == "first_recorded_timestamp"
+    assert [%{start_ms: start_ms, duration_ms: 100}] = timeline.events
+    assert start_ms == 0
+  end
+
+  test "timeline loads lazily and reloads metadata after leaving the tab", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        started_at: ~U[2026-09-09 10:00:00Z],
+        tasks: [%{task_path: ":app:compile", outcome: "executed", duration_ms: 100, started_at: ~U[2026-09-09 10:00:01Z]}]
+      )
+
+    path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
+    {:ok, lv, _} = live(conn, path)
+    refute has_element?(lv, "#build-timeline")
+    tabs = lv |> render() |> Floki.parse_document!() |> Floki.find("a[href^='?tab=']") |> Enum.map(&Floki.text/1)
+    assert Enum.take(tabs, 2) == ["Overview", "Timeline"]
+    refute "Machine Metrics" in tabs
+    render_patch(lv, path <> "?tab=machine-metrics")
+    render_async(lv)
+    assert has_element?(lv, "#build-timeline")
+    assert has_element?(lv, "#build-timeline[data-source=gradle]")
+    assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=setup]", "Configuration")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=transform]", "Artifact transforms")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=package]", "Packaging")
+    assert has_element?(lv, "[data-part=legend] button[data-kind=test]", "Testing")
+    refute has_element?(lv, "[data-part=legend] button[data-kind=fetch]")
+    [version] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    render_hook(lv, "load-timeline", %{version: String.to_integer(version)})
+    assert has_element?(lv, "#build-timeline")
+    render_patch(lv, path <> "?tab=overview")
+    render_patch(lv, path <> "?tab=timeline")
+    render_async(lv)
+    [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
+    assert String.to_integer(reopened) > String.to_integer(version)
+    render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
+    assert has_element?(lv, "#build-timeline")
+  end
+
   test "list_tasks with like filter works at the data layer", %{project: project} do
     build_id =
       GradleFixtures.build_fixture(
@@ -59,6 +151,29 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert Enum.all?(tasks, fn t -> String.contains?(t.task_path, "compile") end)
   end
 
+  test "lists at most 100 configuration operations", %{project: project} do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        configuration_operations:
+          Enum.map(1..101, fn duration_ms ->
+            %{
+              phase: "project",
+              build_path: ":",
+              project_path: ":app",
+              duration_ms: duration_ms,
+              started_at: @now
+            }
+          end)
+      )
+
+    operations = Gradle.list_configuration_operations(build_id)
+
+    assert length(operations) == 100
+    assert Enum.map(operations, & &1.duration_ms) == Enum.to_list(101..2//-1)
+  end
+
   test "shows build details", %{
     conn: conn,
     organization: organization,
@@ -70,6 +185,8 @@ defmodule TuistWeb.GradleBuildLiveTest do
         inserted_at: @now,
         status: "success",
         root_project_name: "my-android-app",
+        custom_tags: ["nightly"],
+        custom_values: %{"team" => "android"},
         tasks: [
           %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true, duration_ms: 1000},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true, duration_ms: 2000}
@@ -80,6 +197,14 @@ defmodule TuistWeb.GradleBuildLiveTest do
       live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}")
 
     assert has_element?(lv, "h1", "my-android-app")
+    assert has_element?(lv, "span", "nightly")
+    assert has_element?(lv, "[data-part='build-details']", "Build Details")
+    assert has_element?(lv, "[data-part='build-details-section']", "Passed")
+    assert has_element?(lv, "[data-part='build-details-section']", "Built by")
+    assert has_element?(lv, "[data-part='build-details-section']", "Build duration")
+    assert has_element?(lv, "[data-part='build-details-section']", "Built at")
+    assert has_element?(lv, "td", "team")
+    assert has_element?(lv, "td", "android")
     assert has_element?(lv, "td", ":app:compileKotlin")
     assert has_element?(lv, "td", ":app:assembleDebug")
   end
@@ -109,7 +234,6 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     assert html =~ ":app:compileKotlin"
     refute html =~ ":app:compileJava"
-    refute html =~ ":lib:test"
   end
 
   test "search partial match filters tasks via URL params", %{
@@ -190,6 +314,187 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert html =~ ":app:compileKotlin"
     assert html =~ ":app:assembleDebug"
     refute html =~ ":app:compileJava"
+    document = Floki.parse_fragment!(html)
+    assert document |> Floki.find("#widget-download-throughput") |> Floki.text() =~ "No data"
+    assert document |> Floki.find("#widget-upload-throughput") |> Floki.text() =~ "No data"
+
+    refute html =~ ":lib:test"
+  end
+
+  test "cache throughput uses matching transfer bytes and timings rather than task duration", context do
+    %{conn: conn, organization: organization, project: project} = context
+
+    tasks =
+      [
+        %{outcome: "remote_hit", cache_artifact_size: 1_000_000, execution: %{remote_cache_download_duration_ms: 1000}},
+        %{outcome: "remote_hit", cache_artifact_size: 2_000_000, execution: %{remote_cache_download_duration_ms: 500}},
+        %{outcome: "remote_hit", cache_artifact_size: 9_000_000},
+        %{outcome: "remote_hit", execution: %{remote_cache_download_duration_ms: 9000}},
+        %{outcome: "remote_hit", cache_artifact_size: 9_000_000, execution: %{remote_cache_download_duration_ms: 0}},
+        %{outcome: "local_hit", cache_artifact_size: 9_000_000, execution: %{remote_cache_download_duration_ms: 9000}},
+        %{
+          remote_cache_stored: true,
+          cache_artifact_size: 500_000,
+          execution: %{remote_cache_upload_duration_ms: 500}
+        },
+        %{remote_cache_stored: true, cache_artifact_size: 9_000_000},
+        %{remote_cache_stored: true, execution: %{remote_cache_upload_duration_ms: 9000}},
+        %{
+          remote_cache_stored: true,
+          cache_artifact_size: 9_000_000,
+          execution: %{remote_cache_upload_duration_ms: 0}
+        },
+        %{
+          remote_cache_stored: false,
+          cache_artifact_size: 9_000_000,
+          execution: %{remote_cache_upload_duration_ms: 9000}
+        }
+      ]
+      |> Enum.with_index()
+      |> Enum.map(fn {attrs, index} ->
+        Map.merge(%{task_path: ":app:task#{index}", outcome: "executed", cacheable: true, duration_ms: 60_000}, attrs)
+      end)
+
+    build_id = GradleFixtures.build_fixture(project_id: project.id, inserted_at: @now, tasks: tasks)
+
+    aggregates = Gradle.task_cache_aggregates(build_id)
+    assert aggregates.timed_download_bytes == 3_000_000
+    assert aggregates.download_duration_ms == 1500
+    assert aggregates.timed_upload_bytes == 500_000
+    assert aggregates.upload_duration_ms == 500
+
+    {:ok, view, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=gradle-cache")
+
+    assert has_element?(view, "#widget-download-throughput", "16.0 Mbps")
+    assert has_element?(view, "#widget-upload-throughput", "8.0 Mbps")
+  end
+
+  test "shows cache-miss diagnostics and setup telemetry", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        configuration_cache: %{
+          status: "invalid",
+          invalidation_reasons: ["an environment variable changed"]
+        },
+        configuration_operations: [
+          %{
+            phase: "build",
+            build_path: ":",
+            project_path: "",
+            duration_ms: 2_300,
+            started_at: ~U[2026-08-31 12:00:00Z]
+          },
+          %{
+            phase: "settings",
+            build_path: ":",
+            project_path: "",
+            duration_ms: 640,
+            started_at: ~U[2026-08-31 12:00:00Z]
+          },
+          %{
+            phase: "project",
+            build_path: ":",
+            project_path: ":app",
+            duration_ms: 910,
+            started_at: ~U[2026-08-31 12:00:00.640Z]
+          }
+        ],
+        artifact_transforms: [
+          %{
+            transformer_name: "JetifyTransform",
+            transform_action_class: "com.example.JetifyTransform",
+            subject_name: "example.jar",
+            artifact_name: "example.jar",
+            consumer_project_path: ":app",
+            duration_ms: 200,
+            started_at: ~U[2026-08-31 12:00:01Z]
+          },
+          %{
+            transformer_name: "DexingTransform",
+            transform_action_class: "com.example.DexingTransform",
+            subject_name: "other.jar",
+            artifact_name: "other.jar",
+            consumer_project_path: ":app",
+            duration_ms: 100,
+            started_at: ~U[2026-08-31 12:00:02Z]
+          }
+        ],
+        tasks: [
+          %{
+            task_path: ":app:compileKotlin",
+            outcome: "executed",
+            cacheable: true,
+            duration_ms: 1_000,
+            remote_cache_miss: true,
+            remote_cache_stored: true
+          }
+        ]
+      )
+
+    {:ok, _lv, cache_html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=gradle-cache"
+      )
+
+    assert cache_html =~ "No remote entry, then stored"
+    refute cache_html =~ "Confirmed remote misses"
+    refute cache_html =~ "Missed execution time"
+    refute cache_html =~ "Remote entries stored"
+    assert length(Floki.find(Floki.parse_fragment!(cache_html), "[data-part=cache-summary-card] .tuist-widget")) == 5
+
+    {:ok, lv, setup_html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=build-setup"
+      )
+
+    assert setup_html =~ "Configuration"
+    assert setup_html =~ "Filter"
+    assert setup_html =~ "Root build"
+    assert setup_html =~ ":app"
+    assert setup_html =~ "an environment variable changed"
+    assert setup_html =~ "JetifyTransform"
+    assert setup_html =~ "DexingTransform"
+
+    lv
+    |> element("[phx-change=\"search-configuration-operations\"]")
+    |> render_change(%{search: ":app"})
+
+    filtered_html = render(lv)
+    assert filtered_html =~ ":app"
+    refute filtered_html =~ "Root build"
+
+    lv
+    |> element("[phx-change=\"search-artifact-transforms\"]")
+    |> render_change(%{search: "Dexing"})
+
+    filtered_html = render(lv)
+    assert filtered_html =~ "DexingTransform"
+    refute filtered_html =~ "JetifyTransform"
+
+    configuration_phase_filter =
+      URI.encode_query(%{
+        "tab" => "build-setup",
+        "filter_configuration_operation_phase_op" => "==",
+        "filter_configuration_operation_phase_val" => "settings"
+      })
+
+    {:ok, phase_filtered_lv, _phase_filtered_html} =
+      live(
+        conn,
+        "/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?#{configuration_phase_filter}"
+      )
+
+    assert has_element?(phase_filtered_lv, "#gradle-configuration-operations-table td", "Settings")
+    refute has_element?(phase_filtered_lv, "#gradle-configuration-operations-table td", "Project")
   end
 
   test "search event triggers filtering via form change", %{

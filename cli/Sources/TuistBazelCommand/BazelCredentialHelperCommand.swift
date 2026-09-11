@@ -33,10 +33,17 @@ public struct BazelCredentialHelperCommand: AsyncParsableCommand, NooraReadyComm
     )
     var path: String?
 
+    @Option(
+        name: .long,
+        help: "The path to the directory containing the generated .bazelrc.tuist file."
+    )
+    var bazelrcPath: String?
+
     public func run() async throws {
         try await BazelCredentialHelperCommandService().run(
             helperCommand: command,
-            directory: path
+            directory: path,
+            bazelrcDirectory: bazelrcPath
         )
     }
 }

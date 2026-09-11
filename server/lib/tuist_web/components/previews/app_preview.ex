@@ -55,8 +55,7 @@ defmodule TuistWeb.Previews.AppPreview do
           ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}"
         }
         data-part="link"
-      >
-      </.link>
+      ></.link>
     </div>
     """
   end

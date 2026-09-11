@@ -33,6 +33,7 @@ defmodule Tuist.Automations do
   # project-wide identifier set as one scan.
   @max_scoped_evaluation_range_size 2000
   @minimum_scoped_evaluation_ranges 4
+  @active_alert_events_batch_size 2000
   @revision_fields ~w(
     name
     enabled
@@ -56,7 +57,7 @@ defmodule Tuist.Automations do
   def list_alerts(project_id) do
     Alert
     |> where(project_id: ^project_id)
-    |> order_by(asc: :inserted_at)
+    |> order_by(asc: :inserted_at, asc: :id)
     |> Repo.all()
   end
 
@@ -71,20 +72,70 @@ defmodule Tuist.Automations do
     Revision
     |> where(automation_alert_id: ^alert_id)
     |> before_alert_revision(Keyword.get(opts, :before))
-    |> order_by(desc: :inserted_at, desc: :id)
+    |> order_by(desc: :recorded_at, desc: :id)
     |> limit_alert_revisions(Keyword.get(opts, :limit))
     |> preload(actor: :account)
     |> Repo.all()
   end
 
+  def get_alert_revision(alert_id, revision_id) do
+    case Repo.get_by(Revision, id: revision_id, automation_alert_id: alert_id) do
+      nil -> {:error, :not_found}
+      revision -> {:ok, revision}
+    end
+  end
+
+  def redact_revision(%Revision{} = revision) do
+    %{
+      id: revision.id,
+      event: revision.event,
+      source: revision.source,
+      actor: revision_actor(revision),
+      changes: redact_revision_changes(revision.changes),
+      snapshot: redact_revision_snapshot(revision.snapshot),
+      inserted_at: revision.inserted_at
+    }
+  end
+
+  defp revision_actor(%{actor: nil}), do: nil
+
+  defp revision_actor(%{actor: actor}) do
+    %{id: actor.id, name: actor.account.name, email: actor.email}
+  end
+
+  defp redact_revision_changes(changes) when is_map(changes) do
+    redact_revision_actions(changes, fn action_change ->
+      action_change
+      |> Map.update("from", [], &redact_actions/1)
+      |> Map.update("to", [], &redact_actions/1)
+    end)
+  end
+
+  defp redact_revision_changes(_changes), do: %{}
+
+  defp redact_revision_snapshot(snapshot) when is_map(snapshot) do
+    redact_revision_actions(snapshot, &redact_actions/1)
+  end
+
+  defp redact_revision_snapshot(_snapshot), do: %{}
+
+  defp redact_revision_actions(content, redactor) do
+    Enum.reduce(["trigger_actions", "recovery_actions"], content, fn field, acc ->
+      Map.update(acc, field, [], redactor)
+    end)
+  end
+
+  defp redact_actions(actions) when is_list(actions), do: Enum.map(actions, &redact_action/1)
+  defp redact_actions(_actions), do: []
+
   defp before_alert_revision(query, nil), do: query
 
-  defp before_alert_revision(query, %Revision{inserted_at: inserted_at, id: id}) do
+  defp before_alert_revision(query, %Revision{recorded_at: recorded_at, id: id}) do
     where(
       query,
       [revision],
-      revision.inserted_at < ^inserted_at or
-        (revision.inserted_at == ^inserted_at and revision.id < ^id)
+      revision.recorded_at < ^recorded_at or
+        (revision.recorded_at == ^recorded_at and revision.id < ^id)
     )
   end
 
@@ -223,6 +274,8 @@ defmodule Tuist.Automations do
 
   defp revision_value(_field, value), do: value
 
+  def redact_action(action) when is_map(action), do: Map.delete(action, "webhook_url_encrypted")
+
   defp redact_webhook_url(action) do
     case Map.pop(action, "webhook_url_encrypted") do
       {webhook_url, action} when is_binary(webhook_url) ->
@@ -276,10 +329,42 @@ defmodule Tuist.Automations do
   Resolving the latest status per test case already makes those retries
   invisible, without a separate hash aggregation over event identifiers.
   """
-  def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+  def list_active_alert_events(alert_or_id, test_case_ids \\ nil)
+
+  # Callers holding the alert already carry the generation the events are
+  # scoped to, so taking it off the struct skips a lookup that the evaluation
+  # worker would otherwise repeat for every range it evaluates.
+  def list_active_alert_events(%Alert{id: alert_id, baseline_generation: baseline_generation}, test_case_ids) do
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  def list_active_alert_events(alert_id, test_case_ids) do
     baseline_generation =
       Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
 
+    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, nil) do
+    alert_id
+    |> active_alert_events_query(baseline_generation, nil)
+    |> ClickHouseRepo.all()
+  end
+
+  defp active_alert_events(alert_id, baseline_generation, test_case_ids) do
+    # Send each batch as one array parameter in the request body so the request
+    # address and each ClickHouse query payload stay bounded.
+    test_case_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@active_alert_events_batch_size)
+    |> Enum.flat_map(fn ids_chunk ->
+      alert_id
+      |> active_alert_events_query(baseline_generation, ids_chunk)
+      |> ClickHouseRepo.all(multipart: true)
+    end)
+  end
+
+  defp active_alert_events_query(alert_id, baseline_generation, test_case_ids) do
     AlertEvent
     |> where(alert_id: ^alert_id, baseline_generation: ^baseline_generation)
     |> filter_alert_events_by_test_case_ids(test_case_ids)
@@ -289,14 +374,12 @@ defmodule Tuist.Automations do
       test_case_id: event.test_case_id,
       triggered_at: fragment("argMax(?, ?)", event.triggered_at, event.inserted_at)
     })
-    |> ClickHouseRepo.all()
   end
 
   defp filter_alert_events_by_test_case_ids(query, nil), do: query
-  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
 
   defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
-    where(query, [e], e.test_case_id in ^test_case_ids)
+    where(query, [event], fragment("? IN (?)", event.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})))
   end
 
   def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok

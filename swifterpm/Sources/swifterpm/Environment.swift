@@ -5,6 +5,9 @@ enum Environment {
     static var values: [String: String]?
 
     @TaskLocal
+    static var manifestValues: [String: String]?
+
+    @TaskLocal
     static var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
 
     /// The netrc every download authenticates against. Entry points install it once
@@ -21,6 +24,18 @@ enum Environment {
         operation: () async throws -> T
     ) async throws -> T {
         try await Environment.$netrc.withValue(netrc) {
+            try await operation()
+        }
+    }
+
+    static func withManifestEnvironment<T>(
+        _ environment: [String: String]?,
+        operation: () async throws -> T
+    ) async throws -> T {
+        guard let environment else {
+            return try await operation()
+        }
+        return try await Environment.$manifestValues.withValue(environment) {
             try await operation()
         }
     }
@@ -50,6 +65,10 @@ enum Environment {
     /// dump was produced under.
     static var current: [String: String] {
         values ?? ProcessInfo.processInfo.environment
+    }
+
+    static var manifest: [String: String] {
+        manifestValues ?? current
     }
 }
 

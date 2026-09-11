@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestCasesController do
   alias OpenApiSpex.Schema
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
@@ -108,7 +109,8 @@ defmodule TuistWeb.API.TestCasesController do
            },
            required: [:test_cases, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -252,7 +254,8 @@ defmodule TuistWeb.API.TestCasesController do
            ]
          }},
       not_found: {"Test case not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -387,7 +390,8 @@ defmodule TuistWeb.API.TestCasesController do
          }},
       bad_request: {"Invalid update params (empty body or malformed field values)", "application/json", Error},
       not_found: {"Test case not found", "application/json", Error},
-      forbidden: {"You don't have permission to update this resource", "application/json", Error}
+      forbidden: {"You don't have permission to update this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -545,7 +549,8 @@ defmodule TuistWeb.API.TestCasesController do
            required: [:events, :pagination_metadata]
          }},
       not_found: {"Test case not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

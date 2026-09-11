@@ -2,7 +2,10 @@ package scaling
 
 import "testing"
 
-const gib = int64(1024) * 1024 * 1024
+const (
+	gib = int64(1024) * 1024 * 1024
+	mib = int64(1024) * 1024
+)
 
 func TestAllocateFleet_UncontendedGrantsEveryTarget(t *testing.T) {
 	// 100 GiB fleet, two small shapes — everything fits, each gets its
@@ -11,7 +14,7 @@ func TestAllocateFleet_UncontendedGrantsEveryTarget(t *testing.T) {
 		{Name: "small", PerPodCost: 2 * gib, Floor: 1, Load: 2, Target: 5},
 		{Name: "med", PerPodCost: 4 * gib, Floor: 1, Load: 1, Target: 4},
 	}
-	got := AllocateFleet(pools, 100*gib)
+	got := AllocateFleet(pools, 100*gib, nil)
 
 	if got["small"] != 5 {
 		t.Errorf("small = %d, want 5", got["small"])
@@ -29,7 +32,7 @@ func TestAllocateFleet_RealLoadAlwaysGrantedEvenOverCapacity(t *testing.T) {
 		{Name: "b", PerPodCost: 16 * gib, Floor: 1, Load: 2, Target: 5},
 	}
 	// Only 32 GiB usable — 2 pods — but real load wants 5 pods.
-	got := AllocateFleet(pools, 32*gib)
+	got := AllocateFleet(pools, 32*gib, nil)
 
 	if got["a"] != 3 {
 		t.Errorf("a = %d, want 3 (load honored in full)", got["a"])
@@ -53,7 +56,7 @@ func TestAllocateFleet_SqueezesSpeculativeHeadroomUnderContention(t *testing.T) 
 	// Headroom wants: busy 2, idle 4 (6 total). 1 pod split
 	// proportionally → busy ~0, idle ~0 (rounding down). The point:
 	// idle does NOT get its speculative 5; busy's real load is intact.
-	got := AllocateFleet(pools, 64*gib)
+	got := AllocateFleet(pools, 64*gib, nil)
 
 	if got["busy"] < 6 {
 		t.Errorf("busy = %d, want >= 6 (real load protected)", got["busy"])
@@ -81,7 +84,7 @@ func TestAllocateFleet_SqueezesIdleFloorForAnotherPoolsQueuedLoad(t *testing.T) 
 	}
 	// 200 GiB usable. big's load = 160 GiB granted first, leaving 40 GiB
 	// (5 pods of 8 GiB) for small's floor of 20 → squeezed to 5.
-	got := AllocateFleet(pools, 200*gib)
+	got := AllocateFleet(pools, 200*gib, nil)
 
 	if got["big"] != 10 {
 		t.Errorf("big = %d, want 10 (queued load wins over idle floor)", got["big"])
@@ -100,7 +103,7 @@ func TestAllocateFleet_HeadroomSplitProportionally(t *testing.T) {
 	}
 	// Floors: 2 pods = 8 GiB. Fleet 8 GiB base + 12 GiB (3 pods) left.
 	// Headroom demand: x=4, y=2 (6 total). 3 pods split 2:1 → x≈2, y≈1.
-	got := AllocateFleet(pools, 20*gib)
+	got := AllocateFleet(pools, 20*gib, nil)
 
 	if got["x"] != 3 { // floor 1 + 2 headroom
 		t.Errorf("x = %d, want 3", got["x"])
@@ -114,7 +117,7 @@ func TestAllocateFleet_NeverExceedsTarget(t *testing.T) {
 	pools := []PoolDemand{
 		{Name: "a", PerPodCost: 1 * gib, Floor: 1, Load: 0, Target: 2},
 	}
-	got := AllocateFleet(pools, 1000*gib)
+	got := AllocateFleet(pools, 1000*gib, nil)
 	if got["a"] != 2 {
 		t.Errorf("a = %d, want 2 (capped at target)", got["a"])
 	}
@@ -135,7 +138,7 @@ func TestAllocateFleet_ZeroCapacityHonorsLoadNotFloor(t *testing.T) {
 		{Name: "load", PerPodCost: 4 * gib, Floor: 2, Load: 3, Target: 5},
 		{Name: "floor", PerPodCost: 4 * gib, Floor: 2, Load: 0, Target: 5},
 	}
-	got := AllocateFleet(pools, 0)
+	got := AllocateFleet(pools, 0, nil)
 	if got["load"] != 3 {
 		t.Errorf("load = %d, want 3 (real load honored even at zero capacity)", got["load"])
 	}
@@ -263,7 +266,7 @@ func TestAllocateFleet_WithheldDemand(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := AllocateFleet(tc.pools, tc.capacity)
+			got := AllocateFleet(tc.pools, tc.capacity, nil)
 			for name, want := range tc.want {
 				if got[name] != want {
 					t.Errorf("%s = %d, want %d (full allocation: %v)", name, got[name], want, got)
@@ -274,8 +277,93 @@ func TestAllocateFleet_WithheldDemand(t *testing.T) {
 }
 
 func TestAllocateFleet_EmptyFleet(t *testing.T) {
-	got := AllocateFleet(nil, 100*gib)
+	got := AllocateFleet(nil, 100*gib, nil)
 	if len(got) != 0 {
 		t.Errorf("got %v, want empty", got)
+	}
+}
+
+// The shape cap exists because `maxReplicas` is per pool: five Xcode
+// pools each allowed two 12 vCPU runners compose to ten, and the byte
+// budget cannot catch it because it pools memory from M2-L hosts that
+// cannot seat the shape at all.
+func TestAllocateFleetCapsPoolsSharingAShape(t *testing.T) {
+	const big = 28672 * mib
+
+	pools := []PoolDemand{
+		{Name: "macos-26-6-12vcpu", PerPodCost: big, Load: 1, Target: 2, ShapeKey: "12000m-28672Mi"},
+		{Name: "macos-26-5-12vcpu", PerPodCost: big, Load: 1, Target: 2, ShapeKey: "12000m-28672Mi"},
+		{Name: "macos-26-3-12vcpu", PerPodCost: big, Load: 1, Target: 2, ShapeKey: "12000m-28672Mi"},
+	}
+
+	// The fleet advertises 157696 MiB, which the byte budget alone reads
+	// as five 28 GiB slots. Only two hosts can actually seat one.
+	got := AllocateFleet(pools, 157696*mib, map[string]int32{"12000m-28672Mi": 2})
+
+	var total int32
+	for _, v := range got {
+		total += v
+	}
+	if total != 2 {
+		t.Fatalf("granted %d runners for a shape only two hosts can seat: %v", total, got)
+	}
+}
+
+// Load is granted before floor and headroom inside the cap, so a pool
+// with a queued job beats a sibling that only wants to stay warm.
+func TestAllocateFleetShapeCapPrefersLoadOverWarmth(t *testing.T) {
+	const big = 28672 * mib
+
+	pools := []PoolDemand{
+		{Name: "a-idle", PerPodCost: big, Floor: 1, Target: 1, ShapeKey: "s"},
+		{Name: "b-queued", PerPodCost: big, Load: 1, Target: 1, ShapeKey: "s"},
+	}
+
+	got := AllocateFleet(pools, 1000*gib, map[string]int32{"s": 1})
+
+	if got["b-queued"] != 1 || got["a-idle"] != 0 {
+		t.Fatalf("the one seat should go to real queued work, got %v", got)
+	}
+}
+
+// Two pools contending for a single seat must not both lose it, and the
+// winner must be the same on every reconcile.
+func TestAllocateFleetShapeCapSplitsDeterministically(t *testing.T) {
+	const big = 28672 * mib
+
+	pools := []PoolDemand{
+		{Name: "b", PerPodCost: big, Load: 2, Target: 2, ShapeKey: "s"},
+		{Name: "a", PerPodCost: big, Load: 2, Target: 2, ShapeKey: "s"},
+	}
+
+	first := AllocateFleet(pools, 1000*gib, map[string]int32{"s": 2})
+	second := AllocateFleet(pools, 1000*gib, map[string]int32{"s": 2})
+
+	if first["a"] != 1 || first["b"] != 1 {
+		t.Fatalf("a single round should hand each contender one seat, got %v", first)
+	}
+	if first["a"] != second["a"] || first["b"] != second["b"] {
+		t.Fatalf("allocation is not deterministic: %v then %v", first, second)
+	}
+}
+
+// Pools of other shapes, and pools with no ShapeKey, are untouched.
+func TestAllocateFleetShapeCapLeavesOtherShapesAlone(t *testing.T) {
+	pools := []PoolDemand{
+		{Name: "big", PerPodCost: 28672 * mib, Load: 3, Target: 3, ShapeKey: "big"},
+		{Name: "small", PerPodCost: 14336 * mib, Load: 4, Target: 4, ShapeKey: "small"},
+		{Name: "unkeyed", PerPodCost: 14336 * mib, Load: 2, Target: 2},
+	}
+
+	got := AllocateFleet(pools, 1000*gib, map[string]int32{"big": 2})
+
+	if got["big"] != 2 {
+		t.Fatalf("capped shape: want 2, got %d", got["big"])
+	}
+	if got["small"] != 4 {
+		t.Fatalf("uncapped shape must be untouched, got %d", got["small"])
+	}
+	if got["unkeyed"] != 2 {
+		t.Fatalf("a pool with no ShapeKey must be untouched, got %d", got["unkeyed"])
 	}
 }

@@ -87,9 +87,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
         Automations.recent_test_case_run_changes_for_alert(alert)
 
-      test_case_ids
-      |> Automations.scoped_evaluation_ranges()
-      |> Enum.each(&evaluate_and_execute(alert, &1))
+      ranges = Automations.scoped_evaluation_ranges(test_case_ids)
+      active_events = preread_active_alert_events([alert], ranges, test_case_ids)
+
+      Enum.each(ranges, &evaluate_and_execute(alert, &1, Map.get(active_events, alert.id)))
 
       {:ok, updated_alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
       continue_scoped_evaluation(updated_alert, job, more?)
@@ -110,9 +111,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
         Automations.recent_test_case_run_changes_for_alerts(established_alerts)
 
-      test_case_ids
-      |> Automations.scoped_evaluation_ranges()
-      |> Enum.each(&evaluate_alert_group(established_alerts, &1))
+      ranges = Automations.scoped_evaluation_ranges(test_case_ids)
+      active_events = preread_active_alert_events(established_alerts, ranges, test_case_ids)
+
+      Enum.each(ranges, &evaluate_alert_group(established_alerts, &1, active_events))
 
       {:ok, _updated_count} = Automations.advance_alert_scoped_evaluation_cursors(established_alerts, cursor)
       continue_scoped_evaluation(hd(established_alerts), job, more?)
@@ -135,39 +137,55 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp evaluate_recent_test_case_runs?(%{"evaluate_recent_test_case_runs" => true}), do: true
   defp evaluate_recent_test_case_runs?(_args), do: false
 
-  defp evaluate_and_execute(alert, test_case_ids) do
+  # Each range re-read the same alert's active events, scoped to that range.
+  # Reading the union once and letting `reject_unevaluated_this_tick/2` narrow
+  # it per range yields the same set for a quarter of the round trips, since
+  # `scoped_evaluation_ranges/1` splits into at least four. Ranges are disjoint,
+  # so an event a range writes is never one another range reads back.
+  defp preread_active_alert_events(_alerts, ranges, _test_case_ids) when length(ranges) < 2, do: %{}
+
+  defp preread_active_alert_events(alerts, _ranges, test_case_ids) do
+    Map.new(alerts, &{&1.id, Automations.list_active_alert_events(&1, test_case_ids)})
+  end
+
+  defp evaluate_and_execute(alert, test_case_ids, active_events \\ nil) do
     if alert.baseline_established_at == nil do
       establish_baseline(alert)
     else
       %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-      execute_evaluation(alert, triggered_ids, test_case_ids)
+      execute_evaluation(alert, triggered_ids, test_case_ids, active_events)
     end
 
     :ok
   end
 
-  defp evaluate_alert_group(alerts, test_case_ids) do
+  defp evaluate_alert_group(alerts, test_case_ids, active_events_by_alert_id) do
     alerts
     |> Enum.group_by(&FlakyTestsMonitor.rolling_group_key/1)
     |> Enum.each(fn
       {nil, alerts} ->
-        Enum.each(alerts, &evaluate_and_execute(&1, test_case_ids))
+        Enum.each(alerts, &evaluate_and_execute(&1, test_case_ids, Map.get(active_events_by_alert_id, &1.id)))
 
       {_rolling_group_key, [alert]} ->
-        evaluate_and_execute(alert, test_case_ids)
+        evaluate_and_execute(alert, test_case_ids, Map.get(active_events_by_alert_id, alert.id))
 
       {_rolling_group_key, alerts} ->
         triggered_by_alert_id = FlakyTestsMonitor.evaluate_rolling_alerts(alerts, test_case_ids)
 
         Enum.each(alerts, fn alert ->
-          execute_evaluation(alert, Map.fetch!(triggered_by_alert_id, alert.id), test_case_ids)
+          execute_evaluation(
+            alert,
+            Map.fetch!(triggered_by_alert_id, alert.id),
+            test_case_ids,
+            Map.get(active_events_by_alert_id, alert.id)
+          )
         end)
     end)
   end
 
-  defp execute_evaluation(alert, triggered_ids, test_case_ids) do
+  defp execute_evaluation(alert, triggered_ids, test_case_ids, active_events) do
     triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-    run_transitions(alert, triggered_ids, test_case_ids)
+    run_transitions(alert, triggered_ids, test_case_ids, active_events)
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -206,8 +224,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  defp run_transitions(alert, triggered_ids, scoped_test_case_ids) do
-    active_events = active_alert_events(alert, scoped_test_case_ids)
+  defp run_transitions(alert, triggered_ids, scoped_test_case_ids, preread_active_events) do
+    active_events = active_alert_events(alert, scoped_test_case_ids, preread_active_events)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
     newly_triggered =
@@ -244,10 +262,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
   end
 
-  defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
+  defp active_alert_events(_alert, _scoped_test_case_ids, preread_active_events) when is_list(preread_active_events),
+    do: preread_active_events
 
-  defp active_alert_events(alert, scoped_test_case_ids),
-    do: Automations.list_active_alert_events(alert.id, scoped_test_case_ids)
+  defp active_alert_events(alert, nil, _preread), do: Automations.list_active_alert_events(alert)
+
+  defp active_alert_events(alert, scoped_test_case_ids, _preread),
+    do: Automations.list_active_alert_events(alert, scoped_test_case_ids)
 
   defp handle_recovery(alert, currently_triggered_ids, active_events, scoped_test_case_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
@@ -256,6 +277,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
+      |> reject_unmeasurable_test_cases(alert)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
     # fire again) happens for every alert once its condition clears past the
@@ -326,6 +348,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unevaluated_this_tick(candidates, scoped_test_case_ids) do
     evaluated = MapSet.new(scoped_test_case_ids)
     Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
+  end
+
+  # `reject_unevaluated_this_tick/2` answers "was this test case in the batch we
+  # looked at"; this answers "was there anything to look at". They are different
+  # questions under default-branch scoping, where a test case can be in the batch
+  # and still have no default-branch runs to measure — a quarantined test whose
+  # work has moved onto pull-request branches, for instance. Absent from the
+  # triggered set for that reason is not the condition clearing, and recovering on
+  # it would un-quarantine a test nothing has re-proven.
+  defp reject_unmeasurable_test_cases([], _alert), do: []
+
+  defp reject_unmeasurable_test_cases(candidates, alert) do
+    measurable =
+      alert
+      |> FlakyTestsMonitor.measurable_test_case_ids(Enum.map(candidates, & &1.test_case_id))
+      |> MapSet.new()
+
+    Enum.filter(candidates, &MapSet.member?(measurable, &1.test_case_id))
   end
 
   # A state filter makes an action conditional on the test case's current

@@ -94,32 +94,34 @@ fi
 # roll out.
 HELM_TIMEOUT="15m"
 
-# Helm installs chart CRDs only on `install`, not on `upgrade`. Some
-# older workload clusters can predate the platform chart's cert-manager wiring, so
-# an upgrade can see `clusterissuers.cert-manager.io` missing forever.
-# Apply the cert-manager chart CRDs explicitly before templating our
-# ClusterIssuer.
-if ! KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
-  log "ClusterIssuer CRD missing; applying cert-manager CRDs"
+# Helm installs chart CRDs only on `install`, not on `upgrade`. It also refuses
+# to install when a recovery bootstrap has already created the CRDs without
+# Helm ownership annotations. Reconcile cert-manager CRDs independently before
+# templating our ClusterIssuer, and keep them outside the Helm release.
+cert_manager_chart="$(
+  find "$CHART_PATH/charts" -maxdepth 1 -name 'cert-manager-*.tgz' |
+    sort |
+    tail -n 1
+)"
 
-  cert_manager_chart="$(
-    find "$CHART_PATH/charts" -maxdepth 1 -name 'cert-manager-*.tgz' |
-      sort |
-      tail -n 1
-  )"
-
-  if [ -z "$cert_manager_chart" ]; then
-    echo "ERROR: cert-manager chart dependency not found under $CHART_PATH/charts" >&2
-    exit 1
-  fi
-
-  helm template platform "$cert_manager_chart" \
-    --namespace platform \
-    --set crds.enabled=true \
-    --show-only templates/crds.yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-  KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
-    --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
+if [ -z "$cert_manager_chart" ]; then
+  echo "ERROR: cert-manager chart dependency not found under $CHART_PATH/charts" >&2
+  exit 1
 fi
+
+if KUBECONFIG="$WL_KUBECONFIG" kubectl get crd clusterissuers.cert-manager.io >/dev/null 2>&1; then
+  log "Reconciling cert-manager CRDs"
+else
+  log "ClusterIssuer CRD missing; applying cert-manager CRDs"
+fi
+
+helm template platform "$cert_manager_chart" \
+  --namespace platform \
+  --set installCRDs=false \
+  --set crds.enabled=true \
+  --show-only templates/crds.yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
+  --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
 
 # The ingress-nginx admission cert jobs are Helm hooks. Re-running them on
 # every server deploy makes the deploy path depend on a short-lived certgen

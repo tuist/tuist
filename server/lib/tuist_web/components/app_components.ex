@@ -22,7 +22,7 @@ defmodule TuistWeb.AppComponents do
   alias TuistWeb.Utilities.Query
 
   attr(:title, :string, required: true, doc: "The title of the legend.")
-  attr(:value, :string, doc: "The value associated with the legend type.", default: nil)
+  attr(:value, :any, doc: "The value associated with the legend type.", default: nil)
 
   attr(:style, :string,
     required: false,
@@ -38,7 +38,9 @@ defmodule TuistWeb.AppComponents do
         <div data-part="indicator"></div>
         <span data-part="title">{@title}</span>
       </div>
-      <span :if={not is_nil(@value)} data-part="value">{@value}</span>
+      <span :if={not is_nil(@value)} data-part="value">{if is_number(@value) and abs(@value) >= 10_000,
+        do: TuistWeb.CldrHelpers.format_number(@value),
+        else: @value}</span>
     </div>
     """
   end

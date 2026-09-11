@@ -5,6 +5,7 @@ defmodule TuistWeb.API.Automations.AlertsController do
   alias OpenApiSpex.Schema
   alias Tuist.Automations
   alias TuistWeb.API.RequestParams
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.AutomationAlert
   alias TuistWeb.API.Schemas.AutomationAlertAction
   alias TuistWeb.API.Schemas.Error
@@ -49,7 +50,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
            },
            required: [:alerts]
          }},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -87,7 +89,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       ok: {"Alert details", "application/json", AutomationAlert},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -104,6 +107,75 @@ defmodule TuistWeb.API.Automations.AlertsController do
         conn |> put_status(:not_found) |> json(%{message: "Alert not found."})
     end
   end
+
+  @revision_schema %Schema{
+    title: "AutomationAlertRevision",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, format: :uuid},
+      event: %Schema{type: :string, enum: ["created", "updated"]},
+      source: %Schema{type: :string},
+      actor: %Schema{
+        type: :object,
+        nullable: true,
+        properties: %{id: %Schema{type: :integer}, name: %Schema{type: :string}, email: %Schema{type: :string}},
+        required: [:id, :name, :email]
+      },
+      changes: %Schema{type: :object},
+      snapshot: %Schema{type: :object},
+      inserted_at: %Schema{type: :string, format: "date-time"}
+    },
+    required: [:id, :event, :source, :actor, :changes, :snapshot, :inserted_at]
+  }
+
+  operation(:index_revisions,
+    summary: "List an automation alert's revision history.",
+    operation_id: "listAutomationAlertRevisions",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."],
+      alert_id: [in: :path, schema: %Schema{type: :string, format: :uuid}, required: true],
+      before: [in: :query, schema: %Schema{type: :string, format: :uuid}, required: false],
+      page_size: [in: :query, type: :integer, required: false, description: "Results per page, up to 100."]
+    ],
+    responses: %{
+      ok:
+        {"Automation alert revisions", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             revisions: %Schema{type: :array, items: @revision_schema},
+             next_before: %Schema{type: :string, format: :uuid, nullable: true}
+           },
+           required: [:revisions, :next_before]
+         }},
+      not_found: {"Not found", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def index_revisions(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
+    with {:ok, alert} <- Automations.get_alert(params.alert_id),
+         true <- alert.project_id == project.id,
+         {:ok, before} <- revision_cursor(alert.id, Map.get(params, :before)) do
+      page_size = params |> Map.get(:page_size, 20) |> max(1) |> min(100)
+      revisions = Automations.list_alert_revisions(alert.id, before: before, limit: page_size + 1)
+      {page, remaining} = Enum.split(revisions, page_size)
+
+      json(conn, %{
+        revisions: Enum.map(page, &Automations.redact_revision/1),
+        next_before: if(remaining == [], do: nil, else: List.last(page).id)
+      })
+    else
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{message: "Automation alert revision not found."})
+      false -> conn |> put_status(:not_found) |> json(%{message: "Automation alert not found."})
+    end
+  end
+
+  defp revision_cursor(_alert_id, nil), do: {:ok, nil}
+
+  defp revision_cursor(alert_id, revision_id), do: Automations.get_alert_revision(alert_id, revision_id)
 
   operation(:create,
     summary: "Create an automation alert.",
@@ -142,7 +214,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
       created: {"Created alert", "application/json", AutomationAlert},
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -209,7 +282,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
       not_found: {"Not found", "application/json", Error},
       unprocessable_entity: {"Validation error", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -268,7 +342,8 @@ defmodule TuistWeb.API.Automations.AlertsController do
     responses: %{
       no_content: {"Deleted", "application/json", nil},
       not_found: {"Not found", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

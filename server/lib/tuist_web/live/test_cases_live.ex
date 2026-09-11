@@ -493,6 +493,21 @@ defmodule TuistWeb.TestCasesLive do
 
   def duration_cell_label(duration_ms), do: Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(duration_ms)
 
+  # Bazel synthesizes a one-case `test.xml` when the runner (rust_test,
+  # cc_test without gtest, etc.) does not write JUnit itself, using the
+  # target basename for both classname and test name. That collapses the
+  # whole target into a single row here. The row is worth flagging so a
+  # reader understands why per-case detail is missing and where the raw
+  # `test.log` still lives (on the invocation's test run page).
+  def bazel_target_collapse?(%{module_name: module_name, name: name, suite_name: suite_name})
+      when is_binary(module_name) and is_binary(name) and is_binary(suite_name) do
+    String.starts_with?(module_name, "//") and
+      name != "" and name == suite_name and
+      module_name |> String.split(":") |> List.last() == name
+  end
+
+  def bazel_target_collapse?(_), do: false
+
   defp build_flop_filters(filters, search) do
     flop_filters =
       filters

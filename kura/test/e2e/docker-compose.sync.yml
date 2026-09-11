@@ -1,0 +1,224 @@
+# Pull-replication (sync) e2e topology: the node pool spec/e2e/sync_spec.sh
+# draws from. Self-contained — it is NOT layered on docker-compose.yml, so
+# run it with `--project-directory <kura/>` so the build context resolves to
+# the crate root (the suite's COMPOSE_FILES does that).
+#
+# Every suite starts only the subset of nodes its topology needs:
+#   kura-a1, kura-a2          two replicas of region-a
+#   kura-b1, kura-b2          two replicas of region-b
+#   kura-solo                 a region of one (region-solo)
+#   kura-d1, kura-d2          the one-way pair of B-11 (design §11.2)
+# Membership is DNS-only (each node's static KURA_PEERS is itself) through
+# the shared kura-ring alias, so nodes that are never started are never
+# probed. Node URLs sort a1 < a2 and b1 < b2, which under the serverless
+# lowest-URL rule makes a1/b1 the gateways while both replicas are Ready.
+# The d pair is the exception: it is off the ring alias and discovers only
+# itself by DNS, so membership there is exactly what KURA_PEERS says — d2
+# lists d1, d1 lists nobody. That mirrors the runner region, whose node can
+# dial an enrolled self-hosted node but publishes no host the self-hosted
+# node could list back.
+#
+# Interpolated knobs (all optional, set per suite via suite_env):
+#   KURA_E2E_SYNC_PULL              KURA_REPLICATION_PULL of region-a and solo
+#   KURA_E2E_SYNC_PULL_B            KURA_REPLICATION_PULL of region-b (the
+#                                   mixed-mesh suite sets it to false)
+#   KURA_E2E_SYNC_FEED_MAX_ROWS     arrival-feed cap (the fall-off suite: 100)
+#   KURA_E2E_SYNC_LONG_POLL_SECS    forward-read long-poll wait
+#   KURA_E2E_SYNC_PASS_START_BUFFER_MS
+#                                   region backward-pass buffer below the
+#                                   watermark (the failover suite shrinks it
+#                                   so "no full re-walk" is observable)
+#   KURA_E2E_DRAIN_COMPLETION_TIMEOUT_MS / KURA_E2E_SYNC_DRAIN_MARGIN_MS
+#                                   the drain gate's bound (the drain suite
+#                                   shortens both so an expired gate fails
+#                                   the example in seconds, not minutes)
+#   KURA_E2E_SYNC_STOP_GRACE        compose stop grace period; long enough
+#                                   for a departing replica to be pulled
+#                                   before SIGKILL
+
+x-kura-env: &kura_env
+  KURA_PORT: "4000"
+  KURA_INTERNAL_PORT: "7443"
+  KURA_TENANT_ID: default
+  KURA_TMP_DIR: /var/cache/kura/tmp
+  KURA_DATA_DIR: /var/cache/kura
+  KURA_DISCOVERY_DNS_NAME: kura-ring.kura.internal
+  KURA_FILE_DESCRIPTOR_POOL_SIZE: "128"
+  KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: "5000"
+  KURA_SEGMENT_HANDLE_CACHE_SIZE: "32"
+  KURA_MEMORY_SOFT_LIMIT_BYTES: "536870912"
+  KURA_MEMORY_HARD_LIMIT_BYTES: "805306368"
+  KURA_MANIFEST_CACHE_MAX_BYTES: "67108864"
+  KURA_MAX_KEYVALUE_BYTES: "1048576"
+  KURA_METADATA_STORE_MAX_OPEN_FILES: "1024"
+  KURA_METADATA_STORE_MAX_BACKGROUND_JOBS: "4"
+  KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
+  KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL:-true}
+  KURA_SYNC_FEED_MAX_ROWS: ${KURA_E2E_SYNC_FEED_MAX_ROWS:-1000000}
+  KURA_SYNC_LONG_POLL_SECS: ${KURA_E2E_SYNC_LONG_POLL_SECS:-25}
+  KURA_SYNC_REGION_SETTLE_MS: "500"
+  KURA_SYNC_PASS_START_BUFFER_MS: ${KURA_E2E_SYNC_PASS_START_BUFFER_MS:-600000}
+  KURA_DRAIN_COMPLETION_TIMEOUT_MS: ${KURA_E2E_DRAIN_COMPLETION_TIMEOUT_MS:-240000}
+  KURA_SYNC_DRAIN_MARGIN_MS: ${KURA_E2E_SYNC_DRAIN_MARGIN_MS:-5000}
+
+x-kura-node: &kura_node
+  image: ${KURA_IMAGE:-}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  domainname: kura.internal
+  stop_grace_period: ${KURA_E2E_SYNC_STOP_GRACE:-90s}
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:4000/up >/dev/null"]
+    interval: 10s
+    timeout: 5s
+    retries: 18
+  labels:
+    kura.tenant_id: default
+
+services:
+  kura-a1:
+    <<: *kura_node
+    hostname: kura-a1
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-a
+      KURA_NODE_URL: http://kura-a1.kura.internal:7443
+      KURA_PEERS: http://kura-a1.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-a1
+    ports:
+      - "${KURA_A1_PORT:-0}:4000"
+    volumes:
+      - kura-a1-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-a1.kura.internal
+          - kura-ring.kura.internal
+
+  kura-a2:
+    <<: *kura_node
+    hostname: kura-a2
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-a
+      KURA_NODE_URL: http://kura-a2.kura.internal:7443
+      KURA_PEERS: http://kura-a2.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-a2
+    ports:
+      - "${KURA_A2_PORT:-0}:4000"
+    volumes:
+      - kura-a2-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-a2.kura.internal
+          - kura-ring.kura.internal
+
+  kura-b1:
+    <<: *kura_node
+    hostname: kura-b1
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-b
+      KURA_NODE_URL: http://kura-b1.kura.internal:7443
+      KURA_PEERS: http://kura-b1.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-b1
+      KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL_B:-true}
+    ports:
+      - "${KURA_B1_PORT:-0}:4000"
+    volumes:
+      - kura-b1-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-b1.kura.internal
+          - kura-ring.kura.internal
+
+  kura-b2:
+    <<: *kura_node
+    hostname: kura-b2
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-b
+      KURA_NODE_URL: http://kura-b2.kura.internal:7443
+      KURA_PEERS: http://kura-b2.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-b2
+      KURA_REPLICATION_PULL: ${KURA_E2E_SYNC_PULL_B:-true}
+    ports:
+      - "${KURA_B2_PORT:-0}:4000"
+    volumes:
+      - kura-b2-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-b2.kura.internal
+          - kura-ring.kura.internal
+
+  kura-solo:
+    <<: *kura_node
+    hostname: kura-solo
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-solo
+      KURA_NODE_URL: http://kura-solo.kura.internal:7443
+      KURA_PEERS: http://kura-solo.kura.internal:7443
+      KURA_OTEL_SERVICE_NAME: kura-solo
+    ports:
+      - "${KURA_SOLO_PORT:-0}:4000"
+    volumes:
+      - kura-solo-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-solo.kura.internal
+          - kura-ring.kura.internal
+
+  # B-11 (design §11.2): d2 lists d1, d1 lists nobody. Both pull, so d2 pulls
+  # d1's feed; d1's advertised view never names d2, so d2 keeps pushing to it.
+  kura-d1:
+    <<: *kura_node
+    hostname: kura-d1
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-d
+      KURA_NODE_URL: http://kura-d1.kura.internal:7443
+      KURA_PEERS: http://kura-d1.kura.internal:7443
+      KURA_DISCOVERY_DNS_NAME: kura-d1.kura.internal
+      KURA_OTEL_SERVICE_NAME: kura-d1
+    ports:
+      - "${KURA_D1_PORT:-0}:4000"
+    volumes:
+      - kura-d1-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-d1.kura.internal
+
+  kura-d2:
+    <<: *kura_node
+    hostname: kura-d2
+    environment:
+      <<: *kura_env
+      KURA_REGION: region-d
+      KURA_NODE_URL: http://kura-d2.kura.internal:7443
+      KURA_PEERS: http://kura-d2.kura.internal:7443,http://kura-d1.kura.internal:7443
+      KURA_DISCOVERY_DNS_NAME: kura-d2.kura.internal
+      KURA_OTEL_SERVICE_NAME: kura-d2
+    ports:
+      - "${KURA_D2_PORT:-0}:4000"
+    volumes:
+      - kura-d2-data:/var/cache/kura
+    networks:
+      default:
+        aliases:
+          - kura-d2.kura.internal
+
+volumes:
+  kura-a1-data:
+  kura-a2-data:
+  kura-b1-data:
+  kura-b2-data:
+  kura-solo-data:
+  kura-d1-data:
+  kura-d2-data:

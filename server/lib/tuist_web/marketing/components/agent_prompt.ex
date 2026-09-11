@@ -35,8 +35,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
           ></span><span
             data-part="prompt-cursor"
             style="visibility: hidden;"
-          >
-          </span>
+          ></span>
         </div>
         <div data-part="trigger-container">
           <.button

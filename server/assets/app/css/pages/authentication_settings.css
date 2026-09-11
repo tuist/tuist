@@ -75,6 +75,18 @@
         flex-direction: column;
         gap: var(--noora-spacing-4);
         min-width: 0;
+
+        /* Controls sit at one width on the trailing edge rather than stretching
+           the column. The values here are domains, identifiers, and endpoint
+           URLs, so the width is set by what reads comfortably rather than by
+           the widest value: a long URL scrolls inside its field at any width
+           this column could offer. */
+        & > .noora-dropdown,
+        & > .noora-text-input {
+          align-self: flex-end;
+          width: 320px;
+          max-width: 100%;
+        }
       }
 
       & > [data-part="toggle-label"] {

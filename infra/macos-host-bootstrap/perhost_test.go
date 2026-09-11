@@ -36,6 +36,8 @@ var fleetWideConfigFields = map[string]bool{
 	"CacheVolumeMasterCapGiB": true,
 	"CacheVolumeCASGiB":       true,
 	"VNCRelayPort":            true,
+	"VNCRelayPortCount":       true,
+	"MinGoldensKept":          true,
 }
 
 // Every Config field is either fleet-wide or per-host, and PerHost is the

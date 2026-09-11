@@ -18,6 +18,7 @@ use crate::{
     auth::SharedAuth,
     backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
     bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
     constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     io::IoController,
@@ -44,6 +45,10 @@ pub struct AppState {
     pub runtime: Arc<RuntimeState>,
     pub auth: Option<SharedAuth>,
     pub analytics: Option<Analytics>,
+    /// Bounded, post-write delivery of Bazel's conventional test artifacts.
+    /// This is separate from aggregate cache analytics because it may read one
+    /// small blob under the background memory budget.
+    pub bazel_test_artifacts: Option<BazelTestArtifactDelivery>,
     pub usage: Option<Usage>,
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
@@ -59,6 +64,12 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into discovery/replication
     // targets on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// The replication target list, shared immutable and replaced whole by
+    /// `rebuild_replication_targets` whenever one of its inputs changes
+    /// (static seeds, the heartbeat peer list, the discovered view). Every
+    /// write reads it, so it is a pointer load rather than a walk of the
+    /// readiness state under its lock.
+    pub(crate) replication_target_cache: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
@@ -70,38 +81,119 @@ pub struct AppState {
     /// cannot starve in-flight client uploads (or the reverse).
     pub peer_staging_budget: Arc<TmpBudget>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+    /// Targets known not to serve the batched replication route, learned from a
+    /// 404 or 405 on the first attempt. A peer that predates the route must not
+    /// cost a wasted round trip per batch for the life of a backlog, so the
+    /// answer is remembered; it is process-scoped, so an upgraded peer is
+    /// retried after the next restart rather than staying downgraded forever.
+    pub replication_batch_unsupported: Mutex<BTreeSet<String>>,
     /// Serving-side per-peer-identity concurrency gate for the backfill bodies
     /// endpoint (see [`BackfillBodiesPeerSlots`]).
     pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
     /// The backfill walker's node-side state machine, driven by the
     /// membership loop.
     pub backfill: Arc<BackfillLifecycle>,
+    /// The flip (design §5.2): whether this node pulls. Seeded from
+    /// `KURA_REPLICATION_PULL` and switchable at runtime by the control
+    /// plane's account flag.
+    pub replication_pull: std::sync::atomic::AtomicBool,
+    /// What every reachable peer's `/_internal/status` last said, refreshed
+    /// each membership tick; the role rule's input.
+    pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
+    /// Peers whose last status said they pull *and* named this node in their
+    /// own membership view (D-20, D-21), kept across their absence from the
+    /// view: an unreachable pulling peer must not be pushed to again just
+    /// because it stopped answering. In memory, like the discovered-only
+    /// history.
+    pub pulling_peers: ArcSwap<BTreeSet<String>>,
+    /// Roles the control plane published beside the peer list.
+    pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
+    /// The pull links (design §3, §4), driven by the membership loop.
+    pub sync: Arc<crate::sync::coordinator::SyncCoordinator>,
 }
 
-/// One-in-flight-per-identity gate for `POST /_internal/backfill/bodies`.
+/// Serving-side concurrency gate for `POST /_internal/backfill/bodies`
+/// (design §11.1): a per-identity slot count and a node-wide aggregate.
 ///
 /// The requester side already limits itself to one in-flight bodies request
 /// per peer, but that bound is politeness: self-hosted peers hold account-CA
 /// client certificates on customer infrastructure, and a hostile or buggy
 /// peer must not be able to pin the shared tmp budget and bandwidth limiter
-/// with parallel bulk requests. Identities come from the internal mTLS
-/// listener's verified client certificate
+/// with parallel bulk requests. The aggregate covers the case the per-peer
+/// count cannot: many well-behaved peers converging on one gateway. Identities
+/// come from the internal mTLS listener's verified client certificate
 /// ([`crate::peer_tls::InternalPeerIdentity`]).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BackfillBodiesPeerSlots {
-    active: std::sync::Mutex<BTreeSet<Arc<str>>>,
+    active: std::sync::Mutex<BTreeMap<Arc<str>, u64>>,
+    slots_per_peer: u64,
+    /// The aggregate in force; derived from the membership view unless
+    /// `pinned`.
+    max_inflight: std::sync::atomic::AtomicU64,
+    pinned: bool,
+}
+
+/// Which limit refused a bodies request, so the metric can tell "this peer is
+/// greedy" from "this node is saturated".
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackfillBodiesSlotRejection {
+    PeerBusy,
+    NodeBusy,
 }
 
 impl BackfillBodiesPeerSlots {
-    /// Claims the identity's slot, or `None` while another request from the
-    /// same identity is still in flight. The returned guard must live for the
-    /// whole request, response streaming included.
-    pub fn try_acquire(self: &Arc<Self>, identity: Arc<str>) -> Option<BackfillBodiesPeerSlot> {
-        let mut active = self.active.lock().expect("backfill peer slots lock");
-        if !active.insert(identity.clone()) {
-            return None;
+    /// `max_inflight` pins the aggregate; `None` derives it from the
+    /// membership view through [`Self::observe_peer_count`], starting at the
+    /// floor until the first view arrives.
+    pub fn new(slots_per_peer: u64, max_inflight: Option<u64>) -> Self {
+        Self {
+            active: std::sync::Mutex::new(BTreeMap::new()),
+            slots_per_peer: slots_per_peer.max(1),
+            max_inflight: std::sync::atomic::AtomicU64::new(
+                max_inflight
+                    .unwrap_or(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT)
+                    .max(1),
+            ),
+            pinned: max_inflight.is_some(),
         }
-        Some(BackfillBodiesPeerSlot {
+    }
+
+    /// Re-derives the aggregate from the number of peers in the membership
+    /// view: `max(floor, peers × slots per peer)`, so every counted peer can
+    /// hold its slots and the floor covers the ones the view does not count.
+    pub fn observe_peer_count(&self, peers: usize) {
+        if self.pinned {
+            return;
+        }
+        let derived = (peers as u64)
+            .saturating_mul(self.slots_per_peer)
+            .max(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT);
+        self.max_inflight
+            .store(derived, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn max_inflight(&self) -> u64 {
+        self.max_inflight.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Claims a slot for the identity, or names the limit that refused it.
+    /// The returned guard must live for the whole request, response streaming
+    /// included.
+    pub fn try_acquire(
+        self: &Arc<Self>,
+        identity: Arc<str>,
+    ) -> Result<BackfillBodiesPeerSlot, BackfillBodiesSlotRejection> {
+        let mut active = self.active.lock().expect("backfill peer slots lock");
+        let held = active.get(&identity).copied().unwrap_or(0);
+        if held >= self.slots_per_peer {
+            return Err(BackfillBodiesSlotRejection::PeerBusy);
+        }
+        if active.values().sum::<u64>() >= self.max_inflight() {
+            return Err(BackfillBodiesSlotRejection::NodeBusy);
+        }
+        active.insert(identity.clone(), held + 1);
+        drop(active);
+        Ok(BackfillBodiesPeerSlot {
             slots: self.clone(),
             identity,
         })
@@ -116,17 +208,32 @@ pub struct BackfillBodiesPeerSlot {
 
 impl Drop for BackfillBodiesPeerSlot {
     fn drop(&mut self) {
-        self.slots
-            .active
-            .lock()
-            .expect("backfill peer slots lock")
-            .remove(&self.identity);
+        let mut active = self.slots.active.lock().expect("backfill peer slots lock");
+        if let Some(held) = active.get_mut(&self.identity) {
+            *held -= 1;
+            if *held == 0 {
+                active.remove(&self.identity);
+            }
+        }
     }
 }
 
 pub struct ReplicationBackoff {
     next_attempt: Instant,
     failures: u32,
+}
+
+/// The replication targets known before any membership pass: the static
+/// seeds minus the node itself.
+pub fn static_replication_targets(config: &Config) -> Vec<String> {
+    config
+        .peers
+        .iter()
+        .filter(|peer| **peer != config.node_url)
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 impl AppState {
@@ -168,8 +275,11 @@ pub struct RolloutStatusReport {
     pub http_inflight: usize,
     pub grpc_inflight: usize,
     pub outbox_messages: u64,
+    pub outbox_capacity: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
+    pub ring_fingerprint: String,
     pub backfill: BackfillRolloutStatus,
 }
 
@@ -304,7 +414,13 @@ impl AppState {
     }
 
     pub fn enter_draining(&self) -> bool {
-        self.runtime.request_drain()
+        let entered = self.runtime.request_drain();
+        if entered {
+            // Wake every long-poll so the sibling reads the tail now and
+            // reports its cursor for the drain gate (design §3.5).
+            self.store.sync_feed().notify_commit();
+        }
+        entered
     }
 
     pub async fn replication_target_backed_off(&self, target: &str, now: Instant) -> bool {
@@ -317,6 +433,20 @@ impl AppState {
 
     pub async fn note_replication_success(&self, target: &str) {
         self.replication_backoff.lock().await.remove(target);
+    }
+
+    pub async fn replication_batch_unsupported(&self, target: &str) -> bool {
+        self.replication_batch_unsupported
+            .lock()
+            .await
+            .contains(target)
+    }
+
+    pub async fn note_replication_batch_unsupported(&self, target: &str) {
+        self.replication_batch_unsupported
+            .lock()
+            .await
+            .insert(target.to_owned());
     }
 
     pub async fn note_replication_failure(&self, target: &str, now: Instant) {
@@ -370,7 +500,36 @@ impl AppState {
             .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
+        self.refresh_outbox_capacity(discovery_observed).await;
         membership_update
+    }
+
+    /// Re-derives the outbox cap from every peer whose messages may occupy
+    /// the queue: the current replication targets (what a write enqueues for)
+    /// plus the discovered-only history, whose messages `process_outbox`
+    /// never prunes within a process lifetime. Counting that history keeps a
+    /// departed sibling's share — and a sibling's share through a status-probe
+    /// blip, which empties the discovered set the same way — for as long as
+    /// its messages can sit in the queue, so the cap only shrinks behind a
+    /// departure whose messages are actually dropped.
+    ///
+    /// `observed` says whether the view behind an empty set was actually
+    /// seen: every discovery target answered, or there were none to ask. An
+    /// unobserved empty set means the node has no peer view (control plane or
+    /// discovery unreachable), not that every peer left — the same reading
+    /// `process_outbox` gives it when it declines to prune — so the last
+    /// derived total holds rather than collapsing to one share under a
+    /// backlog that is not going anywhere. An observed empty set is a mesh
+    /// that really has no peers, and the total returns to one share.
+    pub async fn refresh_outbox_capacity(&self, observed: bool) {
+        let targets = self.rebuild_replication_targets().await;
+        let mut peers: BTreeSet<String> = targets.iter().cloned().collect();
+        peers.extend(self.discovered_only_peer_history().await);
+        if peers.is_empty() && !observed {
+            return;
+        }
+        self.store.set_replication_peer_count(peers.len());
+        self.store.retain_outbox_targets(&peers);
     }
 
     pub async fn initial_discovery_completed(&self) -> bool {
@@ -406,13 +565,65 @@ impl AppState {
         }
     }
 
-    pub async fn replication_targets(&self) -> Vec<String> {
+    /// The peers a write enqueues one outbox message for. A shared snapshot:
+    /// exact as of the last input change, which every input mutation
+    /// follows with `rebuild_replication_targets`.
+    /// Stores what the membership loop saw and folds each peer's pull flag
+    /// into the sticky set: a peer that answered decides its own entry, a
+    /// peer that did not answer keeps its last one. A peer that pulls but
+    /// does not name this node in its own view never enters the set, so the
+    /// stickiness of D-20 cannot outlive the condition that earned it.
+    pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
+        self.backfill_bodies_peer_slots
+            .observe_peer_count(views.len());
+        let mut pulling: BTreeSet<String> = (**self.pulling_peers.load()).clone();
+        for view in &views {
+            if view.pulling && view.knows_me {
+                pulling.insert(view.url.clone());
+            } else {
+                pulling.remove(&view.url);
+            }
+        }
+        self.pulling_peers.store(Arc::new(pulling));
+        self.peer_views.store(Arc::new(views));
+    }
+
+    pub fn replication_pull(&self) -> bool {
+        self.replication_pull
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Returns whether the value changed.
+    pub fn set_replication_pull(&self, pull: bool) -> bool {
+        self.replication_pull
+            .swap(pull, std::sync::atomic::Ordering::AcqRel)
+            != pull
+    }
+
+    pub fn replication_targets(&self) -> Arc<Vec<String>> {
+        self.replication_target_cache.load_full()
+    }
+
+    /// Re-derives the replication targets from the static seeds, the
+    /// heartbeat peer list and the discovered view, and publishes them.
+    pub async fn rebuild_replication_targets(&self) -> Arc<Vec<String>> {
         let snapshot = self.readiness_snapshot().await;
         let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
         targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
-        targets.into_iter().collect()
+        // The per-peer rule of the flip (design §5.2), with the exception of
+        // §11.2: a peer that pulls is no longer pushed to, unless it cannot
+        // dial this node back, in which case pull reaches it in neither
+        // direction and push is the only leg it has.
+        if self.replication_pull() {
+            for peer in self.pulling_peers.load().iter() {
+                targets.remove(peer);
+            }
+        }
+        let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());
+        self.replication_target_cache.store(targets.clone());
+        targets
     }
 
     /// Segment count as a percentage of the ring's desired total, the ring
@@ -449,9 +660,11 @@ impl AppState {
         // serving, and no backfill path clears the flag — only the orthogonal
         // /ready inputs (writer lock, draining) can take the node out of
         // rotation.
-        if !self.backfill.cycle_snapshot().is_backfilling()
-            || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent
-        {
+        // Pull links have their own settle term (design §3.6): the sibling
+        // bootstrap, or for a region of one the initial region passes.
+        let settled = !self.backfill.cycle_snapshot().is_backfilling()
+            && self.sync.bootstrap_settled(self.replication_pull());
+        if settled || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent {
             self.runtime.mark_serving();
         }
     }
@@ -489,6 +702,9 @@ impl AppState {
                 self.config.backfill_ready_ring_percent
             ));
         }
+        if !self.runtime.is_serving() && !self.sync.bootstrap_settled(self.replication_pull()) {
+            reasons.push("replica bootstrap in progress".to_string());
+        }
 
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
         ReadinessReport {
@@ -514,6 +730,9 @@ impl AppState {
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
         let metrics = self.metrics.rollout_metrics_snapshot();
 
+        let mut ring: Vec<String> = snapshot.known_peers.clone();
+        ring.push(self.config.node_url.clone());
+        ring.sort();
         let cycle = self.backfill.cycle_snapshot();
         let backfill = BackfillRolloutStatus {
             initial_cycle: cycle.initial_cycle_mode(),
@@ -527,14 +746,17 @@ impl AppState {
             generation: snapshot.generation,
             ready,
             state: self.runtime.traffic_state(),
-            ring_members: snapshot.known_peers.len() + 1,
+            ring_members: ring.len(),
+            ring_fingerprint: ring_fingerprint(&ring),
             initial_discovery_completed: snapshot.initial_discovery_completed,
             writer_lock_owned,
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
             outbox_messages: metrics.outbox_messages,
+            outbox_capacity: self.store.outbox_max_depth() as u64,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
+            peer_connection_failure_count: metrics.peer_connection_failure_count,
             backfill,
         }
     }
@@ -562,6 +784,21 @@ impl AppState {
             self.config.replication_public_latency_target_ms,
         );
     }
+}
+
+/// Stable digest of the sorted ring member identities. Two pods can report
+/// equal ring sizes while seeing different peer subsets, so the controller's
+/// cross-pod consistency check compares fingerprints, not counts.
+pub fn ring_fingerprint(sorted_members: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    for member in sorted_members {
+        hasher.update(member.as_bytes());
+        hasher.update([0u8]);
+    }
+    let digest = hasher.finalize();
+    hex::encode(&digest[..8])
 }
 
 #[cfg(test)]
@@ -612,6 +849,16 @@ mod tests {
             state.backfill.test_evaluate(&backfill_tick(&[], &[]), now);
         }
         now
+    }
+
+    #[test]
+    fn ring_fingerprint_distinguishes_equal_sized_rings() {
+        let ring_a = vec!["https://a:7443".to_string(), "https://b:7443".to_string()];
+        let ring_b = vec!["https://a:7443".to_string(), "https://c:7443".to_string()];
+
+        assert_eq!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_a));
+        assert_ne!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_b));
+        assert_eq!(ring_fingerprint(&ring_a).len(), 16);
     }
 
     #[test]
@@ -679,6 +926,121 @@ mod tests {
         assert!(observed.initial_discovery_completed);
         assert!(observed.generation_changed);
         assert_eq!(readiness.generation, 1);
+    }
+
+    /// The membership pass is what re-derives the outbox cap: the store
+    /// cannot see the peer set, and the cap has to count every target a write
+    /// would enqueue for, so it is read from `replication_targets` rather
+    /// than from the discovered set alone.
+    #[tokio::test]
+    async fn membership_view_rederives_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            // Only the node itself is a static seed: one share to start.
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 10);
+
+        context
+            .state
+            .dynamic_peers
+            .store(std::sync::Arc::new(vec!["http://peer-c:7443".to_string()]));
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            30,
+            "two discovered peers plus one dynamic peer"
+        );
+
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([("http://peer-a:7443".to_string(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost peer gives its share back"
+        );
+
+        // A discovered-only peer's messages are never pruned, so its share
+        // survives its absence from the view — whether it left or its status
+        // probe merely failed this pass.
+        context
+            .state
+            .note_discovered_only_peers(vec!["http://peer-a:7443".to_string()])
+            .await;
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "an empty view keeps the discovered-only share and the dynamic peer"
+        );
+    }
+
+    /// An empty derived set is "no peer view", the reading the prune path
+    /// gives it, so the capacity holds instead of collapsing to one share.
+    #[tokio::test]
+    async fn an_empty_peer_view_holds_the_outbox_capacity() {
+        let context = test_context(|config| {
+            config.outbox_max_depth = None;
+            config.outbox_max_depth_per_peer = 10;
+            config.peers = vec![config.node_url.clone()];
+        })
+        .await;
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([
+                    ("http://peer-a:7443".to_string(), "remote".to_string()),
+                    ("http://peer-b:7443".to_string(), "remote".to_string()),
+                ]),
+                true,
+            )
+            .await;
+        assert_eq!(context.state.store.outbox_max_depth(), 20);
+
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            20,
+            "a lost view keeps the last derived capacity"
+        );
+
+        // F6: an OBSERVED empty view (every discovery target answered, or
+        // there are none) is a mesh that really has no peers, and the
+        // capacity returns to one share instead of freezing.
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        assert_eq!(
+            context.state.store.outbox_max_depth(),
+            10,
+            "an observed empty mesh drops to the single-share floor"
+        );
     }
 
     #[tokio::test]

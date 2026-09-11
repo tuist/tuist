@@ -423,6 +423,89 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// A consumer that links a cached STATIC framework wrapping a nested-header xcframework and
+    /// also links a cached DYNAMIC framework that reaches the same xcframework. `LinkGenerator`'s
+    /// `staticDependenciesPrecompiledLibrariesAndFrameworks` relinks the wrapped xcframework at
+    /// the consumer, so Xcode's `ProcessXCFramework` writes `include/<Module>/module.modulemap`
+    /// into `$(BUILT_PRODUCTS_DIR)/include/`. Without widening the mapper's direct-link
+    /// suppression to see `linkableDependencies` (not just direct graph edges), the mapper still
+    /// added the vendor `Headers/<Module>/module.modulemap` on the search path for the dynamic
+    /// route, and Clang's dependency scanner rejected both maps with `redefinition of module`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_linking_cached_static_and_dynamic_wrappers_over_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "StaticWrapper", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "ToolLinkingStaticAndDynamicWrappers"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticWrapper",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+
+        // The mapper's contract: the vendor `Headers/` path from the nested static xcframeworks
+        // must NOT land on `HEADER_SEARCH_PATHS` for the consumer, because Xcode's
+        // `ProcessXCFramework` already publishes `include/<Module>/module.modulemap` under
+        // `$(BUILT_PRODUCTS_DIR)/include`. Two module maps for the same module on the search
+        // path is exactly what triggers Clang's `redefinition of module` failure. Whether
+        // Clang actually rejects the pair at build time depends on the toolchain's tolerance
+        // for byte-identical duplicates (Xcode 26.3 does; some later versions don't), so we
+        // guard the invariant at the settings level — it holds regardless of Clang version.
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try #require(
+            xcodeproj.pbxproj.projects.flatMap(\.targets)
+                .first(where: { $0.name == "ToolLinkingStaticAndDynamicWrappers" })
+        )
+        let configurations = try #require(target.buildConfigurationList?.buildConfigurations)
+        #expect(configurations.isEmpty == false)
+        for configuration in configurations {
+            let headerSearchPaths = configuration.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue
+                ?? configuration.buildSettings["HEADER_SEARCH_PATHS"].map { [$0.stringValue ?? ""] }
+                ?? []
+            for xcframework in ["NestedObjC.xcframework", "NestedObjCKit.xcframework"] {
+                #expect(
+                    headerSearchPaths.contains(where: { $0.contains("\(xcframework)/") }) == false,
+                    "The \(configuration.name) HEADER_SEARCH_PATHS must not contain the vendor \(xcframework) Headers path; the include/ copy from ProcessXCFramework already covers module resolution."
+                )
+            }
+        }
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "ToolLinkingStaticAndDynamicWrappers",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
