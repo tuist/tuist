@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Compute illustration — the runner grid (4×6 cells), drawn on a canvas so it
  * can be alive:
@@ -174,7 +175,10 @@ export const RunnerGrid = {
 
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // The canvas spans the whole scene and is cleared and redrawn on every
+      // tick; at DPR 3 that is ~2.8M pixels per redraw on a phone. 2 keeps
+      // the hairline strokes crisp at a fraction of the fill cost.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.h = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.w * dpr;
@@ -199,10 +203,20 @@ export const RunnerGrid = {
       this.update(now);
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.lastTick = -1;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();
@@ -341,6 +355,12 @@ export const RunnerGrid = {
     // so the texture stays a light tint like the chart's gradient.
     const midAlpha = (0.55 - 0.31 * level) * level;
     const bump = 0.16 * level; // active cells read a touch denser
+    // Every dot in a cell shares one of two colours, so the dots are
+    // collected into two paths and filled twice, instead of a fillStyle
+    // string and a fillRect per dot (hundreds per cell, at DPR 3 on phones
+    // the single biggest cost of a redraw).
+    const lightPath = new Path2D();
+    const deepPath = new Path2D();
     for (let dy = DITHER_PITCH; dy < s - 1; dy += DITHER_PITCH) {
       for (let dx = DITHER_PITCH; dx < s - 1; dx += DITHER_PITCH) {
         const gx = cell.x + dx;
@@ -352,9 +372,12 @@ export const RunnerGrid = {
         if (BAYER8[(iy & 7) * 8 + (ix & 7)] / 64 >= n) continue;
         const depth = Math.max(0, Math.min(1, (n - 0.42) / 0.5));
         const deep = BAYER8[((iy + 4) & 7) * 8 + ((ix + 4) & 7)] / 64 < depth;
-        ctx.fillStyle = this.rgba(deep ? mid : light, deep ? midAlpha : lightAlpha);
-        ctx.fillRect(gx - DITHER_DOT / 2, gy - DITHER_DOT / 2, DITHER_DOT, DITHER_DOT);
+        (deep ? deepPath : lightPath).rect(gx - DITHER_DOT / 2, gy - DITHER_DOT / 2, DITHER_DOT, DITHER_DOT);
       }
     }
+    ctx.fillStyle = this.rgba(light, lightAlpha);
+    ctx.fill(lightPath);
+    ctx.fillStyle = this.rgba(mid, midAlpha);
+    ctx.fill(deepPath);
   },
 };

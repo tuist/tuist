@@ -133,7 +133,9 @@ const InsightsChart = {
   },
 
   resize() {
-    const dpr = window.devicePixelRatio || 1;
+    // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+    // any visible gain for 2px dither dots and hairline strokes.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rect = this.canvas.getBoundingClientRect();
     this.width = rect.width;
     this.height = rect.height;
@@ -237,7 +239,9 @@ const InsightsChart = {
       for (const segment of series.segments) {
         const to = x;
         const from = x - segment.width;
-        const y = baseline - segment.value * scale;
+        // Snap each step to a pixel centre: an unsnapped 1.5px stroke lands
+        // across two rows at partial opacity and reads as a faint 1px line.
+        const y = Math.round(baseline - segment.value * scale - 0.5) + 0.5;
         if (first) {
           ctx.moveTo(to, y);
           first = false;

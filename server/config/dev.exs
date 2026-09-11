@@ -22,13 +22,16 @@ code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in
 # before starting (or `mix compile --force`).
 debug_errors_enabled = System.get_env("TUIST_DEV_DISABLE_DEBUG_ERRORS") not in ["1", "true"]
 
-# Base watchers for esbuild
+# Base watchers for esbuild. Source maps are emitted as separate .map files
+# (devtools fetch them on demand) rather than inlined: inline maps made the
+# marketing bundle ~25 MB, which every page navigation on a phone had to
+# download and parse before its hooks could mount.
 base_watchers = [
-  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-  esbuild_marketing_new: {Esbuild, :install_and_run, [:marketing_new, ~w(--sourcemap=inline --watch)]},
-  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap=inline --watch)]},
-  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
+  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap --watch)]},
+  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap --watch)]},
+  esbuild_marketing_new: {Esbuild, :install_and_run, [:marketing_new, ~w(--sourcemap --watch)]},
+  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap --watch)]},
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap --watch)]}
 ]
 
 # ## SSL Support
@@ -94,8 +97,17 @@ config :esbuild,
       "--loader:.woff=file",
       "--loader:.woff2=file",
       "--loader:.ttf=file",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
       "--alias:@=.",

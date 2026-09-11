@@ -365,12 +365,18 @@ export const DitherTexture = {
     // measurably delays first paint.
     this.mode = null;
 
+    // The bitmap is sized from the canvas's own layout box (offsetWidth /
+    // offsetHeight), not from a bounding rect: a rect is post-transform, so
+    // a canvas measured under any scaling ancestor (a transition, an
+    // entrance animation) got a bitmap sized to the scaled box and was
+    // stretched back to its real size — dots smeared into dashes.
     this.resize = () => {
-      const rect = host.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.dpr = dpr;
-      this.width = Math.max(1, Math.round(rect.width));
-      this.height = Math.max(1, Math.round(rect.height));
+      this.width = Math.max(1, this.canvas.offsetWidth);
+      this.height = Math.max(1, this.canvas.offsetHeight);
       this.canvas.width = this.width * dpr;
       this.canvas.height = this.height * dpr;
       if (this.mode === "gl") this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -397,7 +403,7 @@ export const DitherTexture = {
     // re-arm after each change because a resolution query is pinned to the
     // value it was created with.
     const watchDpr = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const query = window.matchMedia(`(resolution: ${dpr}dppx), (-webkit-device-pixel-ratio: ${dpr})`);
       const onChange = () => {
         this.resize();
@@ -416,11 +422,37 @@ export const DitherTexture = {
     // many contexts composite on the same frame — offscreen ones contribute
     // nothing anyway. The margin starts them slightly before they scroll in,
     // and re-entry repaints immediately so the first visible frame is fresh.
+    // The backing store is sized from the host by the ResizeObserver, but a
+    // size measured from a not-yet-settled layout (a page restored from the
+    // bfcache, a prerendered document activated at another width, a hidden
+    // ancestor) can be stale by the time the canvas is first seen — and the
+    // browser then stretches the bitmap, turning the dots into dashes. Compare
+    // against the live size whenever the canvas comes into view and on
+    // pageshow, and resize if they disagree.
+    this.syncSize = () => {
+      const width = Math.max(1, this.canvas.offsetWidth);
+      const height = Math.max(1, this.canvas.offsetHeight);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (
+        width !== this.width ||
+        height !== this.height ||
+        dpr !== this.dpr ||
+        this.canvas.width !== this.width * dpr ||
+        this.canvas.height !== this.height * dpr
+      ) {
+        this.resize();
+      }
+    };
+    this.onPageshow = () => this.syncSize();
+    window.addEventListener("pageshow", this.onPageshow);
+    this.cleanups.push(() => window.removeEventListener("pageshow", this.onPageshow));
+
     this.inView = false;
     this.viewObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) this.inView = entry.isIntersecting;
         if (this.inView) {
+          this.syncSize();
           this.initRenderer();
           this.render(performance.now());
         }
@@ -445,6 +477,10 @@ export const DitherTexture = {
         const step = Math.floor((now / 1000) * TICK_HZ);
         if (step === this.lastTick) return;
         this.lastTick = step;
+        // Cheap per-tick guard: whatever desynced the bitmap from the layout
+        // box (a size change no observer reports, a reset width attribute),
+        // it's corrected within a tick rather than staying stretched.
+        this.syncSize();
         // Hover glow eases per tick (~5 ticks to settle). The factor is tuned
         // against TICK_HZ so the glow keeps its ~300ms feel: raise it if the
         // tick rate drops, lower it if the rate goes up.
@@ -455,6 +491,12 @@ export const DitherTexture = {
       };
       this.raf = requestAnimationFrame(tick);
     }
+  },
+
+  // A LiveView patch of the canvas itself (one not under phx-update="ignore")
+  // can rewrite its width/height attributes; re-check the bitmap.
+  updated() {
+    if (this.syncSize) this.syncSize();
   },
 
   destroyed() {
@@ -544,6 +586,7 @@ export const DitherTexture = {
     });
     if (gl && this.setupGL(gl)) {
       this.mode = "gl";
+      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     } else {
       this.mode = "2d";
       this.ctx2d = this.canvas.getContext("2d");

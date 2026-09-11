@@ -6,7 +6,20 @@ import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { mountStaticHooks } from "./js/lib/static-hooks.js";
-import Noora from "noora";
+// Individual Noora hooks rather than the prebuilt `noora` runtime: that
+// runtime pulls in every hook, including the ECharts-backed chart, and was
+// over half of this bundle. The marketing pages render only these.
+import NooraCollapsible from "noora/hooks/Collapsible.js";
+import NooraDropdown from "noora/hooks/Dropdown.js";
+import NooraIconTransition from "noora/hooks/IconTransition.js";
+import NooraModal from "noora/hooks/Modal.js";
+import NooraPopover from "noora/hooks/Popover.js";
+import NooraScrollArea from "noora/hooks/ScrollArea.js";
+import NooraSelect from "noora/hooks/Select.js";
+import NooraTable from "noora/hooks/Table.js";
+import NooraTabs from "noora/hooks/Tabs.js";
+import NooraToggle from "noora/hooks/Toggle.js";
+import NooraTooltip from "noora/hooks/Tooltip.js";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -15,7 +28,20 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 // Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
 const liveSocketFallbackMs = 10000;
 
-const hooks = { ...Noora.Hooks, ...Hooks, ...colocatedHooks };
+const NooraHooks = {
+  NooraCollapsible,
+  NooraDropdown,
+  NooraIconTransition,
+  NooraModal,
+  NooraPopover,
+  NooraScrollArea,
+  NooraSelect,
+  NooraTable,
+  NooraTabs,
+  NooraToggle,
+  NooraTooltip,
+};
+const hooks = { ...NooraHooks, ...Hooks, ...colocatedHooks };
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
