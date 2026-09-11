@@ -127,7 +127,7 @@ variable "runner_version" {
   # renovate.json for the limits and the dependency dashboard that
   # now make a withheld bump visible.
   # renovate: datasource=github-releases depName=actions/runner
-  default = "2.336.0"
+  default = "2.337.0"
 }
 
 variable "buildkite_agent_sha256_darwin_arm64" {
