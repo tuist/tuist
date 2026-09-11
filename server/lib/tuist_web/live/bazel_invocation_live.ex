@@ -491,7 +491,7 @@ defmodule TuistWeb.BazelInvocationLive do
           >
             <div data-part="title">
               <span data-part="label">{dgettext("dashboard_projects", "Action cache lookups:")}</span>
-              <span data-part="value">{@cache.hits + @cache.misses}</span>
+              <span data-part="value">{format_number(@cache.hits + @cache.misses)}</span>
             </div>
             <.chart
               id={@widget_id_prefix <> "-actions-breakdown"}

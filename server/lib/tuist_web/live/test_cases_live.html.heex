@@ -640,7 +640,7 @@
                   "Shown once a test case has run at least %{count} times in the last %{days} days. This one has %{runs}.",
                   count: Tests.min_duration_samples(),
                   days: Tests.active_window_days(),
-                  runs: test_case.duration_sample_count || 0
+                  runs: format_number(test_case.duration_sample_count || 0)
                 )
               }
             >
