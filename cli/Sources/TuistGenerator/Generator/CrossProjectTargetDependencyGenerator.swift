@@ -162,7 +162,6 @@ struct CrossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenera
         let remoteProjectRef = remoteProjectFileReference(
             consumerProject: consumerProject,
             consumerPbxproj: consumerPbxproj,
-            consumerXcodeprojDirectory: consumerDescriptor.xcodeprojPath.parentDirectory,
             remoteXcodeprojPath: dependencyDescriptor.xcodeprojPath,
             cacheKey: FileRefKey(
                 consumerProjectPath: edge.consumerProjectPath,
@@ -234,27 +233,39 @@ struct CrossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenera
     private func remoteProjectFileReference(
         consumerProject: PBXProject,
         consumerPbxproj: PBXProj,
-        consumerXcodeprojDirectory: AbsolutePath,
         remoteXcodeprojPath: AbsolutePath,
         cacheKey: FileRefKey,
         cache: inout [FileRefKey: PBXFileReference]
     ) -> PBXFileReference {
         if let cached = cache[cacheKey] { return cached }
 
-        let relativePath = remoteXcodeprojPath.relative(to: consumerXcodeprojDirectory).pathString
+        // Xcode's PIF conversion keys a referenced subproject's identity off the literal
+        // PBXFileReference.path string, not the resolved absolute path on disk. A relative path is
+        // computed against the referencing project's own directory, so the exact same physical
+        // .xcodeproj gets a different `path` string depending on which project references it (e.g.
+        // a local package project living next to its own Package.swift vs. an external package
+        // project living in the shared derived-projects cache vs. the app project at the repo
+        // root) — and Xcode treats each distinct string as a separate target instance, which
+        // surfaces as "Multiple commands produce" once a build needs the same target through more
+        // than one of those instances. Using the absolute path instead makes every consumer, no
+        // matter its own location, reference the target with the identical string, so Xcode
+        // resolves them to one instance. Since generated projects are never checked into version
+        // control (they're regenerated per machine/CI run), an absolute path doesn't cost
+        // portability the way it would in a hand-maintained, committed project file.
+        let absolutePath = remoteXcodeprojPath.pathString
         if let existing = consumerProject.projects
             .compactMap({ $0[Xcode.ProjectReference.projectReferenceKey] as? PBXFileReference })
-            .first(where: { $0.path == relativePath })
+            .first(where: { $0.path == absolutePath })
         {
             cache[cacheKey] = existing
             return existing
         }
 
         let fileReference = PBXFileReference(
-            sourceTree: .group,
+            sourceTree: .absolute,
             name: remoteXcodeprojPath.basename,
             lastKnownFileType: "wrapper.pb-project",
-            path: relativePath
+            path: absolutePath
         )
         consumerPbxproj.add(object: fileReference)
         consumerProject.mainGroup.children.append(fileReference)
