@@ -60,6 +60,11 @@ Your current limits are shown alongside each chart. If your workflows regularly 
     link="/guides/features/runners/buildkite"
 />
   <.home_card
+    title="GitLab CI"
+    details="Connect GitLab once and choose each job’s machine with pipeline tags."
+    link="/guides/features/runners/gitlab-ci"
+/>
+  <.home_card
     title="Profiles"
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"
