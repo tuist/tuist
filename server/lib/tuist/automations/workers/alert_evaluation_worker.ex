@@ -209,19 +209,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
   end
 
-  # First evaluation after the alert was created: every test case currently
-  # matching the condition is part of the established state. Record them as
-  # `triggered` AlertEvents so subsequent evaluations only fire on
-  # transitions, but skip the trigger actions — there's no transition to
-  # announce yet, and firing for the entire matching set would spam users.
+  # The default baseline is silent. Opted-in rules also act on current matches,
+  # with durable publication progress so the existing backlog is processed once.
   defp establish_baseline(alert) do
-    Automations.establish_alert_baseline(alert, fn test_case_ids ->
-      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+    evaluate_batch = &baseline_matches(alert, &1)
 
-      triggered_ids
-      |> then(&reject_unvalidated_test_cases(alert, &1))
-      |> filter_by_current_state(alert, alert.trigger_config)
-    end)
+    if Alert.apply_actions_to_existing_matches?(alert) do
+      Automations.establish_alert_baseline(alert, evaluate_batch, &apply_baseline_match/2)
+    else
+      Automations.establish_alert_baseline(alert, evaluate_batch)
+    end
+  end
+
+  defp baseline_matches(alert, test_case_ids) do
+    Automations.matching_test_case_ids(alert, test_case_ids)
+  end
+
+  defp apply_baseline_match(alert, test_case_id) do
+    ActionExecutor.execute_actions(alert.trigger_actions, alert, %{type: :test_case, id: test_case_id})
   end
 
   defp run_transitions(alert, triggered_ids, scoped_test_case_ids, preread_active_events) do

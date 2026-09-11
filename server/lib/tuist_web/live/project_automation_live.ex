@@ -278,10 +278,17 @@ defmodule TuistWeb.ProjectAutomationLive do
   end
 
   defp condition_summary(monitor_type, trigger_config) do
-    ProjectAutomationsLive.automation_summary(%{
-      monitor_type: monitor_type,
-      trigger_config: trigger_config || %{}
-    })
+    summary =
+      ProjectAutomationsLive.automation_summary(%{
+        monitor_type: monitor_type,
+        trigger_config: trigger_config || %{}
+      })
+
+    if trigger_config && trigger_config["apply_actions_to_existing_matches"] == true do
+      summary <> " · " <> dgettext("dashboard_projects", "Requested actions for existing matches")
+    else
+      summary
+    end
   end
 
   defp enabled_label(true), do: dgettext("dashboard_projects", "Enabled")

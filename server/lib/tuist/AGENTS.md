@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and checkpoint each applied test under the alert/attempt lock, then clear the request on completion. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Definition edits require a fresh opt-in; unrelated saves preserve pending work without replaying it.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 

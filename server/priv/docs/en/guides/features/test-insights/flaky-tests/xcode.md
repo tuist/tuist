@@ -56,6 +56,14 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 - You want to acknowledge a known flaky test while working on a fix
 - A test was incorrectly flagged due to infrastructure issues
 
+### Applying automation actions to existing matches
+
+Select **Apply to existing matches** immediately above **Create** or **Save** to run trigger actions for tests that already satisfy the condition and state scope. The form shows how many tests currently match, including the state scope and default-branch validation. This count refreshes as you change the condition and is a preview: matches can change before actions run. This is useful for recovery automations that re-enable healthy tests or remove their flaky label. By default, the first evaluation records existing matches silently and only later transitions run actions.
+
+This is a one-time choice for that save, including all configured Slack notifications. The checkbox starts unchecked whenever you open the editor. Use **When** to configure the condition, **What** for actions, and **Recovery** for recovery behavior. When creating an automation, When and What start expanded and Recovery starts collapsed. When editing, all sections start collapsed with a summary of their configuration. Later condition or action edits do not repeat actions unless you select it again. You can also select it without changing the condition to process an existing backlog. Processing happens on the next evaluation and resumes from completed tests if an action fails.
+
+The API accepts the same one-time request as a boolean at `trigger_config.apply_actions_to_existing_matches`. Submit `true` explicitly for each save that should process existing matches. The request is cleared after processing completes. Event-driven automations do not support it.
+
 ## Quarantining flaky tests {#quarantining}
 
 Quarantining isolates a flaky test so it doesn't block CI while you fix it. By default it's a **manual action** — you quarantine, un-quarantine, and switch modes from the test case detail page in the dashboard — but you can also wire it into an **automation alert** under **Settings → Automations** so a test is automatically muted (or skipped) when it crosses a flakiness threshold, and un-quarantined when it recovers. Every transition, manual or automated, is recorded on the test case's audit log.
