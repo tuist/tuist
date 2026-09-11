@@ -98,5 +98,14 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLiveTest do
         assert read_next =~ title |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
       end
     end
+
+    test "the Bazel announcement renders its live dashboard", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/blog/2026/09/09/bazel")
+
+      assert html =~ ~s(data-part="bazel-dashboard-lab")
+      assert html =~ "Live from tuist/kura"
+      assert html =~ "No Bazel invocations in the last 30 days yet."
+      assert html =~ ~s(data-part="bazel-timeline-showcase")
+    end
   end
 end
