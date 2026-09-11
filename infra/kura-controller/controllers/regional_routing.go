@@ -105,6 +105,25 @@ func (r *RegionalDNS) Ensure(ctx context.Context, region RegionalRouting) error 
 		return err
 	}
 	peer, err := r.readyDaemonSetAddresses(ctx, r.Namespace, peerDemuxName(region.Region))
+	if apierrors.IsNotFound(err) {
+		// The peer controller creates its DaemonSet only when a region has peers.
+		// Prove that it is intentionally absent; an absent required demux remains
+		// an error, preserving DNS just like an absent public ingress DaemonSet.
+		var instances kurav1alpha1.KuraInstanceList
+		if listErr := r.APIReader.List(ctx, &instances, client.InNamespace(r.Namespace)); listErr != nil {
+			return listErr
+		}
+		required := false
+		for _, instance := range instances.Items {
+			if instance.Spec.Region == region.Region && instance.Spec.MeshPeerHostNetwork && instance.Spec.MeshPublicPeerHost != "" {
+				required = true
+				break
+			}
+		}
+		if !required {
+			err = nil
+		}
+	}
 	if err != nil {
 		return err
 	}

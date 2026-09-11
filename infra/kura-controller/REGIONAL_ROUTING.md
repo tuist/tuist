@@ -65,7 +65,10 @@ not an input. IPv4 and IPv6 produce A and AAAA records respectively.
 
 The loop refreshes every 30 seconds and emits 60-second TTLs. An API read
 failure, including a missing configured ingress or peer DaemonSet, preserves
-the previous DNS state. A missing DaemonSet is not proof of an empty healthy set. A successful observation of no
+the previous DNS state. A missing DaemonSet is not proof of an empty healthy set.
+The generated peer DaemonSet is optional only when a successful KuraInstance
+list proves that the region has no host-network peer instances; this allows an
+empty region to prepare public DNS before its first account. A successful observation of no
 healthy ingress withdraws that plane's wildcard addresses. Legacy exact-name
 records retain their last targets until a healthy regional replacement exists,
 so a preparation typo cannot erase a working compatibility path. Existing

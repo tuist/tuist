@@ -462,7 +462,7 @@ func TestRegionalDNSMissingDaemonSetPreservesPublishedRecords(t *testing.T) {
 			if missing == "public" {
 				ds.Name, ds.Namespace = peerDemuxName(config.Region), "kura"
 			}
-			c := regionalTestClient(t, endpoint, ds)
+			c := regionalTestClient(t, endpoint, ds, regionalTestInstance(false))
 			r := &RegionalDNS{Client: c, APIReader: c, Namespace: "kura"}
 			if err := r.Ensure(ctx, config); !apierrors.IsNotFound(err) {
 				t.Fatalf("expected observable missing DaemonSet: %v", err)
@@ -716,5 +716,26 @@ func TestRegionalLegacyPeerCleanupRespectsCanonicalMoveSibling(t *testing.T) {
 	}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("retained fallback after last canonical instance: %v", err)
+	}
+}
+
+func TestEmptyRegionCanPublishPublicDNSBeforeFirstPeer(t *testing.T) {
+	ctx := context.Background()
+	config := regionalTestConfig()
+	ds := &appsv1.DaemonSet{ObjectMeta: metav1.ObjectMeta{Name: config.IngressDaemonSet, Namespace: config.IngressNamespace, UID: "public"}, Spec: appsv1.DaemonSetSpec{Selector: &metav1.LabelSelector{}, Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{HostNetwork: true}}}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ingress"}, Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}, Addresses: []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: "203.0.113.7"}}}}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "ingress", Namespace: config.IngressNamespace, OwnerReferences: []metav1.OwnerReference{{UID: ds.UID, Controller: ptr(true)}}}, Spec: corev1.PodSpec{HostNetwork: true, NodeName: node.Name}, Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}}}
+	c := regionalTestClient(t, ds, node, pod)
+	r := &RegionalDNS{Client: c, APIReader: c, Namespace: "kura"}
+	if err := r.Ensure(ctx, config); err != nil {
+		t.Fatal(err)
+	}
+	endpoint := regionalTestEndpoint(regionalDNSName(config.Region), nil)
+	if err := c.Get(ctx, client.ObjectKeyFromObject(endpoint), endpoint); err != nil {
+		t.Fatal(err)
+	}
+	targets, _ := dnsEndpointTargets(endpoint, "*."+config.Domain)
+	if !reflect.DeepEqual(targets, []string{"203.0.113.7"}) {
+		t.Fatalf("empty region cannot bootstrap public DNS: %v", targets)
 	}
 }
