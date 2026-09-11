@@ -120,10 +120,9 @@ msgstr ""
 msgid "Build times reduced by 80%"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:14
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:5
 #, elixir-autogen, elixir-format
-msgid "Building the future of scalable app development"
+msgid "Automation only moves as fast as the loop it runs in."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:185
@@ -2222,7 +2221,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:593
 #, elixir-autogen, elixir-format
-msgid "Enhance mobile-specific workflows and accelerate local and CI performance."
+msgid "Enhance mobile-specific workflows and accelerate builds across developer, CI, and agent environments."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:810
@@ -2471,7 +2470,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:111
 #: lib/tuist_web/marketing/live/marketing_cache_live/new/cache.html.heex:40
 #, elixir-autogen, elixir-format
-msgid "Share build artifacts across your team and CI, so no one waits on code that's already compiled."
+msgid "Share build artifacts across your developers, CI, and agent environments, so no one waits on code that's already compiled."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/home.html.heex:603
@@ -2703,7 +2702,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/new/pricing.html.heex:473
 #: lib/tuist_web/marketing/live/marketing_customers_live/new/customers.html.heex:104
 #, elixir-autogen, elixir-format
-msgid "Hola! Hello! Hallo! Olá! Namaste!"
+msgid "Hola! Hello! Hallo! Olá! Namaste! Ahoj!"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:105
@@ -2743,32 +2742,32 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:8
 #, elixir-autogen, elixir-format
-msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges, so you can deliver exceptional apps at speed."
+msgid "Tuist compresses that loop. Builds, tests, and the retries in between finish in seconds instead of minutes, so your developers stay in flow, your CI stops burning time, and the agents in your pipeline can think, try, and correct their way to code that works."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:62
 #, elixir-autogen, elixir-format
-msgid "Tuist was born in the Apple ecosystem, but our ambition goes beyond a single platform. We want to make building software at scale delightful for every developer, with an open and flexible platform that integrates seamlessly into their repository and simply works."
+msgid "Then AI happened, and optimizing your toolchain stopped being a luxury only large teams could afford. Every developer, and every agent working alongside them, needs the same fast, reliable feedback loops. That's what we're building next, with a stubborn commitment to sparking joy in the people who use it."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:56
 #, elixir-autogen, elixir-format
-msgid "We are building an integrated platform for the entire app development lifecycle, from the first idea to production. By combining continuous integration, testing, caching, analytics, and release automation into one cohesive experience, Tuist removes unnecessary complexity and lets developers focus on building."
+msgid "Tuist started as a client-side toolkit for the Apple ecosystem. We turned it into a business so we could do what we love most, full time: building the infrastructure and technology to support the full diversity of build toolchains developers use today. Whatever you build with, we want the toolchain underneath to feel invisible."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:50
 #, elixir-autogen, elixir-format
-msgid "We believe building apps should be a joyful experience. But as teams and products grow, developers often spend more time managing fragmented tools, infrastructure, and workflows than creating great software. Tuist brings these pieces together so teams can build and share high-quality apps with greater speed and scale."
+msgid "We're obsessed with helping developers build better software, faster. That obsession comes from doing the work at scale ourselves. Our team spent years shipping the tools behind mobile at %{shopify}, and Tuist is what we learned along the way."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:45
 #, elixir-autogen, elixir-format
-msgid "We want to enable"
+msgid "We want developers to build"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/new/about.html.heex:46
 #, elixir-autogen, elixir-format
-msgid "teams to scale with joy"
+msgid "better software, faster."
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_blog_live/new/blog.html.heex:97
