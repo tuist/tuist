@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
@@ -737,5 +739,60 @@ func TestEmptyRegionCanPublishPublicDNSBeforeFirstPeer(t *testing.T) {
 	targets, _ := dnsEndpointTargets(endpoint, "*."+config.Domain)
 	if !reflect.DeepEqual(targets, []string{"203.0.113.7"}) {
 		t.Fatalf("empty region cannot bootstrap public DNS: %v", targets)
+	}
+}
+
+func TestRegionalPeerRetirementRecoversFallbackHostFromBeforeRegionRename(t *testing.T) {
+	ctx := context.Background()
+	instance := regionalTestInstance(true)
+	renamed := "peer.acme-eu-west-1-staging.kura.tuist.dev"
+	original := "peer.acme-eu-central-1-staging.kura.tuist.dev"
+	instance.Annotations = map[string]string{legacyPeerHostsAnnotation: `["` + renamed + `"]`}
+	instance.Spec.MeshPeerFailoverIP = "203.0.113.8"
+	legacy := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: legacyAccountPublicPeerServiceName(instance), Namespace: instance.Namespace,
+		Labels:      map[string]string{"app.kubernetes.io/managed-by": "kura-controller", "tuist.dev/account": instance.Spec.AccountHandle},
+		Annotations: map[string]string{externalDNSHostnameAnnotation: original, legacyPeerHostAnnotation: original, legacyPeerMigrationAnnotation: legacyPeerPhaseRepairing}},
+		Spec: corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app.kubernetes.io/instance": instance.Name}}}
+	r := regionalTestReconciler(t, instance, legacy)
+	if err := r.prepareRegionalRouting(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{original, renamed} {
+		if !containsString(publicPeerHosts(instance), host) {
+			t.Fatalf("lost peer route for %s", host)
+		}
+	}
+	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: peerTLSSecretName(instance)}, &secret); err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(secret.Data[peerTLSCertFile])
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{original, renamed, instance.Spec.MeshPublicPeerHost} {
+		if err := leaf.VerifyHostname(host); err != nil {
+			t.Fatalf("missing compatibility SAN %s: %v", host, err)
+		}
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	endpoint := regionalTestEndpoint(instance.Name+"-peer-dns", nil)
+	if err := r.Get(ctx, client.ObjectKeyFromObject(endpoint), endpoint); err != nil {
+		t.Fatal(err)
+	}
+	for _, host := range []string{original, renamed} {
+		targets, _ := dnsEndpointTargets(endpoint, host)
+		if !reflect.DeepEqual(targets, []string{"203.0.113.8"}) {
+			t.Fatalf("lost DNS for %s: %v", host, targets)
+		}
+	}
+	if _, found := dnsEndpointTargets(endpoint, instance.Spec.MeshPublicPeerHost); found {
+		t.Fatal("created individual canonical DNS during retirement")
 	}
 }

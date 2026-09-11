@@ -823,14 +823,17 @@ func (r *KuraInstanceReconciler) reconcileLegacyPeerDNSEndpoint(ctx context.Cont
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		})
-		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
-			map[string]interface{}{
-				"dnsName":    instance.Spec.MeshPublicPeerHost,
-				"recordType": "A",
-				"recordTTL":  peerDNSRecordTTLSeconds,
-				"targets":    []interface{}{target},
-			},
-		}, "spec", "endpoints"); err != nil {
+		hosts := []string{instance.Spec.MeshPublicPeerHost}
+		if region := r.regionalRouting(instance); region != nil {
+			hosts = uniqueHosts(append(hosts, annotationHosts(instance, legacyPeerHostsAnnotation)...))
+		}
+		records := []interface{}{}
+		for _, host := range hosts {
+			records = append(records, map[string]interface{}{
+				"dnsName": host, "recordType": "A", "recordTTL": peerDNSRecordTTLSeconds, "targets": []interface{}{target},
+			})
+		}
+		if err := unstructured.SetNestedSlice(endpoint.Object, records, "spec", "endpoints"); err != nil {
 			return err
 		}
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)

@@ -167,7 +167,11 @@ and failover validation below; they do not replace those tests.
    If regional configuration reaches an instance with an unfinished migration,
    its four-phase retirement continues against the original host and original
    per-instance DNS target. Regional peer targets are withheld until the old
-   LoadBalancer is deleted. Canonical publication must still wait for this
+   LoadBalancer is deleted. A repaired fallback whose selector names the
+   instance can recover a hostname from before a region rename into peer routes
+   and SANs, while preserving later aliases. Active fallbacks take precedence
+   over clearing peer aliases; retire the fallback before clearing that list.
+   Canonical publication must still wait for this
    prerequisite, including after a manually applied configuration.
 2. Deploy controller/chart configuration with `publishEndpoints: false`.
    The chart grants read access to ingress readiness in the named namespace.

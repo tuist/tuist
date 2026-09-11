@@ -250,6 +250,10 @@ func (r *KuraInstanceReconciler) prepareRegionalRouting(ctx context.Context, ins
 			return err
 		}
 	}
+	legacyPeer, err := r.pendingLegacyPeerInstance(ctx, instance)
+	if err != nil {
+		return err
+	}
 	before := instance.DeepCopy()
 	if instance.Annotations == nil {
 		instance.Annotations = map[string]string{}
@@ -265,6 +269,12 @@ func (r *KuraInstanceReconciler) prepareRegionalRouting(ctx context.Context, ins
 		{"peer", instance.Spec.MeshPublicPeerHost, peerHost, legacyPeerHostsAnnotation},
 	} {
 		hosts := annotationHosts(instance, plane.annotation)
+		// An unfinished fallback can predate a region rename and the first alias
+		// snapshot. Its selector identifies this instance; it must keep its route
+		// and certificate until retirement completes, even if aliases were cleared.
+		if plane.suffix == "peer" && legacyPeer != nil && legacyPeer.Spec.MeshPublicPeerHost != plane.canonical {
+			hosts = append(hosts, legacyPeer.Spec.MeshPublicPeerHost)
+		}
 		if plane.current != "" && plane.current != plane.canonical {
 			hosts = append(hosts, plane.current)
 		}
@@ -391,6 +401,9 @@ func publicPeerHosts(instance *kurav1alpha1.KuraInstance) []string {
 // original per-instance DNS target. Regional targets take over only after that
 // state machine has observed cutover, drained caches and deleted the fallback.
 func (r *KuraInstanceReconciler) pendingLegacyPeerInstance(ctx context.Context, instance *kurav1alpha1.KuraInstance) (*kurav1alpha1.KuraInstance, error) {
+	if !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
+		return nil, nil
+	}
 	service := &corev1.Service{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: legacyAccountPublicPeerServiceName(instance)}, service); err != nil {
 		return nil, client.IgnoreNotFound(err)
@@ -401,7 +414,18 @@ func (r *KuraInstanceReconciler) pendingLegacyPeerInstance(ctx context.Context, 
 	if _, err := parseAnnotationHosts(instance, legacyPeerHostsAnnotation); err != nil {
 		return nil, err
 	}
-	for _, host := range publicPeerHosts(instance) {
+	hosts := publicPeerHosts(instance)
+	if service.Spec.Selector["app.kubernetes.io/instance"] == instance.Name {
+		host := service.Annotations[legacyPeerHostAnnotation]
+		if host == "" {
+			host = service.Annotations[externalDNSHostnameAnnotation]
+		}
+		if len(dnsNameValidationErrors(host)) != 0 {
+			return nil, fmt.Errorf("legacy peer fallback %s/%s has an invalid original hostname", service.Namespace, service.Name)
+		}
+		hosts = append([]string{host}, hosts...)
+	}
+	for _, host := range hosts {
 		if legacyPeerServiceMatchesHost(service, host) {
 			legacy := instance.DeepCopy()
 			legacy.Spec.MeshPublicPeerHost = host
