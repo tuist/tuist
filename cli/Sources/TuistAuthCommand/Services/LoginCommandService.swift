@@ -19,6 +19,7 @@ public protocol LoginCommandServicing {
 
 public enum LoginCommandServiceEvent: CustomStringConvertible {
     case openingBrowser(URL)
+    case browserOpenFailed
     case waitForAuthentication
     case oidcAuthenticating
     case completed
@@ -27,6 +28,8 @@ public enum LoginCommandServiceEvent: CustomStringConvertible {
         switch self {
         case let .openingBrowser(url):
             "Opening \(url.absoluteString) to start the authentication flow"
+        case .browserOpenFailed:
+            "Couldn't open the browser automatically. Visit the URL above to continue authenticating."
         case .waitForAuthentication:
             "Press CTRL + C once to cancel the process."
         case .oidcAuthenticating:
@@ -156,6 +159,9 @@ public struct LoginCommandService: LoginCommandServicing {
             deviceCodeType: .cli,
             onOpeningBrowser: { authURL in
                 await onEvent(.openingBrowser(authURL))
+            },
+            onBrowserOpenFailed: {
+                await onEvent(.browserOpenFailed)
             },
             onAuthWaitBegin: {
                 await onEvent(.waitForAuthentication)
