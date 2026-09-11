@@ -1727,7 +1727,7 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 }
 
 // grpcPublicPathPrefixes are the disjoint, stable URL prefixes of the gRPC
-// services Kura serves on the public host: the Bazel Remote Execution API,
+// services Kura serves on the public host: the Bazel Remote Execution and Asset APIs,
 // ByteStream, and the Build Event Protocol (PublishBuildEvent). Paired with
 // the use-regex annotation (see grpcIngressAnnotations) they are rendered by
 // ingress-nginx as anchored regex locations
@@ -1756,6 +1756,7 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // `/grpc\.` intentionally falls to the HTTP backend; add it here if Kura
 // ever serves them.
 var grpcPublicPathPrefixes = []string{
+	`/build\.bazel\.remote\.asset\.v1\.`,
 	`/build\.bazel\.remote\.execution\.v2\.`,
 	`/google\.bytestream\.`,
 	`/google\.devtools\.build\.v1\.`,

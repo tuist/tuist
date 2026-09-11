@@ -1425,7 +1425,7 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			t.Fatalf("expected gRPC ingress path to route to the co-hosted cache port %s:http, got %#v", instance.Name, backend)
 		}
 	}
-	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`, `/google\.devtools\.build\.v1\.`}
+	wantPaths := []string{`/build\.bazel\.remote\.asset\.v1\.`, `/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`, `/google\.devtools\.build\.v1\.`}
 	if len(gotPaths) != len(wantPaths) {
 		t.Fatalf("expected gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
 	}
@@ -1856,7 +1856,7 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 			t.Fatalf("expected converted gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
 		}
 	}
-	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`, `/google\.devtools\.build\.v1\.`}
+	wantPaths := []string{`/build\.bazel\.remote\.asset\.v1\.`, `/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`, `/google\.devtools\.build\.v1\.`}
 	if len(gotPaths) != len(wantPaths) {
 		t.Fatalf("expected converted gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
 	}

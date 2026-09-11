@@ -85,6 +85,8 @@ private struct BazelrcImportEditor {
                 return trimmedLine.split(whereSeparator: \.isWhitespace).contains { token in
                     token == "--remote_cache"
                         || token.hasPrefix("--remote_cache=")
+                        || token == "--experimental_remote_downloader"
+                        || token.hasPrefix("--experimental_remote_downloader=")
                         || token == "--bes_backend"
                         || token.hasPrefix("--bes_backend=")
                 }

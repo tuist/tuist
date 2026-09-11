@@ -1,6 +1,6 @@
 # Bazel commands
 
-- `setup` configures remote caching and build insights for ordinary Bazel commands.
+- `setup` configures remote caching, Remote Asset dependency downloads and build insights for ordinary Bazel commands. Use the cache endpoint and credentials for the remote downloader, explicitly enable local fallback for rolling Kura upgrades, and preserve custom/disabled downloader and fallback preferences when refreshing configuration. Origin credential propagation stays opt-in.
 - `test` fetches every page of quarantined test cases before executing Bazel.
   Skipped cases exclude their entire target, including healthy cases. Muted
   cases run; only complete local reports proving every failure belongs to a

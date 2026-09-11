@@ -102,16 +102,16 @@ impl Drop for SpliceVerificationSlot {
 }
 #[derive(Clone)]
 pub struct ReapiService {
-    state: SharedState,
+    pub(super) state: SharedState,
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
 #[derive(Clone, Copy)]
-struct GrpcRequestSpec<'a> {
-    operation: &'a str,
-    namespace_id: Option<&'a str>,
+pub(super) struct GrpcRequestSpec<'a> {
+    pub(super) operation: &'a str,
+    pub(super) namespace_id: Option<&'a str>,
 }
 
 struct ReapiCacheObservation<'a> {
@@ -158,17 +158,16 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
 // fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
-    let service = ReapiService {
-        snapshot_cache: state.snapshot_cache.clone(),
-        state: state.clone(),
-    };
+    let service = ReapiService::new(state.clone());
     spawn_snapshot_refresh_task(service.clone());
+    let assets = super::asset::server(service.clone());
     let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
         .add_service(build_events)
+        .add_service(assets)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -263,7 +262,14 @@ impl std::io::Write for BoundedZstdDecoderSink {
 }
 
 impl ReapiService {
-    async fn authorize_request<T>(
+    pub(super) fn new(state: SharedState) -> Self {
+        Self {
+            snapshot_cache: state.snapshot_cache.clone(),
+            state,
+        }
+    }
+
+    pub(super) async fn authorize_request<T>(
         &self,
         request: &Request<T>,
         spec: GrpcRequestSpec<'_>,
@@ -275,7 +281,7 @@ impl ReapiService {
     // request into a stream before it learns its namespace (from the first
     // chunk's resource_name), so it captures the metadata up front and authorizes
     // here once the namespace is known.
-    async fn authorize_metadata(
+    pub(super) async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         spec: GrpcRequestSpec<'_>,
@@ -353,7 +359,7 @@ impl ReapiService {
 
     // Record a received gRPC upload (ingress) against the usage rollups. See
     // [`record_reapi_download`] for the parity and call-site conventions.
-    fn record_reapi_upload(
+    pub(super) fn record_reapi_upload(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         namespace_id: &str,
@@ -3945,7 +3951,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     Ok(format!("{}/{}", digest.hash, digest.size_bytes))
 }
 
-fn require_sha256(digest_function: i32) -> Result<(), Status> {
+pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     if digest_function == 0 || digest_function == reapi::digest_function::Value::Sha256 as i32 {
         return Ok(());
     }
@@ -3954,7 +3960,7 @@ fn require_sha256(digest_function: i32) -> Result<(), Status> {
     ))
 }
 
-fn namespace_from_instance(instance_name: &str) -> &str {
+pub(super) fn namespace_from_instance(instance_name: &str) -> &str {
     if instance_name.is_empty() {
         DEFAULT_INSTANCE_NAME
     } else {

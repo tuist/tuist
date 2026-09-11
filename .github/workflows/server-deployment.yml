@@ -401,6 +401,7 @@ jobs:
         run: |
           tuist auth login
           tuist bazel setup
+          bash "$GITHUB_WORKSPACE/.github/scripts/enable-bazel-remote-downloader.sh"
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
