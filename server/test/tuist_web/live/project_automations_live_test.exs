@@ -196,6 +196,30 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.recovery_config["window"] == "14d"
     end
 
+    test "window inputs an event-driven monitor hides do not block its save", context do
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "On update"})
+      render_hook(lv, "update_create_automation_form_window", %{"value" => "14"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "0"})
+
+      # `test_updated` hides both window fields entirely, so a value left behind
+      # from the metric the user started on must not disable a Save they have
+      # no field to correct.
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      # `test_updated` strips the default flaky label action, so restore one to
+      # isolate the window inputs as the only thing that could disable Save.
+      html = render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      refute html =~ ~s(disabled="" type="button" phx-click="save_automation")
+
+      html = render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
+      refute html =~ ~s(disabled="" type="button" phx-click="save_automation")
+
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.monitor_type == "test_updated"
+    end
+
     test "shows failure without blocking save and refreshes when reopened for editing", context do
       stub(Automations, :count_existing_matches, fn _alert -> exit(:unavailable) end)
       {:ok, lv, _html} = open(context.conn, context.organization, context.project)

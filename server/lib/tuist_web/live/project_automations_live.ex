@@ -1066,13 +1066,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `max` attribute doesn't intercept the click.
   """
   def rolling_window_inputs_valid?(assigns) do
-    is_nil(
-      rolling_size_error(
-        assigns.create_automation_form_window_type,
-        assigns.create_automation_form_rolling_window_size,
-        Alert.max_rolling_trigger_window_size()
-      )
-    ) and
+    (event_driven_monitor_type?(assigns.create_automation_form_metric) or
+       is_nil(
+         rolling_size_error(
+           assigns.create_automation_form_window_type,
+           assigns.create_automation_form_rolling_window_size,
+           Alert.max_rolling_trigger_window_size()
+         )
+       )) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            rolling_size_error(
@@ -1091,14 +1092,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
   and nothing validates the recovery `last_days` window. Without this the Save
   button stayed enabled for `14` instead of `14d` and the click landed on the
   catch-all handler, leaving the modal open with no feedback.
+
+  Event-driven monitors hide both window fields and ignore them when building
+  the config, so a value left over from the metric the user started on must not
+  disable a Save they have no field to correct.
   """
   def day_window_inputs_valid?(assigns) do
-    is_nil(
-      day_window_error(
-        assigns.create_automation_form_window_type,
-        assigns.create_automation_form_window
-      )
-    ) and
+    (event_driven_monitor_type?(assigns.create_automation_form_metric) or
+       is_nil(
+         day_window_error(
+           assigns.create_automation_form_window_type,
+           assigns.create_automation_form_window
+         )
+       )) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            day_window_error(

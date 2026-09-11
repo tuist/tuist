@@ -1430,7 +1430,7 @@ msgstr ""
 msgid "the last %{size} runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:1132
+#: lib/tuist_web/live/project_automations_live.ex:1138
 #, elixir-autogen, elixir-format
 msgid "1–%{max}"
 msgstr ""
@@ -2750,7 +2750,7 @@ msgstr[1] ""
 msgid "What"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:1118
+#: lib/tuist_web/live/project_automations_live.ex:1124
 #, elixir-autogen, elixir-format
 msgid "e.g. 30d"
 msgstr ""
