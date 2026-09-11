@@ -225,7 +225,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       stub_report_metrics(now)
 
       expect(Client, :post_to_webhook, fn _url, _blocks ->
-        {:error, {:bad_request, 400, "invalid_payload"}}
+        {:error, {:bad_request, 400, "invalid_payload", ~s({"blocks":[{"type":"section"}]})}}
       end)
 
       reject(&Client.post_message/3)
@@ -236,6 +236,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
         assert opts[:extra][:project_id] == project.id
         assert opts[:extra][:status] == 400
         assert opts[:extra][:response_body] =~ "invalid_payload"
+        assert opts[:extra][:request_body] =~ ~s("blocks")
         :ok
       end)
 

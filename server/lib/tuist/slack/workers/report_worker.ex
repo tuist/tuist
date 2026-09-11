@@ -98,8 +98,8 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   defp handle_webhook_result(:ok, project), do: mark_reported(project)
   defp handle_webhook_result({:error, :webhook_revoked}, project), do: handle_revoked_webhook(project)
 
-  defp handle_webhook_result({:error, {:bad_request, status, body}}, project),
-    do: handle_bad_request(project, status, body)
+  defp handle_webhook_result({:error, {:bad_request, status, body, request_body}}, project),
+    do: handle_bad_request(project, status, body, request_body)
 
   defp handle_webhook_result({:error, reason}, _project), do: {:error, reason}
 
@@ -149,20 +149,40 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   # Any other 4xx is a client-side error we don't recognize — Slack is
   # telling us our request is wrong, so it likely is a bug on our side
   # (malformed Block Kit, wrong Content-Type, etc.). Report it explicitly
-  # so we still see it in Hive, then discard the job: the same request
-  # will fail the same way on retry, and clearing the user's destination
-  # would hide the bug behind a wiped config.
-  defp handle_bad_request(project, status, body) do
-    Logger.warning(
-      "Slack rejected the incoming-webhook payload for project #{project.id} (status #{status}, body #{inspect(body)})"
-    )
+  # so we still see it in Hive alongside the request we sent (Block Kit
+  # is user-visible content, no secrets), then discard the job: the same
+  # request will fail the same way on retry, and clearing the user's
+  # destination would hide the bug behind a wiped config.
+  defp handle_bad_request(project, status, response_body, request_body) do
+    Logger.warning("""
+    Slack rejected the incoming-webhook payload for project #{project.id} (status #{status}).
+    Response body: #{inspect(response_body)}
+    Request body: #{request_body}
+    """)
 
     Sentry.capture_message("Slack rejected the incoming-webhook payload",
       level: :error,
-      extra: %{project_id: project.id, status: status, response_body: inspect(body)}
+      extra: %{
+        project_id: project.id,
+        status: status,
+        response_body: inspect(response_body),
+        request_body: truncate_for_report(request_body)
+      }
     )
 
     {:discard, {:slack_bad_request, status}}
+  end
+
+  # Cap the request body at 16 KB so a runaway Block Kit payload can't
+  # push the Sentry event past the per-field size limit. Loki (via
+  # Logger.warning above) keeps the full body.
+  @report_body_limit 16 * 1024
+  defp truncate_for_report(body) when is_binary(body) do
+    if byte_size(body) > @report_body_limit do
+      binary_part(body, 0, @report_body_limit) <> "…[truncated]"
+    else
+      body
+    end
   end
 
   defp handle_post_message_error("account_inactive", project) do

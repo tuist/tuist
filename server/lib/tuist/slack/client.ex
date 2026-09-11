@@ -53,7 +53,7 @@ defmodule Tuist.Slack.Client do
 
     webhook_url
     |> Req.post(headers: headers, body: body)
-    |> handle_webhook_response()
+    |> handle_webhook_response(body)
   end
 
   @doc """
@@ -110,7 +110,7 @@ defmodule Tuist.Slack.Client do
     {:error, "Slack OAuth request failed: #{inspect(reason)}"}
   end
 
-  defp handle_webhook_response({:ok, %Req.Response{status: status}}) when status in 200..299 do
+  defp handle_webhook_response({:ok, %Req.Response{status: status}}, _request_body) when status in 200..299 do
     :ok
   end
 
@@ -118,30 +118,31 @@ defmodule Tuist.Slack.Client do
   # the same way on retry. Split it into "the webhook is permanently dead"
   # (caller clears the destination) and "we sent something Slack rejected"
   # (caller discards the job without touching the destination, so we still
-  # see the failure once for investigation).
+  # see the failure once for investigation, along with the request body we
+  # sent so it's reproducible from the alert alone).
   #
   # 404 always maps to :webhook_revoked — a Slack hooks URL only 404s when
   # it isn't a live webhook any more (revoked, uninstalled, deleted). The
   # other 4xx cases only clear the destination when the body matches one of
   # Slack's documented permanent-error strings.
-  defp handle_webhook_response({:ok, %Req.Response{status: 404}}) do
+  defp handle_webhook_response({:ok, %Req.Response{status: 404}}, _request_body) do
     {:error, :webhook_revoked}
   end
 
-  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) when status in 400..499 do
+  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}, request_body) when status in 400..499 do
     if permanent_webhook_error?(body) do
       {:error, :webhook_revoked}
     else
-      {:error, {:bad_request, status, body}}
+      {:error, {:bad_request, status, body, request_body}}
     end
   end
 
   # 5xx is Slack's side — return a transient error so Oban retries.
-  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
+  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}, _request_body) do
     {:error, "Slack incoming-webhook responded #{status} with response body: #{inspect(body)}"}
   end
 
-  defp handle_webhook_response({:error, reason}) do
+  defp handle_webhook_response({:error, reason}, _request_body) do
     {:error, "Slack incoming-webhook request failed: #{inspect(reason)}"}
   end
 
