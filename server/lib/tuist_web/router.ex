@@ -793,6 +793,12 @@ defmodule TuistWeb.Router do
           get "/cache-events/:cache_event_id", BazelController, :get_cache_event
         end
 
+        scope "/once" do
+          post "/invocations", OnceInvocationsController, :create
+          get "/invocations", OnceInvocationsController, :index
+          get "/invocations/:invocation_id", OnceInvocationsController, :show
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -1296,6 +1302,8 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
+      live "/once", OnceInvocationsLive
+      live "/once/invocations", OnceInvocationsLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive

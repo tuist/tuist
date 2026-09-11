@@ -98,6 +98,8 @@ defmodule Tuist do
       Bazel.ProfileUpload,
       Bazel.Action,
       Bazel.Timeline,
+      Once,
+      Once.Invocation,
       ReapiCache,
       ReapiCache.CacheEvent,
       CacheActionItems,

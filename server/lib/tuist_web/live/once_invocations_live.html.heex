@@ -1,0 +1,86 @@
+<div id="once-invocations">
+  <div data-part="header">
+    <h1 data-part="title">{gettext("Once invocations")}</h1>
+    <p data-part="subtitle">
+      {gettext(
+        "Cache-backed script executions this project has recorded through Once. Each row is one `once exec` cycle."
+      )}
+    </p>
+  </div>
+
+  <div data-part="cards">
+    <.card title={gettext("Cache hit ratio")} icon="stack_2">
+      <.card_section>
+        <div data-part="stat">
+          <span data-part="value">{format_ratio_percent(@cache_hit_ratio)}</span>
+          <span data-part="label">{gettext("Last 30 days")}</span>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card title={gettext("Invocations")} icon="history">
+      <.card_section>
+        <div data-part="stat">
+          <span data-part="value">{@total_invocations}</span>
+          <span data-part="label">{gettext("Recent")}</span>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <.card title={gettext("Recent invocations")} icon="history">
+    <.card_section>
+      <% total_pages = total_pages(@invocations) %>
+      <% current_page = current_page(@page, total_pages) %>
+
+      <.table
+        id="once-invocations-table"
+        rows={paginated_invocations(@invocations, current_page)}
+        row_key={& &1.invocation_id}
+      >
+        <:col :let={invocation} label={gettext("Command")}>
+          <.text_and_description_cell
+            label={invocation_command(invocation)}
+            description={invocation.action_digest || ""}
+          />
+        </:col>
+        <:col :let={invocation} label={gettext("Status")}>
+          <.badge label={invocation.status} color={status_badge_color(invocation.status)} />
+        </:col>
+        <:col :let={invocation} label={gettext("Cache")}>
+          <.badge label={invocation.cache} color={cache_badge_color(invocation.cache)} />
+        </:col>
+        <:col :let={invocation} label={gettext("Duration")}>
+          <.text_cell label={format_duration(invocation.duration_ms)} />
+        </:col>
+        <:col :let={invocation} label={gettext("Exit")}>
+          <.text_cell label={to_string(invocation.exit_code)} />
+        </:col>
+        <:col :let={invocation} label={gettext("Finished")}>
+          <.text_cell label={format_datetime(invocation.finished_at)} />
+        </:col>
+        <:col :let={invocation} label={gettext("Version")}>
+          <.text_cell label={invocation.once_version} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="history"
+            title={gettext("No invocations yet")}
+            subtitle={
+              gettext(
+                "Point the Once CLI at this Tuist instance and run `once exec` to record its first invocation."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+
+      <.pagination_group
+        :if={total_pages > 1}
+        current_page={current_page}
+        number_of_pages={total_pages}
+        page_patch={&page_path(@query_params, &1)}
+      />
+    </.card_section>
+  </.card>
+</div>
