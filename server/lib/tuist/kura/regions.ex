@@ -499,7 +499,11 @@ defmodule Tuist.Kura.Regions do
       # via the local-path provisioner (`scw-local-nvme` StorageClass,
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
+      # Conservative accounting for legacy rows without a pin or loaded account.
+      # Governed provisioning still uses the account claim, not this fallback.
       storage_size: "50Gi",
+      storage_governed: true,
+      memory_governed: true,
       runner_platforms: [:macos],
       # Tart VMs use the PN gateway hostname; retain allocated NodePorts for
       # jobs that received the former node-address URL before migration.
@@ -995,20 +999,16 @@ defmodule Tuist.Kura.Regions do
         # their instances are sized per tier rather than taking the controller
         # default, and their ceilings are bin-packed against the node budget the
         # CAPI provider advertises. Per-tier sizing rides with the kubelet's
-        # MemoryQoS gate rather than landing ahead of it: a tiered floor sits
-        # far below its ceiling, so it is only a scheduling promise until the
-        # kernel enforces it as memory.min. The private runner-cache pool runs
-        # on Elastic Metal, which the provider does not patch, so it takes the
-        # controller default and stays off the bin-pack.
+        # MemoryQoS gate: a tiered floor is only a scheduling promise until the
+        # kernel enforces it as memory.min. Runner caches use the same profiles
+        # but do not request the extended ceiling resource, since their nodes
+        # do not advertise it.
         memory_governed: true,
         memory_ceiling_bin_packed: true,
         # Same reason the memory profile is per tier: packing density is what
         # constrains these boxes, and disk is the tighter of the two constraints
         # because a claim is reserved whole rather than shared under a ceiling.
-        # A region left off this sizes every instance alike, which is what the
-        # private runner-cache pool wants — it holds one instance per account
-        # regardless of plan, on capacity ordered for the runner fleet rather
-        # than for the customer plane.
+        # Private runner caches participate in the same account sizing policy.
         storage_governed: true,
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
@@ -1074,7 +1074,9 @@ defmodule Tuist.Kura.Regions do
         country: Map.get(spec, :country),
         subdivision: Map.get(spec, :subdivision),
         storage_class: spec.storage_class,
-        storage_size: spec.storage_size,
+        storage_size: Map.get(spec, :storage_size),
+        storage_governed: Map.get(spec, :storage_governed, false),
+        memory_governed: Map.get(spec, :memory_governed, false),
         disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: Map.get(spec, :replicas, 1),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),

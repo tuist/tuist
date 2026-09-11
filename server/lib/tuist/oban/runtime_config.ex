@@ -40,7 +40,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @hosted_only_crons [
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-    {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+    {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},

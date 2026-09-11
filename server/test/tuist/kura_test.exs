@@ -11,6 +11,8 @@ defmodule Tuist.KuraTest do
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Provisioner.KubernetesController
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -533,6 +535,35 @@ defmodule Tuist.KuraTest do
                Kura.create_server(%{account_id: account.id, region: "us-east", image_tag: "0.5.2"})
 
       assert server.storage_claim_size == "8Gi"
+    end
+
+    test "pins runner creation and cold return before rendering an account-sized claim", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["scw-fr-par-runners"] end)
+      assert :ok = PlacerClaims.put(account, "24Gi")
+
+      assert {:ok, server} =
+               Kura.create_server(%{
+                 account_id: account.id,
+                 region: "scw-fr-par-runners",
+                 image_tag: "0.5.2"
+               })
+
+      assert server.storage_claim_size == "24Gi"
+      assert_runner_manifest_claim(server, account, "24Gi")
+
+      :ok = PlacerClaims.put(account, "32Gi")
+      assert_runner_manifest_claim(server, account, "24Gi")
+      assert {:ok, returned} = server |> archive() |> Kura.return_from_archive("0.5.2")
+      assert returned.storage_claim_size == "32Gi"
+      assert_runner_manifest_claim(returned, account, "32Gi")
+    end
+
+    defp assert_runner_manifest_claim(server, account, expected) do
+      stub(Tuist.Kura.Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+      account = Repo.preload(account, :subscriptions)
+      region = Regions.get("scw-fr-par-runners")
+      manifest = KubernetesController.manifest(server.provisioner_node_ref, "0.5.2", account, region, server)
+      assert manifest["spec"]["storageSize"] == expected
     end
 
     test "ignores an account handed in under a mismatched id", %{account: account} do

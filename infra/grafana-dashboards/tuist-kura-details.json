@@ -11906,7 +11906,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact write throughput by producer and result\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
+          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"` and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
           "id": 29,
           "links": [],
           "title": "artifact_write_bytes_total (rate)",
@@ -12116,7 +12116,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact writes by producer and result\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
+          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
           "id": 30,
           "links": [],
           "title": "artifact_writes_total (rate)",

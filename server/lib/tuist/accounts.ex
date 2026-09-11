@@ -94,12 +94,24 @@ defmodule Tuist.Accounts do
     to: AgentAuth,
     as: :get_claim_view
 
-  def new_organizations_in_last_hour do
-    Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
+  def new_organizations_in_period(start_at, end_at) do
+    Repo.all(
+      from(o in Organization,
+        where: o.created_at >= ^start_at and o.created_at < ^end_at,
+        order_by: [asc: o.created_at, asc: o.id],
+        preload: [:account]
+      )
+    )
   end
 
-  def new_users_in_last_hour do
-    Repo.all(from(u in User, where: u.created_at > ago(1, "hour"), preload: [:account]))
+  def new_users_in_period(start_at, end_at) do
+    Repo.all(
+      from(u in User,
+        where: u.created_at >= ^start_at and u.created_at < ^end_at,
+        order_by: [asc: u.created_at, asc: u.id],
+        preload: [:account]
+      )
+    )
   end
 
   def create_customer_when_absent(%Account{} = account) do

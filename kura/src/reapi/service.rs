@@ -1733,9 +1733,21 @@ impl ActionCache for ReapiService {
             .await
             .map_err(|error| store_write_status("failed to store action result", error))?;
         self.state.notify.notify_one();
-        self.state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        // A damped refresh (identical bytes, fresh version) counts under its own
+        // result and books no bytes: it stored nothing and wrote no replication
+        // feed row, so folding it into "ok" both overstates ingest and makes the
+        // write counter incomparable with every counter that only sees applied
+        // changes -- a shortfall that reads exactly like replication losing
+        // entries. Separating them also makes the damping rate measurable.
+        if applied {
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        } else {
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+        }
         let mut response = Response::new(action_result);
         self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
@@ -9729,6 +9741,132 @@ mod tests {
         // One batch read of two blobs is one request carrying both blobs' bytes.
         assert_eq!(download.bytes, total_bytes);
         assert_eq!(download.request_count, 1);
+    }
+
+    // A byte-identical re-publish inside the damping window stores nothing,
+    // bumps no version and writes no replication feed row. Counting it as an
+    // ordinary successful write made kura_artifact_writes_total incomparable
+    // with every counter that only sees applied changes -- the gap reads like
+    // replication dropping entries -- and inflated write_bytes with bytes that
+    // never landed. It gets its own result label and no bytes.
+    #[tokio::test]
+    async fn damped_action_cache_refresh_counts_separately_from_an_applied_write() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+
+        // Carry a payload: an all-default ActionResult encodes to zero bytes,
+        // and the byte assertions below would then match the pre-created,
+        // still-zero `result="ok"` series no matter what this path recorded.
+        let action_result = reapi::ActionResult {
+            stdout_raw: b"damped action stdout".to_vec(),
+            exit_code: 3,
+            ..Default::default()
+        };
+        let encoded_bytes = action_result.encode_to_vec().len() as u64;
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"damped-action")),
+            size_bytes: "damped-action".len() as i64,
+        };
+
+        let publish = |action_result: reapi::ActionResult| {
+            let context = &context;
+            let service = &service;
+            let action_digest = action_digest.clone();
+            async move {
+                let mut update = Request::new(reapi::UpdateActionResultRequest {
+                    instance_name: "ios".into(),
+                    action_digest: Some(action_digest),
+                    action_result: Some(action_result),
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                    ..Default::default()
+                });
+                update
+                    .metadata_mut()
+                    .insert("x-tuist-account-handle", "acme".parse().unwrap());
+                add_direct_write_admission(
+                    &context.state,
+                    &mut update,
+                    ACTION_CACHE_UPDATE_DECODE_COPIES,
+                );
+                service
+                    .update_action_result(update)
+                    .await
+                    .expect("update action result should succeed");
+            }
+        };
+
+        publish(action_result.clone()).await;
+        let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
+        let first = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+            .expect("manifest lookup should succeed")
+            .expect("the first publish should store the entry");
+
+        publish(action_result).await;
+        let second = context
+            .state
+            .store
+            .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+            .expect("manifest lookup should succeed")
+            .expect("the damped refresh should leave the entry in place");
+        assert_eq!(
+            first.version_ms, second.version_ms,
+            "the refresh must be damped for this test to mean anything"
+        );
+
+        let metrics = context.state.metrics.render();
+        let counter = |result: &str| {
+            metrics
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_artifact_writes_total")
+                        && line.contains("producer=\"reapi\"")
+                        && line.contains(&format!("result=\"{result}\""))
+                })
+                .and_then(|line| line.rsplit(' ').next())
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or_default()
+        };
+        assert_eq!(counter("ok"), 1, "only the applied write counts as ok");
+        assert_eq!(counter("damped"), 1, "the damped refresh is counted apart");
+
+        let write_bytes = metrics
+            .lines()
+            .filter(|line| line.starts_with("kura_artifact_write_bytes_total"))
+            .filter(|line| line.contains("producer=\"reapi\""))
+            .collect::<Vec<_>>();
+        assert!(
+            !write_bytes.iter().any(|line| line.contains("damped")),
+            "a damped refresh stores nothing, so it books no write bytes: {write_bytes:?}"
+        );
+        assert!(
+            write_bytes.iter().any(|line| line.contains("result=\"ok\"")
+                && line.ends_with(&format!(" {encoded_bytes}"))),
+            "write bytes should hold only the applied write's payload: {write_bytes:?}"
+        );
+
+        // Billing already respected the flag; assert it stays that way, so the
+        // metric and the rollup keep telling the same story.
+        let uploads = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests()
+            .into_iter()
+            .filter(|rollup| rollup.operation == "upload")
+            .collect::<Vec<_>>();
+        assert_eq!(uploads.len(), 1, "one rollup for the one applied write");
+        assert_eq!(uploads[0].request_count, 1);
+        assert_eq!(uploads[0].bytes, encoded_bytes);
     }
 
     // The ActionCache methods move real bytes too: UpdateActionResult uploads an

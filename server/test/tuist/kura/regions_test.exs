@@ -124,14 +124,11 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "sizes the managed regions per tier" do
-      # Safe here and not before: a tiered floor sits far below its ceiling, so
-      # it is only a scheduling promise until the kubelet's MemoryQoS gate makes
-      # it the pod's cgroup memory.min. That gate ships in this same change.
       for id <- ["us-east", "us-west", "eu-west", "ca-east", "ap-southeast", "sa-west", "eu-east", "us-central"] do
         assert Regions.memory_governed?(Regions.get(id))
       end
 
-      refute Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
+      assert Regions.memory_governed?(Regions.get("scw-fr-par-runners"))
     end
 
     test "bin-packs memory ceilings only where a node budget is advertised" do
@@ -152,9 +149,8 @@ defmodule Tuist.Kura.RegionsTest do
         assert Regions.storage_governed?(Regions.get(id))
       end
 
-      # The private runner-cache pool holds one instance per account regardless
-      # of plan, on capacity ordered for the runner fleet.
-      refute Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      assert Regions.storage_governed?(Regions.get("scw-fr-par-runners"))
+      refute Regions.storage_governed?(Regions.get("hetzner-staging-runners"))
       refute Regions.storage_governed?(Regions.get("local-controller"))
     end
 
@@ -622,9 +618,8 @@ defmodule Tuist.Kura.RegionsTest do
       assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 2
 
-      # No disk_envelope_size override: the ring derives from storage_size like
-      # every managed region, so a per-account node here sizes its CAS ring the
-      # same as its cross-region mesh peers and can stay caught up.
+      # The ring derives from the account's pinned claim, without a fixed
+      # region-wide budget or an envelope that bypasses measured sizing.
       assert scw_config.storage_size == "50Gi"
       assert scw_config.disk_envelope_size == nil
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}

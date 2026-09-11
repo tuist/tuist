@@ -16,7 +16,7 @@ defmodule TuistWeb.Marketing.MarketingCacheLiveTest do
 
     test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_cache -> true
+        :new_marketing -> true
         _ -> false
       end)
 
@@ -35,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingCacheLiveTest do
       stub(FunWithFlags, :enabled?, fn _flag -> false end)
 
       stub(FunWithFlags, :enabled?, fn
-        :new_marketing_cache, [for: %{id: ^user_id}] -> true
+        :new_marketing, [for: %{id: ^user_id}] -> true
         _flag, _opts -> false
       end)
 

@@ -3283,6 +3283,25 @@ clickhouse:
         # and query budgets from the cgroup limit, and the rest of the box is
         # more useful as page cache than as headroom it will try to fill.
         memory: 32Gi
+    # Reachability for writers that are not on the pod network. The macOS
+    # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
+    # a pod IP, so it cannot resolve the in-cluster Service name the `url`
+    # secret carries. It wrote the whole test family to ClickHouse Cloud and
+    # mirrored none of it, which parity saw as six tables holding zero rows on
+    # the destination while the source had data.
+    #
+    # Same mechanism the CNPG pooler already uses for the same fleet: the
+    # Tailscale operator watches for `tailscale.com/expose` and fronts the
+    # Service with a userspace proxy node, so the VM dials it over MagicDNS as
+    # a first-class tailnet member without joining the overlay.
+    #
+    # A dedicated Service rather than annotating the main one, so only the
+    # HTTP port is reachable off-cluster: the native protocol and the metrics
+    # port have no business on the tailnet.
+    tailscale:
+      enabled: false
+      hostname: ""
+      tags: ""
     persistence:
       size: 200Gi
       storageClassName: clickhouse-local

@@ -299,6 +299,7 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
         Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
         Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
         Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),

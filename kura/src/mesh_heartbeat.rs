@@ -44,8 +44,6 @@ const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
 const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
 // becoming a per-minute signing loop while staying well inside the server's
@@ -427,9 +425,7 @@ fn basic_auth(client_id: &str, client_secret: &str) -> String {
 }
 
 fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
+    crate::control_plane_http::client_builder()
         .build()
         .expect("mesh heartbeat HTTP client should build")
 }
