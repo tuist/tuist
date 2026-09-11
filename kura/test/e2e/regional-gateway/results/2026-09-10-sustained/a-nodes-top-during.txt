@@ -1,0 +1,16 @@
+NAME                                               CPU(cores)   CPU(%)      MEMORY(bytes)   MEMORY(%)   
+bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8   409m         2%          2490Mi          4%          
+tuist-staging-9lgjg-dbl2k                          267m         13%         2327Mi          62%         
+tuist-staging-9lgjg-stzd5                          279m         13%         2567Mi          69%         
+tuist-staging-9lgjg-vzvs7                          215m         10%         2210Mi          59%         
+tuist-staging-md-0-jmvxt-m4h9l-4ff9f               1094m        27%         3964Mi          51%         
+tuist-staging-md-0-jmvxt-m4h9l-lgs9v               1055m        26%         4737Mi          61%         
+tuist-staging-md-egress-pprwb-vtm2j-5qrmg          70m          3%          1240Mi          33%         
+tuist-staging-md-egress-pprwb-vtm2j-6gr6d          106m         5%          1214Mi          32%         
+tuist-tuist-dedibox-fleet-62jht-l5hsq              108m         0%          2632Mi          9%          
+tuist-tuist-kura-fleet-fm4h8-4pnrj                 277m         1%          1374Mi          2%          
+tuist-tuist-ovh-fleet-gzntw-hxw74                  151m         1%          1631Mi          5%          
+tuist-tuist-ovh-fleet-runners-linux-h72m4-wf682    27m          0%          973Mi           1%          
+tuist-tuist-runners-fleet-97k8k-g9fsn              <unknown>    <unknown>   <unknown>       <unknown>   
+tuist-tuist-macos-fleet-rzc5m-t2b4s                <unknown>    <unknown>   <unknown>       <unknown>   
+tuist-tuist-rack-fleet-8k5ht-ccflz                 <unknown>    <unknown>   <unknown>       <unknown>   

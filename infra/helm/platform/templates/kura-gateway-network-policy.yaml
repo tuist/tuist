@@ -17,8 +17,8 @@ only gateway was the local one. A region running two or more boxes drops every
 request a gateway proxies to a pod on another box, and answers 504 once nginx
 exhausts its upstream retries.
 
-Kura policy stays additive: this grants the cache port and nothing else, and the
-runtime's JWT check remains the auth boundary, the same one the per-instance
+Kura policy stays additive: this grants the cache and mTLS peer ports, and the
+runtime's JWT check remains the cache auth boundary, the same one the per-instance
 policy already relies on when it opens that port to every pod in the cluster.
 */ -}}
 {{- if .Values.kuraGatewayNetworkPolicy.enabled }}
@@ -41,5 +41,9 @@ spec:
             # Ingress routes to. Numeric rather than the `http` port name so
             # the rule does not depend on named-port resolution.
             - port: {{ .Values.kuraGatewayNetworkPolicy.port | quote }}
+              protocol: TCP
+            # Peer demux also runs host-network and may route to a different
+            # box. Kura still authenticates both peers with the account CA.
+            - port: "7443"
               protocol: TCP
 {{- end }}

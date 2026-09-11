@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -37,6 +38,7 @@ func main() {
 	var grpcClusterIssuer string
 	var publicTLSSecretName string
 	var publicTLSDNSNames string
+	var regionalRoutingConfig string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
 	var connectivityDiagnosticsInstances string
@@ -51,6 +53,8 @@ func main() {
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
+
+	flag.StringVar(&regionalRoutingConfig, "regional-routing-config", "", "JSON array of regional wildcard domains and existing host-network ingress DaemonSets")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -70,6 +74,22 @@ func main() {
 		}
 	}
 
+	regions, err := controllers.ParseRegionalRouting(regionalRoutingConfig)
+	if err != nil {
+		setupLog.Error(err, "parse --regional-routing-config")
+		os.Exit(1)
+	}
+	if len(regions) > 0 {
+		for _, required := range []struct{ name, value string }{
+			{"watch-namespace", watchNamespace}, {"public-tls-secret-name", publicTLSSecretName},
+			{"public-tls-dns-names", publicTLSDNSNames}, {"grpc-cluster-issuer", grpcClusterIssuer},
+		} {
+			if strings.TrimSpace(required.value) == "" {
+				setupLog.Error(fmt.Errorf("--%s is required", required.name), "invalid regional routing configuration")
+				os.Exit(1)
+			}
+		}
+	}
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
@@ -105,12 +125,16 @@ func main() {
 		Environment:                      deploymentEnvironment,
 		MetricsClient:                    metricsClient,
 		ConnectivityDiagnosticsInstances: probeInstances,
+		RegionalRouting:                  regions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
 	if publicTLSDNSNames != "" {
 		names := splitNames(publicTLSDNSNames)
+		for _, region := range regions {
+			names = append(names, "*."+region.Domain)
+		}
 		if err := mgr.Add(&controllers.PublicWildcardCertificate{
 			Client:        mgr.GetClient(),
 			Namespace:     watchNamespace,
@@ -119,6 +143,13 @@ func main() {
 			ClusterIssuer: grpcClusterIssuer,
 		}); err != nil {
 			setupLog.Error(err, "setup PublicWildcardCertificate")
+			os.Exit(1)
+		}
+	}
+
+	if len(regions) > 0 {
+		if err := mgr.Add(&controllers.RegionalDNS{Client: mgr.GetClient(), APIReader: mgr.GetAPIReader(), Namespace: watchNamespace, Regions: regions}); err != nil {
+			setupLog.Error(err, "setup regional DNS")
 			os.Exit(1)
 		}
 	}

@@ -60,10 +60,8 @@ defmodule Tuist.Kura.Regions do
   # ingress routes the gRPC service path prefixes to the gRPC backend and
   # everything else to the REST cache (see infra/kura-controller). The gRPC
   # host template is therefore identical to the public host template — there
-  # is no separate `grpc.` hostname. Kept as its own attribute so the CR's
-  # `grpcPublicHost` and the `grpcs://` CLI URL still flow through the gRPC
-  # accessors.
-  @managed_region_grpc_public_host_template @managed_region_public_host_template
+  # is no separate `grpc.` hostname. Both templates are derived together in
+  # managed_region/1, including when regional wildcard publication is enabled.
   @managed_region_peer_public_host_template "peer.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
 
   # The peer/replication port managed Kura instances listen on (matches the
@@ -936,6 +934,20 @@ defmodule Tuist.Kura.Regions do
   defp managed_region(spec) do
     host_suffix = managed_region_host_suffix()
 
+    regional_domain =
+      if Map.get(spec, :gateway) == :host_network,
+        do: Tuist.Environment.kura_regional_dns_domain(spec.id)
+
+    public_host_template =
+      if regional_domain,
+        do: "{account_handle}.#{regional_domain}",
+        else: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix)
+
+    peer_host_template =
+      if regional_domain,
+        do: "{account_handle}.peer.#{regional_domain}",
+        else: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix)
+
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
@@ -943,10 +955,11 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         hetzner_location: Map.get(spec, :hetzner_location),
-        public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        public_host_template: public_host_template,
+        regional_dns_domain: regional_domain,
         private_url_template: @in_cluster_url_template,
-        grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
-        peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
+        grpc_public_host_template: public_host_template,
+        peer_public_host_template: peer_host_template,
         ingress_class_name: spec.ingress_class_name,
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
         gateway: Map.get(spec, :gateway, :hetzner),

@@ -36,6 +36,13 @@ This directory contains the core business logic and domain modules for the serve
 - `Processor.BuildProcessor` returns ZIP extraction errors to `ProcessBuildWorker`
   so Oban retries them and the final attempt marks the build as `failed_processing`.
 
+- Managed Kura regional hostnames are opt-in through
+  `Environment.kura_regional_dns_domain/1`, which reads only its JSON environment
+  variable (the test seam accepts that raw JSON, not the whole OS environment). The region catalog derives HTTP,
+  gRPC and peer templates together, and the provisioner includes the domain in
+  the manifest revision. Keep URL publication after the controller's wildcard,
+  TLS and compatibility preparation; see `infra/kura-controller/REGIONAL_ROUTING.md`.
+
 ## Related Context (Downlinks)
 
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`

@@ -548,7 +548,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       cpu_revision_suffix(entitlements) <>
       memory_revision_suffix(region, entitlements) <>
       claim_revision_suffix(claim) <>
-      egress_revision_suffix(egress) <> private_endpoint_revision_suffix(region)
+      egress_revision_suffix(egress) <>
+      private_endpoint_revision_suffix(region) <>
+      regional_dns_revision_suffix(region)
   end
 
   # Reapply existing private instances when replicas or their entrance changes.
@@ -570,6 +572,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       ""
     end
   end
+
+  # Endpoint templates change the CR and published URLs together. Without a
+  # revision change, existing instances would keep only their legacy hosts.
+  defp regional_dns_revision_suffix(%Regions{provisioner_config: %{regional_dns_domain: domain}}) when is_binary(domain),
+    do: "+dns-#{domain}"
+
+  defp regional_dns_revision_suffix(_region), do: ""
 
   # Keyed on the pair the manifest renders rather than on the override alone: the
   # reconciler converges on the revision, so anything that moves these two fields

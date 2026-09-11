@@ -493,6 +493,12 @@ func TestPeerDNSEndpointPublishesFailoverIP(t *testing.T) {
 }
 
 func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
+	for _, regional := range []bool{false, true} {
+		t.Run(fmt.Sprint(regional), func(t *testing.T) { testLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t, regional) })
+	}
+}
+
+func testLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T, regional bool) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -625,6 +631,10 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		Client: client, Scheme: scheme, PeerDNSResolver: resolver, PeerPathProber: prober,
 	}
 
+	if regional {
+		instance.Spec.PublicHostNetwork = true
+		reconciler.RegionalRouting = []RegionalRouting{{Region: instance.Spec.Region, IngressClass: ingressClassName(instance), Domain: "test.example"}}
+	}
 	cutoverStartedAt := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
 	// A ready DaemonSet running a stale ConfigMap revision must not start the
 	// migration. Readiness is tied to the exact rendered route hash.

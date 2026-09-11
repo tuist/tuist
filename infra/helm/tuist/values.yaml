@@ -215,6 +215,21 @@ kuraController:
     secretName: kura-public-wildcard-tls
     dnsNames:
       - "*.kura.tuist.dev"
+  # Prepare regional aliases on the existing ingress machines first. Publish
+  # new endpoint URLs only after DNS, shared TLS and both serving paths work.
+  # Disabling publication keeps existing aliases serving for rollback.
+  regionalRouting:
+    publishEndpoints: false
+    # null publishes every configured region. The managed preparation step
+    # supplies only regions already published, preserving their canonical URLs
+    # while preparing new regions. An empty list publishes none.
+    publicationRegions: null
+    regions: []
+    # - region: ca-east
+    #   domain: ca-east.staging.kura.tuist.dev
+    #   ingressClass: kura-ca-east
+    #   ingressNamespace: platform
+    #   ingressDaemonSet: platform-kura-ca-east-ingress-nginx-controller
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override

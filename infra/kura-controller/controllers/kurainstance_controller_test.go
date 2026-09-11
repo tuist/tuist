@@ -4194,7 +4194,7 @@ func assertPeerRoles(t *testing.T, r *KuraInstanceReconciler, instance *kurav1al
 
 // wildcardLeafPEM is a self-signed leaf carrying dnsName, standing in for what
 // cert-manager writes into the shared wildcard Secret.
-func wildcardLeafPEM(t *testing.T, dnsName string) []byte {
+func wildcardLeafPEM(t *testing.T, dnsNames ...string) []byte {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -4202,8 +4202,8 @@ func wildcardLeafPEM(t *testing.T, dnsName string) []byte {
 	}
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: dnsName},
-		DNSNames:     []string{dnsName},
+		Subject:      pkix.Name{CommonName: dnsNames[0]},
+		DNSNames:     dnsNames,
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

@@ -32,6 +32,36 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "manifest/6" do
+    test "regional endpoint publication changes the manifest revision and all public hosts" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      region = eu_region()
+      legacy = KubernetesController.manifest("kura-tuist-eu", "0.5.2", %{name: "tuist"}, region, %Server{})
+
+      config =
+        Map.merge(region.provisioner_config, %{
+          regional_dns_domain: "eu-central.kura.tuist.dev",
+          public_host_template: "{account_handle}.eu-central.kura.tuist.dev",
+          grpc_public_host_template: "{account_handle}.eu-central.kura.tuist.dev"
+        })
+
+      regional =
+        KubernetesController.manifest(
+          "kura-tuist-eu",
+          "0.5.2",
+          %{name: "tuist"},
+          %{region | provisioner_config: config},
+          %Server{}
+        )
+
+      assert regional["spec"]["publicHost"] == "tuist.eu-central.kura.tuist.dev"
+      assert regional["spec"]["grpcPublicHost"] == regional["spec"]["publicHost"]
+
+      refute regional["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               legacy["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+
+      assert regional["spec"]["nodeSelector"] == legacy["spec"]["nodeSelector"]
+    end
+
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

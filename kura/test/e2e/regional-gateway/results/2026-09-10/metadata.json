@@ -1,0 +1,91 @@
+{
+  "date": "2026-09-10",
+  "network": {
+    "routing_mode": "tunnel",
+    "tunnel_protocol": "vxlan"
+  },
+  "cleanup_verified": true,
+  "all_staging_nodes_ready_after": true,
+  "runs": {
+    "a": {
+      "id": "kura-hop-20260910094548",
+      "pods": [
+        {
+          "name": "kura-hop-20260910094548-backend-a",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "image_digest": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        },
+        {
+          "name": "kura-hop-20260910094548-backend-b",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "image_digest": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        },
+        {
+          "name": "kura-hop-20260910094548-client",
+          "node": "bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8",
+          "image": "debian:bookworm-slim",
+          "image_digest": "docker.io/library/debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
+        },
+        {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+          "image": "nginx:1.27.3-alpine",
+          "image_digest": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        },
+        {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+          "image": "nginx:1.27.3-alpine",
+          "image_digest": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        }
+      ],
+      "timed_cases": 60,
+      "timed_requests": 4320
+    },
+    "b": {
+      "id": "kura-hop-20260910094832",
+      "pods": [
+        {
+          "name": "kura-hop-20260910094832-backend-a",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "image_digest": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        },
+        {
+          "name": "kura-hop-20260910094832-backend-b",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+          "image": "ghcr.io/tuist/kura:sha-4fbea0289708",
+          "image_digest": "ghcr.io/tuist/kura@sha256:67a4d983bced9a0e74d84ee8df9f26cff5ade299e2932f736051ceb2534c113e"
+        },
+        {
+          "name": "kura-hop-20260910094832-client",
+          "node": "bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8",
+          "image": "debian:bookworm-slim",
+          "image_digest": "docker.io/library/debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171"
+        },
+        {
+          "name": "kura-hop-20260910094832-gateway-a",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-4ff9f",
+          "image": "nginx:1.27.3-alpine",
+          "image_digest": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        },
+        {
+          "name": "kura-hop-20260910094832-gateway-b",
+          "node": "tuist-staging-md-0-jmvxt-m4h9l-lgs9v",
+          "image": "nginx:1.27.3-alpine",
+          "image_digest": "docker.io/library/nginx@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4"
+        }
+      ],
+      "timed_cases": 60,
+      "timed_requests": 4320,
+      "routing_check": {
+        "routing_check": "passed",
+        "accounts": 2
+      }
+    }
+  },
+  "timed_requests": 8640,
+  "errors": 0
+}

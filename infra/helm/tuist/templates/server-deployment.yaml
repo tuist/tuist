@@ -423,6 +423,28 @@ spec:
             - name: TUIST_LOKI_URL
               value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
             {{- end }}
+            {{- if .Values.kuraController.regionalRouting.publishEndpoints }}
+            {{- if not (and .Values.kuraController.enabled .Values.kuraController.publicWildcardCertificate.enabled .Values.kuraController.regionalRouting.regions) }}
+            {{- fail "regional endpoint publication requires the Kura controller, shared wildcard certificate and regional routing configuration" }}
+            {{- end }}
+            {{- $domains := dict }}
+            {{- $publicationRegions := .Values.kuraController.regionalRouting.publicationRegions }}
+            {{- if and (not (kindIs "invalid" $publicationRegions)) (not (kindIs "slice" $publicationRegions)) }}
+            {{- fail "regionalRouting.publicationRegions must be null or a list of configured region names" }}
+            {{- end }}
+            {{- range .Values.kuraController.regionalRouting.regions }}
+            {{- if or (kindIs "invalid" $publicationRegions) (has .region $publicationRegions) }}
+            {{- $_ := set $domains .region .domain }}
+            {{- end }}
+            {{- end }}
+            {{- range $publicationRegions }}
+            {{- if not (hasKey $domains .) }}
+            {{- fail (printf "regionalRouting.publicationRegions contains unconfigured region %s" .) }}
+            {{- end }}
+            {{- end }}
+            - name: TUIST_KURA_REGIONAL_DNS_DOMAINS
+              value: {{ toJson $domains | quote }}
+            {{- end }}
             {{- if .Values.server.kuraPeerFailoverIps }}
             - name: TUIST_KURA_PEER_FAILOVER_IPS
               value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"

@@ -1,0 +1,767 @@
+[
+  {
+    "at": 1789033564.151082,
+    "items": []
+  },
+  {
+    "at": 1789033574.3673851,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:14Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.775746304s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "5495872n",
+              "memory": "6764Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:14Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.449972992s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "5783943n",
+              "memory": "6804Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:14Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.754197248s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "4311396n",
+              "memory": "5908Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:14Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.453766272s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "5096751n",
+              "memory": "5900Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033584.526644,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:24Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.775746304s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "5495872n",
+              "memory": "6764Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:24Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.449972992s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "5783943n",
+              "memory": "6804Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:24Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.754197248s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "4311396n",
+              "memory": "5908Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:24Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:01Z",
+        "window": "11.453766272s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "5096751n",
+              "memory": "5900Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033594.710473,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:34Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:02Z",
+        "window": "12.514746304s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "5336904n",
+              "memory": "6688Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:34Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:07Z",
+        "window": "5.487s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "4982686n",
+              "memory": "6648Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-client",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:34Z",
+          "labels": {
+            "benchmark-role": "client",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:14Z",
+        "window": "12.755s",
+        "containers": [
+          {
+            "name": "client",
+            "usage": {
+              "cpu": "211034966n",
+              "memory": "148376Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:34Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:03Z",
+        "window": "13.427197248s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "4219346n",
+              "memory": "5912Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:34Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:08Z",
+        "window": "6.242s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "62511534n",
+              "memory": "6424Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033604.913373,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:44Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:18Z",
+        "window": "15.91s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "328358516n",
+              "memory": "22908Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:44Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:22Z",
+        "window": "15.595s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "2873100n",
+              "memory": "6800Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-client",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:44Z",
+          "labels": {
+            "benchmark-role": "client",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:25Z",
+        "window": "10.832s",
+        "containers": [
+          {
+            "name": "client",
+            "usage": {
+              "cpu": "203043297n",
+              "memory": "150536Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:44Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:20Z",
+        "window": "16.681s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "160290690n",
+              "memory": "6952Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:44Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:21Z",
+        "window": "13.843s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "142405981n",
+              "memory": "6924Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033615.173449,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:55Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:18Z",
+        "window": "15.91s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "328358516n",
+              "memory": "22908Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:55Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:22Z",
+        "window": "15.595s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "2873100n",
+              "memory": "6800Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-client",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:55Z",
+          "labels": {
+            "benchmark-role": "client",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:25Z",
+        "window": "10.832s",
+        "containers": [
+          {
+            "name": "client",
+            "usage": {
+              "cpu": "203043297n",
+              "memory": "150536Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:55Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:20Z",
+        "window": "16.681s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "160290690n",
+              "memory": "6952Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:46:55Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:21Z",
+        "window": "13.843s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "142405981n",
+              "memory": "6924Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033625.39796,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:05Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:46Z",
+        "window": "27.816s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "344576898n",
+              "memory": "36184Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:05Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:33Z",
+        "window": "10.508s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "2656071n",
+              "memory": "6856Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-client",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:05Z",
+          "labels": {
+            "benchmark-role": "client",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:36Z",
+        "window": "11.143s",
+        "containers": [
+          {
+            "name": "client",
+            "usage": {
+              "cpu": "250534416n",
+              "memory": "166708Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:05Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:35Z",
+        "window": "15.665s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "199590616n",
+              "memory": "6956Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:05Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:34Z",
+        "window": "12.395s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "199956998n",
+              "memory": "6940Ki"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "at": 1789033635.620676,
+    "items": [
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:15Z",
+          "labels": {
+            "benchmark-role": "backend-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:46Z",
+        "window": "27.816s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "344576898n",
+              "memory": "36184Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-backend-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:15Z",
+          "labels": {
+            "benchmark-role": "backend-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:51Z",
+        "window": "17.813s",
+        "containers": [
+          {
+            "name": "kura",
+            "usage": {
+              "cpu": "2760119n",
+              "memory": "6952Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-client",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:15Z",
+          "labels": {
+            "benchmark-role": "client",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:50Z",
+        "window": "14.069s",
+        "containers": [
+          {
+            "name": "client",
+            "usage": {
+              "cpu": "212324187n",
+              "memory": "57508Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-a",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:15Z",
+          "labels": {
+            "benchmark-role": "gateway-a",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:48Z",
+        "window": "12.526s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "201162462n",
+              "memory": "6968Ki"
+            }
+          }
+        ]
+      },
+      {
+        "metadata": {
+          "name": "kura-hop-20260910094548-gateway-b",
+          "namespace": "kura",
+          "creationTimestamp": "2026-09-10T09:47:15Z",
+          "labels": {
+            "benchmark-role": "gateway-b",
+            "tuist.dev/gateway-benchmark": "kura-hop-20260910094548"
+          }
+        },
+        "timestamp": "2026-09-10T09:46:53Z",
+        "window": "19.125s",
+        "containers": [
+          {
+            "name": "nginx",
+            "usage": {
+              "cpu": "120076183n",
+              "memory": "7280Ki"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "remaining_benchmark_resources": 0,
+  "node_ready_status": {
+    "bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8": "True",
+    "tuist-staging-9lgjg-dbl2k": "True",
+    "tuist-staging-9lgjg-stzd5": "True",
+    "tuist-staging-9lgjg-vzvs7": "True",
+    "tuist-staging-md-0-jmvxt-m4h9l-4ff9f": "True",
+    "tuist-staging-md-0-jmvxt-m4h9l-lgs9v": "True",
+    "tuist-staging-md-egress-pprwb-vtm2j-5qrmg": "True",
+    "tuist-staging-md-egress-pprwb-vtm2j-6gr6d": "True",
+    "tuist-tuist-dedibox-fleet-62jht-l5hsq": "True",
+    "tuist-tuist-kura-fleet-fm4h8-4pnrj": "True",
+    "tuist-tuist-macos-fleet-rzc5m-t2b4s": "True",
+    "tuist-tuist-ovh-fleet-gzntw-hxw74": "True",
+    "tuist-tuist-ovh-fleet-runners-linux-h72m4-wf682": "True",
+    "tuist-tuist-rack-fleet-8k5ht-ccflz": "True",
+    "tuist-tuist-runners-fleet-97k8k-g9fsn": "True"
+  }
+}

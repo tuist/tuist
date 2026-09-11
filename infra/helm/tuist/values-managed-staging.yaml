@@ -32,6 +32,16 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
+  # The deployment workflow prepares DNS/TLS/routes and gates publication.
+  # See infra/kura-controller/REGIONAL_ROUTING.md for validation and rollback.
+  regionalRouting:
+    publishEndpoints: true
+    regions:
+      - region: eu-west
+        domain: eu-west.staging.kura.tuist.dev
+        ingressClass: kura-eu-west
+        ingressNamespace: platform
+        ingressDaemonSet: platform-kura-eu-west-ingress-nginx-controller
   privateGateway:
     enabled: true
   telemetry:

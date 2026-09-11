@@ -7,6 +7,29 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  describe "regional wildcard endpoints" do
+    test "uses the approved domain for HTTP, gRPC and peer URLs only in that region" do
+      stub(Tuist.Environment, :kura_regional_dns_domain, fn
+        "ca-east" -> "ca-east.staging.kura.tuist.dev"
+        _ -> nil
+      end)
+
+      region = Regions.get("ca-east")
+
+      assert KubernetesController.public_url("acme", region, nil) ==
+               "https://acme.ca-east.staging.kura.tuist.dev"
+
+      assert KubernetesController.grpc_public_url("acme", region, nil) ==
+               "grpcs://acme.ca-east.staging.kura.tuist.dev"
+
+      assert Regions.peer_public_host("acme", region) ==
+               "acme.peer.ca-east.staging.kura.tuist.dev"
+
+      refute Regions.get("us-east").provisioner_config.regional_dns_domain
+      refute Map.has_key?(Regions.get("scw-fr-par-runners").provisioner_config, :regional_dns_domain)
+    end
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
