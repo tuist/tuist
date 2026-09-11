@@ -399,9 +399,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install image inspection tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends imagemagick
+        uses: ./.github/actions/mise
+        with:
+          working_directory: mise/tasks/marketing
+          install_args: --locked conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
       - name: Test image budget guard
         working-directory: ${{ github.workspace }}
         run: bash mise/tasks/marketing/image-budget-test.sh
