@@ -402,7 +402,7 @@ jobs:
         uses: ./.github/actions/mise
         with:
           working_directory: mise/tasks/marketing
-          install_args: conda:imagemagick
+          install_args: --locked conda:imagemagick
       - name: Verify ImageMagick runtime
         run: magick -version
       - name: Test image budget guard
@@ -411,11 +411,6 @@ jobs:
       - name: Check served image budgets
         working-directory: ${{ github.workspace }}
         run: ./mise/tasks/marketing/image-budget.sh
-      - name: Upload resolved ImageMagick dependencies
-        uses: actions/upload-artifact@v4
-        with:
-          name: image-budget-mise-lock
-          path: mise/tasks/marketing/mise.lock
   esbuild:
     name: esbuild
     runs-on: tuist-linux
