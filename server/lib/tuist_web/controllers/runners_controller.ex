@@ -115,7 +115,14 @@ defmodule TuistWeb.RunnersController do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      case Runners.report_volume_head(account_id, node, digest, base_generation, unverifiable_digest(params)) do
+      case Runners.report_volume_head(
+             account_id,
+             node,
+             digest,
+             base_generation,
+             unverifiable_digest(params),
+             content_digest(params)
+           ) do
         {:ok, generation} ->
           json(conn, %{generation: generation})
 
@@ -162,6 +169,17 @@ defmodule TuistWeb.RunnersController do
     end
   end
 
+  # The SHA-256 the runner computed over the settled image bytes it uploaded,
+  # when it reported one. Passed through as-is for `Runners` to validate against
+  # the digest format; a non-binary reads as no report — promotes from runner
+  # images that predate the content hash carry none.
+  defp content_digest(params) do
+    case Map.get(params, "content_digest") do
+      digest when is_binary(digest) -> digest
+      _ -> nil
+    end
+  end
+
   # The Node name of the host that published this HEAD, for attribution only —
   # nothing in the fast-forward reads it, so a name that does not check out is
   # dropped rather than failing the promote.
@@ -203,9 +221,15 @@ defmodule TuistWeb.RunnersController do
       if doomed_fast_forward?(account_id, params) do
         conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
       else
-        case Runners.volume_master_upload_url(account_id, digest) do
-          {:ok, upload_url} ->
+        case Runners.volume_master_upload_url(account_id, digest, content_digest(params)) do
+          {:ok, upload_url, nil} ->
             json(conn, %{upload_url: upload_url})
+
+          {:ok, upload_url, checksum} ->
+            # The URL's signature covers the x-amz-checksum-sha256 header, so
+            # the guest MUST send exactly this value with its PUT — echoed back
+            # rather than recomputed guest-side so the two cannot drift.
+            json(conn, %{upload_url: upload_url, checksum_sha256: checksum})
 
           :error ->
             conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})

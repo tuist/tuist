@@ -163,7 +163,20 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `volume-head-unverifiable` in the `status` share and the guest relays it as
   `unverifiable_digest` with BOTH promote requests, which is what lets the server
   retire a HEAD nothing can adopt, from either base — it rides the mint request too,
-  or the pre-flight would 409 the only promote that can unwedge the account. Promotion is a **fast-forward
+  or the pre-flight would 409 the only promote that can unwedge the account.
+  Alongside the inventory digest, `capture_settled_inventory` hashes the settled
+  image FILE (SHA-256, after the read-only measuring attach detaches) into
+  `content_digest`: the inventory digest fingerprints entry names and sizes, so a
+  bit flipped INSIDE a cached file sails through it, and the content digest is the
+  end-to-end byte claim. It rides both promote requests; the mint response echoes
+  the base64 the server signed into the presigned PUT as `checksum_sha256`, the
+  guest sends it as `x-amz-checksum-sha256` (only when echoed — the URL's
+  signature covers it), the object store verifies the payload at ingest, and the
+  converging host verifies the download against the HEAD row's digest before
+  adopting (a mismatch stages `volume-head-unverifiable` exactly like an inventory
+  mismatch). All of it is optional per hop, so images and servers roll
+  independently: no digest, no echoed checksum, or a HEAD row without one just
+  degrades to the pre-hash behaviour. Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
   and the server advances the HEAD only if it is still at that base (200,

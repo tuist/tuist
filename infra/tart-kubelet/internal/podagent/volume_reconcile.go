@@ -2,6 +2,8 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -660,9 +662,14 @@ func readPromoteResult(statusDir string) promoteResult {
 const volumeHeadFile = "volume-head.json"
 
 type volumeHead struct {
-	Generation  int    `json:"generation"`
-	Digest      string `json:"digest"`
-	DownloadURL string `json:"download_url"`
+	Generation int    `json:"generation"`
+	Digest     string `json:"digest"`
+	// ContentDigest is the SHA-256 of the master object's bytes, published by
+	// the promoting guest alongside the inventory digest. Empty for a HEAD
+	// promoted by a runner image that predates the content hash, in which case
+	// the convergence skips the content check (the status quo).
+	ContentDigest string `json:"content_digest"`
+	DownloadURL   string `json:"download_url"`
 }
 
 func readVolumeHead(statusDir string) *volumeHead {
@@ -744,6 +751,32 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
+	}
+	// Verify the downloaded bytes against the HEAD's content digest before
+	// anything parses them: the promoting guest hashed the settled image file,
+	// so anything short of bit-for-bit equality — corruption in the object
+	// store, on the wire, or in this host's RAM — declines here. This is the
+	// check the inventory digest below cannot make: that one hashes entry names
+	// and sizes, so a flipped bit INSIDE a cached file sails through it.
+	//
+	// The same measure-vs-mismatch split as the inventory check applies: a
+	// hashing failure is a local read fault that says nothing about the object
+	// and declines quietly, while a hash that differs is proof about the object,
+	// reproducible on every host — staged for the guest to report so the server
+	// can retire a HEAD nothing can adopt (see stageUnverifiableHead).
+	if head.ContentDigest != "" {
+		got, err := fileSHA256(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot hash the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.ContentDigest)
+			return
+		case got != head.ContentDigest:
+			logger.Info("converge: image content hash does not match HEAD; keeping local master",
+				"vm", vmName, "account", account, "want", head.ContentDigest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
+			return
+		}
 	}
 	// Verify the downloaded image's inventory matches the HEAD digest before
 	// adopting it, so the host never records a generation for an image that isn't
@@ -850,6 +883,22 @@ const convergeImageName = "head.sparseimage"
 // job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
 // and staging disk forever.
 const convergeDownloadTimeout = 30 * time.Minute
+
+// fileSHA256 returns the lowercase hex SHA-256 of the file's bytes — the same
+// digest the promoting guest computed over its settled image and the object
+// store verified at ingest, so all three measure the identical byte stream.
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
 
 // downloadMasterImage fetches the account's master image from a presigned URL to
 // dst. The object IS the image — a settled APFS filesystem carrying the
