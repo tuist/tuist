@@ -26,3 +26,7 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 
 - Preserve zero-duration operations, including cached/skipped/no-source tasks, in both dashboard metadata and paginated step queries. If a legacy origin is absent, the captured query returns no steps; a subsequent request can discover a newly arrived origin instead of emitting epoch-sized offsets.
 - Full dashboard metadata retains every operation for local navigation but omits sample-row reads; scalar metric bounds preserve origin, duration and availability. Bootstrap reads samples without loading operation rows, and API/MCP step endpoints remain paginated.
+
+- Timeline availability checks timed operation rows or samples aligned with the same origin as the actual timeline. Untimed legacy tasks and samples entirely before the build must not expose an empty Timeline tab.
+
+- Legacy clock-origin metadata remains available to API/MCP clients, but the dashboard does not display an internal missing-start-timestamp banner over otherwise valid recorded steps and samples.

@@ -67,6 +67,17 @@ kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
 
 Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows write privileges on the Oban tables and read-only privileges on the lookup tables the processors use.
 
+Bazel profile processing also needs `SELECT` on `bazel_profile_uploads` and
+column-scoped `UPDATE` on `compressed`, `state`, `error`, and `updated_at`.
+A missing grant prevents both reading the staged body and recording a terminal
+failure, so an upload can remain `pending` after its Oban job is discarded.
+After deploying the grant correction, retry only the affected
+`Tuist.Bazel.Workers.ProcessProfileWorker` jobs whose uploads are still pending
+with compressed bytes. The worker can then publish the existing profile; there
+is no need to rerun those builds. Grant reconciliation does not retry discarded
+jobs automatically. Verify both a processed upload and published ClickHouse
+profile/step rows after recovery.
+
 The `tuist_swift_registry_sync` role's grants are applied at migrate time by `Tuist.Release.migrate` (keyed by `TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE`, passed by the migration job), the same way the runtime and processor roles are handled, so a normal deploy grants them and no manual step is needed. This file is the re-runnable fallback for a fresh cluster or a backup restore where migrations haven't run yet; keep it in sync with `Release.swift_registry_sync_role_grant_statements/3` (a test enforces this).
 
 ## Why not an Ecto migration

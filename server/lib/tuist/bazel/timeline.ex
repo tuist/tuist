@@ -7,6 +7,8 @@ defmodule Tuist.Bazel.Timeline do
   alias Tuist.Bazel.Invocation
   alias Tuist.Bazel.Profile
 
+  def available?(invocation), do: Profile.available?(invocation) == true
+
   def load(invocation) do
     Profile.load(invocation) || retained_summary(invocation)
   end

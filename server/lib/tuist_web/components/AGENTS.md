@@ -28,6 +28,8 @@ This area owns shared UI components for LiveView and templates.
 
 - Expanded cache targets list sorted direct target dependencies, linking to module details within the selected project, and retain the aggregate dependencies hash separately. JSON comparisons include both names and the hash.
 
-- `build_timeline_section` shares the initial loading/error states and source-specific coverage notices for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
+- `build_timeline_section` shares the initial loading/error states for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
 
 - Widgets and legends format numeric values through `CldrHelpers.format_number/2`; preformatted strings retain their units. Count table cells must use the same helper.
+
+- Do not render fallback coverage or internal clock-origin banners. Pages hide Timeline when the required recorded data is unavailable; Bazel requires a published profile, not retained build-summary spans. Preserve coverage and clock-origin metadata in the API.

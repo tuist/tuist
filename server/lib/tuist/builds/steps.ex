@@ -36,6 +36,8 @@ defmodule Tuist.Builds.Steps do
     end
   end
 
+  def available?(build), do: ClickHouseRepo.exists?(query(build.id))
+
   def get(build_id, step_id) do
     with {:ok, id} <- parse_id(step_id) do
       case ClickHouseRepo.one(

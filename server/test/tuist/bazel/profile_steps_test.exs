@@ -6,6 +6,7 @@ defmodule Tuist.Bazel.ProfileStepsTest do
   alias Tuist.Bazel.Profile
   alias Tuist.Bazel.ProfileDecoder
   alias Tuist.Bazel.ProfileSteps
+  alias Tuist.Bazel.Timeline
   alias Tuist.Builds.RecordedSteps
   alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -24,6 +25,7 @@ defmodule Tuist.Bazel.ProfileStepsTest do
       build_timeline_span_descriptions: ["Retained action"]
     }
 
+    refute Timeline.available?(build)
     assert {:ok, %{steps: [%{id: id}]}} = RecordedSteps.list(build, %{})
 
     compressed =
@@ -35,6 +37,7 @@ defmodule Tuist.Bazel.ProfileStepsTest do
       )
 
     assert :ok = Profile.ingest(project, "boundary", compressed)
+    assert Timeline.available?(build)
     assert {:ok, %{title: "Retained action", id: ^id}} = RecordedSteps.get(build, id)
     assert {:ok, %{title: "Profile action"}} = RecordedSteps.get(build, "profile:0")
     assert {:error, :not_found} = RecordedSteps.get(build, "profile:999")
@@ -48,6 +51,7 @@ defmodule Tuist.Bazel.ProfileStepsTest do
     )
 
     assert {:ok, %{steps: [], availability: "unavailable"}} = RecordedSteps.list(build, %{})
+    refute Timeline.available?(build)
   end
 
   test "legacy action correlation treats a zero profile epoch as unavailable" do
