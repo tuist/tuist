@@ -194,3 +194,52 @@ describe("range bars", () => {
     expect(result.shape.width).toBe(250);
   });
 });
+
+describe("large counts", () => {
+  it.each([{}, { valueFormat: "{value}" }, { valueFormat: "fn:formatNumber" }])(
+    "humanizes tooltip counts with %j",
+    (options) => {
+      expect(
+        tooltipSeries(
+          { color: "#000", seriesName: "Cold", value: [1, 121755] },
+          options,
+        ),
+      ).toContain("121.8K");
+      expect(
+        tooltipSeries(
+          { color: "#000", seriesName: "Evicted", value: 836 },
+          options,
+        ),
+      ).toContain("836");
+    },
+  );
+
+  it("humanizes count axes while preserving units and category labels", () => {
+    const option = prepareChartOptions({
+      xAxis: { type: "category", data: [20260911] },
+      yAxis: [
+        { type: "value" },
+        { axisLabel: { formatter: "{value}" } },
+        { axisLabel: { formatter: "{value}%" } },
+        { type: "time" },
+      ],
+    });
+    expect(option.yAxis[0].axisLabel.formatter(300000)).toBe("300K");
+    expect(option.yAxis[1].axisLabel.formatter(2901412)).toBe("2.9M");
+    expect(option.yAxis[2].axisLabel.formatter).toBe("{value}%");
+    expect(option.yAxis[3].axisLabel).toBeUndefined();
+    expect(option.xAxis.axisLabel).toBeUndefined();
+  });
+
+  it("keeps explicit tooltip units", () => {
+    expect(
+      tooltipSeries(
+        { value: 121755 },
+        { valueFormat: "fn:formatMilliseconds" },
+      ),
+    ).toContain("2m 1s");
+    expect(tooltipSeries({ value: 95 }, { valueFormat: "{value}%" })).toContain(
+      "95%",
+    );
+  });
+});

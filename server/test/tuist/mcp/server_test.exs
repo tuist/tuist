@@ -42,6 +42,10 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_xcode_build" in tool_names
       assert "list_xcode_build_targets" in tool_names
       assert "list_xcode_build_files" in tool_names
+      assert "list_gradle_build_steps" in tool_names
+      assert "get_gradle_build_step" in tool_names
+      assert "list_bazel_build_steps" in tool_names
+      assert "get_bazel_build_step" in tool_names
       assert "list_xcode_build_steps" in tool_names
       assert "get_xcode_build_step" in tool_names
       assert "list_xcode_build_issues" in tool_names
@@ -80,7 +84,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.30.0"
+      assert server.version == "1.31.2"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

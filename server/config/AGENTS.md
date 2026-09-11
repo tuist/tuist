@@ -10,3 +10,5 @@ This directory holds Phoenix configuration for the server.
 
 ## Related Context
 - Business logic: `server/lib/tuist/AGENTS.md`
+
+- GitLab coordinator polling uses the dedicated `runner_gitlab` queue on web nodes; network waits must not occupy the general `default` queue.

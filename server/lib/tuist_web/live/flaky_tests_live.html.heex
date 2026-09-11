@@ -461,7 +461,7 @@
             }
             sort_order={@flaky_tests_sort_by == "flaky_runs_count" && @flaky_tests_sort_order}
           >
-            <.text_cell label={test_case.flaky_runs_count} />
+            <.text_cell label={format_number(test_case.flaky_runs_count)} />
           </:col>
           <:col
             :let={test_case}

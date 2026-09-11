@@ -29,7 +29,9 @@ This writes a `.bazelrc.tuist` file next to your `.bazelrc`, wired to the closes
 try-import %workspace%/.bazelrc.tuist
 ```
 
-Pass `--no-add-bazelrc-import` if you want to manage the import yourself. The generated file is safe to check in.
+Pass `--no-add-bazelrc-import` if you want to manage the import yourself.
+
+Add `.bazelrc.tuist` to your `.gitignore` and run setup on each machine instead of committing it. The generated file points at an absolute credential-helper path under the current user's Tuist configuration directory and at the cache region closest to the machine that generated it, so neither value transfers to a teammate or a continuous integration runner. Commit the `try-import` line in `.bazelrc`, which is the same on every machine.
 
 Setup leaves an existing `.bazelrc` alone when it cannot find a Bazel workspace marker, when the file is a symbolic link, or when it already configures a remote cache or Build Event Service. That way, running it again is idempotent.
 
@@ -39,7 +41,9 @@ Run a normal Bazel command to verify the integration:
 bazel build //...
 ```
 
-Cache activity then appears on the project's **Overview** page in the Tuist dashboard, broken down by action-cache and content-addressable-storage operations.
+Cache activity then appears on the project's **Bazel Cache** page in the Tuist dashboard, which shows cache transfer, downloads and uploads, read and write latency, throughput, and the action-cache hit rate. The project **Overview** carries a summary of the same action-cache hit rate alongside build duration.
+
+To see how one command used the cache, open it from **Invocations**. The invocation page separates action-cache lookups from content-object requests, so you can tell a cold action cache apart from a slow artifact download.
 
 ## Build insights {#build-insights}
 

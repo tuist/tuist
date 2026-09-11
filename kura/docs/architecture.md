@@ -151,6 +151,12 @@ A node finds peers in three ways:
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
+Mesh heartbeats and managed peer-view fetches use `src/control_plane_http.rs`
+(also used by usage delivery): connection setup, including DNS, has a 3-second
+budget within a 5-second total request deadline. A failed fetch retains the
+last-known view and retries on the configured cadence; before the first successful
+fetch, the managed node remains behind the serving gate.
+
 Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side. Nothing local is torn down for it and readiness is not clawed back: the writes missed while out of the mesh were never enqueued for the node (replication targets are computed at write time), and the backfill watermarks are durable, so the next pass re-walks from them and reconciles the gap in the background while the node keeps serving.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:
@@ -241,6 +247,14 @@ Beyond the signals the standalone gate consumes, `/status/rollout` also reports 
 
 ## Observability
 
+Optional fixed-profile connectivity observations (`src/connectivity/`) run on a
+dedicated OS thread and Tokio runtime started before bootstrap. They receive no
+application state and do not participate in readiness, startup completion, or
+shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
+samples, and bounded response/resolver buffers limit work. Results go to ordinary
+JSON logs. This shares the runtime process resource budget; it is not a separate
+security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+
 Each node exposes:
 
 - Prometheus metrics on `/metrics` (replication latency, FD pressure, manifest cache, RocksDB internals, outbox depth, traffic state, rollout-relevant counters).
@@ -279,6 +293,10 @@ When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limi
 - For the Helm chart and rollout scripts, see `ops/helm/kura/` and `ops/rollout/gate.sh`.
 - For end-to-end behavior, the shellspec suite under `spec/e2e/` exercises the live stack.
 
+### Bazel profile delivery
+
+The BEP service retains bounded summary state while a separate bounded delivery queue receives CAS profile references and action-result metadata. The worker forwards complete compressed profiles and bounded diagnostic ranges through signed server webhooks. No arbitrary URI is fetched. The server validates the profile identity, decompression size and event count, retains all normalized intervals and available counters in ClickHouse, and reads action logs separately from timeline metadata. This path is additive; older peers and servers continue receiving the existing invocation summaries.
+
 ### Private runner caches
 
 Runner caches share the ordinary managed two-replica StatefulSet rollout. Both pods own independent local PVCs and continuously replicate through the account mesh. The standby catches up through initial backfill after restart and the normal persistent outbox thereafter. Replication is asynchronous: a healthy standby is intended to stay roughly current, not provide synchronous write acknowledgements.
@@ -294,3 +312,7 @@ DNS retains a healthy published gateway across handoffs, and an explicit Cilium
 host/remote-node rule permits its cache-port hop across hosts. The endpoint's
 check time is separate from workload convergence and is preserved through server
 dispatch, so maintenance cannot expire a healthy entrance or renew stale status.
+
+### Bazel timeline delivery
+
+Action diagnostics and native profile references have independent, bounded queues so diagnostic delivery never waits for webhook capacity on the BEP stream. Actions are grouped into requests of up to 32 within one account/project; overflow is observable best effort. Profile delivery has separate capacity, so an action burst cannot displace the profile. New servers accept batch and legacy requests; Kura falls back to legacy requests only when the batch endpoint is absent during rollout. Profile parsing runs on Tuist’s bounded artifact processor queue after durable staging.

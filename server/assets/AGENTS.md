@@ -4,6 +4,8 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 ## Responsibilities
 
+- Expanded Xcode cache task rows append CAS outputs with a Noora Load more button; the build-run stylesheet adds spacing around the control. Loading and pagination are managed by LiveView; output IDs are not embedded in the initial table.
+
 - Timeline summary values (elapsed time, step count and target count) use small decorative separator dots.
 - Timeline metrics use a responsive 2×2 grid with independent 120px plots and subtle 2px card corners; the build-step viewport stays 600px tall. Search and the step legend sit above the step lanes below the metric grid, outside chart gesture handling, with a time ruler for each section.
 - The inspector and its resize divider align with the top of the step chart section (including search and legend) and span that section only, keeping details below the metric grid. Step and metric charts share the same Noora border with a 2px radius.
@@ -41,6 +43,21 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 
+- Xcode, Gradle and Bazel share the same abortable HTTP step download and separate metric bootstrap reply. No full step payload travels over LiveView. Opaque string operation IDs sort deterministically; Gradle/Bazel navigate filtered metadata locally. Apply log availability from the completed metadata response, since Bazel action enrichment happens there. Gradle categories and outcomes retain their source meaning; Bazel unknown outcomes must not appear as successful.
+
+- Timeline metrics accept a real sample with a negative offset as the preceding neighbor for the zero boundary. Clip the plotted segment to the viewport and preserve gap detection; never backdate or extrapolate a first reading.
+
+- Bazel profiles expose native CPU counters in cores; prefer normalized percentages with a fixed 0–100 scale when CPU-count metadata is available, and otherwise retain cores. Memory scales to recorded usage when total machine memory is absent. Hide tracks with no recorded values; never draw zero-filled substitutes for missing counters.
+- Bazel's CPU chart spans the full metric grid width, with memory and network beneath it. Bazel has no Disk I/O track because native profiles do not supply disk throughput; Gradle and Xcode keep their four-chart layout.
+- Timeline categories are source-aware. Bazel groups Compilation, Linking, Scripts, File preparation, Fetching, Analysis/setup and Other. Classify file staging and native analysis/fetch categories explicitly; mixed general-information spans and unknown mnemonics stay Other. Gradle separately identifies Configuration, Artifact transforms, Testing and Packaging from the recorded operation/task type. Original mnemonics and task types remain in details.
+- Gradle/Bazel legends are accessible single-group toggle filters, including Failed as an outcome filter, with compact spacing and button padding. Search matches original categories and translated group labels as well as step/target/project names. Search and category selection intersect, preserve the current range, and use cached steps for keyboard navigation. Clicking the active group clears it. Xcode keeps its existing legend and search semantics.
+- Metrics with explicit `duration_ms` represent native Bazel counter buckets. Render horizontal segments and return the bucket value on hover throughout that interval, preserving gaps and the original start. Point samples from Xcode and Gradle retain their existing interpolation and collection bounds.
+- Profile-based timelines use the profile duration and recorded event bounds, not the longer BEP invocation clock. Adjacent metric intervals tolerate sub-microsecond floating-point rounding when connecting their segments; real collection gaps stay blank.
+
 - Hash-input detail values wrap long values within the cache and selective-testing tables.
 
 - Direct dependency links wrap within expanded target rows in both cache tabs.
+
+- Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
+
+- Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.

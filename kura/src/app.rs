@@ -82,6 +82,7 @@ impl ShutdownBudget {
 }
 
 pub async fn run() -> Result<(), String> {
+    let _diagnostics = crate::connectivity::start_from_env();
     let nofile_raise_error = raise_nofile_soft_to_hard().err();
 
     let enrollment = crate::enrollment::enroll_on_boot().await?;

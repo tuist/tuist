@@ -59,7 +59,12 @@ defmodule TuistWeb.BuildRunLiveTest do
     bootstrap = %{duration: build.duration, machine_metrics: []}
 
     socket = %Phoenix.LiveView.Socket{
-      assigns: %{__changed__: %{}, timeline_version: version, timeline: AsyncResult.ok(bootstrap)}
+      assigns: %{
+        __changed__: %{},
+        selected_tab: "timeline",
+        timeline_version: version,
+        timeline: AsyncResult.ok(bootstrap)
+      }
     }
 
     assert {:reply, %{timeline: ^bootstrap}, ^socket} =
@@ -256,6 +261,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     reject(Tuist.Builds, :list_build_files, 1)
     reject(Tuist.Builds, :list_build_targets, 1)
     reject(Tuist.Builds, :list_cacheable_tasks, 1)
+    reject(Tuist.Builds, :list_cacheable_tasks, 2)
     reject(Tuist.Builds, :list_cas_outputs, 1)
     reject(Tuist.Builds, :cas_output_metrics, 1)
     reject(Tuist.Builds, :cacheable_task_latency_metrics, 1)
@@ -293,10 +299,17 @@ defmodule TuistWeb.BuildRunLiveTest do
       test_pid = self()
 
       for name <- [:list_build_targets, :list_build_files, :list_cacheable_tasks, :list_cas_outputs] do
-        stub(Tuist.Builds, name, fn options ->
-          send(test_pid, {:loaded, name})
-          Mimic.call_original(Tuist.Builds, name, [options])
-        end)
+        if name == :list_cacheable_tasks do
+          stub(Tuist.Builds, name, fn options, opts ->
+            send(test_pid, {:loaded, name})
+            Mimic.call_original(Tuist.Builds, name, [options, opts])
+          end)
+        else
+          stub(Tuist.Builds, name, fn options ->
+            send(test_pid, {:loaded, name})
+            Mimic.call_original(Tuist.Builds, name, [options])
+          end)
+        end
       end
 
       render_patch(lv, path <> query)
@@ -519,6 +532,263 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # Then
     refute has_element?(lv, "a", "CI Run")
+  end
+
+  test "preloads the first output page and reuses loaded batches on expansion", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+    ids = for index <- 1..41, do: "node-" <> String.pad_leading(to_string(index), 2, "0")
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [
+          %{key: "task-one", type: :swift, status: :hit_remote, cas_output_node_ids: ids},
+          %{key: "empty", type: :swift, status: :hit_local}
+        ]
+      )
+
+    for id <- ids, do: RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: id)
+
+    test_pid = self()
+
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn id, key, page ->
+      send(test_pid, {:loaded_outputs, id, key, page})
+      Mimic.call_original(Tuist.Builds, :list_cacheable_task_cas_outputs, [id, key, page])
+    end)
+
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache"
+    {:ok, lv, _} = live(conn, path)
+    refute has_element?(lv, "[data-part=cas-output-item]")
+    render_async(lv)
+    assert_received {:loaded_outputs, _, "task-one", 1}
+    refute_received {:loaded_outputs, _, _, _}
+    refute has_element?(lv, "[data-part=cas-output-item]")
+    assert lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    render_async(lv)
+    refute_received {:loaded_outputs, _, _, _}
+    assert lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=cas-output-item]") |> length() == 20
+    assert has_element?(lv, "[data-part=cas-output-item]", "node-01")
+    refute has_element?(lv, "[data-part=cas-output-item]", "node-21")
+
+    lv |> element(".noora-button[data-part=task-cas-load-more]") |> render_click()
+    render_async(lv)
+    assert_received {:loaded_outputs, _, "task-one", 2}
+    assert has_element?(lv, "[data-part=cas-output-item]", "node-21")
+    assert has_element?(lv, "[data-part=cas-output-item]", "node-01")
+    assert lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=cas-output-item]") |> length() == 40
+
+    lv |> element("[data-part=task-cas-load-more]") |> render_click()
+    render_async(lv)
+    assert_received {:loaded_outputs, _, "task-one", 3}
+    assert has_element?(lv, "[data-part=cas-output-item]", "node-41")
+    assert has_element?(lv, "[data-part=cas-output-item]", "node-01")
+    assert lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=cas-output-item]") |> length() == 41
+    refute has_element?(lv, "[data-part=task-cas-load-more]")
+    render_click(lv, "load-more-task-cas-outputs", %{"key" => "task-one"})
+    refute_received {:loaded_outputs, _, _, _}
+
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    refute has_element?(lv, "[data-part=cas-output-item]")
+    render_click(lv, "toggle-task-cas-outputs", %{"key" => "not-on-page"})
+    refute has_element?(lv, "[data-part=cas-output-item]")
+
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    render_async(lv)
+    assert lv |> render() |> Floki.parse_document!() |> Floki.find("[data-part=cas-output-item]") |> length() == 41
+    refute_received {:loaded_outputs, _, _, _}
+    render_patch(lv, path <> "&cacheable-tasks-search=empty")
+    refute has_element?(lv, "[data-part=cas-output-item]")
+    render_click(lv, "toggle-task-cas-outputs", %{"key" => "task-one"})
+    refute has_element?(lv, "[data-part=cas-output-item]")
+  end
+
+  test "preloads only the displayed task page", %{conn: conn, organization: organization, project: project} do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
+    keys = for index <- 1..51, do: "task-" <> String.pad_leading(to_string(index), 2, "0")
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks:
+          Enum.map(keys, fn key ->
+            %{key: key, description: key, type: :swift, status: :hit_remote, cas_output_node_ids: [key]}
+          end)
+      )
+
+    parent = self()
+
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn _, key, page ->
+      send(parent, {:preloaded, key, page})
+      %{outputs: [%{node_id: key, type: "swift"}], has_next?: false}
+    end)
+
+    path =
+      ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache&cacheable-tasks-sort-order=asc"
+
+    {:ok, lv, _} = live(conn, path)
+    render_async(lv)
+    for key <- Enum.take(keys, 50), do: assert_received({:preloaded, ^key, 1})
+    refute_received {:preloaded, _, _}
+    refute has_element?(lv, "[data-part=cas-output-item]")
+
+    render_patch(lv, path <> "&cacheable-tasks-page=2")
+    render_async(lv)
+    assert_received {:preloaded, "task-51", 1}
+    refute_received {:preloaded, _, _}
+  end
+
+  test "a successful empty preload removes the disclosure", %{conn: conn, organization: organization, project: project} do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [
+          %{key: "missing", type: :swift, status: :hit_remote, cas_output_node_ids: ["missing-node"]}
+        ]
+      )
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache")
+
+    render_async(lv)
+    refute has_element?(lv, "#cacheable-tasks-table [data-part=expand-toggle]")
+    render_click(lv, "toggle-task-cas-outputs", %{"key" => "missing"})
+    refute has_element?(lv, "#cacheable-tasks-table [data-state=expanded]")
+    refute has_element?(lv, "[data-part=cas-outputs-list]")
+  end
+
+  test "keeps outputs while loading more and retries a failed batch", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [%{key: "task", type: :swift, status: :hit_remote, cas_output_node_ids: ["first", "second"]}]
+      )
+
+    parent = self()
+
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn _, _, page ->
+      case page do
+        1 ->
+          %{outputs: [%{node_id: "first", type: "swift"}], has_next?: true}
+
+        2 ->
+          send(parent, {:loading_more, self()})
+
+          receive do
+            :fail -> raise "lookup failed"
+            :finish -> %{outputs: [%{node_id: "second", type: "swift"}], has_next?: false}
+          end
+      end
+    end)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache")
+
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    render_async(lv)
+    lv |> element("[data-part=task-cas-load-more]") |> render_click()
+    assert_receive {:loading_more, pid}
+    assert has_element?(lv, "[data-part=cas-output-item]", "first")
+    assert has_element?(lv, "[data-part=task-cas-load-more][disabled]")
+    render_click(lv, "load-more-task-cas-outputs", %{"key" => "task"})
+    refute_receive {:loading_more, _}
+    send(pid, :fail)
+    render_async(lv)
+    assert has_element?(lv, "[data-part=cas-output-item]", "first")
+    assert has_element?(lv, "[data-part=task-cas-error]")
+    lv |> element("[data-part=task-cas-load-more]") |> render_click()
+    assert_receive {:loading_more, retry_pid}
+    send(retry_pid, :finish)
+    render_async(lv)
+    assert has_element?(lv, "[data-part=cas-output-item]", "first")
+    assert has_element?(lv, "[data-part=cas-output-item]", "second")
+    refute has_element?(lv, "[data-part=task-cas-error]")
+    refute has_element?(lv, "[data-part=task-cas-load-more]")
+  end
+
+  test "cancels an output load when leaving the cache tab", %{conn: conn, organization: organization, project: project} do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [
+          %{key: "pending", type: :swift, status: :hit_remote, cas_output_node_ids: ["node"]}
+        ]
+      )
+
+    parent = self()
+
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn _, _, _ ->
+      send(parent, {:output_load, self()})
+
+      receive do
+        :finish -> %{outputs: [%{node_id: "stale", type: "swift"}], has_next?: false}
+      end
+    end)
+
+    path = ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}"
+    {:ok, lv, _} = live(conn, path <> "?tab=xcode-cache")
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    assert_receive {:output_load, pid}
+    monitor = Process.monitor(pid)
+    assert has_element?(lv, "[data-part=task-cas-loading]")
+    render_patch(lv, path <> "?tab=overview")
+    assert_receive {:DOWN, ^monitor, :process, ^pid, _}
+    render_patch(lv, path <> "?tab=xcode-cache")
+    refute has_element?(lv, "[data-part=cas-output-item]")
+    refute has_element?(lv, "[data-part=task-cas-loading]")
+    refute has_element?(lv, "#cacheable-tasks-table [aria-expanded=true]")
+  end
+
+  test "keeps failed loads retryable and disables expansion when the retry returns no outputs", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Tuist.Storage, :object_exists?, fn _, _ -> false end)
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        cacheable_tasks: [
+          %{key: "failed", type: :swift, status: :hit_remote, cas_output_node_ids: ["expired-node"]}
+        ]
+      )
+
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn _, _, _ -> raise "lookup failed" end)
+
+    {:ok, lv, _} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build.id}?tab=xcode-cache")
+
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    render_async(lv)
+    assert has_element?(lv, "[data-part=task-cas-error]")
+    refute has_element?(lv, "[data-part=cas-output-item]")
+
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    stub(Tuist.Builds, :list_cacheable_task_cas_outputs, fn _, _, _ -> %{outputs: [], has_next?: false} end)
+    lv |> element("#cacheable-tasks-table [data-part=expand-toggle]") |> render_click()
+    render_async(lv)
+
+    refute has_element?(lv, "#cacheable-tasks-table [data-part=expand-toggle]")
+    refute has_element?(lv, "#cacheable-tasks-table [data-state=expanded]")
+    refute has_element?(lv, "[data-part=cas-outputs-list]")
+    refute has_element?(lv, "[data-part=task-cas-error]")
+    render_click(lv, "toggle-task-cas-outputs", %{"key" => "failed"})
+    refute has_element?(lv, "#cacheable-tasks-table [data-state=expanded]")
   end
 
   test "shows cache tab when build has cacheable tasks", %{

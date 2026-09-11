@@ -1,6 +1,11 @@
 defmodule Tuist.Builds.Analytics do
   @moduledoc """
   Module for build-related analytics.
+
+  `module_invalidation_timeseries/1` and `modules_timeseries/1` retain the previous
+  raw-query implementations as independent regression oracles for breakdown-derived
+  series. They have no production callers; module-cache pages must reuse
+  `module_timeseries_from_breakdown/2` rather than add these scans back to page loads.
   """
   import Ecto.Query
 
@@ -2569,26 +2574,32 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  The daily series `module_miss_reasons_timeseries/1` returns, derived from a
-  breakdown from `module_invalidation_breakdown/1` for the same options.
-  """
-  def miss_reasons_timeseries_from_breakdown(breakdown, opts) do
-    start_datetime =
-      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+  Daily hits, misses, miss reasons and distinct module names from a full breakdown.
+  Includes modules with no misses and counts a name once across its products.
 
+  Every series covers the breakdown's selected cohort, including any `:name`,
+  branch or environment filter. A name-scoped breakdown therefore has module
+  counts of zero or one, not project-wide counts. Use the same date bounds that
+  loaded the breakdown; omitted bounds default to the last 30 days.
+  """
+  def module_timeseries_from_breakdown(breakdown, opts) do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
 
     by_day =
       breakdown
       |> Enum.group_by(& &1.day)
       |> Map.new(fn {day, rows} ->
-        misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
-        changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
-        upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
-        evicted = rows |> Enum.map(& &1.evicted) |> Enum.sum()
+        misses = Enum.sum(Enum.map(rows, & &1.misses))
+        changed = Enum.sum(Enum.map(rows, & &1.changed))
+        upstream = Enum.sum(Enum.map(rows, & &1.upstream))
+        evicted = Enum.sum(Enum.map(rows, & &1.evicted))
 
         {day,
          %{
+           invalidations: misses,
+           reuses: Enum.sum(Enum.map(rows, &(&1.appearances - &1.misses))),
+           modules: rows |> MapSet.new(& &1.name) |> MapSet.size(),
            changed: changed,
            upstream: upstream,
            evicted: evicted,
@@ -2596,18 +2607,26 @@ defmodule Tuist.Builds.Analytics do
          }}
       end)
 
-    dates =
-      start_datetime
-      |> DateTime.to_date()
-      |> Date.range(DateTime.to_date(end_datetime))
-      |> Enum.to_list()
+    dates = Date.range(DateTime.to_date(start_datetime), DateTime.to_date(end_datetime))
+    labels = Enum.map(dates, &Date.to_iso8601/1)
 
     %{
-      dates: Enum.map(dates, &Date.to_iso8601/1),
-      changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
-      upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
-      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end),
-      evicted: Enum.map(dates, fn d -> get_in(by_day, [d, :evicted]) || 0 end)
+      timeseries: %{
+        dates: labels,
+        invalidations: Enum.map(dates, &(get_in(by_day, [&1, :invalidations]) || 0)),
+        reuses: Enum.map(dates, &(get_in(by_day, [&1, :reuses]) || 0))
+      },
+      modules_series: %{
+        dates: labels,
+        counts: Enum.map(dates, &(get_in(by_day, [&1, :modules]) || 0))
+      },
+      miss_reasons_series: %{
+        dates: labels,
+        changed: Enum.map(dates, &(get_in(by_day, [&1, :changed]) || 0)),
+        upstream: Enum.map(dates, &(get_in(by_day, [&1, :upstream]) || 0)),
+        cold: Enum.map(dates, &(get_in(by_day, [&1, :cold]) || 0)),
+        evicted: Enum.map(dates, &(get_in(by_day, [&1, :evicted]) || 0))
+      }
     }
   end
 
@@ -3263,7 +3282,8 @@ defmodule Tuist.Builds.Analytics do
   def module_miss_reasons_timeseries(opts) do
     opts
     |> module_invalidation_breakdown()
-    |> miss_reasons_timeseries_from_breakdown(opts)
+    |> module_timeseries_from_breakdown(opts)
+    |> Map.fetch!(:miss_reasons_series)
   end
 
   @doc """

@@ -148,10 +148,11 @@ type KuraInstanceReconciler struct {
 
 	// MetricsClient sources the readings behind requests.cpu. Nil leaves
 	// every instance on the cold-start constant.
-	MetricsClient  PodMetricsClient
-	gatewayCacheMu sync.Mutex
-	gatewayCache   map[string]gatewaySnapshot
-	clientDNSCache map[string]clientDNSObservation
+	MetricsClient                    PodMetricsClient
+	ConnectivityDiagnosticsInstances []string
+	gatewayCacheMu                   sync.Mutex
+	gatewayCache                     map[string]gatewaySnapshot
+	clientDNSCache                   map[string]clientDNSObservation
 
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
@@ -536,6 +537,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
@@ -3016,6 +3020,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			return err
 		}
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling)
+		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {

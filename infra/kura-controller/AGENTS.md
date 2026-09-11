@@ -4,6 +4,16 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Scope
 
+- Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
+  metrics are omitted rather than recorded as zero; auxiliary-container usage
+  must never influence the runtime request bands.
+- Optional fixed connectivity diagnostics: [`../../kura/src/connectivity/AGENTS.md`](../../kura/src/connectivity/AGENTS.md).
+  Exact deployment-configured instance names receive `KURA_CONNECTIVITY_PROFILE`
+  on the existing runtime container. No sidecar or readiness dependency is added.
+  Disabled by default; no RBAC, token-mount, or JIT policy changes. See
+  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
+  the environment change rolls selected instances under their existing strategy.
+
 - API group: `kura.tuist.dev`
 - Primary resource: `KuraInstance`
 - Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
@@ -62,3 +72,5 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate path, with a host-network ingress class and valid nonempty `clientCIDRs`. Private gateways retain their per-instance certificate and do not select the shared public wildcard, even if a legacy publicHost remains. Private client DNS prefers the selected primary's node initially, then retains its healthy published gateway. Pod List order cannot move it. Public peer DNS stays public. Private gateway-backed pods carry `tuist.dev/host-network-gateway=true`; the managed Helm CiliumNetworkPolicy admits only cache-port traffic from host/remote-node identities, while nginx enforces external client CIDRs.
 
 `controllers/client_gateway.go` observes endpoint availability independently of ring completeness. Shared routing and the endpoint observation run before storage maintenance can return early. `endpointLastCheckedAt`, `endpointReason`, and `endpointMessage` describe the observation; `lastReconciledAt` still describes full workload convergence. The server persists the controller observation time and uses one freshness window for activation and dispatch. Ready certificate conditions may omit observedGeneration, but explicit stale generations are rejected and the hostname must match. Gateway discovery is cached per ingress class for 30 seconds; DNS is cached per host for 60 seconds, with five-second negative caching and a two-second deadline. Keep [private-runner-rollouts.md](private-runner-rollouts.md) current. There is no runner-specific rollout policy or pod deletion engine.
+
+Runner sizing uses the existing account disk policy and plan memory/CPU profiles. Legacy unpinned claims adopt the account budget during enrollment, capped at 50Gi. After a smaller StatefulSet template is observed, unscheduled Pending pods with larger disk requests are recreated with resource-version preconditions; scheduled pods and PVCs remain, and operator OnDelete/partition pauses are respected. A missing StatefulSet and conflicted/already-gone pod deletions are benign races. Missing or duplicate Kura template containers fail closed without pod deletion; only successful deletes emit replacement logs. Keep the private runner extended memory-ceiling request disabled until its hosts advertise that resource. See the resource-sizing section in [private-runner-rollouts.md](private-runner-rollouts.md).

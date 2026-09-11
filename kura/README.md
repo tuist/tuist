@@ -378,6 +378,15 @@ Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sen
 
 ## 📊 Observability
 
+Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
+observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
+`production`, `staging`, or `canary` and is disabled when unset or invalid. The
+controller sets it only for deployment-selected instances. A dedicated thread
+and async runtime keep network waits and diagnostic failures out of startup and
+readiness decisions; this remains telemetry inside Kura's process resource budget.
+See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
+for fixed targets, sample interpretation, access boundaries, and rollout.
+
 Kura ships with a fairly complete local observability story:
 
 - 📈 Prometheus metrics
@@ -478,6 +487,9 @@ When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL
 ```text
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
+
+Usage delivery allows up to 3 seconds for connection setup, including DNS, within
+a 5-second total request deadline covering setup, upload, and response.
 
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
@@ -723,3 +735,7 @@ serve is refused before anything else happens.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
+
+### Bazel build timelines
+
+With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.

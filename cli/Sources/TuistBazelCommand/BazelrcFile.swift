@@ -29,6 +29,13 @@ enum BazelrcFile {
     private static let outputChunkOption = "--bes_outerr_chunk_size"
     private static let namedSetEntriesFlag = "build --build_event_max_named_set_of_file_entries=500"
     private static let namedSetEntriesOption = "--build_event_max_named_set_of_file_entries"
+    private static let profileFlags = [
+        "build --generate_json_trace_profile=yes",
+        "build --noslim_profile",
+        "build --experimental_build_event_upload_strategy=remote",
+        "build --experimental_profile_include_target_label",
+        "build --experimental_profile_include_primary_output",
+    ]
     private static let remoteHeaderFlag = "build --remote_header=x-tuist-account-handle="
     private static let remoteInstanceNameFlag = "build --remote_instance_name="
 
@@ -37,7 +44,8 @@ enum BazelrcFile {
         accountHandle: String,
         projectHandle: String,
         credentialHelperPath: AbsolutePath,
-        buildInsights: Bool = true
+        buildInsights: Bool = true,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
         \(buildEventServiceFlag)\(endpoint.url)
@@ -48,6 +56,8 @@ enum BazelrcFile {
         \(outputChunkFlag)
         \(namedSetEntriesFlag)
         \(publishAllActionsFlag)
+        \(profileFlags.joined(separator: "\n"))
+        build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)
 
         """ : ""
 
@@ -77,7 +87,11 @@ enum BazelrcFile {
     /// credential helper's own path is carried across rather than recomputed:
     /// the file records where Bazel was told to find it, and that is not this
     /// code's to change.
-    static func replacingRemoteCache(in contents: String, with endpoint: GRPCEndpoint) -> String? {
+    static func replacingRemoteCache(
+        in contents: String,
+        with endpoint: GRPCEndpoint,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+    ) -> String? {
         guard remoteCache(in: contents) != nil else { return nil }
 
         let rewritten = contents
@@ -105,8 +119,13 @@ enum BazelrcFile {
 
         let mid: String = {
             let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+            let cpuCapacityFlag = lines.contains(where: { hasOption("--build_metadata=TUIST_CPU_COUNT", in: $0) })
+                ? nil : "build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)"
             if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
                 var missingFlags: [String] = []
+                if let cpuCapacityFlag {
+                    missingFlags.append(cpuCapacityFlag)
+                }
                 if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
                     missingFlags.append(outputChunkFlag)
                 }
@@ -115,6 +134,14 @@ enum BazelrcFile {
                 }
                 if !lines.contains(where: hasActionPublicationPreference) {
                     missingFlags.append(publishAllActionsFlag)
+                }
+                for flag in profileFlags {
+                    let option = String(flag.dropFirst("build ".count).split(separator: "=")[0])
+                    let positive = option.hasPrefix("--no") ? "--" + option.dropFirst(4) : option
+                    let negative = "--no" + positive.dropFirst(2)
+                    if !lines.contains(where: { hasOption(positive, in: $0) || hasOption(negative, in: $0) }) {
+                        missingFlags.append(flag)
+                    }
                 }
                 return missingFlags.isEmpty
                     ? rewritten
@@ -137,6 +164,8 @@ enum BazelrcFile {
             \(outputChunkFlag)
             \(namedSetEntriesFlag)
             \(publishAllActionsFlag)
+            \(profileFlags.joined(separator: "\n"))
+            \(cpuCapacityFlag ?? "")
             """
 
             return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
