@@ -45,3 +45,5 @@ This area owns LiveView pages and components for the web UI.
 - Humanize display counts with `format_number/2` (10,000+ uses K/M/B/T), including table cells and dropdown values. Keep chart series, sort keys, filters, and pagination inputs numeric.
 
 - GitLab edit forms submit the connection identifier as `_id` and remap it to the context’s `id`; never use `name="id"` on an input because it shadows the form DOM property used by LiveView.
+
+- Automation match previews use one stable async key and a 500ms condition-change debounce. Keep raw condition validation consistent across the summary, preview, and save path; an unchecked explicit save cancels pending existing-match actions.

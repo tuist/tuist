@@ -10,7 +10,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
-  alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
 
   require Logger
@@ -203,26 +202,20 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
     %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
 
-    validated =
-      MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch))
-
-    Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
+    Automations.validated_test_case_ids(triggered_ids, alert.project_id, default_branch)
   end
 
   # The default baseline is silent. Opted-in rules also act on current matches,
   # with durable publication progress so the existing backlog is processed once.
   defp establish_baseline(alert) do
-    evaluate_batch = &baseline_matches(alert, &1)
+    default_branch = Projects.get_project_by_id(alert.project_id).default_branch
+    evaluate_batch = &Automations.matching_test_case_ids(alert, &1, default_branch)
 
     if Alert.apply_actions_to_existing_matches?(alert) do
       Automations.establish_alert_baseline(alert, evaluate_batch, &apply_baseline_match/2)
     else
       Automations.establish_alert_baseline(alert, evaluate_batch)
     end
-  end
-
-  defp baseline_matches(alert, test_case_ids) do
-    Automations.matching_test_case_ids(alert, test_case_ids)
   end
 
   defp apply_baseline_match(alert, test_case_id) do
@@ -245,7 +238,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         :ok ->
           Automations.create_alert_event(%{
             alert_id: alert.id,
-            baseline_generation: alert.baseline_generation,
+            baseline_generation: Alert.event_generation(alert),
             test_case_id: test_case_id,
             status: "triggered",
             triggered_at: NaiveDateTime.utc_now()
@@ -328,7 +321,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
           Automations.create_alert_event(%{
             alert_id: alert.id,
-            baseline_generation: alert.baseline_generation,
+            baseline_generation: Alert.event_generation(alert),
             test_case_id: event.test_case_id,
             status: "recovered",
             triggered_at: now,
@@ -377,27 +370,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # control-plane state. It lets a skipped-test recovery leave a test alone
   # after someone manually changes it to muted. Omitting the filter preserves
   # the behavior of automations created before this option existed.
-  defp filter_by_current_state([], _alert, _config), do: []
-
-  defp filter_by_current_state(items, _alert, config) when not is_map(config), do: items
-
   defp filter_by_current_state(items, alert, config) do
-    case Map.get(config, "states") do
-      states when is_list(states) and states != [] ->
-        allowed = MapSet.new(states)
-        resolved = Tests.get_test_case_states(alert.project_id, Enum.map(items, &test_case_id/1))
-
-        Enum.filter(items, fn item ->
-          Map.get(resolved, test_case_id(item), %{state: "enabled"}).state in allowed
-        end)
-
-      _ ->
-        items
-    end
+    Automations.filter_test_case_states(items, alert.project_id, config)
   end
-
-  defp test_case_id(%{test_case_id: test_case_id}), do: test_case_id
-  defp test_case_id(test_case_id), do: test_case_id
 
   # In `last_days` mode the recovery cooldown is "wait this long without a
   # re-trigger." In `rolling` mode it's "wait for at least this many new runs

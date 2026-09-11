@@ -1050,6 +1050,15 @@
                     <% end %>
                   </span>
                 </span>
+                <span
+                  :if={@create_automation_form_existing_matches_pending}
+                  id="existing-matches-pending"
+                >
+                  {dgettext(
+                    "dashboard_projects",
+                    "Actions for existing matches are pending. Save with this option unchecked to cancel any remaining actions."
+                  )}
+                </span>
               </span>
             </button>
           </div>
@@ -1084,6 +1093,7 @@
                 disabled={
                   @create_automation_form_name == "" or
                     not rolling_window_inputs_valid?(assigns) or
+                    not condition_inputs_valid?(assigns) or
                     Enum.empty?(@create_automation_form_trigger_actions)
                 }
                 phx-click="save_automation"

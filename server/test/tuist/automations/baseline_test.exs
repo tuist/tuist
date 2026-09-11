@@ -224,13 +224,13 @@ defmodule Tuist.Automations.BaselineTest do
     attempt = publishing_attempt(alert, [first, second])
     test_process = self()
 
-    assert_raise RuntimeError, ~r/baseline actions failed/, fn ->
+    assert_raise RuntimeError, "simulated interruption", fn ->
       Automations.establish_alert_baseline(alert, & &1, fn _alert, id ->
         if id == first do
           send(test_process, {:applied, id})
           :ok
         else
-          {:error, :unavailable}
+          raise "simulated interruption"
         end
       end)
     end
@@ -254,6 +254,58 @@ defmodule Tuist.Automations.BaselineTest do
              Automations.establish_alert_baseline(alert, fn _ -> flunk("already evaluated") end, fn _, _ ->
                flunk("already applied")
              end)
+  end
+
+  test "a returned action error does not block other matches or baseline completion" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+    attempt = publishing_attempt(alert, [first, second])
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, & &1, fn _, id ->
+               if id == first, do: {:error, :channel_not_found}, else: :ok
+             end)
+
+    assert Repo.reload!(attempt).state == "committed"
+    assert Repo.reload!(alert).baseline_established_at
+    assert [%{test_case_id: ^second}] = Automations.list_active_alert_events(alert.id)
+  end
+
+  test "new requests and cancellations preserve recovery events and invalidate stale attempts" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    recovering = Ecto.UUID.generate()
+    publishing_attempt(alert, [recovering])
+    assert :ok = Automations.establish_alert_baseline(alert, & &1)
+    assert [original_event] = Automations.list_active_alert_events(alert.id)
+    alert = Repo.reload!(alert)
+
+    config = Map.put(alert.trigger_config, "apply_actions_to_existing_matches", true)
+    assert {:ok, requested} = Automations.update_alert(alert, %{trigger_config: config})
+    pending = publishing_attempt(requested, [Ecto.UUID.generate()])
+    assert [^original_event] = Automations.list_active_alert_events(requested)
+
+    assert {:ok, cancelled} =
+             Automations.update_alert(requested, %{
+               trigger_config: Map.put(config, "apply_actions_to_existing_matches", false)
+             })
+
+    refute cancelled.trigger_config["apply_actions_to_existing_matches"]
+    assert cancelled.baseline_generation > pending.baseline_generation
+    assert [^original_event] = Automations.list_active_alert_events(cancelled.id)
+    assert :ok = Automations.establish_alert_baseline(requested, & &1, fn _, _ -> flunk("cancelled action") end)
+
+    # A silent replacement must not restart an existing recovery dwell window.
+    publishing_attempt(cancelled, [recovering])
+    assert :ok = Automations.establish_alert_baseline(cancelled, & &1)
+    assert [^original_event] = Automations.list_active_alert_events(cancelled.id)
+
+    assert {:ok, changed} =
+             Automations.update_alert(Repo.reload!(cancelled), %{
+               trigger_config: Map.put(alert.trigger_config, "threshold", 20)
+             })
+
+    assert Automations.list_active_alert_events(changed) == []
+    assert changed.event_generation == changed.baseline_generation
   end
 
   test "actioned baseline events start recovery dwell when actions run" do

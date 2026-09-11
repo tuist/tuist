@@ -76,6 +76,9 @@ defmodule Tuist.Automations.Alerts.Alert do
   def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
   def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
 
+  # Attempt revisions invalidate stale publishers without hiding active recovery events.
+  def event_generation(alert), do: alert.event_generation || alert.baseline_generation
+
   def apply_actions_to_existing_matches?(alert) do
     recovery_ledger?(alert) and alert.trigger_config["apply_actions_to_existing_matches"] == true
   end
@@ -109,6 +112,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_actions, {:array, :map}, default: []
     field :baseline_established_at, :utc_datetime
     field :baseline_generation, :integer, default: 0
+    field :event_generation, :integer
     field :last_scoped_evaluation_inserted_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer

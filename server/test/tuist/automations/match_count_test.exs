@@ -6,6 +6,7 @@ defmodule Tuist.Automations.MatchCountTest do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
@@ -29,7 +30,7 @@ defmodule Tuist.Automations.MatchCountTest do
 
     stub(FlakyTestsMonitor, :evaluate, fn _alert, batch ->
       assert Enum.sort(batch) == Enum.sort(ids)
-      %{triggered: ids}
+      %{triggered: ids ++ ids}
     end)
 
     stub(Tests, :test_case_ids_with_successful_default_branch_run, fn project_id, ^ids, _branch ->
@@ -45,6 +46,14 @@ defmodule Tuist.Automations.MatchCountTest do
     assert Repo.reload!(alert) == alert
   end
 
+  test "legacy and event-driven monitors produce an empty baseline match set" do
+    alert = AutomationsFixtures.automation_alert_fixture()
+
+    for metric <- ["retired_monitor", "test_updated"] do
+      assert Automations.matching_test_case_ids(%{alert | monitor_type: metric}, [Ecto.UUID.generate()], "main") == []
+    end
+  end
+
   for {metric, evaluator} <- [
         {"flakiness_rate", :evaluate},
         {"flaky_run_count", :evaluate_by_run_count},
@@ -52,6 +61,13 @@ defmodule Tuist.Automations.MatchCountTest do
       ] do
     test "counts #{metric} in bounded pages" do
       alert = AutomationsFixtures.automation_alert_fixture(monitor_type: unquote(metric))
+      project = Projects.get_project_by_id(alert.project_id)
+
+      expect(Projects, :get_project_by_id, fn project_id ->
+        assert project_id == alert.project_id
+        project
+      end)
+
       now = NaiveDateTime.utc_now()
 
       cases =
@@ -76,7 +92,7 @@ defmodule Tuist.Automations.MatchCountTest do
 
       stub(FlakyTestsMonitor, unquote(evaluator), fn _alert, ids ->
         send(test_pid, {:batch_size, length(ids)})
-        %{triggered: ids}
+        %{triggered: ids ++ ids}
       end)
 
       stub(Tests, :test_case_ids_with_successful_default_branch_run, fn _, ids, _ -> ids end)

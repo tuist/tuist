@@ -943,6 +943,66 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   end
 
   describe "baseline establishment" do
+    test "a failed backlog action does not prevent recovery from an earlier generation" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          recovery_enabled: true,
+          recovery_config: %{"window_type" => "last_days", "window" => "1d"},
+          recovery_actions: [%{"type" => "change_state", "state" => "enabled"}],
+          trigger_actions: [%{"type" => "send_slack", "channel" => "archived-channel", "message" => "Matching test"}]
+        )
+
+      recovering = IngestRepo.insert!(RunsFixtures.test_case_fixture(project_id: automation.project_id, state: "muted"))
+
+      matching =
+        Enum.map(1..2, fn _ ->
+          IngestRepo.insert!(RunsFixtures.test_case_fixture(project_id: automation.project_id))
+        end)
+
+      [failing_id, successful_id] = Enum.sort(Enum.map(matching, & &1.id))
+      old_time = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+
+      Automations.create_alert_event(%{
+        alert_id: automation.id,
+        test_case_id: recovering.id,
+        baseline_generation: automation.baseline_generation,
+        status: "triggered",
+        triggered_at: old_time,
+        inserted_at: old_time
+      })
+
+      {:ok, requested} =
+        Automations.update_alert(automation, %{
+          trigger_config: Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+        })
+
+      stub(FlakyTestsMonitor, :evaluate, fn _, ids ->
+        %{triggered: Enum.filter(ids, &(&1 in [failing_id, successful_id]))}
+      end)
+
+      stub(FlakyTestsMonitor, :evaluate, fn _ -> %{triggered: [failing_id, successful_id]} end)
+      stub(FlakyTestsMonitor, :measurable_test_case_ids, fn _, ids -> ids end)
+      test_pid = self()
+
+      stub(ActionExecutor, :execute_actions, fn actions, _, %{id: id} ->
+        send(test_pid, {:action, id, actions})
+        if id == failing_id, do: {:error, :channel_not_found}, else: :ok
+      end)
+
+      assert :ok = run(requested.id)
+      assert Repo.reload!(requested).baseline_established_at
+      assert_received {:action, ^failing_id, _}
+      assert_received {:action, ^successful_id, _}
+      assert Enum.any?(Automations.list_active_alert_events(requested.id), &(&1.test_case_id == recovering.id))
+
+      assert :ok = run(requested.id)
+      recovering_id = recovering.id
+      recovery_actions = requested.recovery_actions
+      assert_received {:action, ^recovering_id, ^recovery_actions}
+      refute Enum.any?(Automations.list_active_alert_events(requested.id), &(&1.test_case_id == recovering.id))
+      assert [%{test_case_id: ^successful_id}] = Automations.list_active_alert_events(requested.id)
+    end
+
     test "Slack actions require a fresh opt-in after condition or action edits" do
       config = %{"threshold" => 10, "window_type" => "last_days", "window" => "30d"}
       actions = [%{"type" => "send_slack", "channel" => "test-channel", "message" => "Matching test"}]

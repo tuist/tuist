@@ -56,8 +56,6 @@ defmodule TuistWeb.ProjectAutomationLive do
      |> assign(:has_more_revisions?, has_more_revisions?)}
   end
 
-  def automation_summary(automation), do: ProjectAutomationsLive.automation_summary(automation)
-
   def automation_actions_summary(%{trigger_actions: actions}), do: actions_summary(actions)
 
   def recovery_summary(%{recovery_enabled: false}), do: dgettext("dashboard_projects", "Disabled")

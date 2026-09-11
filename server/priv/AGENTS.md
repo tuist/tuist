@@ -44,3 +44,5 @@ This directory contains database migrations and other private assets.
 - Migration versions must be unique within each repository even when already applied. The GitLab routing migration uses `20260911080000`; its prototype `20260910160000` collided with main’s Bazel profile migration. Any prototype database needs its version history reconciled against the actual schema before migrating.
 
 - Runner Kura enrollment uses `20260911090100` after its incoming main-branch migration collided with Bazel’s `20260910160000`. Re-execution is safe: enrollment selects only live rows without an existing storage pin.
+
+- Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.

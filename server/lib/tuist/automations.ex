@@ -187,13 +187,19 @@ defmodule Tuist.Automations do
           )
         )
 
-      {attrs, monitor_definition_changed?} = prepare_baseline_update(alert, attrs)
-      attrs = maybe_reset_baseline(attrs, monitor_definition_changed?)
+      {attrs, reset_baseline?} = prepare_baseline_update(alert, attrs)
+      condition_changed? = condition_changed?(alert, attrs)
+      attrs = maybe_reset_baseline(attrs, reset_baseline?)
       changeset = Alert.changeset(alert, attrs)
 
       changeset =
-        if monitor_definition_changed? do
-          Ecto.Changeset.put_change(changeset, :baseline_generation, alert.baseline_generation + 1)
+        if reset_baseline? do
+          generation = alert.baseline_generation + 1
+          event_generation = if condition_changed?, do: generation, else: Alert.event_generation(alert)
+
+          changeset
+          |> Ecto.Changeset.put_change(:baseline_generation, generation)
+          |> Ecto.Changeset.put_change(:event_generation, event_generation)
         else
           changeset
         end
@@ -313,7 +319,7 @@ defmodule Tuist.Automations do
       # replaces it and requires a fresh opt-in before applying any actions.
       config =
         if not reset? and Alert.apply_actions_to_existing_matches?(alert) and
-             config["apply_actions_to_existing_matches"] in [nil, false] do
+             not Map.has_key?(config, "apply_actions_to_existing_matches") do
           Map.put(config, "apply_actions_to_existing_matches", true)
         else
           config
@@ -327,13 +333,21 @@ defmodule Tuist.Automations do
   end
 
   defp reset_baseline_for_save?(alert, attrs, config) do
-    condition_changed? =
-      Map.delete(config, "apply_actions_to_existing_matches") !=
-        Map.delete(alert.trigger_config, "apply_actions_to_existing_matches")
+    config["apply_actions_to_existing_matches"] == true or condition_changed?(alert, attrs) or
+      (Alert.apply_actions_to_existing_matches?(alert) and
+         (config["apply_actions_to_existing_matches"] == false or changed_attr?(alert, attrs, :trigger_actions)))
+  end
 
-    config["apply_actions_to_existing_matches"] == true or condition_changed? or
-      changed_attr?(alert, attrs, :monitor_type) or
-      (Alert.apply_actions_to_existing_matches?(alert) and changed_attr?(alert, attrs, :trigger_actions))
+  defp condition_changed?(alert, attrs) do
+    changed_attr?(alert, attrs, :monitor_type) or
+      case fetch_attr(attrs, :trigger_config) do
+        {:ok, config} when is_map(config) ->
+          Map.delete(config, "apply_actions_to_existing_matches") !=
+            Map.delete(alert.trigger_config, "apply_actions_to_existing_matches")
+
+        _ ->
+          false
+      end
   end
 
   defp changed_attr?(alert, attrs, key) do
@@ -369,13 +383,18 @@ defmodule Tuist.Automations do
   # Callers holding the alert already carry the generation the events are
   # scoped to, so taking it off the struct skips a lookup that the evaluation
   # worker would otherwise repeat for every range it evaluates.
-  def list_active_alert_events(%Alert{id: alert_id, baseline_generation: baseline_generation}, test_case_ids) do
-    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  def list_active_alert_events(%Alert{} = alert, test_case_ids) do
+    active_alert_events(alert.id, Alert.event_generation(alert), test_case_ids)
   end
 
   def list_active_alert_events(alert_id, test_case_ids) do
     baseline_generation =
-      Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
+      Repo.one(
+        from(alert in Alert,
+          where: alert.id == ^alert_id,
+          select: coalesce(alert.event_generation, alert.baseline_generation)
+        )
+      )
 
     active_alert_events(alert_id, baseline_generation, test_case_ids)
   end
@@ -585,58 +604,80 @@ defmodule Tuist.Automations do
 
   def count_existing_matches(%Alert{} = alert) do
     if Alert.recovery_ledger?(alert) and Alert.trigger_window_supported?(alert) do
-      count_existing_matches(alert, nil, 0)
+      default_branch = Projects.get_project_by_id(alert.project_id).default_branch
+      count_existing_matches(alert, default_branch, nil, 0)
     else
       raise ArgumentError, "Match previews require a supported metric condition"
     end
   end
 
-  defp count_existing_matches(alert, cursor, count) do
+  defp count_existing_matches(alert, default_branch, cursor, count) do
     case list_alert_baseline_test_case_page(alert.project_id, cursor) do
       [] ->
         count
 
       test_cases ->
         ids = Enum.map(test_cases, & &1.id)
-        count = count + length(matching_test_case_ids(alert, ids))
-        count_existing_matches(alert, baseline_evaluation_cursor(List.last(test_cases)), count)
+        count = count + length(matching_test_case_ids(alert, ids, default_branch))
+        count_existing_matches(alert, default_branch, baseline_evaluation_cursor(List.last(test_cases)), count)
     end
   end
 
   # Shared by the read-only preview and baseline publication so both apply the
   # same metric, trusted-branch validation, and current-state scope.
   def matching_test_case_ids(alert, test_case_ids) do
+    matching_test_case_ids(alert, test_case_ids, Projects.get_project_by_id(alert.project_id).default_branch)
+  end
+
+  def matching_test_case_ids(alert, test_case_ids, default_branch) do
     %{triggered: triggered_ids} =
       case alert.monitor_type do
-        "flakiness_rate" -> FlakyTestsMonitor.evaluate(alert, test_case_ids)
-        "flaky_run_count" -> FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
-        "reliability_rate" -> FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+        "flakiness_rate" ->
+          FlakyTestsMonitor.evaluate(alert, test_case_ids)
+
+        "flaky_run_count" ->
+          FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
+
+        "reliability_rate" ->
+          FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+
+        "test_updated" ->
+          %{triggered: []}
+
+        unknown ->
+          Logger.warning("Unknown monitor type: #{unknown}")
+          %{triggered: []}
       end
 
-    filter_existing_matches(alert, triggered_ids)
+    triggered_ids
+    |> validated_test_case_ids(alert.project_id, default_branch)
+    |> filter_test_case_states(alert.project_id, alert.trigger_config)
   end
 
-  defp filter_existing_matches(_alert, []), do: []
+  def validated_test_case_ids([], _project_id, _default_branch), do: []
 
-  defp filter_existing_matches(alert, triggered_ids) do
-    project = Projects.get_project_by_id(alert.project_id)
+  def validated_test_case_ids(ids, project_id, default_branch) do
+    ids = Enum.uniq(ids)
+    validated = MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(project_id, ids, default_branch))
+    Enum.filter(ids, &MapSet.member?(validated, &1))
+  end
 
-    validated =
-      MapSet.new(
-        Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, project.default_branch)
-      )
+  def filter_test_case_states([], _project_id, _config), do: []
+  def filter_test_case_states(items, _project_id, config) when not is_map(config), do: items
 
-    ids = Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
-
-    case alert.trigger_config["states"] do
+  def filter_test_case_states(items, project_id, config) do
+    case config["states"] do
       states when is_list(states) and states != [] ->
-        resolved = Tests.get_test_case_states(alert.project_id, ids)
-        Enum.filter(ids, &(Map.get(resolved, &1, %{state: "enabled"}).state in states))
+        resolved = Tests.get_test_case_states(project_id, Enum.map(items, &test_case_id/1))
+        Enum.filter(items, &(Map.get(resolved, test_case_id(&1), %{state: "enabled"}).state in states))
 
       _ ->
-        ids
+        items
     end
   end
+
+  defp test_case_id(%{test_case_id: id}), do: id
+  defp test_case_id(id), do: id
 
   @doc false
   def list_alert_baseline_test_case_page(project_id, cursor) do
@@ -843,13 +884,34 @@ defmodule Tuist.Automations do
         commit_alert_baseline(attempt)
 
       test_case_ids ->
-        publish_alert_baseline_events(attempt, test_case_ids)
+        result = publish_silent_baseline_batch(attempt, test_case_ids)
 
-        case advance_alert_baseline_publication(attempt, List.last(test_case_ids)) do
+        case result do
           {:ok, next_attempt} -> publish_and_commit_alert_baseline(next_attempt, nil, nil)
           {:error, :stale} -> :ok
         end
     end
+  end
+
+  defp publish_silent_baseline_batch(attempt, test_case_ids) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) or not alert.enabled ->
+          Repo.rollback(:stale)
+
+        current_attempt.last_published_test_case_id != attempt.last_published_test_case_id ->
+          current_attempt
+
+        true ->
+          active_ids = MapSet.new(list_active_alert_events(alert, test_case_ids), & &1.test_case_id)
+          new_ids = Enum.reject(test_case_ids, &MapSet.member?(active_ids, &1))
+          publish_alert_baseline_events(attempt, new_ids, Alert.event_generation(alert))
+
+          current_attempt
+          |> BaselineAttempt.changeset(%{last_published_test_case_id: List.last(test_case_ids)})
+          |> Repo.update!()
+      end
+    end)
   end
 
   defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
@@ -878,8 +940,11 @@ defmodule Tuist.Automations do
   defp maybe_apply_baseline_match(alert, attempt, test_case_id, matching_ids, apply_match) do
     if MapSet.member?(matching_ids, test_case_id) do
       case apply_match.(alert, test_case_id) do
-        :ok -> publish_alert_baseline_events(attempt, [test_case_id], NaiveDateTime.utc_now())
-        {:error, reason} -> raise "Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}"
+        :ok ->
+          publish_alert_baseline_events(attempt, [test_case_id], Alert.event_generation(alert), NaiveDateTime.utc_now())
+
+        {:error, reason} ->
+          Logger.error("Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}")
       end
     end
   end
@@ -894,7 +959,7 @@ defmodule Tuist.Automations do
     |> Repo.all()
   end
 
-  defp publish_alert_baseline_events(attempt, test_case_ids, triggered_at \\ nil) do
+  defp publish_alert_baseline_events(attempt, test_case_ids, event_generation, triggered_at \\ nil) do
     now = triggered_at || attempt.cursor |> DateTime.to_naive() |> Map.put(:microsecond, {0, 6})
 
     records =
@@ -902,7 +967,7 @@ defmodule Tuist.Automations do
         %{
           id: deterministic_baseline_event_id(attempt.id, test_case_id),
           alert_id: attempt.alert_id,
-          baseline_generation: attempt.baseline_generation,
+          baseline_generation: event_generation,
           test_case_id: test_case_id,
           status: "triggered",
           triggered_at: now,
@@ -925,27 +990,6 @@ defmodule Tuist.Automations do
 
   defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id) do
     "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}"
-  end
-
-  defp advance_alert_baseline_publication(attempt, last_published_test_case_id) do
-    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
-      cond do
-        stale_alert_baseline_attempt?(alert, current_attempt) ->
-          Repo.rollback(:stale)
-
-        current_attempt.state != "publishing" or
-            current_attempt.last_published_test_case_id !=
-              attempt.last_published_test_case_id ->
-          current_attempt
-
-        true ->
-          current_attempt
-          |> BaselineAttempt.changeset(%{
-            last_published_test_case_id: last_published_test_case_id
-          })
-          |> Repo.update!()
-      end
-    end)
   end
 
   @doc false

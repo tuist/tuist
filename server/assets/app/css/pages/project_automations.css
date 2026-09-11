@@ -404,7 +404,8 @@
     gap: var(--noora-spacing-2);
   }
 
-  #apply-existing-matches-description {
+  #apply-existing-matches-description,
+  #existing-matches-pending {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
