@@ -119,27 +119,27 @@ func TestAutoscalingOrDefaultAccessors(t *testing.T) {
 
 func TestProvisioningOrDefaultAccessors(t *testing.T) {
 	unset := &RunnerPoolProvisioning{}
-	if got := unset.MaxConcurrentPerFleetSelectorOrDefault(); got != 4 {
-		t.Errorf("unset MaxConcurrentPerFleetSelector = %d, want 4", got)
+	if got := unset.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("unset MaxConcurrentPerNode = %d, want 6", got)
 	}
 	if got := unset.StartTimeoutSecondsOrDefault(); got != 300 {
 		t.Errorf("unset StartTimeoutSeconds = %d, want 300", got)
 	}
 
 	configured := &RunnerPoolProvisioning{
-		MaxConcurrentPerFleetSelector: ptr.To[int32](2),
-		StartTimeoutSeconds:           ptr.To[int32](0),
+		MaxConcurrentPerNode: ptr.To[int32](2),
+		StartTimeoutSeconds:  ptr.To[int32](0),
 	}
-	if got := configured.MaxConcurrentPerFleetSelectorOrDefault(); got != 2 {
-		t.Errorf("configured MaxConcurrentPerFleetSelector = %d, want 2", got)
+	if got := configured.MaxConcurrentPerNodeOrDefault(); got != 2 {
+		t.Errorf("configured MaxConcurrentPerNode = %d, want 2", got)
 	}
 	if got := configured.StartTimeoutSecondsOrDefault(); got != 0 {
 		t.Errorf("explicit-zero StartTimeoutSeconds = %d, want 0", got)
 	}
 
 	var nilProvisioning *RunnerPoolProvisioning
-	if got := nilProvisioning.MaxConcurrentPerFleetSelectorOrDefault(); got != 4 {
-		t.Errorf("nil MaxConcurrentPerFleetSelector = %d, want 4", got)
+	if got := nilProvisioning.MaxConcurrentPerNodeOrDefault(); got != 6 {
+		t.Errorf("nil MaxConcurrentPerNode = %d, want 6", got)
 	}
 }
 

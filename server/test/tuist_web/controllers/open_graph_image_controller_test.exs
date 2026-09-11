@@ -196,12 +196,10 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert conn.halted
   end
 
+  # The docs card renders through OpenGraphImageRenderer, which these tests
+  # stub; the marketing cards are generated without it.
   defp image_request do
-    path =
-      OpenGraph.image_path(:marketing,
-        title: "About Tuist",
-        icon: "static/marketing/images/about/logo.webp"
-      )
+    path = OpenGraph.image_path(:docs, title: "About Tuist")
 
     uri = URI.parse(path)
     key = Path.basename(uri.path, ".jpg")

@@ -9,7 +9,7 @@ defmodule Tuist.Accounts.Workers.DormantOperatorAccountsWorker do
   use Oban.Worker,
     queue: :default,
     max_attempts: 3,
-    unique: [period: {23, :hours}, states: [:available, :scheduled, :executing]]
+    unique: [period: {23, :hours}, states: :incomplete]
 
   alias Tuist.Accounts.Dormancy
 

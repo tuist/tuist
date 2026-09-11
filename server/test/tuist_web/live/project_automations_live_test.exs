@@ -585,4 +585,23 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert {:ok, ^other} = Automations.get_alert(other.id)
     end
   end
+
+  describe "branch scope" do
+    test "the summary describes reliability as trunk-scoped rather than across branches", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
+      )
+
+      {:ok, _lv, html} = open(conn, organization, project)
+
+      assert html =~ "on the default branch"
+      refute html =~ "across branches"
+    end
+  end
 end

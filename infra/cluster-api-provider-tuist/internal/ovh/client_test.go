@@ -3,6 +3,8 @@ package ovh
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ovh/go-ovh/ovh"
@@ -315,18 +317,76 @@ func TestPlanStorageAlwaysFormatsDataAsXFS(t *testing.T) {
 	}
 }
 
-// A mirror is only a mirror if the layout asks for one. OVH defaults an absent
-// raidLevel to 1, but the plan states it so a disk loss on these boxes stays a
-// degraded array rather than a lost cache region.
-func TestPlanStorageMirrorsEveryPartition(t *testing.T) {
-	plan, err := PlanStorage([]DiskGroup{group(1, 2, 1920)})
-	if err != nil {
-		t.Fatalf("PlanStorage: %v", err)
-	}
-	for _, part := range plan[0].Partitioning.Layout {
-		if part.RaidLevel != 1 {
-			t.Fatalf("partition %s raidLevel = %d, want 1", part.MountPoint, part.RaidLevel)
+// A RAID level is only applied if the layout asks for one. OVH defaults an
+// absent raidLevel to 1, but the plan states it on every partition so a disk
+// loss on these boxes stays a degraded array rather than a lost cache region,
+// and so a group large enough to stripe mirrored pairs is not silently
+// installed as a mirror across all of its disks.
+func TestPlanStorageRaidLevelFollowsDiskCount(t *testing.T) {
+	for _, tc := range []struct {
+		disks int64
+		want  int64
+	}{
+		{disks: 1, want: 0},
+		{disks: 2, want: 1},
+		{disks: 3, want: 1},
+		{disks: 4, want: 10},
+		{disks: 5, want: 1},
+		{disks: 6, want: 10},
+		{disks: 7, want: 1},
+		{disks: 8, want: 10},
+	} {
+		plan, err := PlanStorage([]DiskGroup{group(1, tc.disks, 960)})
+		if err != nil {
+			t.Fatalf("PlanStorage(%d disks): %v", tc.disks, err)
 		}
+		if got := plan[0].Partitioning.Disks; got != tc.disks {
+			t.Fatalf("%d-disk group: partitioning disks = %d, want every disk in the group", tc.disks, got)
+		}
+		for _, part := range plan[0].Partitioning.Layout {
+			if part.RaidLevel != tc.want {
+				t.Fatalf("%d-disk group: partition %s raidLevel = %d, want %d",
+					tc.disks, part.MountPoint, part.RaidLevel, tc.want)
+			}
+		}
+	}
+}
+
+// The reason the whole rule exists, asserted on the wire: a four-disk group
+// installed as RAID 1 mirrors across ALL FOUR disks, so a box ordered with the
+// 4-disk storage option comes up with one disk's worth of /data and the extra
+// two disks buy nothing. RAID 10 over the same four is what makes them usable
+// capacity. disks: 4 alongside raidLevel: 10 is the internally consistent pair:
+// the whole group participates, striped over two mirrored pairs.
+func TestStartInstallRequestsRaid10ForAFourDiskGroup(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/srv/specifications/hardware": hardwareSpec{DiskGroups: []DiskGroup{group(1, 4, 960)}},
+	}}
+	c := &Client{API: api}
+	if err := c.StartInstall(context.Background(), "srv", InstallParams{
+		TemplateName: "ubuntu2404-server_64",
+		Hostname:     "host1",
+		SSHKey:       "ssh-ed25519 AAAA...",
+	}); err != nil {
+		t.Fatalf("StartInstall: %v", err)
+	}
+	if len(api.posts) != 1 || api.posts[0].url != "/dedicated/server/srv/reinstall" {
+		t.Fatalf("expected one POST to /dedicated/server/srv/reinstall, got %+v", api.posts)
+	}
+	body, ok := api.posts[0].body.(map[string]any)
+	if !ok {
+		t.Fatalf("reinstall body is not an object: %+v", api.posts[0].body)
+	}
+	wire, err := json.Marshal(body["storage"])
+	if err != nil {
+		t.Fatalf("marshal storage: %v", err)
+	}
+	want := `[{"diskGroupId":1,"partitioning":{"disks":4,"layout":[` +
+		`{"fileSystem":"ext4","mountPoint":"/boot","size":1024,"raidLevel":10},` +
+		`{"fileSystem":"ext4","mountPoint":"/","size":65536,"raidLevel":10},` +
+		`{"fileSystem":"xfs","mountPoint":"/data","size":0,"raidLevel":10}]}}]`
+	if string(wire) != want {
+		t.Fatalf("storage block =\n%s\nwant\n%s", wire, want)
 	}
 }
 
@@ -370,5 +430,146 @@ func TestMoveIP(t *testing.T) {
 	b, _ := json.Marshal(api.posts[0].body)
 	if string(b) != `{"to":"ns2.ip-9-9-9.eu"}` {
 		t.Fatalf("move body = %s", b)
+	}
+}
+
+// Carries the two neighbouring fields the client must ignore: `connection` and
+// `vrack.bandwidth` report the 25 Gbit/s switch link whatever the public path is
+// limited to.
+func egressResponse(bandwidth any) map[string]any {
+	return map[string]any{
+		"bandwidth":  bandwidth,
+		"connection": map[string]any{"unit": "Mbps", "value": 25000},
+		"vrack":      map[string]any{"bandwidth": map[string]any{"unit": "Mbps", "value": 25000}, "type": "standard"},
+	}
+}
+
+func TestPublicEgressReadsOvhToInternet(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "Mbps", "value": 5000},
+			"InternetToOvh": map[string]any{"unit": "Mbps", "value": 5000},
+			"OvhToOvh":      map[string]any{"unit": "Mbps", "value": 5000},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 5000 {
+		t.Fatalf("Mbps = %d, want 5000 (the public limitation, not the 25000 link rate)", got.Mbps)
+	}
+	if got.Tier != "improved" {
+		t.Fatalf("Tier = %q, want %q", got.Tier, "improved")
+	}
+}
+
+func TestPublicEgressConvertsGbps(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "Gbps", "value": 5},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	// Taking the bare value would advertise 5 Mbps on a 5 Gbit/s box.
+	if got.Mbps != 5000 {
+		t.Fatalf("Mbps = %d, want 5000", got.Mbps)
+	}
+}
+
+func TestPublicEgressUnknownUnitIsUnresolved(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+			"OvhToInternet": map[string]any{"unit": "quatloos", "value": 5000},
+			"type":          "improved",
+		}),
+	}}
+
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 0 {
+		t.Fatalf("Mbps = %d, want 0 for a unit we cannot convert", got.Mbps)
+	}
+	// The raw pair rides along so the log line can say what OVH sent.
+	if got.Unit != "quatloos" || got.Value != 5000 {
+		t.Fatalf("raw reading = %d %q, want 5000 %q", got.Value, got.Unit, "quatloos")
+	}
+}
+
+func TestPublicEgressMissingBandwidthIsUnresolved(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(nil),
+	}}
+
+	// Nullable in OVH's schema, so a null block is an answer, not an error.
+	got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+	if err != nil {
+		t.Fatalf("PublicEgress: %v", err)
+	}
+	if got.Mbps != 0 {
+		t.Fatalf("Mbps = %d, want 0", got.Mbps)
+	}
+}
+
+func TestPublicEgressPropagatesTransportErrors(t *testing.T) {
+	// Must reach the caller as an error, so a real outage leaves the last known
+	// reading in place instead of zeroing it.
+	if _, err := (&Client{API: &fakeAPI{get: map[string]any{}}}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us"); err == nil {
+		t.Fatal("PublicEgress: expected an error for a failing request")
+	}
+}
+
+func TestPublicEgressRejectsAnOutOfRangeValue(t *testing.T) {
+	// 4294967596 wraps to 300 through int32, which clears the caller's floor and
+	// reads like a legitimate reading. Out of range has to join everything else we
+	// cannot interpret at zero.
+	for name, reading := range map[string]map[string]any{
+		"beyond int32":                       {"unit": "Mbps", "value": int64(4294967596)},
+		"gbps that overflows the conversion": {"unit": "Gbps", "value": int64(1 << 62)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := &fakeAPI{get: map[string]any{
+				"/dedicated/server/ns1.ip-1-2-3.us/specifications/network": egressResponse(map[string]any{
+					"OvhToInternet": reading,
+					"type":          "improved",
+				}),
+			}}
+
+			got, err := (&Client{API: api}).PublicEgress(context.Background(), "ns1.ip-1-2-3.us")
+			if err != nil {
+				t.Fatalf("PublicEgress: %v", err)
+			}
+			if got.Mbps != 0 {
+				t.Fatalf("Mbps = %d, want 0", got.Mbps)
+			}
+		})
+	}
+}
+
+func TestIsTaskAlreadyExists(t *testing.T) {
+	// The message shape OVH returned when a second release reinstall raced the
+	// first on ns3048220 (2026-09-03); the class is what is matched on.
+	inFlight := &ovh.APIError{
+		Code:    400,
+		Class:   "Client::BadRequest::TaskAlreadyExists",
+		Message: "Task 563254948 of type reinstallServer with status todo is already running on server ns3048220.ip-51-255-75.eu",
+	}
+	if !IsTaskAlreadyExists(fmt.Errorf("start reinstall on srv: %w", inFlight)) {
+		t.Fatal("IsTaskAlreadyExists = false for a wrapped TaskAlreadyExists; the release would retry until the queued install finishes")
+	}
+	if IsTaskAlreadyExists(&ovh.APIError{Code: 400, Class: "Client::BadRequest", Message: "only 1 single SSH key can be provided"}) {
+		t.Fatal("IsTaskAlreadyExists = true for an unrelated 400")
+	}
+	if IsTaskAlreadyExists(errors.New("dial tcp: connection refused")) {
+		t.Fatal("IsTaskAlreadyExists = true for a non-API error")
 	}
 }

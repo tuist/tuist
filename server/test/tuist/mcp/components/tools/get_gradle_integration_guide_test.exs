@@ -37,7 +37,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleIntegrationGuideTest do
     end
 
     test "defaults to the deployment serving the tool" do
-      result = GetGradleIntegrationGuide.call(%Plug.Conn{}, %{"server_url" => nil})
+      result = GetGradleIntegrationGuide.call(%Plug.Conn{}, %{})
 
       assert result["structuredContent"]["guide"] =~ "tuist auth whoami --url http://localhost:8080"
       assert result["structuredContent"]["guide"] =~ "allowInsecureProtocol = true"

@@ -213,13 +213,14 @@ type VolumeManager struct {
 	// the real aggregate ceiling.
 	CapGiB int
 
-	// CASGiB is the CAS's byte budget WITHIN the shared cache image (the CAS is
-	// folded in as a subdir, not its own image). It sets the CAS's share of the
-	// CapGiB cap — staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes —
-	// and the binary cache gets the rest minus a filesystem reserve, so the two
-	// pruners never over-commit the one image. Zero disables the CAS entirely: the compilation
-	// cache is not persisted across VMs (it stays VM-local, dying with the VM), and
-	// the binary cache gets the full budget.
+	// CASGiB is the CAS's FOOTPRINT allowance WITHIN the shared cache image (the
+	// CAS is folded in as a subdir, not its own image). It sets the CAS's share of
+	// the CapGiB cap, and the binary cache gets the rest minus a filesystem
+	// reserve, so the two pruners never over-commit the one image. The guest is
+	// staged HALF of it as COMPILATION_CACHE_LIMIT_SIZE, which bounds one
+	// generation of a store that keeps two — see casGenerationLimit. Zero disables
+	// the CAS entirely: the compilation cache is not persisted across VMs (it stays
+	// VM-local, dying with the VM), and the binary cache gets the full budget.
 	CASGiB int
 
 	// LowWatermarkFraction is the free-space fraction the background evictor
@@ -556,8 +557,14 @@ func (m *VolumeManager) ImageDigest(image string) (string, error) {
 
 // cacheInventorySubdirs mirror dispatch-poll.sh's cache_inventory so host and
 // guest compute the same digest over the cache subtrees whose entry-name churn
-// means the cache actually changed.
-var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptionHelpers", "Plugins"}
+// means the cache actually changed. Every CacheCategory the CLI persists is
+// here: the support-cache retention reclaims from all of them, and a category
+// left out would make a job whose only change is that reclaim report clean, so
+// the cleaned image would be discarded and the leak would outlive every job.
+var cacheInventorySubdirs = []string{
+	"Binaries", "EditProjects", "GenerationMetadata", "Manifests", "Plugins",
+	"ProjectDescriptionHelpers", "Projects", "Runs", "SelectiveTests",
+}
 
 // inventoryDigest hashes a cache image's content into the digest both the guest
 // and host compute, so a converging host can verify a downloaded master matches
@@ -565,7 +572,7 @@ var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptio
 // `tuist` cache home AND the folded CAS store.
 //
 // It mirrors dispatch-poll.sh's cache_inventory EXACTLY: the sorted, dotfile-
-// filtered entry names under the binary subtrees, plus one casLinePrefix line per
+// filtered entry names under every cache subtree, plus one casLinePrefix line per
 // regular file in the folded CAS store (its content identity). Any drift between
 // the two makes every convergence digest-mismatch, so a change here must land in
 // both (guarded byte-for-byte by TestInventoryDigestMatchesGuestPipeline, which

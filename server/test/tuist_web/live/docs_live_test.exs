@@ -120,5 +120,57 @@ defmodule TuistWeb.DocsLiveTest do
       assert params["category"] == "Guides"
       assert is_binary(params["signature"])
     end
+
+    test "marks the page up as a TechArticle alongside its breadcrumbs", %{conn: conn} do
+      {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert ["TechArticle", "BreadcrumbList"] = structured_data_types(html)
+    end
+
+    test "marks the docs landing page up as a TechArticle too", %{conn: conn} do
+      {:ok, _live_view, html} = live(conn, ~p"/en/docs")
+
+      assert "TechArticle" in structured_data_types(html)
+    end
+
+    test "links the page to its own markdown twin", %{conn: conn} do
+      {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      {:ok, document} = Floki.parse_document(html)
+
+      assert [markdown_url] = Floki.attribute(document, "link[type='text/markdown']", "href")
+      assert markdown_url == Tuist.Environment.app_url(path: "/en/docs-markdown/guides/install-tuist")
+    end
+
+    @tag :locale
+    test "keeps a fallback locale's metadata on the requested locale, not English", %{conn: conn} do
+      # `Docs.get_page/1` serves the English page when a locale has no
+      # translation. The markup must still describe the URL that was requested,
+      # or the page contradicts its own canonical link.
+      {:ok, _live_view, html} = live(conn, "/es/docs/guides/install-tuist")
+      {:ok, document} = Floki.parse_document(html)
+
+      assert [canonical] = Floki.attribute(document, "link[rel='canonical']", "href")
+      assert canonical == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+
+      assert [markdown_url] = Floki.attribute(document, "link[type='text/markdown']", "href")
+      assert markdown_url == Tuist.Environment.app_url(path: "/es/docs-markdown/guides/install-tuist")
+
+      tech_article = html |> structured_data() |> Enum.find(&(&1["@type"] == "TechArticle"))
+      assert tech_article["url"] == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+
+      breadcrumbs = html |> structured_data() |> Enum.find(&(&1["@type"] == "BreadcrumbList"))
+      refute Enum.any?(breadcrumbs["itemListElement"], &String.contains?(&1["item"], "/en/"))
+    end
   end
+
+  defp structured_data(html) do
+    {:ok, document} = Floki.parse_document(html)
+
+    document
+    |> Floki.find("script[type='application/ld+json']")
+    # Floki.text/1 drops the contents of script tags unless told otherwise.
+    |> Enum.map(&(&1 |> Floki.text(js: true) |> String.trim() |> JSON.decode!()))
+  end
+
+  defp structured_data_types(html), do: html |> structured_data() |> Enum.map(& &1["@type"])
 end

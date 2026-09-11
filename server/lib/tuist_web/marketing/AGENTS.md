@@ -9,6 +9,10 @@ This area owns marketing controllers and components for the public site.
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Frontend assets are in `server/assets`.
+- The shared `header_background` uses compact derivatives of the original
+  soft artwork (960px desktop, 480px mobile). Avoid high-density variants for
+  this decorative image: they add transfer and decode cost without useful
+  detail. Keep its separate mobile artwork and the shared shell intact.
 
 ## Related Context
 - Web layer overview: `server/lib/tuist_web/AGENTS.md`

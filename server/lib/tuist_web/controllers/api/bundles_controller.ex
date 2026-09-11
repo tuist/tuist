@@ -10,6 +10,7 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Bundle
   alias TuistWeb.API.Schemas.BundleArtifact
   alias TuistWeb.API.Schemas.Error
@@ -30,7 +31,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:index,
     summary: "List bundles for a project",
     operation_id: "listBundles",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -43,17 +44,17 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ],
-      git_branch: [
-        in: :query,
-        type: :string,
-        required: false,
-        description: "Filter bundles by git branch."
-      ],
       page: [
         in: :query,
         type: :integer,
         required: false,
         description: "Page number for pagination."
+      ],
+      git_branch: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Filter bundles by git branch."
       ],
       page_size: [
         in: :query,
@@ -61,7 +62,7 @@ defmodule TuistWeb.API.BundlesController do
         required: false,
         description: "Number of items per page."
       ]
-    },
+    ],
     responses: %{
       ok:
         {"List of bundles", "application/json",
@@ -77,7 +78,8 @@ defmodule TuistWeb.API.BundlesController do
            required: [:bundles, :meta]
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
-      forbidden: {"You are not authorized to list bundles", "application/json", Error}
+      forbidden: {"You are not authorized to list bundles", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -151,7 +153,8 @@ defmodule TuistWeb.API.BundlesController do
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       not_found: {"Bundle not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
-      forbidden: {"You are not authorized to view this bundle", "application/json", Error}
+      forbidden: {"You are not authorized to view this bundle", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -266,7 +269,8 @@ defmodule TuistWeb.API.BundlesController do
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
       unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
-      forbidden: {"You are not authorized to create a bundle", "application/json", Error}
+      forbidden: {"You are not authorized to create a bundle", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"go/ast"
 	"go/parser"
@@ -1240,4 +1242,127 @@ func findFunc(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
 	}
 	t.Fatalf("no function %s in bootstrap.go", name)
 	return nil
+}
+
+// A single-guest host must render exactly what it rendered before the
+// multi-guest flags existed. Both fields resolve to 1 on such a host, which
+// is already tart-kubelet's default, so emitting them would buy nothing and
+// cost a fleet-wide hash change — i.e. a drift push to every existing mini
+// for a no-op.
+func TestRenderLaunchdPlist_OmitsMultiGuestFlagsForSingleGuestHost(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 1,
+		MinGoldensKept:    1,
+	})
+	if strings.Contains(out, "--vnc-relay-port-count") {
+		t.Fatalf("expected --vnc-relay-port-count omitted for a single-guest host\n%s", out)
+	}
+	if strings.Contains(out, "--min-goldens-kept") {
+		t.Fatalf("expected --min-goldens-kept omitted when it equals tart-kubelet's default\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersMultiGuestFlags(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		VNCRelayPort:      5900,
+		VNCRelayPortCount: 2,
+		MinGoldensKept:    2,
+	})
+	if !strings.Contains(out, "<string>--vnc-relay-port=5900</string>") {
+		t.Fatalf("expected the relay base port in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--vnc-relay-port-count=2</string>") {
+		t.Fatalf("expected --vnc-relay-port-count for a dual-guest host\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--min-goldens-kept=2</string>") {
+		t.Fatalf("expected --min-goldens-kept for a dual-guest host\n%s", out)
+	}
+}
+
+// The relay port range only means anything alongside a pinned base port; an
+// ephemeral relay has the whole ephemeral range to itself.
+func TestRenderLaunchdPlist_OmitsRelayPortCountWithoutBasePort(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", VNCRelayPortCount: 2})
+	if strings.Contains(out, "--vnc-relay-port") {
+		t.Fatalf("expected no relay port flags at all when no base port is pinned\n%s", out)
+	}
+}
+
+// Both multi-guest fields have to move the fleet fingerprint, or a host
+// promoted to two guests would read as already-converged and never receive
+// the launchd config that gives its second guest a relay port and its second
+// pool a golden.
+func TestHostConfigHash_ChangesWithGuestSizedFields(t *testing.T) {
+	base := Config{
+		NodeName:          "n1",
+		SSHUser:           "m1",
+		TartKubeletBinary: []byte("bin"),
+		VNCRelayPort:      5900,
+	}
+	for name, mutate := range map[string]func(*Config){
+		"VNCRelayPortCount": func(c *Config) { c.VNCRelayPortCount = 2 },
+		"MinGoldensKept":    func(c *Config) { c.MinGoldensKept = 2 },
+	} {
+		changed := base
+		mutate(&changed)
+		if HostConfigHash(base) == HostConfigHash(changed) {
+			t.Errorf("HostConfigHash must change when %s does", name)
+		}
+	}
+}
+
+// The auto-login step checks whether macOS replaced /etc/kcpassword with its
+// "<sealed>" marker, which is how a wrong password surfaces: bootstrap would
+// otherwise complete while every later boot fails to raise an Aqua session, so
+// Tart can start no guests at all.
+//
+// The check compares the file's first 8 bytes against a hardcoded hex string
+// rather than decoding them, because decoding needed /usr/bin/python3 and that
+// is a Command Line Tools shim: on a host without Xcode it fails with
+// "xcode-select: error: No developer tools were found" and takes the whole
+// bootstrap with it. That is what stopped the BER1 prototype on 2026-09-09.
+//
+// Hardcoding is only safe if the constant really is the encoding of the marker,
+// so derive it here from the same encoder the writer uses instead of restating
+// my own arithmetic.
+func TestSealedMarkerSignatureMatchesTheEncoder(t *testing.T) {
+	encoded, err := base64.StdEncoding.DecodeString(encodeKCPassword("<sealed>"))
+	if err != nil {
+		t.Fatalf("decode encodeKCPassword output: %v", err)
+	}
+	if len(encoded) < 8 {
+		t.Fatalf("encoded marker is %d bytes, want at least 8", len(encoded))
+	}
+	want := hex.EncodeToString(encoded[:8])
+
+	script := autoLoginScript("tuist", "hunter2")
+	if !strings.Contains(script, want) {
+		t.Fatalf("auto-login script does not test for the sealed signature %q; a sealed kcpassword would pass unnoticed and the host would never raise an Aqua session", want)
+	}
+}
+
+// The whole point of the change: nothing in the auto-login step may depend on
+// Xcode Command Line Tools, because a rack host provisioned by MDM has none.
+func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
+	// Comment lines are stripped first: the script explains in prose why it
+	// stopped using python3, and matching that text would fail the test for
+	// documenting the very bug it guards against.
+	var executable []string
+	for _, line := range strings.Split(autoLoginScript("tuist", "hunter2"), "\n") {
+		if trimmed := strings.TrimSpace(line); !strings.HasPrefix(trimmed, "#") {
+			executable = append(executable, line)
+		}
+	}
+	script := strings.Join(executable, "\n")
+
+	for _, forbidden := range []string{"python3", "xcrun", "xcode-select"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
+		}
+	}
 }

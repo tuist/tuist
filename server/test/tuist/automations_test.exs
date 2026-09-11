@@ -7,6 +7,7 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Alerts.Revision
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.Repo
   alias Tuist.Tests
@@ -19,9 +20,29 @@ defmodule Tuist.AutomationsTest do
     test "returns automations for the given project ordered by insertion time" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
-      first = AutomationsFixtures.automation_alert_fixture(project: project, name: "first")
+      inserted_at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      first =
+        [project: project, name: "first"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: inserted_at)
+        |> Repo.update!()
+
       _other = AutomationsFixtures.automation_alert_fixture(project: other_project)
-      second = AutomationsFixtures.automation_alert_fixture(project: project, name: "second")
+
+      second =
+        [project: project, name: "second"]
+        |> AutomationsFixtures.automation_alert_fixture()
+        |> Ecto.Changeset.change(inserted_at: DateTime.add(inserted_at, 1, :second))
+        |> Repo.update!()
+
+      # `inserted_at` is second-precision and the UUIDv7 that breaks the tie is
+      # random within a millisecond, so the two have to sit on separate seconds
+      # for insertion order to be what decides the result.
+      Repo.update_all(
+        from(a in Alert, where: a.id == ^first.id),
+        set: [inserted_at: DateTime.add(second.inserted_at, -1, :second)]
+      )
 
       ids = project.id |> Automations.list_alerts() |> Enum.map(& &1.id)
       assert ids == [first.id, second.id]
@@ -136,6 +157,20 @@ defmodule Tuist.AutomationsTest do
                  source: "dashboard"
                )
 
+      # Both revisions land in the same second, and the UUIDv7 that breaks the
+      # tie is random within a millisecond, so the creation is pushed back for
+      # "newest first" to mean the update.
+      update_inserted_at =
+        automation.id
+        |> Automations.list_alert_revisions()
+        |> Enum.find(&(&1.event == "updated"))
+        |> Map.fetch!(:inserted_at)
+
+      Repo.update_all(
+        from(r in Revision, where: r.automation_alert_id == ^automation.id and r.event == "created"),
+        set: [inserted_at: DateTime.add(update_inserted_at, -1, :second)]
+      )
+
       assert [updated_revision, created_revision] = Automations.list_alert_revisions(automation.id)
       assert updated_revision.event == "updated"
       assert updated_revision.actor.id == actor.id
@@ -192,7 +227,11 @@ defmodule Tuist.AutomationsTest do
                  ]
                })
 
-      [updated_revision | _] = Automations.list_alert_revisions(automation.id)
+      # The creation revision shares a second with the update, and the UUIDv7
+      # that breaks the tie is random within a millisecond, so the update is
+      # picked by its event rather than by position.
+      updated_revision =
+        automation.id |> Automations.list_alert_revisions() |> Enum.find(&(&1.event == "updated"))
 
       assert %{"trigger_actions" => %{"from" => [before_action], "to" => [after_action]}} = updated_revision.changes
       refute Map.has_key?(before_action, "webhook_url_encrypted")
@@ -277,6 +316,30 @@ defmodule Tuist.AutomationsTest do
 
       events = Automations.list_active_alert_events(alert.id)
       refute Enum.any?(events, &(&1.test_case_id == test_case_id))
+    end
+
+    test "scopes a large active event read within ClickHouse request limits" do
+      alert = AutomationsFixtures.automation_alert_fixture()
+      test_case_ids = Enum.map(1..4001, fn _ -> Ecto.UUID.generate() end)
+      event_test_case_ids = Enum.take_every(test_case_ids, 2000)
+      triggered_at = NaiveDateTime.utc_now()
+
+      Enum.each(event_test_case_ids, fn test_case_id ->
+        assert :ok =
+                 Automations.create_alert_event(%{
+                   alert_id: alert.id,
+                   test_case_id: test_case_id,
+                   status: "triggered",
+                   triggered_at: triggered_at
+                 })
+      end)
+
+      active_test_case_ids =
+        alert
+        |> Automations.list_active_alert_events(test_case_ids)
+        |> MapSet.new(& &1.test_case_id)
+
+      assert active_test_case_ids == MapSet.new(event_test_case_ids)
     end
   end
 

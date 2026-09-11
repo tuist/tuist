@@ -49,13 +49,14 @@ else
     exit 1
 fi
 
-# Remove system glibc/curl static archives that conflict with the musl SDK.
+# Remove system static archives that conflict with the musl SDK.
 # The musl SDK provides its own minimal static libraries, but the linker also finds
 # the system's glibc-based .a files (libcurl with libidn2/libldap/libssh deps,
-# libc with _DYNAMIC symbol, libm with internal glibc symbols). Removing these
+# libc/libm/zlib with internal glibc symbols, libxml2 with ICU/glibc symbols). Removing these
 # forces the linker to use only the musl SDK's versions.
 echo "==> Removing conflicting system static libraries"
-rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a
+rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a \
+    /usr/lib/*/libxml2.a /usr/lib/*/libz.a
 
 echo "==> Building tuist executable (static musl, $SDK_TARGET)"
 swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"

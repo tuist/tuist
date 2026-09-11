@@ -26,6 +26,14 @@ defmodule TuistWeb.PublicAccountLiveTest do
     %{user: user, account: account}
   end
 
+  describe "signed-out visitors on an unknown account" do
+    test "get a 404 instead of a login redirect", %{conn: conn} do
+      assert_error_sent :not_found, fn ->
+        get(conn, "/does-not-exist-#{System.unique_integer([:positive])}")
+      end
+    end
+  end
+
   describe "signed-out visitors on a public account" do
     test "can read the runners dashboards", %{conn: conn, account: account} do
       for path <- [

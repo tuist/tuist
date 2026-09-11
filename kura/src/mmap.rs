@@ -298,7 +298,14 @@ mod tests {
             192 * 1024 * 1024,
         );
         let permit = memory
-            .try_acquire_mmap_serving(bytes.max(1))
+            .try_acquire_mmap_serving(
+                crate::memory::MmapRegion {
+                    source: std::sync::Arc::from("test"),
+                    offset: 0,
+                    len: bytes.max(1) as u64,
+                },
+                bytes.max(1),
+            )
             .expect("permit should be acquired");
         (memory, permit)
     }

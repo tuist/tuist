@@ -2,6 +2,7 @@
     import Foundation
     import Mockable
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol MultipartUploadGenerateURLCacheServicing {
@@ -32,6 +33,18 @@
             case let .notFound(message), let .paymentRequired(message), let .forbidden(message),
                  let .unauthorized(message):
                 return message
+            }
+        }
+    }
+
+    extension MultipartUploadGenerateURLCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
             }
         }
     }
@@ -74,6 +87,10 @@
                 case let .json(error):
                     throw MultipartUploadGenerateURLCacheServiceError.paymentRequired(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode: statusCode, _):
                 throw MultipartUploadGenerateURLCacheServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

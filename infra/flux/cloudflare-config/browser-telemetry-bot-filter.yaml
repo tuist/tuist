@@ -1,0 +1,19 @@
+# Keep verified crawlers out of real-user monitoring without preventing them
+# from reading public pages. Bot classification is maintained by Cloudflare.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: browser-telemetry-verified-bots
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Browser telemetry - exclude verified bots"
+  expression: |-
+    http.host eq "tuist.dev" and
+    http.request.method eq "POST" and
+    http.request.uri.path eq "/-/faro/collect" and
+    cf.client.bot
+  action: block
+  enabled: true
+  mode: active
+  createNewRule: true
+  retainOnDelete: false

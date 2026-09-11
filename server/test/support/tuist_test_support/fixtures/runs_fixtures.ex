@@ -71,6 +71,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         issues: Keyword.get(attrs, :issues, []),
         files: Keyword.get(attrs, :files, []),
         targets: Keyword.get(attrs, :targets, []),
+        build_steps: Keyword.get(attrs, :build_steps, []),
+        machine_metrics: Keyword.get(attrs, :machine_metrics, []),
         cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
         cas_outputs: Keyword.get(attrs, :cas_outputs, []),
         cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
@@ -136,6 +138,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         is_ci: Keyword.get(attrs, :is_ci, false),
         build_run_id: Keyword.get(attrs, :build_run_id),
         gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+        bazel_invocation_id: Keyword.get(attrs, :bazel_invocation_id, ""),
         build_system: Keyword.get(attrs, :build_system, "xcode"),
         ci_run_id: Keyword.get(attrs, :ci_run_id),
         ci_project_handle: Keyword.get(attrs, :ci_project_handle),
@@ -244,6 +247,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
+    git_branch = Keyword.get(attrs, :git_branch, "main")
+
     test_case_run = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
@@ -253,7 +258,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       account_id: Keyword.get(attrs, :account_id),
       is_ci: Keyword.get(attrs, :is_ci, false),
       scheme: Keyword.get(attrs, :scheme, ""),
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      git_branch: git_branch,
+      is_default_branch: Keyword.get_lazy(attrs, :is_default_branch, fn -> default_branch?(project_id, git_branch) end),
       git_commit_sha: Keyword.get(attrs, :git_commit_sha, ""),
       module_name: Keyword.get(attrs, :module_name, "MyTests"),
       suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
@@ -364,5 +370,21 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     IngestRepo.insert_all(TestCaseEvent, [test_case_event])
 
     test_case_event
+  end
+
+  # This fixture writes straight to ClickHouse, so it has to classify the run
+  # against the project's default branch the way `Tuist.Tests.create_test_modules/4`
+  # does at ingestion. Without it every fixture row reads as off-default, and
+  # aggregates that key on the classification see an empty project.
+  defp default_branch?(nil, _git_branch), do: false
+
+  defp default_branch?(project_id, git_branch) do
+    case Tuist.Repo.get(Tuist.Projects.Project, project_id) do
+      %{default_branch: default_branch} when is_binary(default_branch) and default_branch != "" ->
+        git_branch == default_branch
+
+      _ ->
+        false
+    end
   end
 end

@@ -169,7 +169,7 @@ set -u
 root="$1/tuist"
 cas="$1/CompilationCache.noindex"
 {
-  for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+  for d in Binaries EditProjects GenerationMetadata Manifests Plugins ProjectDescriptionHelpers Projects Runs SelectiveTests; do
     /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
   done
   ( cd "${cas}" 2>/dev/null && find . -type f -not -path '*/.*' -exec stat -f "%N$(printf '\t')%z" {} + 2>/dev/null ) \
@@ -194,6 +194,25 @@ func TestInventoryDigestMatchesGuestPipeline(t *testing.T) {
 		}
 	}
 	if err := os.WriteFile(filepath.Join(binaries, ".DS_Store"), []byte("noise"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// One entry in every other covered subtree, so a subdir added to one side's
+	// list and not the other diverges here rather than in production. Runs holds a
+	// result bundle, GenerationMetadata a flat file, to cover both entry shapes.
+	for _, sub := range []string{"EditProjects", "Manifests", "Plugins", "ProjectDescriptionHelpers", "Projects", "SelectiveTests"} {
+		if err := os.MkdirAll(filepath.Join(root, cacheHomeSubdir, sub, "entry"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, cacheHomeSubdir, "Runs", "run-id", "result-bundle"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	generationMetadata := filepath.Join(root, cacheHomeSubdir, "GenerationMetadata")
+	if err := os.MkdirAll(generationMetadata, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(generationMetadata, "hash.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

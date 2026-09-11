@@ -72,6 +72,10 @@ public struct GetCacheRunService: GetCacheRunServicing {
             case let .json(error):
                 throw GetCacheRunServiceError.forbidden(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetCacheRunServiceError.unknownError(statusCode)
         }

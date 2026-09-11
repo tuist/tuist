@@ -43,8 +43,15 @@ defmodule Tuist.OAuth.Apple do
       expires_in: 86_400 * 180,
       key_id: Tuist.Environment.apple_private_key_id(),
       team_id: Tuist.Environment.apple_team_id(),
-      private_key: Tuist.Environment.apple_private_key()
+      private_key: normalize_private_key(Tuist.Environment.apple_private_key())
     })
+  end
+
+  defp normalize_private_key(private_key) do
+    private_key
+    |> String.split("\n")
+    |> Enum.map_join("\n", &String.trim/1)
+    |> String.trim()
   end
 
   @doc """

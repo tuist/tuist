@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BundleArtifactsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Bundles
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -62,7 +63,8 @@ defmodule TuistWeb.API.BundleArtifactsController do
            required: [:bundle_id, :artifacts]
          }},
       not_found: {"Bundle not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

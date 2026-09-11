@@ -38,9 +38,9 @@ metadata:
   labels:
     {{- toYaml $labels | nindent 4 }}
 spec:
-  # Single-tenant preview KuraInstance. The deploy's seed step runs the regular
-  # development seed, whose demo content lives under the `tuist` organization,
-  # so server tokens and the runtime hook agree on the same tenant.
+  # Single-tenant KuraInstance. The deployment workflow must provision the
+  # same account handle in the server so its cache tokens and this runtime's
+  # strict tenant check agree.
   accountHandle: {{ required "kuraRuntime.instance.accountHandle is required" $instance.accountHandle }}
   tenantID: {{ required "kuraRuntime.instance.tenantID is required" $instance.tenantID }}
   region: {{ required "kuraRuntime.instance.region is required" $instance.region }}
@@ -64,6 +64,21 @@ spec:
       value: {{ $controlPlaneURL }}
     - name: KURA_AUTH_TUIST_URL
       value: {{ $controlPlaneURL }}
+    {{- with $instance.controlPlaneCredentials.secretName }}
+    # Explicit environment variables override the controller's optional
+    # shared Secret. Keep this per-instance credential out of the custom
+    # resource so users with read access to KuraInstance cannot retrieve it.
+    - name: KURA_CONTROL_PLANE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_ID
+    - name: KURA_CONTROL_PLANE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: {{ . | quote }}
+          key: KURA_CONTROL_PLANE_CLIENT_SECRET
+    {{- end }}
   {{- with $instance.nodeSelector }}
   nodeSelector:
     {{- toYaml . | nindent 4 }}

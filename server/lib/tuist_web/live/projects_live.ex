@@ -265,8 +265,8 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
         </div>
-        
-    <!-- All projects section -->
+
+        <!-- All projects section -->
         <div data-part="all-section">
           <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
           <.form
@@ -407,6 +407,7 @@ defmodule TuistWeb.ProjectsLive do
             >
               <:item value="xcode" label="Xcode" />
               <:item value="gradle" label="Gradle" />
+              <:item value="bazel" label="Bazel" />
             </.select>
           </div>
         </div>
@@ -507,13 +508,21 @@ defmodule TuistWeb.ProjectsLive do
 
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
   defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
   defp build_system_badge(_), do: nil
 
   defp project_background(assigns) do
+    unique_id = UUIDv7.generate()
+
+    assigns =
+      assigns
+      |> assign(:mask_id, "mask0_#{unique_id}")
+      |> assign(:radial_gradient_id, "paint0_radial_#{unique_id}")
+
     ~H"""
     <svg viewBox="0 0 292 196" fill="none" xmlns="http://www.w3.org/2000/svg" data-part="background">
       <mask
-        id="mask0_1989_22018"
+        id={@mask_id}
         style="mask-type:alpha"
         maskUnits="userSpaceOnUse"
         x="0"
@@ -526,11 +535,11 @@ defmodule TuistWeb.ProjectsLive do
           y="-0.5"
           width="291"
           height="197"
-          fill="url(#paint0_radial_1989_22018)"
+          fill={"url(##{@radial_gradient_id})"}
           fill-opacity="0.2"
         />
       </mask>
-      <g mask="url(#mask0_1989_22018)">
+      <g mask={"url(##{@mask_id})"}>
         <path d="M11 149.75H281" />
         <path d="M11 98H281" />
         <path d="M11 46.25H281" />
@@ -546,7 +555,7 @@ defmodule TuistWeb.ProjectsLive do
       </g>
       <defs>
         <radialGradient
-          id="paint0_radial_1989_22018"
+          id={@radial_gradient_id}
           cx="0"
           cy="0"
           r="1"

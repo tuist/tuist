@@ -4,6 +4,8 @@ defmodule Tuist.SentryEventFilter do
   This module is used to exclude expected errors that are not actionable.
   """
 
+  alias Tuist.Telemetry.QueryErrorContext
+
   @additional_ignored_exceptions [
     TuistWeb.Errors.BadRequestError,
     TuistWeb.Errors.NotFoundError,
@@ -24,6 +26,8 @@ defmodule Tuist.SentryEventFilter do
   end
 
   def before_send(event) do
-    TuistCommon.SentryEventFilter.before_send(event, @additional_ignored_exceptions)
+    event
+    |> QueryErrorContext.enrich_event()
+    |> TuistCommon.SentryEventFilter.before_send(@additional_ignored_exceptions)
   end
 end

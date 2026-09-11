@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -42,6 +43,25 @@ const (
 	// accounting without inspecting mutable cluster state.
 	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
 
+	// ReservationTaintKey is the taint the controller puts on a node it
+	// is draining to make room for a pool whose Pods no node can seat
+	// right now. Its value is the pool the node is being held for, and
+	// every runner Pod tolerates that key at its OWN pool's value — so a
+	// reserved node stops admitting everyone else's Pods while the seat
+	// it is clearing accumulates, and admits the reserved pool's Pod the
+	// moment it fits.
+	//
+	// NoSchedule, never NoExecute: the Pods already on the node are
+	// running customer jobs and must finish. The controller retires the
+	// IDLE ones itself, which is the only eviction a reservation does.
+	//
+	// A dedicated taint rather than a cordon. Cordoning would make the
+	// node indistinguishable from one Cluster API is replacing, and
+	// `reapIdlePodsOnCordonedNodes` would then retire the reserved pool's
+	// own Pod the moment it landed and was still warm-polling — the
+	// reservation would eat its own result.
+	ReservationTaintKey = "tuist.dev/reserved-for"
+
 	// jitMountPath is where the JIT-handoff emptyDir is mounted in
 	// both the poller (rw) and runner (ro) containers. Deliberately
 	// not under /var/run — the dind sidecar owns that mount in the
@@ -50,12 +70,34 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
-	// shellSocketPath is shared through the work volume. The trusted
-	// shell sidecar owns server authentication, but the PTY child is
-	// spawned by a tiny socket server inside the runner container so
-	// the terminal sees the same filesystem, environment, and Docker
-	// socket as the running job.
-	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
+	// workPath is the runner's work directory. It must match the
+	// `work_folder` the server mints into the JIT config (`mint_jit`
+	// in `Tuist.Runners`, `/home/runner/work` on Linux to mirror
+	// GitHub-hosted's layout), NOT the runner's own default
+	// of `<runner root>/_work`: the runner honors the JIT's absolute
+	// path and never touches the default. Mounting the shared volume
+	// anywhere else leaves the real work directory container-local,
+	// which is invisible to dockerd in the dind sidecar and breaks
+	// every `jobs.<id>.container` job.
+	workPath = "/home/runner/work"
+	// shellSocketPath sits on its own volume rather than under
+	// workPath: the runner bind-mounts the whole work directory into
+	// a job container as /__w, and the socket is the runner
+	// container's PTY entry point — it has no business inside the
+	// tree a workflow reads and writes.
+	shellSocketMountPath = "/var/lib/tuist-runner-shell"
+	shellSocketPath      = shellSocketMountPath + "/shell.sock"
+	// externalsPath is the runner's `externals` directory — the node
+	// runtimes the runner bind-mounts into a job container as /__e.
+	// dockerd resolves that mount in the dind sidecar's namespace, so
+	// the directory has to exist there under the same path. Unlike
+	// the work directory this one is fixed by the runner image
+	// layout, not by the JIT.
+	externalsPath = "/home/runner/actions-runner/externals"
+	// externalsStagePath is where the staging container mounts the
+	// shared externals volume. Deliberately not externalsPath, which
+	// would shadow the source being copied.
+	externalsStagePath = "/mnt/dind-externals"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -234,12 +276,16 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		runnerEnv = []corev1.EnvVar{
 			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		}
-		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		volumes = append(volumes,
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "shell-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
 		runnerMounts = []corev1.VolumeMount{
 			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			{Name: "work", MountPath: workPath},
+			{Name: "shell-sock", MountPath: shellSocketMountPath},
 		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
@@ -261,6 +307,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				// Staging area for the runner image's externals
+				// directory, filled by the dind-externals init
+				// container below and mounted into the sidecar at
+				// the runner's own path.
+				corev1.Volume{Name: "dind-externals", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -285,6 +336,39 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
+			// A job that declares `jobs.<id>.container` (or a
+			// container action) doesn't run in the runner container:
+			// the runner asks dockerd to create a container and
+			// bind-mounts its own directories into it — the work
+			// directory as /__w, then _temp, _actions and _tool
+			// under it, _temp/_github_home as /github/home,
+			// _temp/_github_workflow as /github/workflow, and
+			// `externals` (the node runtimes every JS action runs
+			// under) as /__e. Docker resolves those source paths in
+			// the sidecar's mount namespace, not the runner's, and
+			// silently creates an empty directory for any that are
+			// missing there.
+			//
+			// Everything but externals hangs off the work directory,
+			// which the `work` volume shares with the sidecar at
+			// workPath. externals ships in the runner image alone, so
+			// stage it into a volume both sides mount, the way ARC's
+			// dind mode does (init-dind-externals). Runs before the
+			// sidecar so the copy is in place by the time dockerd can
+			// serve a container, and fails the Pod early if the image
+			// ever stops shipping externals.
+			initContainers = append(initContainers, corev1.Container{
+				Name:    "dind-externals",
+				Image:   pool.Spec.Image,
+				Command: []string{"sh", "-c"},
+				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "dind-externals", MountPath: externalsStagePath},
+				},
+				// Root only to write the root-owned emptyDir; it runs
+				// our copy, never customer code.
+				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+			})
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -342,7 +426,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				VolumeMounts: []corev1.VolumeMount{
 					{Name: "dind-sock", MountPath: "/var/run"},
-					{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+					{Name: "work", MountPath: workPath},
+					{Name: "dind-externals", MountPath: externalsPath},
 					{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
 				},
 			})
@@ -386,7 +471,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
 			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
-			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
 		)
 		initContainers = append(initContainers, corev1.Container{
 			Name:    "shell",
@@ -400,7 +485,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
 				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
-				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+				// Only the socket, not the work volume: the PTY runs
+				// in the runner container, so this sidecar needs to
+				// reach the socket and nothing else.
+				{Name: "shell-sock", MountPath: shellSocketMountPath},
 			},
 			// Root only for the trusted agent: it reads the root-only
 			// token and then drops PTY children to the runner user.
@@ -649,6 +737,7 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Value:    "bare-metal",
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	default:
 		return map[string]string{
@@ -661,6 +750,39 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoSchedule,
 				},
+				reservationToleration(pool),
 			}
 	}
 }
+
+// reservationToleration lets a pool's Pods land on a node reserved for
+// that same pool, and only that pool. Every runner Pod carries it, on
+// both platforms, so the reservation mechanism needs no per-pool opt-in
+// and an operator can reserve for any pool without a redeploy.
+//
+// Pods created before this toleration existed keep scheduling normally;
+// they simply cannot use a reservation, and the reservation releases on
+// its timeout if one is held for such a Pod.
+func reservationToleration(pool *tuistv1.RunnerPool) corev1.Toleration {
+	return corev1.Toleration{
+		Key:      ReservationTaintKey,
+		Operator: corev1.TolerationOpEqual,
+		Value:    ReservationValue(pool.Name),
+		Effect:   corev1.TaintEffectNoSchedule,
+	}
+}
+
+// ReservationValue is the taint/toleration value identifying a pool.
+// Pool names are readable and almost always short enough to use as-is,
+// which keeps `kubectl describe node` self-explanatory; a name too long
+// to be a valid label value falls back to a digest so the mechanism
+// still works rather than producing a node the apiserver rejects.
+func ReservationValue(poolName string) string {
+	if len(poolName) <= 63 && labelValue.MatchString(poolName) {
+		return poolName
+	}
+	sum := sha256.Sum256([]byte(poolName))
+	return fmt.Sprintf("pool-%x", sum[:8])
+}
+
+var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)

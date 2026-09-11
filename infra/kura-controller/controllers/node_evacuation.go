@@ -33,6 +33,12 @@ const (
 	// volume. Promoting on readiness alone is what turns a warm move into a cold
 	// one.
 	backfillCycleComplete = "complete"
+
+	// backfillCycleDegraded is the runtime's "budget exhausted through real
+	// failures" mode. It is explicitly non-terminal — retries advance it to
+	// complete — so the rollout gate treats it as a soak reset rather than a
+	// hard stop.
+	backfillCycleDegraded = "degraded"
 )
 
 // evacuateMarkedNodes moves this instance's pods off nodes marked for
@@ -122,7 +128,10 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		return nil
 	}
 
-	primary, err := r.selectPrimaryPod(ctx, instance)
+	// Evacuation is a separate pass from the reconcile loop, so it takes its
+	// own sample of the pods it already listed rather than reusing the one the
+	// loop shares with the rollout-health aggregate.
+	primary, _, err := r.selectPrimaryPod(ctx, instance, pods.Items, r.sampleRuntimeStatuses(ctx, instance, pods.Items))
 	if err != nil {
 		return err
 	}
@@ -154,6 +163,19 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 			"instance", instance.Name, "pod", next.Name)
 		return nil
 	}
+	// The same handover, for the other plane. The public peer Service is a
+	// second pin, on a different pod by design — the gateway is the complement
+	// of the primary — so a pod released by the client Service can still be the
+	// one carrying the region's cross-region replication.
+	released, err := r.peerPlaneReleased(ctx, instance, next.Name)
+	if err != nil {
+		return err
+	}
+	if !released {
+		logger.Info("holding evacuation until the gateway role moves off this pod",
+			"instance", instance.Name, "pod", next.Name)
+		return nil
+	}
 
 	if err := r.releaseNodeLocalVolume(ctx, next); err != nil {
 		return err
@@ -172,9 +194,49 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 // served, so an instance whose endpoint cannot be read holds rather than
 // proceeds.
 func (r *KuraInstanceReconciler) servedByAnotherPod(ctx context.Context, instance *kurav1alpha1.KuraInstance, excluding string) (bool, error) {
-	endpoints := &corev1.Endpoints{}
-	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: instance.Name}, endpoints); {
+	return r.endpointServedByAnotherPod(ctx, instance.Namespace, instance.Name, excluding)
+}
+
+// peerPlaneReleased reports whether the region's public peer plane has let go
+// of the named pod: the Service no longer selects it, and some other pod is a
+// ready endpoint behind it.
+//
+// The client Service gets this treatment already; the peer Service needs its
+// own because it names a different pod. Gateway eligibility demotes evacuating
+// pods in the same pass, so in the ordinary case the selector has already moved
+// by the time this runs and only the endpoint has to catch up — the same
+// selector-is-a-write, endpoint-is-a-fact distinction servedByAnotherPod rests
+// on. Deleting the pod the peer Service still names would cut the region's
+// cross-region replication until the next reconcile repinned it
+// (kura/docs/replication-design.md §7, INV-5).
+//
+// A region with no public peer plane has no pin to wait on.
+func (r *KuraInstanceReconciler) peerPlaneReleased(ctx context.Context, instance *kurav1alpha1.KuraInstance, excluding string) (bool, error) {
+	name := instancePublicPeerServiceName(instance)
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, client.ObjectKey{Namespace: instance.Namespace, Name: name}, service); {
 	case apierrors.IsNotFound(err):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	if service.Spec.Selector[podNameLabel] == excluding {
+		return false, nil
+	}
+	return r.endpointServedByAnotherPod(ctx, instance.Namespace, name, excluding)
+}
+
+func (r *KuraInstanceReconciler) endpointServedByAnotherPod(ctx context.Context, namespace, name, excluding string) (bool, error) {
+	endpoints := &corev1.Endpoints{}
+	switch err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, endpoints); {
+	case apierrors.IsNotFound(err):
+		return false, nil
+	case apierrors.IsForbidden(err):
+		// A controller image can briefly overlap an older chart during an
+		// upgrade or rollback. Missing read permission must hold evacuation,
+		// not fail every instance reconcile before the chart catches up.
+		log.FromContext(ctx).Error(err, "holding pod handover because Endpoints cannot be read",
+			"reason", "endpoints_forbidden", "service", name, "namespace", namespace)
 		return false, nil
 	case err != nil:
 		return false, err

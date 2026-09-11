@@ -36,6 +36,18 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
+WORKDIR /src
+COPY gitlab-runner/go.mod gitlab-runner/go.sum ./
+RUN go mod download
+COPY gitlab-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
+
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
 # workflow steps bring their own JDK via mise, so the runner image
@@ -320,6 +332,48 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
+
+# The Buildkite agent lives alongside the GitHub one rather than in a
+# second image. Which of the two runs is a per-job decision the server
+# makes at dispatch, so a Pod has to be able to serve either; forking the
+# image would split the warm pool to save one binary.
+#
+# Pinned for the same reason RUNNER_VERSION is: the version that ran a
+# job should be the version we baked. The agent has no self-update, so
+# pinning here is the whole mechanism. Renovate bumps it the same way.
+# renovate: datasource=github-releases depName=buildkite/agent
+ARG BUILDKITE_AGENT_VERSION=3.138.0
+# From the release's own `buildkite-agent-<version>.SHA256SUMS`. A version
+# bump has to carry these with it: the download is verified against them
+# before anything is extracted, so a stale pair fails the build rather
+# than installing an unchecked binary.
+ARG BUILDKITE_AGENT_SHA256_AMD64=90017b67de70675c4330ae18b55c21397247fb157831549f0896dffa4ce04b7f
+ARG BUILDKITE_AGENT_SHA256_ARM64=1d8445221b67f20e04b962a7a00855023f32423662e1ab3be88c564d4af87c87
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) bk_arch=amd64; bk_sha="${BUILDKITE_AGENT_SHA256_AMD64}" ;; \
+      arm64) bk_arch=arm64; bk_sha="${BUILDKITE_AGENT_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl -fSL "https://github.com/buildkite/agent/releases/download/v${BUILDKITE_AGENT_VERSION}/buildkite-agent-linux-${bk_arch}-${BUILDKITE_AGENT_VERSION}.tar.gz" \
+        -o /tmp/buildkite-agent.tar.gz; \
+    echo "${bk_sha}  /tmp/buildkite-agent.tar.gz" | sha256sum -c -; \
+    mkdir -p /tmp/buildkite-agent-dist; \
+    tar xzf /tmp/buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist; \
+    install -m 0755 /tmp/buildkite-agent-dist/buildkite-agent /usr/local/bin/buildkite-agent; \
+    rm -rf /tmp/buildkite-agent.tar.gz /tmp/buildkite-agent-dist; \
+    buildkite-agent --version
+
+# Global agent hooks (`--hooks-path`), so they run for every job
+# regardless of what the customer's repository defines. `environment`
+# re-exports the cache settings the server sent; `pre-exit` posts the
+# job's log and window back, authenticating with the job-scoped report
+# token the poller staged — never the SA token, which this container
+# does not hold.
+COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
+COPY buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
+RUN chmod +x /usr/local/share/tuist/buildkite-hooks/*
+
 # dispatch-poll.sh runs in the `poller` init container (holds the SA
 # token, stages the JIT); run-job.sh runs in the `runner` main
 # container (no token, runs the staged JIT). The controller's
@@ -335,7 +389,11 @@ COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/ru
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
 RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
+# Ubuntu's logout script clears a console that GitLab's login shell does not have.
+RUN rm -f /home/runner/.bash_logout
+
 USER runner
+RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
 # Default CMD is the poll loop, used by the poller init container.
 # The runner main container overrides this with run-job.sh via the

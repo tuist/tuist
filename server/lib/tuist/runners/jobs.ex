@@ -49,6 +49,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
@@ -128,7 +129,28 @@ defmodule Tuist.Runners.Jobs do
     |> Map.new()
   end
 
-  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+  def projects_for_runner_job(account, job, buildkite_job \\ nil)
+
+  # Buildkite never tells us the repository: its scheduled-jobs payload
+  # carries the pipeline, build and step and nothing else, and
+  # `repository` on the job row therefore holds a pipeline slug. The
+  # account's projects are the candidates instead, and `ci_project_handle`
+  # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %GitLabJob{}) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(%{id: account_id}, _job, %{organization_slug: _} = _buildkite_job) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}, nil) when is_binary(repository) do
     projects =
       repository
       |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
@@ -140,34 +162,58 @@ defmodule Tuist.Runners.Jobs do
     end
   end
 
-  def projects_for_runner_job(_, _), do: {:error, :not_found}
+  def projects_for_runner_job(_, _, _), do: {:error, :not_found}
 
-  def list_runner_build_runs(projects, workflow_run_id) do
+  def list_runner_build_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     BuildRun
     |> where([build], build.project_id in ^project_ids)
-    |> where([build], build.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([build], build.ci_run_id == ^workflow_run_id)
     |> order_by([build], desc: build.inserted_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
   end
 
-  def list_runner_test_runs(projects, workflow_run_id) do
+  def list_runner_test_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     TestRun
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
-    |> where([test], test.ci_provider == "github")
+    |> ci_scope(buildkite_job)
     |> where([test], test.ci_run_id == ^workflow_run_id)
     |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
     |> ClickHouseRepo.all()
     |> latest_runner_runs_by_id()
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  # The CLI reports the project path and instance host separately. Older
+  # uploads omit the host, so retain those matches without accepting a known
+  # different instance.
+  defp ci_scope(query, %GitLabJob{url: url, project_path: path}) do
+    host = URI.parse(url).host
+
+    where(
+      query,
+      [run],
+      run.ci_provider == "gitlab" and run.ci_project_handle == ^path and
+        run.ci_host in ["", ^host]
+    )
+  end
+
+  defp ci_scope(query, nil), do: where(query, [run], run.ci_provider == "github")
+
+  # A Buildkite build number is unique only within its pipeline, so the
+  # pipeline handle is part of the match; without it two pipelines in the
+  # same account would cross-link at the same build number.
+  defp ci_scope(query, %{organization_slug: org, pipeline_slug: pipeline}) do
+    handle = "#{org}/#{pipeline}"
+    where(query, [run], run.ci_provider == "buildkite" and run.ci_project_handle == ^handle)
   end
 
   def command_events_for_runs([], _kind), do: []
@@ -730,6 +776,9 @@ defmodule Tuist.Runners.Jobs do
       workflow_job_id: j.workflow_job_id,
       account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+      vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+      memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
       repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -743,8 +792,10 @@ defmodule Tuist.Runners.Jobs do
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+      log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
       pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
       runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
       updated_at: max(j.updated_at)
     })
   end
@@ -866,6 +917,25 @@ defmodule Tuist.Runners.Jobs do
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
     WorkflowJobs.queued_count_by_fleet(fleet_name, queued_lookback_floor())
+  end
+
+  @doc """
+  Queue depth and oldest-arrival per fleet, for the queue gauges.
+
+  Served from the Postgres lifecycle table — the same rows
+  `pick_queued_top_k/5` selects from and under the same
+  `@queued_lookback_seconds` floor, so the gauge and dispatch can never
+  disagree about what is queued. They used to: the gauge scanned the
+  ClickHouse `runner_jobs` replica, which since #12031 is fed only by
+  the transition outbox and therefore holds `queued` for any job whose
+  terminal transition never replayed. Those rows are unreachable to
+  dispatch and never age out on their own, so the tile read a backlog
+  that no Pod could ever drain.
+
+  Returns `%{fleet_name => %{count: n, oldest_enqueued_at: dt}}`.
+  """
+  def queue_stats_by_fleet do
+    WorkflowJobs.queue_stats_by_fleet(queued_lookback_floor())
   end
 
   @doc """

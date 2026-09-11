@@ -116,6 +116,31 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   Pod for one more reconcile cycle (the Pool reconciler will
   eventually reap it once the runner exits) over killing a live
   build.
+
+  ## Finished-job override
+
+  Both shields assume the runner eventually exits and the Pod
+  reaches a terminal phase, which is what closes the session and
+  hands the Pod to the Pool reconciler. On 2026-09-02 that
+  assumption broke: runner processes died mid-job (ENOSPC inside
+  the microVM) without the `runner` container ever terminating, so
+  `started=true` stayed set, the controller never reported
+  `pods/stopped`, the session stayed open, and nine Pods sat
+  Running for five hours holding their slots and their
+  writable-layer snapshots. Nothing in the system had an exit for
+  a Running Pod whose runner was dead.
+
+  The one fact that survives that failure is GitHub's: it marked
+  each job `completed` within seconds, and the `workflow_job`
+  webhook recorded it. A Pod runs exactly one job, so a session
+  whose job has been terminal for longer than `@finished_seconds`
+  is not executing anything, whatever its container reports. Such
+  a Pod loses the session and container-started shields and is
+  reaped. It keeps the claim shield: a live claim on a finished
+  job is a database inconsistency for the claim sweeps to resolve,
+  and over-reaping is the worse error. The window is wide enough
+  that a runner finishing normally is long reaped by the Pool
+  reconciler before this ever looks at it.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -125,11 +150,18 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
 
   require Logger
 
   @owner_label "tuist.dev/runner-pool-owner"
   @grace_seconds 300
+  # How long a session's job must have been terminal on GitHub before
+  # the Pod is treated as finished regardless of its container state.
+  # A runner that finishes normally exits within seconds and is reaped
+  # by the Pool reconciler within a minute; this leaves an order of
+  # magnitude for a slow teardown before a Pod is judged dead.
+  @finished_seconds 900
 
   @impl Oban.Worker
   def perform(_job) do
@@ -149,43 +181,89 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   end
 
   defp reap_orphans(namespace, pods) do
+    now = DateTime.utc_now()
+    cutoff = DateTime.add(now, -@grace_seconds, :second)
+
+    # Pods whose session's job GitHub has already closed. These are done
+    # whatever their containers say, so they get neither the session nor
+    # the container-started shield below.
+    finished = finished_pod_names(now, cutoff)
+
     # Two independent "this Pod is in flight" signals, unioned. Claims
     # cover the normal busy state; sessions cover the gap where the
     # claim was released after dispatch committed but before the Pod
     # actually stopped (the silent-delete class this worker has been
     # observed to produce on a `Claims.release` race). Pods is read
     # *before* both sets — same race-safety argument as `live`.
-    live = MapSet.union(Claims.live_pod_names(), RunnerSessions.live_pod_names())
-    cutoff = DateTime.add(DateTime.utc_now(), -@grace_seconds, :second)
+    live =
+      MapSet.union(
+        Claims.live_pod_names(),
+        MapSet.difference(RunnerSessions.live_pod_names(), finished)
+      )
 
-    reaped =
+    {finished_reaped, wedged_reaped} =
       pods
-      |> Enum.filter(&orphaned?(&1, live, cutoff))
-      |> Enum.count(&reap(namespace, &1))
+      |> Enum.filter(&(orphaned?(&1, live, finished, cutoff) and reap(namespace, &1)))
+      |> Enum.split_with(&MapSet.member?(finished, get_in(&1, ["metadata", "name"])))
 
-    if reaped > 0 do
-      Logger.warning("runners: reaped orphaned stamped pods",
-        count: reaped,
-        grace_seconds: @grace_seconds
-      )
+    record_reaped(length(wedged_reaped), "orphaned_stamped_pod", "runners: reaped orphaned stamped pods")
 
-      :telemetry.execute(
-        Telemetry.event_name_recovery(),
-        %{count: reaped},
-        %{kind: "orphaned_stamped_pod"}
-      )
-    end
+    record_reaped(
+      length(finished_reaped),
+      "finished_job_pod",
+      "runners: reaped stamped pods whose job GitHub already completed"
+    )
 
     :ok
   end
 
-  defp orphaned?(pod, live, cutoff) do
+  defp record_reaped(0, _kind, _message), do: :ok
+
+  defp record_reaped(count, kind, message) do
+    Logger.warning(message, count: count, grace_seconds: @grace_seconds)
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: count},
+      %{kind: kind}
+    )
+  end
+
+  # Open sessions whose job reached a terminal status on GitHub more
+  # than @finished_seconds ago. The job that actually ran outranks the
+  # one the claim was minted for: GitHub hands a queued job to any
+  # eligible runner, so the two can differ, and `executed_workflow_job_id`
+  # is nil when GitHub never told us (a job that failed before its
+  # in_progress webhook, as on a wedged box).
+  defp finished_pod_names(now, session_threshold) do
+    sessions = RunnerSessions.list_open_for_pod_reconciliation(session_threshold)
+
+    completions =
+      sessions
+      |> Enum.flat_map(&[&1.executed_workflow_job_id, &1.workflow_job_id])
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> WorkflowJobs.terminal_completions()
+
+    finished_before = DateTime.add(now, -@finished_seconds, :second)
+
+    sessions
+    |> Enum.filter(fn session ->
+      case Map.get(completions, session.executed_workflow_job_id) || Map.get(completions, session.workflow_job_id) do
+        nil -> false
+        completed_at -> DateTime.before?(completed_at, finished_before)
+      end
+    end)
+    |> MapSet.new(& &1.pod_name)
+  end
+
+  defp orphaned?(pod, live, finished, cutoff) do
     name = get_in(pod, ["metadata", "name"])
 
     is_binary(name) and
       not MapSet.member?(live, name) and
       created_before?(pod, cutoff) and
-      not linux_runner_executing?(pod)
+      (MapSet.member?(finished, name) or not linux_runner_executing?(pod))
   end
 
   # True if the Pod is a Linux split-container runner whose `runner`

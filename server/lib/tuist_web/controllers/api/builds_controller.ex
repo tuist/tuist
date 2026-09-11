@@ -6,6 +6,7 @@ defmodule TuistWeb.API.BuildsController do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.Storage
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
@@ -14,6 +15,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -184,7 +186,8 @@ defmodule TuistWeb.API.BuildsController do
            },
            required: [:builds, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -298,6 +301,22 @@ defmodule TuistWeb.API.BuildsController do
              cacheable_tasks_count: %Schema{type: :integer, description: "Total cacheable tasks."},
              cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
              cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
+             cas_output_download_count: %Schema{
+               type: :integer,
+               description: "Number of content-addressable storage outputs downloaded by the build."
+             },
+             cas_output_upload_count: %Schema{
+               type: :integer,
+               description: "Number of content-addressable storage outputs uploaded by the build."
+             },
+             cas_output_download_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of content-addressable storage outputs downloaded by the build."
+             },
+             cas_output_upload_bytes: %Schema{
+               type: :integer,
+               description: "Bytes of content-addressable storage outputs uploaded by the build."
+             },
              inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
              url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
              custom_metadata: %Schema{
@@ -317,12 +336,17 @@ defmodule TuistWeb.API.BuildsController do
              :cacheable_tasks_count,
              :cacheable_task_local_hits_count,
              :cacheable_task_remote_hits_count,
+             :cas_output_download_count,
+             :cas_output_upload_count,
+             :cas_output_download_bytes,
+             :cas_output_upload_bytes,
              :inserted_at,
              :url
            ]
          }},
       not_found: {"Build not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -335,6 +359,8 @@ defmodule TuistWeb.API.BuildsController do
 
       {:ok, build} ->
         if build.project_id == selected_project.id do
+          cas_output_metrics = Builds.cas_output_metrics(build.id)
+
           json(conn, %{
             id: build.id,
             duration: build.duration,
@@ -352,6 +378,10 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_tasks_count: build.cacheable_tasks_count,
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
+            cas_output_download_count: cas_output_metrics.download_count,
+            cas_output_upload_count: cas_output_metrics.upload_count,
+            cas_output_download_bytes: cas_output_metrics.download_bytes,
+            cas_output_upload_bytes: cas_output_metrics.upload_bytes,
             inserted_at: build.inserted_at,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
             custom_metadata: %{
@@ -844,6 +874,7 @@ defmodule TuistWeb.API.BuildsController do
       },
       unauthorized: {"You need to be authenticated to create a build", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
@@ -1025,6 +1056,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The multipart upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -1035,9 +1067,13 @@ defmodule TuistWeb.API.BuildsController do
       ) do
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    multipart_upload_id = Storage.multipart_start(object_key, selected_project.account)
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, multipart_upload_id} ->
+        json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
 
-    json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 
   operation(:multipart_generate_url,
@@ -1079,6 +1115,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -1148,6 +1185,7 @@ defmodule TuistWeb.API.BuildsController do
       ok: {"The upload has been completed", "application/json", ArtifactMultipartUploadCompletion},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -1164,16 +1202,19 @@ defmodule TuistWeb.API.BuildsController do
       ) do
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    :ok =
-      Storage.multipart_complete_upload(
-        object_key,
-        multipart_upload_id,
-        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end),
-        selected_project.account
-      )
+    case Storage.multipart_complete_upload(
+           object_key,
+           multipart_upload_id,
+           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end),
+           selected_project.account
+         ) do
+      :ok ->
+        json(conn, %{status: "success", data: %{}})
 
-    json(conn, %{status: "success", data: %{}})
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
   end
 end

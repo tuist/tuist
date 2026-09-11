@@ -15,6 +15,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Runs.SelectiveTestingTab
 
   alias Noora.Filter
+  alias Tuist.Bazel
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
@@ -23,6 +24,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -62,14 +64,6 @@ defmodule TuistWeb.TestRunLive do
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
-    # A run that was processed across multiple retries (e.g. before a fix) can
-    # carry duplicate identical destination rows, since create_run_destinations
-    # inserts a fresh row per attempt. Collapse them to distinct devices.
-    run = %{
-      run
-      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
-    }
-
     ci_run_url = Tests.test_ci_run_url(run)
     ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
     run = Map.put(run, :project, project)
@@ -88,27 +82,37 @@ defmodule TuistWeb.TestRunLive do
         fn -> Tests.get_test_run_failures_count(run.id) end
       ])
 
+    binary_cache_event = binary_cache_command_event(run, command_event)
+
     socket =
       socket
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:binary_cache_command_event, binary_cache_event)
       |> assign(:ci_run_url, ci_run_url)
       |> assign(:ci_context, ci_context)
-      |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
+      |> assign(
+        :module_cache_metrics,
+        binary_cache_event && CommandEvents.module_cache_output_metrics(binary_cache_event.id)
+      )
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
+      |> assign_stress_gate(run)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
+      |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
       |> assign_initial_flaky_runs_state()
+      |> assign(:bazel_invocation_logs, [])
+      |> assign(:bazel_invocation_logs_meta, %{current_page: 1, total_pages: 1})
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
-      |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
+      |> assign(:has_binary_cache_data, not is_nil(binary_cache_event))
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}
@@ -124,6 +128,71 @@ defmodule TuistWeb.TestRunLive do
 
     {:ok, socket}
   end
+
+  # Read the original build's lookups without attributing them to this test command.
+  defp binary_cache_command_event(run, command_event) do
+    if command_event && Xcode.has_binary_cache_data?(command_event) do
+      command_event
+    else
+      with build_run_id when not is_nil(build_run_id) <- run.build_run_id,
+           {:ok, event} <- CommandEvents.get_command_event_by_build_run_id(build_run_id, project_id: run.project_id),
+           true <- Xcode.has_binary_cache_data?(event) do
+        event
+      else
+        _ -> nil
+      end
+    end
+  end
+
+  # The gate's verdict rides the badge on each stressed test case. Its findings need
+  # no surface of their own: a test case whose reruns disagreed is flaky, and those
+  # reruns are repetitions of its test case run, so it appears with the run's flaky
+  # tests through the same path as any other.
+  defp assign_stress_gate(socket, %{stress_mode: ""}) do
+    assign(socket, :stress_candidates_by_identity, %{})
+  end
+
+  defp assign_stress_gate(socket, run) do
+    assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
+  end
+
+  @doc false
+  def stress_candidate_for(candidates_by_identity, test_case_run) do
+    Map.get(
+      candidates_by_identity,
+      {test_case_run.module_name, test_case_run.suite_name || "", test_case_run.name}
+    )
+  end
+
+  @doc false
+  def stress_badge_label(%{outcome: "disagreed"} = candidate) do
+    dgettext("dashboard_tests", "%{failed} of %{total} repetitions failed",
+      failed: candidate.failed_repetitions,
+      total: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "passed"} = candidate) do
+    dngettext(
+      "dashboard_tests",
+      "%{count} repetition",
+      "%{count} repetitions",
+      candidate.repetitions,
+      count: candidate.repetitions
+    )
+  end
+
+  def stress_badge_label(%{outcome: "excluded_too_slow"}), do: dgettext("dashboard_tests", "Too slow to stress")
+
+  def stress_badge_label(%{outcome: "excluded_candidate_cap"}),
+    do: dgettext("dashboard_tests", "Beyond the candidate cap")
+
+  def stress_badge_label(_), do: dgettext("dashboard_tests", "Not stressed")
+
+  @doc false
+  def stress_badge_color(%{outcome: "disagreed", is_quarantined: false}), do: "attention"
+  def stress_badge_color(%{outcome: "passed"}), do: "neutral"
+  def stress_badge_color(_), do: "neutral"
 
   # The `Download result` button and its route are keyed on the id under which
   # the bundle was stored: the command_event id for CLI `tuist test` runs, and
@@ -196,7 +265,7 @@ defmodule TuistWeb.TestRunLive do
     params = Query.query_params(uri)
     uri = build_uri(params)
     selected_tab = selected_tab(params)
-    selected_test_tab = params["test-tab"] || "test-cases"
+    selected_test_tab = selected_test_tab(params, socket.assigns.show_test_suites)
 
     {available_filters, active_filters} =
       case {selected_tab, selected_test_tab} do
@@ -478,7 +547,7 @@ defmodule TuistWeb.TestRunLive do
         Map.put(params, "selective-testing-page", "1")
 
       true ->
-        test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
+        test_tab = selected_test_tab(URI.decode_query(socket.assigns.uri.query), socket.assigns.show_test_suites)
 
         page_param =
           case test_tab do
@@ -502,8 +571,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "module-cache", params) do
-    if socket.assigns.command_event do
-      {analytics, meta} = load_binary_cache_data(socket.assigns.command_event, params)
+    if socket.assigns.binary_cache_command_event do
+      {analytics, meta} = load_binary_cache_data(socket.assigns.binary_cache_command_event, params)
       assign_binary_cache_data(socket, analytics, meta, params)
     else
       socket |> assign_binary_cache_defaults() |> assign_param_defaults(params)
@@ -511,7 +580,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "overview", params) do
-    selected_test_tab = params["test-tab"] || "test-cases"
+    selected_test_tab = selected_test_tab(params, socket.assigns.show_test_suites)
     run = socket.assigns.run
 
     [{failed_test_case_runs, failures_meta}, flaky_runs_grouped, {tab_type, {tab_data, tab_meta}}] =
@@ -549,11 +618,52 @@ defmodule TuistWeb.TestRunLive do
     assign_flaky_runs_data(socket, flaky_runs, meta, params)
   end
 
+  defp assign_tab_data(
+         %{assigns: %{run: %{build_system: "bazel", bazel_invocation_id: invocation_id}}} = socket,
+         "logs",
+         params
+       )
+       when invocation_id not in [nil, ""] do
+    page = Query.positive_integer(params["logs-page"])
+
+    {logs, meta} =
+      case Bazel.get_invocation(socket.assigns.selected_project.id, invocation_id, include_cache_summary: false) do
+        {:ok, invocation} ->
+          Bazel.list_invocation_logs(
+            socket.assigns.selected_project.id,
+            invocation_id,
+            %{
+              order_by: [:sequence_number],
+              order_directions: [:asc],
+              page: page,
+              page_size: @table_page_size
+            },
+            Bazel.invocation_log_query_options(invocation)
+          )
+
+        {:error, :not_found} ->
+          {[], %{current_page: 1, total_pages: 0}}
+      end
+
+    socket
+    |> assign(:bazel_invocation_logs, Enum.map(logs, &bazel_log/1))
+    |> assign(:bazel_invocation_logs_meta, meta)
+  end
+
   defp assign_tab_data(socket, _tab, params) do
     socket
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)
+  end
+
+  defp bazel_log(log) do
+    %{
+      id: log.id,
+      type: log.stream,
+      message: log.message,
+      timestamp: Calendar.strftime(log.observed_at, "%H:%M:%S")
+    }
   end
 
   defp load_tab_data(selected_test_tab, run, params) do
@@ -565,6 +675,10 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
+  defp selected_test_tab(%{"test-tab" => "test-suites"}, true), do: "test-suites"
+  defp selected_test_tab(%{"test-tab" => "test-modules"}, _show_test_suites), do: "test-modules"
+  defp selected_test_tab(_params, _show_test_suites), do: "test-cases"
+
   defp assign_selective_testing_data(socket, analytics, meta, params) do
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.selective_testing_available_filters)
@@ -575,7 +689,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:selective_testing_page_count, meta.total_pages)
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_active_filters, filters)
-    |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
+    |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
   end
@@ -589,7 +703,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, filters)
-    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
   end
@@ -616,7 +730,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases, test_cases)
     |> assign(:test_cases_meta, meta)
     |> assign(:test_cases_filter, params["test-cases-filter"] || "")
-    |> assign(:test_cases_page, String.to_integer(params["test-cases-page"] || "1"))
+    |> assign(:test_cases_page, Query.bounded_page(params["test-cases-page"]))
     |> assign(:test_cases_sort_by, params["test-cases-sort-by"] || "name")
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
     |> assign(:test_cases_active_filters, filters)
@@ -630,7 +744,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_suites, test_suites)
     |> assign(:test_suites_meta, meta)
     |> assign(:test_suites_filter, params["test-suites-filter"] || "")
-    |> assign(:test_suites_page, String.to_integer(params["test-suites-page"] || "1"))
+    |> assign(:test_suites_page, Query.bounded_page(params["test-suites-page"]))
     |> assign(:test_suites_sort_by, params["test-suites-sort-by"] || "name")
     |> assign(:test_suites_sort_order, params["test-suites-sort-order"] || "asc")
     |> assign(:test_suites_active_filters, filters)
@@ -644,7 +758,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules, test_modules)
     |> assign(:test_modules_meta, meta)
     |> assign(:test_modules_filter, params["test-modules-filter"] || "")
-    |> assign(:test_modules_page, String.to_integer(params["test-modules-page"] || "1"))
+    |> assign(:test_modules_page, Query.bounded_page(params["test-modules-page"]))
     |> assign(:test_modules_sort_by, params["test-modules-sort-by"] || "name")
     |> assign(:test_modules_sort_order, params["test-modules-sort-order"] || "asc")
     |> assign(:test_modules_active_filters, filters)
@@ -661,16 +775,16 @@ defmodule TuistWeb.TestRunLive do
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_active_filters, selective_testing_filters)
-    |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
+    |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, binary_cache_filters)
-    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
     |> assign(:test_cases_filter, params["test-cases-filter"] || "")
-    |> assign(:test_cases_page, String.to_integer(params["test-cases-page"] || "1"))
+    |> assign(:test_cases_page, Query.bounded_page(params["test-cases-page"]))
     |> assign(:test_cases_sort_by, params["test-cases-sort-by"] || "name")
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
   end
@@ -684,7 +798,7 @@ defmodule TuistWeb.TestRunLive do
 
     flop_params = %{
       filters: text_filters ++ filter_flop_filters,
-      page: String.to_integer(params["selective-testing-page"] || "1"),
+      page: Query.bounded_page(params["selective-testing-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
       order_directions: [ensure_allowed_sort_order(params["selective-testing-sort-order"])]
@@ -706,7 +820,7 @@ defmodule TuistWeb.TestRunLive do
 
     flop_params = %{
       filters: text_filters ++ filter_flop_filters,
-      page: String.to_integer(params["binary-cache-page"] || "1"),
+      page: Query.bounded_page(params["binary-cache-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
       order_directions: [ensure_allowed_sort_order(params["binary-cache-sort-order"])]
@@ -735,13 +849,15 @@ defmodule TuistWeb.TestRunLive do
 
     flop_params = %{
       filters: test_cases_filters(run, params, available_filters, params["test-cases-filter"]),
-      page: String.to_integer(params["test-cases-page"] || "1"),
+      page: Query.bounded_page(params["test-cases-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_cases_sort_params(params["test-cases-sort-by"])],
       order_directions: [ensure_allowed_sort_order(params["test-cases-sort-order"])]
     }
 
-    Tests.list_test_case_runs(flop_params)
+    cached_run_query(run.id, :test_cases, flop_params, fn ->
+      Tests.list_test_case_runs(flop_params)
+    end)
   end
 
   defp load_test_suites_data(run, params, available_filters \\ nil) do
@@ -750,13 +866,15 @@ defmodule TuistWeb.TestRunLive do
 
     flop_params = %{
       filters: test_suites_filters(run, params, available_filters, params["test-suites-filter"]),
-      page: String.to_integer(params["test-suites-page"] || "1"),
+      page: Query.bounded_page(params["test-suites-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_suites_sort_params(params["test-suites-sort-by"])],
       order_directions: [ensure_allowed_sort_order(params["test-suites-sort-order"])]
     }
 
-    Tests.list_test_suite_runs(flop_params)
+    cached_run_query(run.id, :test_suites, flop_params, fn ->
+      Tests.list_test_suite_runs(flop_params)
+    end)
   end
 
   defp load_test_modules_data(run, params, available_filters \\ nil) do
@@ -767,13 +885,61 @@ defmodule TuistWeb.TestRunLive do
 
     flop_params = %{
       filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
-      page: String.to_integer(params["test-modules-page"] || "1"),
+      page: Query.bounded_page(params["test-modules-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_modules_sort_params(params["test-modules-sort-by"])],
       order_directions: [ensure_allowed_sort_order(params["test-modules-sort-order"])]
     }
 
-    Tests.list_test_module_runs(flop_params)
+    cached_run_query(run.id, :test_modules, flop_params, fn ->
+      Tests.list_test_module_runs(flop_params)
+    end)
+  end
+
+  # Wraps the ClickHouse-heavy Flop-driven queries the public test-run
+  # dashboard fires (a `SELECT ...` plus a `count(*)` per request) in a
+  # short-TTL cache. A scraper walking every `page × sort_by ×
+  # sort_order × filter` permutation of these paths otherwise pins the
+  # ClickHouse connection pool — see the residential-proxy incident
+  # captured in Hive issue 58c2dd00-c05e-5cee-91e7-d28ef9b16f08. The
+  # TTL is short because test-run data is effectively immutable once
+  # the run finishes; anonymous browsing can safely sit on a 30-second
+  # stale window in exchange for collapsing the scraper's Cartesian
+  # query storm into one query per unique aggregate.
+  #
+  # Cache key is a list (matches KeyValueStore.cache_key/1's list
+  # clause, which tuples do not) whose flop_params fragment is a
+  # SHA-256 of :erlang.term_to_binary(flop_params). Using
+  # :erlang.phash2 instead would give a 27-bit hash and start
+  # colliding across permutations at ~11k unique keys — well under
+  # what a busy scraper generates in a session — so two different
+  # sort/filter combos would share one cache slot and return each
+  # other's rows for the TTL.
+  #
+  # `locking: false` is deliberate: `KeyValueStore.get_or_update/3`
+  # defaults to `locking: true`, which runs the miss path inside
+  # `Cachex.transaction/3`. Cachex executes each transaction in the
+  # cache's single Locksmith GenServer, so every ClickHouse round-trip
+  # would occupy that one process for its full duration and queue
+  # every other caller of the `:tuist` cache behind it — including
+  # `authentication_plug`'s CLI-token lookup on the API hot path.
+  # Under the burst of unique keys this cache is designed for, that
+  # queue is where the pressure would land next. Skipping the lock
+  # gives up thundering-herd de-duplication, which the path did not
+  # have before caching was added anyway.
+  defp cached_run_query(run_id, tab, flop_params, func) do
+    cache_key = [
+      :test_run_flop,
+      run_id,
+      tab,
+      :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
+    ]
+
+    Tuist.KeyValueStore.get_or_update(
+      cache_key,
+      [ttl: to_timeout(second: 30), locking: false],
+      func
+    )
   end
 
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)
@@ -794,7 +960,7 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_sort_order(_value), do: :asc
 
   defp load_failures_data(run, params) do
-    page = String.to_integer(params["failures-page"] || "1")
+    page = Query.bounded_page(params["failures-page"])
     page_size = 30
 
     attrs = %{
@@ -823,12 +989,12 @@ defmodule TuistWeb.TestRunLive do
     socket
     |> assign(:failed_test_case_runs, failed_test_case_runs)
     |> assign(:failures_meta, meta)
-    |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+    |> assign(:failures_page, Query.bounded_page(params["failures-page"]))
     |> assign_text_attachment_urls(failed_test_case_runs)
   end
 
   defp load_flaky_runs_data(run, params) do
-    page = String.to_integer(params["flaky-runs-page"] || "1")
+    page = Query.bounded_page(params["flaky-runs-page"])
     page_size = 20
 
     all_flaky_runs = Tests.get_flaky_runs_for_test_run(run.id)
@@ -856,7 +1022,7 @@ defmodule TuistWeb.TestRunLive do
     socket
     |> assign(:flaky_runs_grouped, flaky_runs_grouped)
     |> assign(:flaky_runs_meta, meta)
-    |> assign(:flaky_runs_page, String.to_integer(params["flaky-runs-page"] || "1"))
+    |> assign(:flaky_runs_page, Query.bounded_page(params["flaky-runs-page"]))
   end
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do

@@ -18,6 +18,33 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  test "lets the preview page be embedded in an iframe on another site", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    preview: preview
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors *;"
+  end
+
+  test "keeps the previews list out of iframes on other sites", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors 'self';"
+  end
+
   test "renders none as a commit when git_commit_sha",
        %{
          conn: conn,

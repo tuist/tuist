@@ -10,6 +10,8 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Environment
   alias TuistWeb.Errors.UnauthorizedError
 
+  @role_names Accounts.organization_role_names()
+
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
     if Authorization.authorize(:organization_read, current_user, account) != :ok do
@@ -27,8 +29,8 @@ defmodule TuistWeb.MembersLive do
         selected_inner_tab: "members",
         search_query: "",
         managing_member: nil,
-        invitation_disclosure: nil
-        # invite_role: :user,
+        invitation_disclosure: nil,
+        invite_role: "user"
         # invite_emails: []
       )
       |> assign_organization()
@@ -59,6 +61,7 @@ defmodule TuistWeb.MembersLive do
             id="invite-member-form"
             form={@form}
             invitation_disclosure={@invitation_disclosure}
+            invite_role={@invite_role}
           />
         </div>
         <div id="members-tabs">
@@ -102,7 +105,7 @@ defmodule TuistWeb.MembersLive do
                   <.text_cell label={member.email} />
                 </:col>
                 <:col :let={[_member, role]} label={dgettext("dashboard_account", "Role")}>
-                  <.text_cell label={Macro.camelize(role)} />
+                  <.text_cell label={role_label(role)} />
                 </:col>
                 <:col :let={[member, role]}>
                   <.modal
@@ -121,20 +124,14 @@ defmodule TuistWeb.MembersLive do
                         id={"manage-role-trigger-#{member.id}"}
                         type="button"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <.line_divider />
                     <div data-part="change-role">
                       <label>{dgettext("dashboard_account", "Role")}</label>
                       <.dropdown
                         id={"role-dropdown-#{member.id}"}
-                        label={
-                          case get_selected_role(@managing_member, member.id, role) do
-                            "user" -> dgettext("dashboard_account", "User")
-                            "admin" -> dgettext("dashboard_account", "Admin")
-                          end
-                        }
+                        label={role_label(get_selected_role(@managing_member, member.id, role))}
                       >
                         <.dropdown_item
                           value="user"
@@ -156,6 +153,18 @@ defmodule TuistWeb.MembersLive do
                           phx-value-role="admin"
                           data-selected={
                             get_selected_role(@managing_member, member.id, role) == "admin"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                        <.dropdown_item
+                          value="viewer"
+                          label={dgettext("dashboard_account", "Viewer")}
+                          phx-click="select-member-role"
+                          phx-value-member_id={member.id}
+                          phx-value-role="viewer"
+                          data-selected={
+                            get_selected_role(@managing_member, member.id, role) == "viewer"
                           }
                         >
                           <:right_icon><.check /></:right_icon>
@@ -199,8 +208,7 @@ defmodule TuistWeb.MembersLive do
                         type="button"
                         style="display: none;"
                         {modal_attrs}
-                      >
-                      </button>
+                      ></button>
                     </:trigger>
                     <:header_icon>
                       <.trash />
@@ -289,6 +297,9 @@ defmodule TuistWeb.MembersLive do
                 <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
                   <.text_cell label={invitation.invitee_email} />
                 </:col>
+                <:col :let={invitation} label={dgettext("dashboard_account", "Role")}>
+                  <.text_cell label={role_label(invitation.role)} />
+                </:col>
                 <:col :let={invitation} label={dgettext("dashboard_account", "Status")}>
                   <% status_badge = invitation_status_badge(invitation) %>
                   <.status_badge_cell
@@ -350,6 +361,7 @@ defmodule TuistWeb.MembersLive do
                       id="invite-member-form-empty-state"
                       form={@form}
                       invitation_disclosure={@invitation_disclosure}
+                      invite_role={@invite_role}
                     />
                   </.table_empty_state>
                 </:empty_state>
@@ -362,7 +374,14 @@ defmodule TuistWeb.MembersLive do
     """
   end
 
+  attr :id, :string, required: true
+  attr :form, :any, required: true
+  attr :invitation_disclosure, :any, default: nil
+  attr :invite_role, :string, default: "user"
+
   defp invite_member_form(assigns) do
+    assigns = assign(assigns, :role_names, @role_names)
+
     ~H"""
     <.form id={@id} for={@form} phx-submit="invite-members">
       <.modal
@@ -421,6 +440,21 @@ defmodule TuistWeb.MembersLive do
                 label={dgettext("dashboard_account", "Email address")}
                 show_prefix={false}
               />
+              <div data-part="invite-role">
+                <label>{dgettext("dashboard_account", "Role")}</label>
+                <.dropdown id={"#{@id}-role"} label={role_label(@invite_role)}>
+                  <.dropdown_item
+                    :for={role <- @role_names}
+                    value={role}
+                    label={role_label(role)}
+                    phx-click="select-invite-role"
+                    phx-value-role={role}
+                    data-selected={@invite_role == role}
+                  >
+                    <:right_icon><.check /></:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
             <% end %>
           </div>
           <.line_divider />
@@ -621,8 +655,13 @@ defmodule TuistWeb.MembersLive do
   #   {:noreply, socket}
   # end
 
+  def handle_event("select-invite-role", %{"role" => role}, socket) when role in @role_names do
+    {:noreply, assign(socket, invite_role: role)}
+  end
+
   def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
     email = String.trim(email)
+    role = socket.assigns.invite_role
 
     # NOTE: Enable this when tag-input is used.
     # Accounts.invite_users_to_organization(socket.assigns.invite_emails, %{
@@ -644,7 +683,8 @@ defmodule TuistWeb.MembersLive do
                inviter: socket.assigns.current_user,
                to: socket.assigns.organization,
                url: &url(~p"/auth/invitations/#{&1}")
-             }
+             },
+             role: String.to_existing_atom(role)
            ),
          {:ok, organization} <-
            Accounts.get_organization_by_id(socket.assigns.organization.id,
@@ -656,6 +696,7 @@ defmodule TuistWeb.MembersLive do
           invitations: organization.invitations,
           all_invitations: organization.invitations,
           invite_emails: [],
+          invite_role: "user",
           form: to_form(%{}, as: :invitation),
           selected_inner_tab: "invitations",
           search_query: "",
@@ -671,7 +712,7 @@ defmodule TuistWeb.MembersLive do
       {:noreply, socket}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
-        socket = assign(socket, form: to_form(changeset))
+        socket = assign(socket, form: to_form(changeset), invite_role: role)
 
         {:noreply, socket}
 
@@ -729,6 +770,10 @@ defmodule TuistWeb.MembersLive do
       %{label: dgettext("dashboard_account", "Pending"), status: "attention"}
     end
   end
+
+  defp role_label("admin"), do: dgettext("dashboard_account", "Admin")
+  defp role_label("viewer"), do: dgettext("dashboard_account", "Viewer")
+  defp role_label(_role), do: dgettext("dashboard_account", "User")
 
   defp get_selected_role(managing_member, member_id, current_role) do
     case managing_member do

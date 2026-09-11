@@ -293,6 +293,50 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `build insight metadata can be configured`() {
+        settingsFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+
+                buildInsights {
+                    tag("nightly")
+                    value("team", "android")
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            tasks.register("printBuildMetadata") {
+                doLast {
+                    val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
+                    println("tags=${'$'}{config.customMetadata.tags}")
+                    println("team=${'$'}{config.customMetadata.values["team"]}")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("printBuildMetadata")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":printBuildMetadata")?.outcome)
+        assertTrue(result.output.contains("tags=[nightly]"))
+        assertTrue(result.output.contains("team=android"))
+    }
+
+    @Test
     fun `plugin reads network proxy from tuist toml`() {
         File(testProjectDir, "tuist.toml").writeText("""
             project = "test-account/test-project"
@@ -440,6 +484,42 @@ class TuistPluginTest {
             !result.output.contains("Configuration cache state could not be cached"),
             "Unexpected configuration cache serialization error:\n${result.output}"
         )
+    }
+
+    @Test
+    fun `plugin stores a Gradle configuration cache entry`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello")
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--configuration-cache")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":hello")?.outcome)
+        assertTrue(
+            result.output.contains("Configuration cache entry stored"),
+            "Gradle did not store a configuration cache entry:\n${result.output}"
+        )
+
     }
 
     @Test

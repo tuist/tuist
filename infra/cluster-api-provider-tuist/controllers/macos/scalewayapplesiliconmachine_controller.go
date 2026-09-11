@@ -47,9 +47,15 @@ const (
 	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
 
-	// DashboardVNCRelayPort is the stable host-side port tart-kubelet
+	// DashboardVNCRelayPort is the stable host-side BASE port tart-kubelet
 	// advertises for dashboard VNC sessions through the per-Mac Tailscale
 	// egress Service.
+	//
+	// A host that runs N guests binds N contiguous ports from here, one
+	// per guest, and its egress Service declares all N — a pinned port
+	// is a per-host resource while a relay is per-Pod, so a single port
+	// would let only the first guest on a host ever open a session.
+	// Apple's SLA caps N at 2.
 	DashboardVNCRelayPort = 5900
 )
 
@@ -85,6 +91,17 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// The Tailscale tags were lost that way and froze the production
 	// fleet on 2026-08-18.
 	FleetConfig bootstrap.Config
+
+	// DefaultGuestCapacity is the fleet-wide fallback for a Machine
+	// that does not set `spec.guestCapacity` — how many Tart guests a
+	// host is expected to run concurrently. 1 (the operator flag
+	// default) preserves the one-guest-per-host behaviour.
+	//
+	// It lives here rather than on FleetConfig because it is an
+	// operator-level intent, not a wire field: hostConfig expands it
+	// into the two bootstrap.Config fields that are actually pushed
+	// (VNCRelayPortCount, MinGoldensKept).
+	DefaultGuestCapacity int
 
 	// TartKubeletBinarySHA is the SHA-256 of TartKubeletBinary. Used
 	// as the version stamp on each ScalewayAppleSiliconMachine: when
@@ -928,305 +945,71 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 
 // === helpers ================================================================
 
-// reconcileTailscaleEgressService maintains one ExternalName Service
-// per Mac mini in the egress namespace. The Tailscale K8s operator
-// detects the `tailscale.com/tailnet-fqdn` annotation and rewrites
-// the Service's externalName to point at a ClusterIP fronting the
-// named ProxyGroup; from then on any cluster Pod that resolves the
-// Service DNS gets routed through the ProxyGroup's tailnet identity
-// to the Mac mini.
-//
-// Idempotent via CreateOrUpdate: a re-reconcile with no spec change
-// is a noop on the apiserver. Empty EgressProxyGroup short-circuits
-// the whole thing for OSS/self-hosted clusters.
+// egressConfig gathers this reconciler's chart-driven Tailscale egress wiring
+// into the value the shared helpers take.
+func (r *ScalewayAppleSiliconMachineReconciler) egressConfig() egressConfig {
+	return egressConfig{
+		Namespace:      r.EgressNamespace,
+		ProxyGroup:     r.EgressProxyGroup,
+		MagicDNSSuffix: r.EgressMagicDNSSuffix,
+		ManagedBy:      operatorName,
+	}
+}
+
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) error {
-	if r.EgressProxyGroup == "" {
-		return nil
-	}
-	if r.EgressMagicDNSSuffix == "" {
-		return fmt.Errorf("EgressMagicDNSSuffix empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
-	}
-	if r.EgressNamespace == "" {
-		return fmt.Errorf("EgressNamespace empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
-	}
-
-	// FQDN is the tailnet hostname (= machine.Name; see
-	// bootstrap.go's `tailscale up --hostname=$NodeName`) suffixed
-	// with the tailnet's MagicDNS domain (operator flag, set per
-	// env in the chart).
-	fqdn := machine.Name + "." + r.EgressMagicDNSSuffix
-
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-		Name:      machine.Name,
-		Namespace: r.EgressNamespace,
-	}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		if svc.Labels == nil {
-			svc.Labels = map[string]string{}
-		}
-		// Label alloy-metrics' Service-role discovery filters on. The
-		// label values stay stable across reconciles so the same
-		// Service is reused; only its Spec/annotations get patched.
-		svc.Labels["app.kubernetes.io/managed-by"] = "capi-scaleway-applesilicon"
-		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
-		svc.Labels["tuist.dev/macmini-egress"] = "true"
-		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
-		if machine.Spec.FleetName != "" {
-			svc.Labels["tuist.dev/fleet"] = machine.Spec.FleetName
-		} else {
-			delete(svc.Labels, "tuist.dev/fleet")
-		}
-
-		if svc.Annotations == nil {
-			svc.Annotations = map[string]string{}
-		}
-		svc.Annotations["tailscale.com/tailnet-fqdn"] = fqdn
-		svc.Annotations["tailscale.com/proxy-group"] = r.EgressProxyGroup
-
-		svc.Spec.Type = corev1.ServiceTypeExternalName
-		// On first create, seed externalName with a syntactically
-		// valid placeholder. The Tailscale operator rewrites it at
-		// admission time to a ClusterIP Service fronting the
-		// ProxyGroup; on re-reconcile we don't stamp it back, so the
-		// operator's rewrite sticks.
-		if svc.Spec.ExternalName == "" {
-			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
-		}
-		// Named ports the ProxyGroup forwards to the mini over the
-		// tailnet. alloy-metrics filters on port_name to dispatch the
-		// scrape ports (9100/8080) to the right job (see
-		// infra/helm/k8s-monitoring/values.yaml's
-		// collectors.alloy-metrics.extraConfig); vnc-relay fronts the
-		// dashboard; ssh (:22) carries the tart-kubelet drift update, so
-		// the operator can roll host config over the tailnet when the
-		// mini's public :22 is filtered (see the update path above). The
-		// tailnet ACL must also grant tcp:22 from tag:tuist-k8s-<env> to
-		// tag:tuist-macmini-<env> (infra/tailscale/acls.json).
-		// pod-metrics (:9091) reaches tart-kubelet's host-side metrics
-		// forwarder, which proxies to the Tart guest's PromEx endpoint.
-		// It has to come through this egress like every other mini port:
-		// the cluster CNI installs no route for 100.64.0.0/10, so a
-		// generic Pod cannot dial a mini's tailnet IPv4 directly. Alloy
-		// was discovering the xcresult-processor Pods by annotation and
-		// scraping their CGNAT address, which fails on every attempt
-		// (`up == 0` on every Tart node, in all three environments).
-		svc.Spec.Ports = []corev1.ServicePort{
-			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
-			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
-			{Name: "pod-metrics", Port: 9091, Protocol: corev1.ProtocolTCP},
-			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
-			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
-		}
-		return nil
-	})
-	return err
+	return reconcileEgressService(ctx, r.Client, r.egressConfig(),
+		machine.Name, machine.Spec.FleetName,
+		guestCapacityFor(machine, r.DefaultGuestCapacity))
 }
 
-// egressHost is the in-cluster DNS name of a mini's tailnet egress
-// Service (reconcileTailscaleEgressService). Resolving it routes any
-// cluster Pod to the mini over the ProxyGroup's tailnet identity, on the
-// ports the Service declares. Empty when the tailnet egress is disabled
-// (OSS / self-hosted), so callers fall back to the public IP.
 func (r *ScalewayAppleSiliconMachineReconciler) egressHost(machineName string) string {
-	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", machineName, r.EgressNamespace)
+	return egressServiceHost(r.egressConfig(), machineName)
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineName string) string {
 	return r.egressHost(machineName)
 }
 
-func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {
-	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
-		return 0
-	}
-	return DashboardVNCRelayPort
-}
-
-// hostConfigDrift reports whether the host config the operator would
-// push (operatorHash) differs from what the Machine last recorded
-// (machineHash). An empty operatorHash (hash not computed) never drifts.
-// An empty machineHash on a non-empty operatorHash drifts once — the
-// migration case for machines provisioned before the hash existed.
-func hostConfigDrift(operatorHash, machineHash string) bool {
-	return operatorHash != "" && machineHash != operatorHash
-}
-
-// terminalPhasePinned reports whether the reconcile tail must leave
-// Status.Phase alone because the machine holds a terminal failure.
+// hostSizing resolves this Machine's SKU-shaped fields: the per-Machine
+// override where set, the operator-global default otherwise. Lets a single
+// operator instance manage heterogeneous fleets (e.g. xcresult-fleet on M2-M
+// and runners-fleet on M2-L, or M2-L and M4-XL side by side in ONE runners
+// fleet) without spawning a deployment per SKU or under-advertising on the
+// larger one.
 //
-// The drift gate SKIPS a terminal machine rather than returning early, so
-// every reconcile after the one that recorded the failure still falls
-// through to the tail. Writing "Ready" there overwrote the "Failed" that
-// recordUpdateFailure had just set — within a single reconcile interval —
-// leaving machines that carried FailureReason while reporting phase Ready.
-//
-// That combination is invisible to alerting: the "stuck Failed" rule keys
-// on phase="Failed" persisting for 30m, and the phase flapped back to Ready
-// in ~5m, so the rule could never fire. Three production hosts sat wedged on
-// a stale tart-kubelet for weeks with the alert green. Pinning the phase is
-// what makes the terminal state observable; clearUpdateFailure lifts it.
-func terminalPhasePinned(failureReason *string) bool {
-	return failureReason != nil
-}
-
-// shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
-// failure should be cleared so the drift loop retries.
-//
-// Two independent exits:
-//
-// Config drift — the operator's desired config differs from the one that
-// exhausted its retry budget (failedHash), NOT from the last successfully
-// applied hash. A broken config can never be applied, so the applied hash never
-// advances to it and a desired-vs-applied comparison would report drift
-// forever, resetting the cap on every reconcile and retrying the same broken
-// config indefinitely. Keyed on the failed hash instead, an unchanged broken
-// config keeps its terminal state while a genuinely new (typically fixed)
-// config gets a fresh budget.
-//
-// Cooldown — retryAfter has elapsed since the failure. Config drift alone reads
-// every terminal failure as a verdict on the CONFIG, but most are a verdict on
-// REACHABILITY: the operator could not open :22. Such a host stayed terminal
-// until someone shipped an unrelated config change or hand-patched its status,
-// all the while Ready, schedulable, and running jobs against a frozen host
-// config — which is how a fleet ends up with hosts silently missing a
-// networking fix. The cooldown bounds a persistently-broken config to one fresh
-// attempt budget per interval rather than per reconcile, so the cap still does
-// its job.
-func shouldClearTerminalFailure(
-	desiredHash, failedHash string,
-	terminalFailure bool,
-	lastFailure *metav1.Time,
-	retryAfter time.Duration,
-	now time.Time,
-) bool {
-	if !terminalFailure {
-		return false
+// Everything resolved here reaches both push paths and the hash through
+// applyHostSizing, so a change to any of it drifts the host.
+func (r *ScalewayAppleSiliconMachineReconciler) hostSizing(
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) hostSizing {
+	return hostSizing{
+		HostCPU:              hostCPUFor(machine, r.FleetConfig.HostCPU),
+		HostMemoryMB:         hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB),
+		MaxPods:              maxPodsFor(machine, r.FleetConfig.MaxPods),
+		GuestCapacity:        guestCapacityFor(machine, r.DefaultGuestCapacity),
+		RunnerCacheVolumeGiB: runnerCacheVolumeGiBFor(machine, r.FleetConfig.RunnerCacheVolumeGiB),
 	}
-	if desiredHash != "" && desiredHash != failedHash {
-		return true
-	}
-	// A terminal CR recorded before this field existed carries no
-	// timestamp; treat it as due rather than stranding it forever.
-	if retryAfter <= 0 {
-		return false
-	}
-	if lastFailure == nil {
-		return true
-	}
-	return !now.Before(lastFailure.Time.Add(retryAfter))
 }
 
 // hostConfig is the config for one Mac mini: the fleet-wide config the manager
-// built, with this machine's per-host fields overlaid. Both push paths go
-// through it, so neither can push a config the operator did not hash.
-//
-// HostCPU / HostMemoryMB are the one seam. They are fleet-wide in the hash --
-// a chart-level change to either must roll the fleet -- but a Machine may
-// override them per host, so they are resolved here rather than in PerHost.
-// desiredHostConfigHash resolves them identically, which is what keeps the
-// stamp on an overridden host equal to the hash of what that host received.
+// built, with this machine's sizing and per-host fields overlaid. Both push
+// paths go through it, so neither can push a config the operator did not hash.
 func (r *ScalewayAppleSiliconMachineReconciler) hostConfig(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 	perHost bootstrap.PerHost,
 ) bootstrap.Config {
-	cfg := r.FleetConfig
-	cfg.HostCPU = hostCPUFor(machine, r.FleetConfig.HostCPU)
-	cfg.HostMemoryMB = hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB)
-	return cfg.WithPerHost(perHost)
+	return applyHostSizing(r.FleetConfig, r.hostSizing(machine), perHost)
 }
 
 // desiredHostConfigHash is the fingerprint of the config this machine should be
-// running. It is the hash of exactly what hostConfig would push, so a host is
-// only ever stamped with a hash of the config it actually received.
-//
-// It is computed per machine rather than once per fleet because HostCPU and
-// HostMemoryMB are overridable per Machine. A single fleet constant was correct
-// for every host that took the fleet defaults and quietly wrong for one that
-// did not: the operator pushed the overridden config and then stamped the
-// fleet hash on it, so the host read as converged to a config it had never
-// been sent, and a later change to the overridden field could not drift it.
+// running — the hash of exactly what hostConfig would push.
 func (r *ScalewayAppleSiliconMachineReconciler) desiredHostConfigHash(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) string {
-	return bootstrap.HostConfigHash(r.hostConfig(machine, bootstrap.PerHost{}))
-}
-
-// recordUpdateFailure increments the drift-loop retry counter and,
-// once it crosses maxAttempts, flips the CR into a terminal Failed
-// state. The counter is reset on successful UpdateTartKubelet. We
-// don't try to be clever about which step in the loop failed; from
-// the CR's perspective, any failure that prevents the kubeconfig
-// landing on the host counts the same. Recovery is automatic once the
-// operator's desired host config drifts (a new/fixed config is pushed —
-// see clearUpdateFailure), or operator-driven before then: `kubectl patch`
-// to clear status.failureReason + zero status.tartKubeletUpdateAttempts and
-// the loop resumes.
-func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, operatorHash string, logger logr.Logger, recorder record.EventRecorder) {
-	machine.Status.TartKubeletUpdateAttempts++
-	// Stamped on every failure, not only the terminal one, so the cooldown
-	// measures from the last attempt actually made.
-	machine.Status.LastUpdateFailureTime = &metav1.Time{Time: time.Now()}
-	logger.Error(err, "tart-kubelet update step failed",
-		"attempt", machine.Status.TartKubeletUpdateAttempts,
-		"max", maxAttempts)
-	if maxAttempts > 0 && machine.Status.TartKubeletUpdateAttempts >= maxAttempts {
-		reason := "TartKubeletUpdateExceededRetries"
-		msg := fmt.Sprintf("tart-kubelet update failed %d times: %v",
-			machine.Status.TartKubeletUpdateAttempts, err)
-		machine.Status.FailureReason = &reason
-		machine.Status.FailureMessage = &msg
-		// Record the desired config that exhausted its budget so the
-		// self-heal only fires for a genuinely different config, not the same
-		// broken one (whose HostConfigHash never advances because it can't be
-		// applied) on every subsequent reconcile.
-		machine.Status.FailedHostConfigHash = operatorHash
-		machine.Status.Phase = "Failed"
-		recorder.Eventf(machine, corev1.EventTypeWarning, reason, "%s", msg)
-		logger.Error(err, "tart-kubelet update permanently failed; CR transitioned to Failed",
-			"attempts", machine.Status.TartKubeletUpdateAttempts)
-		return
-	}
-	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
-		"tart-kubelet update attempt %d/%d: %v",
-		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
-}
-
-// clearUpdateFailure resets the drift-loop retry counter and lifts the
-// terminal Failed state so the loop resumes. Called when the operator's
-// desired host config has drifted since the failure was recorded: the new
-// config is a fresh target (typically a fix) that deserves its own retry
-// budget rather than the old config's terminal verdict, so a bad rollout
-// self-heals on the next config push instead of stranding every affected
-// host on a manual `kubectl patch`. Also called when the retry cooldown has
-// elapsed, which is what recovers a host that was merely unreachable. The
-// caller passes which of the two applies so the log and Event name the real
-// trigger. No-op when there is nothing to clear.
-//
-// LastUpdateFailureTime is deliberately left in place: it records when the
-// host last failed, and the next failure re-stamps it. Clearing it here would
-// make a re-failed host read as never-failed.
-func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, reason string, logger logr.Logger, recorder record.EventRecorder) {
-	if machine.Status.FailureReason == nil && machine.Status.FailureMessage == nil && machine.Status.TartKubeletUpdateAttempts == 0 {
-		return
-	}
-	logger.Info("clearing terminal tart-kubelet-update failure; retrying",
-		"reason", reason,
-		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
-	machine.Status.FailureReason = nil
-	machine.Status.FailureMessage = nil
-	machine.Status.FailedHostConfigHash = ""
-	machine.Status.TartKubeletUpdateAttempts = 0
-	if machine.Status.Phase == "Failed" {
-		machine.Status.Phase = ""
-	}
-	recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRollRetried",
-		"cleared the terminal tart-kubelet update failure (%s); retrying", reason)
+	return hostConfigHashFor(r.FleetConfig, r.hostSizing(machine))
 }
 
 // poolReleaser is the one call releaseHostToPool needs, so both the
@@ -1501,40 +1284,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	return srv, 0, nil
 }
 
-// nodeBootstrapGrace is how long after BootstrappedCondition flips to
-// True we tolerate a missing Node before deciding it's drift. tart-
-// kubelet's launchd job typically registers within ~30s of bootstrap
-// completion; 2 min absorbs apiserver + watch propagation delays
-// without giving up so long that the deploy waits multiple reconcile
-// cycles to detect the drift.
-const nodeBootstrapGrace = 2 * time.Minute
-
-// nodeMissingAfterBootstrap returns true when the operator previously
-// bootstrapped this Machine (BootstrappedCondition=True for at least
-// nodeBootstrapGrace) but the Node it registered no longer exists.
-// The grace window prevents the initial post-bootstrap requeue from
-// looking like drift while tart-kubelet's first registration is still
-// propagating.
+// nodeMissingAfterBootstrap re-checks this Machine's Node; see the shared
+// helper for why a missing one is drift rather than a failure.
 func (r *ScalewayAppleSiliconMachineReconciler) nodeMissingAfterBootstrap(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (bool, error) {
-	cond := conditions.Get(machine, BootstrappedCondition)
-	if cond == nil || cond.Status != corev1.ConditionTrue {
-		return false, nil
-	}
-	if time.Since(cond.LastTransitionTime.Time) < nodeBootstrapGrace {
-		return false, nil
-	}
-	node := &corev1.Node{}
-	err := r.Get(ctx, client.ObjectKey{Name: machine.Name}, node)
-	if apierrors.IsNotFound(err) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return false, nil
+	return nodeMissingAfterBootstrap(ctx, r.Client, machine, machine.Name)
 }
 
 func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
@@ -1572,12 +1328,16 @@ func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {
 	return *m.Spec.ProviderID
 }
 
-// hostCPUFor / hostMemoryMBFor select the per-Machine capacity
-// override when set on the spec, falling back to the operator-
-// global flag default. Lets a single operator instance manage
-// heterogeneous fleets (e.g. xcresult-fleet on M2-M and
-// runners-fleet on M2-L) without spawning a deployment per fleet
-// or under-advertising on the larger SKU.
+// hostCPUFor / hostMemoryMBFor / maxPodsFor / runnerCacheVolumeGiBFor
+// select the per-Machine override when set on the spec, falling back
+// to the operator-global flag default. Lets a single operator instance
+// manage heterogeneous fleets (e.g. xcresult-fleet on M2-M and
+// runners-fleet on M2-L, or M2-L and M4-XL side by side in ONE runners
+// fleet) without spawning a deployment per SKU or under-advertising on
+// the larger one.
+//
+// All four resolve through hostConfig, so they are reflected in the
+// per-Machine host-config hash and drift the host when they change.
 func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 	if m.Spec.HostCPU > 0 {
 		return m.Spec.HostCPU
@@ -1588,6 +1348,44 @@ func hostCPUFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 func hostMemoryMBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
 	if m.Spec.HostMemoryMB > 0 {
 		return m.Spec.HostMemoryMB
+	}
+	return fallback
+}
+
+func maxPodsFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if m.Spec.MaxPods > 0 {
+		return m.Spec.MaxPods
+	}
+	return fallback
+}
+
+// guestCapacityFor resolves how many Tart guests this host is expected
+// to run concurrently, never returning less than 1 — a host that runs
+// no guests is not a thing this operator provisions, and a 0 would
+// propagate into the relay-port range and the goldens floor as "none".
+func guestCapacityFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	capacity := fallback
+	if m.Spec.GuestCapacity > 0 {
+		capacity = m.Spec.GuestCapacity
+	}
+	if capacity < 1 {
+		capacity = 1
+	}
+	return capacity
+}
+
+// runnerCacheVolumeGiBFor resolves on PRESENCE, not on truthiness, so
+// an explicit 0 means "cache volumes off on this host" rather than
+// collapsing into "unset" and silently inheriting the fleet default.
+// That is why the spec field is a pointer while its sizing siblings
+// are not: 0 is a value here, and nonsense for them.
+//
+// A negative value is still treated as unset — it cannot be an intent,
+// and degrading to the fleet default beats pushing a quota that would
+// fail the diskutil call at bootstrap.
+func runnerCacheVolumeGiBFor(m *infrav1.ScalewayAppleSiliconMachine, fallback int) int {
+	if gib := m.Spec.RunnerCacheVolumeGiB; gib != nil && *gib >= 0 {
+		return *gib
 	}
 	return fallback
 }

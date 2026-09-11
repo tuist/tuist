@@ -1,11 +1,13 @@
 defmodule Tuist.Runners.PromExPluginTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.PromExPlugin
   alias Tuist.Runners.RunnerSession
@@ -67,7 +69,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-poll"}},
@@ -78,12 +79,11 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
 
       # Fleet is declared in the cluster but has no queued rows in
-      # ClickHouse. Without the drain-to-zero path, `last_value`
+      # Postgres. Without the drain-to-zero path, `last_value`
       # would keep whatever the last non-zero sample was; this
       # asserts we emit an explicit `0` instead.
       stub_pool_list(["fleet-empty"])
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0}, %{fleet: "fleet-empty"}},
@@ -123,7 +123,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           })
       end
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
@@ -133,11 +132,225 @@ defmodule Tuist.Runners.PromExPluginTest do
       assert_in_delta oldest_age_seconds, 4 * 60 * 60, 60
     end
 
+    # The queue-age alert fires on this measurement, and a queue parked
+    # at an account's concurrency limit is the system working, not a
+    # fault: dispatch declines those jobs on purpose and the autoscaler
+    # declines to grow for them. Paging on it is paging on a design
+    # decision, so the age the alert reads has to exclude them.
+    test "reports zero dispatchable age when the whole queue is at the account's limit",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["linux-capped"])
+
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      # Fills the default 32 vCPU / 64 GB Linux budget exactly, so no
+      # job of the fleet's 2/8 shape has headroom left.
+      assert {:ok, _} =
+               Claims.attempt(999_100, account.id, "linux-capped", "pod-cap", %{
+                 platform: :linux,
+                 vcpus: 32,
+                 memory_gb: 64
+               })
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_101,
+          account_id: account.id,
+          fleet_name: "linux-capped",
+          repository: "acme/cli",
+          workflow_run_id: 9011,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          enqueued_at: DateTime.add(now, -2 * 60 * 60, :second)
+        })
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{
+                        count: 1,
+                        oldest_age_seconds: oldest_age_seconds,
+                        oldest_dispatchable_age_seconds: 0
+                      }, %{fleet: "linux-capped"}},
+                     500
+
+      # Depth and raw age still report the truth; only the alert's
+      # measurement excludes the withheld work.
+      assert_in_delta oldest_age_seconds, 2 * 60 * 60, 60
+    end
+
+    test "reports the oldest dispatchable age when the account has headroom",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["linux-headroom"])
+
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_110,
+          account_id: account.id,
+          fleet_name: "linux-headroom",
+          repository: "acme/cli",
+          workflow_run_id: 9012,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          enqueued_at: DateTime.add(now, -90 * 60, :second)
+        })
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{oldest_dispatchable_age_seconds: dispatchable}, %{fleet: "linux-headroom"}},
+                     500
+
+      assert_in_delta dispatchable, 90 * 60, 60
+    end
+
+    # A capped account must not mask a second account whose work the
+    # fleet genuinely is not serving — that is the stall the alert exists
+    # for, and it can happen while someone else sits at their limit.
+    test "tracks an uncapped account's wait while another account is capped",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["linux-mixed"])
+
+      capped = account_fixture()
+      served = account_fixture()
+      now = DateTime.utc_now()
+
+      assert {:ok, _} =
+               Claims.attempt(999_120, capped.id, "linux-mixed", "pod-cap", %{
+                 platform: :linux,
+                 vcpus: 32,
+                 memory_gb: 64
+               })
+
+      for {id, account_id, minutes} <- [
+            {999_121, capped.id, 240},
+            {999_122, served.id, 45}
+          ] do
+        :ok =
+          Jobs.enqueue(%{
+            workflow_job_id: id,
+            account_id: account_id,
+            fleet_name: "linux-mixed",
+            repository: "acme/cli",
+            workflow_run_id: 9013,
+            run_attempt: 1,
+            job_name: "build",
+            head_branch: "main",
+            head_sha: "deadbeef",
+            enqueued_at: DateTime.add(now, -minutes * 60, :second)
+          })
+      end
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{
+                        count: 2,
+                        oldest_age_seconds: oldest_age_seconds,
+                        oldest_dispatchable_age_seconds: dispatchable
+                      }, %{fleet: "linux-mixed"}},
+                     500
+
+      assert_in_delta oldest_age_seconds, 240 * 60, 60
+      assert_in_delta dispatchable, 45 * 60, 60
+    end
+
+    # A missing concurrency-limit row is not a cap, it is a broken
+    # invariant: Claims.attempt/5 fails it as :concurrency_limit_missing,
+    # so NOTHING for that account can be dispatched. Filtering it out like
+    # a capped account would hide a total dispatch failure behind a zero.
+    test "keeps a missing concurrency limit visible instead of filtering it out",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["linux-nolimit"])
+
+      account = account_fixture()
+      Repo.delete_all(from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id))
+      now = DateTime.utc_now()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_130,
+          account_id: account.id,
+          fleet_name: "linux-nolimit",
+          repository: "acme/cli",
+          workflow_run_id: 9014,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          enqueued_at: DateTime.add(now, -3 * 60 * 60, :second)
+        })
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{oldest_dispatchable_age_seconds: dispatchable}, %{fleet: "linux-nolimit"}},
+                     500
+
+      assert_in_delta dispatchable, 3 * 60 * 60, 60
+    end
+
+    # One account queued on two fleets must resolve identically on both;
+    # the limits and usage behind that decision are read once for the
+    # whole poll rather than per fleet.
+    test "resolves one account consistently across several fleets", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["linux-shared-a", "linux-shared-b"])
+
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      assert {:ok, _} =
+               Claims.attempt(999_140, account.id, "linux-shared-a", "pod-cap", %{
+                 platform: :linux,
+                 vcpus: 32,
+                 memory_gb: 64
+               })
+
+      for {id, fleet, minutes} <- [
+            {999_141, "linux-shared-a", 120},
+            {999_142, "linux-shared-b", 90}
+          ] do
+        :ok =
+          Jobs.enqueue(%{
+            workflow_job_id: id,
+            account_id: account.id,
+            fleet_name: fleet,
+            repository: "acme/cli",
+            workflow_run_id: 9015,
+            run_attempt: 1,
+            job_name: "build",
+            head_branch: "main",
+            head_sha: "deadbeef",
+            enqueued_at: DateTime.add(now, -minutes * 60, :second)
+          })
+      end
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      for fleet <- ["linux-shared-a", "linux-shared-b"] do
+        assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_dispatchable_age_seconds: 0},
+                        %{fleet: ^fleet}},
+                       500
+      end
+    end
+
     test "reports zero age for a fleet with an empty queue", %{handler_id: handler_id} do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-empty-age"])
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_age_seconds: 0},
@@ -169,7 +382,6 @@ defmodule Tuist.Runners.PromExPluginTest do
           head_sha: "deadbeef"
         })
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-gone"}},
@@ -181,11 +393,48 @@ defmodule Tuist.Runners.PromExPluginTest do
       # last_value would hold the stale non-zero age forever.
       {:ok, _} = Jobs.complete(999_020, "success")
 
-      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
       PromExPlugin.execute_queue_length_telemetry_event()
 
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
                       %{fleet: "fleet-gone"}},
+                     500
+    end
+
+    test "ignores a ClickHouse row still queued after Postgres reached a terminal state",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-diverged"])
+
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_030,
+          account_id: account.id,
+          fleet_name: "fleet-diverged",
+          repository: "acme/cli",
+          workflow_run_id: 9030,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      # Flush only the `queued` transition, so ClickHouse holds a
+      # `queued` row, then complete the job WITHOUT flushing again. That
+      # is the shape production ended up in: the outbox dropped a batch
+      # of terminal transitions and the replica froze mid-lifecycle. A
+      # terminal job emits no further events, so nothing ever corrects
+      # those rows — a gauge reading ClickHouse reports them as a
+      # backlog forever, while dispatch, which reads Postgres, cannot
+      # see them at all.
+      :ok = perform_job(FlushJobTransitionEventsWorker, %{})
+      {:ok, _} = Jobs.complete(999_030, "success")
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
+                      %{fleet: "fleet-diverged"}},
                      500
     end
   end

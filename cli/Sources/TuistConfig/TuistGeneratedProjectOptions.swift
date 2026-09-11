@@ -201,19 +201,40 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
         public var passthroughSwiftPackageManagerArguments: [String]
+        public var packageManifestEnvironment: ManifestEnvironment
 
         public init(
-            passthroughSwiftPackageManagerArguments: [String] = []
+            passthroughSwiftPackageManagerArguments: [String] = [],
+            packageManifestEnvironment: ManifestEnvironment = .init()
         ) {
             self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+            self.packageManifestEnvironment = packageManifestEnvironment
+        }
+
+        public struct ManifestEnvironment: Codable, Equatable, Sendable, Hashable {
+            public let usesAutomaticProviderDefaults: Bool
+            public let includedVariablePatterns: [String]
+            public let excludedVariablePatterns: [String]
+
+            public init(
+                usesAutomaticProviderDefaults: Bool = true,
+                includedVariablePatterns: [String] = [],
+                excludedVariablePatterns: [String] = []
+            ) {
+                self.usesAutomaticProviderDefaults = usesAutomaticProviderDefaults
+                self.includedVariablePatterns = includedVariablePatterns
+                self.excludedVariablePatterns = excludedVariablePatterns
+            }
         }
 
         #if DEBUG
             public static func test(
-                passthroughSwiftPackageManagerArguments: [String] = []
+                passthroughSwiftPackageManagerArguments: [String] = [],
+                packageManifestEnvironment: ManifestEnvironment = .init()
             ) -> Self {
                 .init(
-                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
+                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
+                    packageManifestEnvironment: packageManifestEnvironment
                 )
             }
         #endif

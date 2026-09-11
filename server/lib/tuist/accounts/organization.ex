@@ -8,6 +8,7 @@ defmodule Tuist.Accounts.Organization do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Invitation
+  alias Tuist.Accounts.Role
   alias Tuist.Vault.Binary
 
   @oauth2_endpoint_fields [
@@ -18,12 +19,17 @@ defmodule Tuist.Accounts.Organization do
 
   @oauth2_providers [:okta, :oauth2]
 
+  # Automatic enrollment must never mint an admin, so the default is limited to
+  # the two non-privileged roles.
+  @sso_default_roles Role.names() -- ["admin"]
+
   @sso_update_fields [
     :sso_provider,
     :sso_organization_id,
     :sso_enforced,
     :sso_login_domain,
     :sso_automatic_enrollment,
+    :sso_default_role,
     :oauth2_client_id,
     :oauth2_encrypted_client_secret,
     :oauth2_authorize_url,
@@ -45,6 +51,7 @@ defmodule Tuist.Accounts.Organization do
     field :sso_login_domain_verification_token, :string
     field :sso_login_domain_verified_at, :utc_datetime
     field :sso_automatic_enrollment, :boolean, default: false
+    field :sso_default_role, :string, default: "user"
     field :sso_legacy_email_domain_fallback, :boolean, default: false
     field :oauth2_client_id, :string
     field :oauth2_encrypted_client_secret, Binary
@@ -68,6 +75,7 @@ defmodule Tuist.Accounts.Organization do
       :sso_login_domain_verification_token,
       :sso_login_domain_verified_at,
       :sso_automatic_enrollment,
+      :sso_default_role,
       :sso_legacy_email_domain_fallback,
       :oauth2_client_id,
       :oauth2_encrypted_client_secret,
@@ -80,6 +88,7 @@ defmodule Tuist.Accounts.Organization do
     |> normalize_oauth2_urls()
     |> validate_sso_login_domain()
     |> validate_sso_security_policy()
+    |> validate_inclusion(:sso_default_role, @sso_default_roles)
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()
@@ -108,6 +117,7 @@ defmodule Tuist.Accounts.Organization do
     |> normalize_oauth2_urls()
     |> validate_sso_login_domain()
     |> validate_sso_security_policy()
+    |> validate_inclusion(:sso_default_role, @sso_default_roles)
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()

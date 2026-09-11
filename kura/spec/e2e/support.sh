@@ -450,6 +450,43 @@ bazel_build() {
   )
 }
 
+create_chunked_bazel_workspace() {
+  local dir="$1"
+  local marker="$2"
+
+  mkdir -p "$dir"
+  printf '%s\n' 'module(name = "kura_bazel_chunking_demo")' >"$dir/MODULE.bazel"
+  printf '%s\n' \
+    'genrule(' \
+    '    name = "large_output",' \
+    '    outs = ["large-output.bin"],' \
+    "    cmd = \"printf '${marker}' > \$@ && dd if=/dev/zero bs=1048576 count=8 >> \$@ 2>/dev/null\"," \
+    ')' >"$dir/BUILD.bazel"
+}
+
+bazel_build_chunked() {
+  local dir="$1"
+  local grpc_port="$2"
+  local instance_name="$3"
+  local upload_local_results="${4:-true}"
+  local bazel_path
+  bazel_path="$(mise exec -- which bazel)"
+
+  (
+    cd "$dir"
+    "$bazel_path" \
+      build //:large_output \
+      --remote_cache="grpc://127.0.0.1:${grpc_port}" \
+      --remote_instance_name="${instance_name}" \
+      --experimental_remote_cache_chunking \
+      --remote_upload_local_results="${upload_local_results}" \
+      --remote_download_outputs=all \
+      --show_result=0 \
+      --noshow_loading_progress \
+      --noshow_progress
+  )
+}
+
 create_buck_workspace() {
   local dir="$1"
   local grpc_port="$2"

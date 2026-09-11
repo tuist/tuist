@@ -138,17 +138,14 @@
     }
   }
 
-  &[data-size="medium"],
-  &[data-size="large"] {
-    &:not([data-icon-only]) {
-      padding: var(--noora-spacing-3);
-    }
-  }
-
   &[data-size="medium"] {
     --noora-button-icon-size: var(--noora-icon-size-medium);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
 
     & svg {
       width: var(--noora-button-icon-size);
@@ -160,6 +157,10 @@
     --noora-button-icon-size: var(--noora-icon-size-large);
 
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
 
     & svg {
       width: var(--noora-button-icon-size);
@@ -254,11 +255,15 @@
 }
 
 .noora-neutral-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   cursor: pointer;
   border-radius: var(--noora-radius-3);
   background: unset;
   padding: var(--noora-spacing-3);
   color: var(--noora-button-neutral-label);
+  text-decoration: none;
   transition: transform 150ms var(--ease-out-cubic);
 
   &:not(:disabled):hover {
@@ -275,24 +280,78 @@
     color: var(--noora-button-neutral-disabled-label);
   }
 
+  /* Same label inset as .noora-button's `& > span`, scoped to the label
+     part so icons that arrive wrapped in spans keep their geometry. */
+  & > [data-part="label"] {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
+  /* Spacing and positioning mirror .noora-button's size rules exactly, so
+     the two variants can sit side by side (e.g. the navbar's action
+     cluster) without drifting: the same data-icon-only gating, the same
+     per-size paddings, and descendant svg sizing through the shared icon
+     custom property (reaching icons nested in wrapper spans, which a
+     direct-child selector missed). */
+  &[data-icon-only] {
+    padding: var(--noora-spacing-3);
+  }
+
+  &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="medium"],
   &[data-size="large"] {
-    & > svg {
-      width: var(--noora-icon-size-large);
-      height: var(--noora-icon-size-large);
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3);
     }
   }
 
   &[data-size="medium"] {
-    & > svg {
-      width: var(--noora-icon-size-medium);
-      height: var(--noora-icon-size-medium);
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 
-  &[data-size="small"] {
-    & > svg {
-      width: var(--noora-icon-size-small);
-      height: var(--noora-icon-size-small);
+  &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  /* Labeled neutral buttons take .noora-button's per-size paddings. Gated
+     on data-with-label (set by the component in label mode) rather than
+     :not([data-icon-only]) because existing icon-only call sites don't set
+     data-icon-only and must keep their geometry. */
+  &[data-with-label] {
+    &[data-size="small"],
+    &[data-size="medium"] {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    &[data-size="large"] {
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
     }
   }
 }

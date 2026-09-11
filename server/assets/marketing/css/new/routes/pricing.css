@@ -1,0 +1,648 @@
+/* Pricing page (/pricing): centered hero card followed by the plans frame
+   (intro text + 3-up hairline card row), the feature comparison table, and
+   the FAQ — all on the 1200px page frame with 2px seams. The legacy design
+   lives in routes/pricing (legacy bundle). */
+#marketing-pricing {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-1);
+
+  @media (min-width: 1024px) {
+    align-items: center;
+  }
+
+  /* All frames share the page shell: stroke border, primary surface, the
+     same margin/width override that beats pages.css. */
+  & > header[data-part="header"],
+  & > section {
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+  }
+
+  /* Hero header card: centered display title + subtitle, same type ramp as
+     the about page header. */
+  & > header[data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    padding: var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-10);
+    text-align: center;
+
+    @media (max-width: 720px) {
+      padding: var(--noora-spacing-10);
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-large);
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 540px;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      text-wrap: pretty;
+    }
+  }
+
+  /* Plans + comparison share one continuous card (no page seam between
+     them — a single hairline separates the two frames, per the design).
+     Each frame follows the shared convention: intro text below the frame's
+     top edge (72px for plans, 96px for the comparison) at 8px sides, with
+     the same eyebrow → h2 → p ramp as the cache and brand pages. */
+  & > section[data-part="pricing"] {
+    display: flex;
+    flex-direction: column;
+
+    & > [data-part="plans"],
+    & > [data-part="compare"],
+    & > [data-part="faq"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-11);
+      padding-top: var(--noora-spacing-14);
+
+      & > [data-part="text"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 var(--noora-spacing-4);
+
+        & > [data-part="eyebrow"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          text-transform: uppercase;
+        }
+
+        & > [data-part="title"] {
+          margin-top: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+        }
+
+        & > [data-part="description"] {
+          margin-top: var(--noora-spacing-4);
+          max-width: 720px;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+        }
+      }
+    }
+
+    & > [data-part="compare"] {
+      /* Sticky offset for the tab/mobile plan picker: the navbar's height,
+         measured by the PricingPlanSelect hook; this is the default until it
+         mounts. */
+      --pricing-sticky-top: var(--sticky-top);
+      /* Height of the table's closing CTA row, measured by the same hook:
+         the picker box stops sticking that far above the table's end. */
+      --pricing-last-row-height: 0px;
+      border-top: 1px solid var(--marketing-stroke-default);
+      padding-top: var(--noora-spacing-16);
+      /* The big gap before the FAQ divider belongs to this frame. */
+      padding-bottom: var(--noora-spacing-16);
+
+      /* Tab/mobile tighten the text → plan picker → table rhythm. */
+      @media (max-width: 1023px) {
+        gap: var(--noora-spacing-8);
+      }
+
+      & > [data-part="text"] > [data-part="description"] {
+        max-width: none;
+      }
+    }
+
+    /* FAQ frame: the comparison table's bottom hairline already closes
+       the frame above, so no divider of its own. */
+    & > [data-part="faq"] {
+      padding-top: var(--noora-spacing-7);
+    }
+  }
+
+  /* 3-up plan card row. Hairlines close each card: one above the row and
+     one between the columns. Figma card: 400 wide, 20px padding all
+     around, name →4px→ description →12px→ price, 24px between the card's
+     sections, 16px between traits. */
+  & > section[data-part="pricing"] > [data-part="plans"] > [data-part="grid"] {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+
+    @media (max-width: 1023px) {
+      grid-template-columns: 1fr;
+    }
+
+    & > [data-part="plan"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      box-sizing: border-box;
+      border-top: 1px solid var(--marketing-stroke-default);
+      padding: var(--noora-spacing-7);
+
+      @media (min-width: 1024px) {
+        &:not(:first-child) {
+          border-left: 1px solid var(--marketing-stroke-default);
+        }
+      }
+
+      /* Stacked tab/mobile cards breathe more vertically. */
+      @media (max-width: 1023px) {
+        padding-top: var(--noora-spacing-9);
+        padding-bottom: var(--noora-spacing-9);
+      }
+
+      & > [data-part="head"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+      }
+
+      & > [data-part="description"] {
+        margin-top: var(--noora-spacing-2);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-wrap: pretty;
+      }
+
+      & > [data-part="price"] {
+        display: flex;
+        align-items: baseline;
+        gap: var(--noora-spacing-3);
+        margin-top: var(--noora-spacing-5);
+
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+          letter-spacing: -0.025em;
+        }
+
+        & > [data-part="extra"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      /* The traits list opens with the hairline that closes the price
+         block in the design, and flexes so the CTA sits at the bottom
+         edge regardless of trait count. */
+      & > [data-part="traits"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        align-self: stretch;
+        gap: var(--noora-spacing-6);
+        margin: var(--noora-spacing-8) 0 0;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-8) 0 0;
+        list-style: none;
+
+        & > [data-part="trait"] {
+          display: flex;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+          & > svg {
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            color: var(--noora-purple-500);
+          }
+        }
+      }
+
+      & > .noora-button {
+        margin-top: var(--noora-spacing-8);
+      }
+    }
+  }
+
+  /* Tab/mobile plan picker: a bordered box holding a centered Noora button
+     group, one item per plan, driving which column the collapsed
+     comparison table shows, with the table's header row (blank corner +
+     plan name) rendered beneath the buttons. It sticks under the navbar so
+     the plan can be switched from anywhere in the table, and it is the
+     only sticky element on tab/mobile: the table's own header row is
+     hidden there. Sticking the real header cells beneath the box (two
+     sticky elements pinned to measured offsets) had the cells lag behind
+     the box while scrolling, opening a seam of body rows between them; one
+     sticky box cannot come apart. Hidden on desktop, where every column is
+     visible and the real header row sticks. */
+  /* Picker box + table, stacked with no gap. The stack is the box's sticky
+     containing block: sticky elements can't leave their containing block,
+     so the box rides along until the stack's end pushes it away, instead
+     of staying pinned over the FAQ below. */
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] > [data-part="plan-picker"] {
+    display: flex;
+    position: sticky;
+    top: var(--pricing-sticky-top);
+    flex-direction: column;
+    align-items: stretch;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    /* The sticky constraint keeps the box's margin box inside the stack,
+       so a bottom margin the size of the CTA row makes the box let go one
+       row before the table ends and never cover that row. The table pulls
+       itself up by the same amount (below) so there's no gap in flow; the
+       box paints its own top and bottom hairlines (the first body row
+       carries no top hairline, see below). */
+    margin: 0 0 var(--pricing-last-row-height);
+    border-top: 1px solid var(--marketing-stroke-default);
+    border-bottom: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+
+    @media (min-width: 1024px) {
+      display: none;
+    }
+
+    & > [data-part="plan-picker-controls"] {
+      display: flex;
+      justify-content: center;
+      padding: var(--noora-spacing-7);
+    }
+
+    /* Mirror of the table's header row, on the same 50/50 split as the
+       fixed-layout table below (both span the frame edge to edge), with
+       the same hairlines and cell padding so the two read as one grid. */
+    & > [data-part="plan-picker-head"] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid var(--marketing-stroke-default);
+
+      & > [data-part="plan-picker-plan"] {
+        box-sizing: border-box;
+        border-left: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-9) 0;
+        min-width: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+        text-align: center;
+
+        &:not(.active) {
+          display: none;
+        }
+      }
+    }
+  }
+
+  & > section[data-part="pricing"] > [data-part="compare"] > [data-part="table-stack"] > [data-part="table-frame"] {
+    /* No scroll container at any width: one would trap the desktop's
+       sticky header row inside itself. Narrow viewports show a single plan
+       column, so the table fits; clip (not auto) guards against any stray
+       overflow without becoming a scrollport. */
+    @media (max-width: 1023px) {
+      /* Cancels the picker box's release margin, see above. */
+      margin-top: calc(-1 * var(--pricing-last-row-height));
+      overflow-x: clip;
+    }
+
+    & > [data-part="table"] {
+      /* Separate borders, not collapse: collapsed borders stay behind when
+         the sticky header row sticks (Chrome), separate ones travel with
+         the cell. Border-spacing 0 keeps the hairlines single-width. */
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+
+      @media (min-width: 1024px) {
+        min-width: 720px;
+      }
+
+      /* Tab/mobile: only the plan column picked in the switcher renders,
+         next to the feature column, and the two columns split the width
+         in exact halves. The header row is hidden here (the sticky plan
+         picker box renders it instead), so the fixed layout takes the
+         widths from the first body row's cells. */
+      @media (max-width: 1023px) {
+        table-layout: fixed;
+
+        & > [data-part="head"] {
+          display: none;
+        }
+
+        & [data-part="cell-feature"],
+        & [data-part="cell-value"] {
+          width: 50%;
+        }
+
+        & [data-part="cell-plan"]:not(.active),
+        & [data-part="cell-value"]:not(.active),
+        & [data-part="cell-cta"]:not(.active) {
+          display: none;
+        }
+      }
+
+      & th,
+      & td {
+        /* Table cells default to content-box, which would add each cell's
+           padding on top of the fixed-layout 50% column widths. */
+        box-sizing: border-box;
+        border-top: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-7) var(--noora-spacing-6);
+      }
+
+      /* The stuck header paints its own bottom hairline (there's no row
+         underneath it while floating), so the first body row drops its
+         top one to avoid doubling in normal flow. On tab/mobile the plan
+         picker box's bottom hairline plays the same role. */
+      & > [data-part="head"] th,
+      & > [data-part="head"] td {
+        border-bottom: 1px solid var(--marketing-stroke-default);
+      }
+
+      & > [data-part="body"] > tr:first-child > th,
+      & > [data-part="body"] > tr:first-child > td {
+        border-top: none;
+      }
+
+      /* The CTA row closes the table with its own hairline. */
+      & > [data-part="body"] > tr:last-child > th,
+      & > [data-part="body"] > tr:last-child > td {
+        border-bottom: 1px solid var(--marketing-stroke-default);
+      }
+
+      /* Plan header cells (Figma: 270 wide, 96 Hug): 32px vertical
+         padding, hairline above the whole header row. 3×270 + the 390
+         feature column = the 1200 card. The header row sticks below the
+         navbar while the table scrolls under it; the opaque background
+         keeps the rows from showing through. (Desktop only: tab/mobile
+         hide this row and the plan picker box renders it.) */
+      & [data-part="cell-blank"],
+      & [data-part="cell-plan"] {
+        position: sticky;
+        top: var(--sticky-top);
+        z-index: var(--noora-z-index-1);
+        background: var(--noora-surface-background-primary);
+      }
+
+      & [data-part="cell-plan"] {
+        border-left: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-9) 0;
+        width: 270px;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+        text-align: center;
+      }
+
+      /* Feature cell (Figma: 390 Fill × Hug): 24px vertical / 8px
+         horizontal padding, name → description → hint stacked with an 8px
+         gap. */
+      & [data-part="cell-feature"] {
+        vertical-align: middle;
+        padding: var(--noora-spacing-8) var(--noora-spacing-4);
+        text-align: left;
+
+        & > [data-part="feature-name"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+
+        & > [data-part="feature-description"] {
+          margin-top: var(--noora-spacing-4);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          text-wrap: pretty;
+        }
+
+        & [data-part="feature-description"] + * {
+          display: block;
+          margin-top: var(--noora-spacing-4);
+        }
+      }
+
+      /* Closing CTA row: one button per plan column, empty feature cell. */
+      & [data-part="cell-cta"] {
+        border-left: 1px solid var(--marketing-stroke-default);
+        padding: var(--noora-spacing-9) 0;
+        text-align: center;
+      }
+
+      & [data-part="cell-value"] {
+        vertical-align: middle;
+        border-left: 1px solid var(--marketing-stroke-default);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        text-align: center;
+
+        & > [data-part="description"] {
+          margin-top: var(--noora-spacing-2);
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & svg {
+          vertical-align: middle;
+          width: 16px;
+          height: 16px;
+        }
+
+        &[data-available="true"] svg {
+          color: var(--noora-purple-500);
+        }
+
+        &[data-available="false"] svg {
+          color: var(--noora-surface-label-secondary);
+        }
+      }
+    }
+  }
+
+  /* Dithered divider bands framing the closing CTA — same recipe as the
+     cache and home pages. */
+  & > [data-part="features-divider"] {
+    position: relative;
+    z-index: var(--noora-z-index-2);
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    height: 120px;
+    overflow: hidden;
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="dither"] {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* CTA box: exact replica of the home/cache CTA shell and text ramp. */
+  & > [data-part="cta"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0 var(--noora-spacing-1);
+    border: 1px solid var(--marketing-stroke-default);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-14) var(--noora-spacing-4);
+
+    @media (min-width: 1024px) {
+      margin: 0;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    & > [data-part="eyebrow"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    & > h2 {
+      margin-top: var(--noora-spacing-7);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+      text-align: center;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-9);
+    }
+  }
+
+  & > section[data-part="pricing"] > [data-part="faq"] {
+    /* Question rows run edge to edge of the card; each box carries its
+       own 20px padding. */
+    & > [data-part="questions"] {
+      display: flex;
+      flex-direction: column;
+      /* Opening a question grows the list under the finger; if the browser
+         picks a node inside it as the scroll anchor it corrects the scroll
+         offset every frame of the height transition, which reads as
+         jitter on phones. Keep the anchor out of the accordion. */
+      overflow-anchor: none;
+
+      /* Question box: 20px padding all around, the chevron 16px to the
+         right of the text column. The answer reuses the question's column
+         width — nothing renders below the chevron. */
+      & > [data-part="question"] {
+        transition: background 0.15s ease;
+        border-top: 1px solid var(--marketing-stroke-default);
+        /* Lets block-size animate to `auto` so the disclosure opens
+           smoothly; browsers without ::details-content support just
+           toggle instantly. */
+        interpolate-size: allow-keywords;
+
+        &:not([open]):hover {
+          background: var(--noora-surface-background-secondary);
+        }
+
+        &::details-content {
+          opacity: 0;
+          transition:
+            content-visibility 0.25s allow-discrete,
+            opacity 0.25s ease,
+            block-size 0.25s ease;
+          block-size: 0;
+          overflow-y: clip;
+
+          @media (prefers-reduced-motion: reduce) {
+            transition: none;
+          }
+        }
+
+        &[open]::details-content {
+          opacity: 1;
+          block-size: auto;
+        }
+
+        /* The 20px box padding sits on the summary so the whole row —
+           padding included — is the click/hover target. */
+        & > [data-part="summary"] {
+          display: flex;
+          align-items: center;
+          gap: var(--noora-spacing-6);
+          /* The bottom padding shrinks on open (below); ease it with the
+             answer instead of jumping 4px the instant the row is tapped. */
+          transition: padding-bottom 0.25s ease;
+          cursor: pointer;
+          padding: var(--noora-spacing-7);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          list-style: none;
+
+          &::-webkit-details-marker {
+            display: none;
+          }
+
+          & > [data-part="label"] {
+            flex: 1;
+          }
+
+          & > [data-part="chevron"] {
+            flex-shrink: 0;
+
+            & svg {
+              transition: rotate 0.2s ease;
+            }
+          }
+        }
+
+        &[open] > [data-part="summary"] > [data-part="chevron"] svg {
+          rotate: 180deg;
+        }
+
+        /* Open state: the summary's bottom padding becomes the 16px
+           question → answer gap; the answer carries the box's bottom
+           and side padding. */
+        &[open] > [data-part="summary"] {
+          padding-bottom: var(--noora-spacing-6);
+        }
+
+        & > [data-part="answer"] {
+          /* Keep clear of the chevron column: the 28px neutral button +
+             16px gap. */
+          margin-right: calc(28px + var(--noora-spacing-6));
+          padding: 0 var(--noora-spacing-7) var(--noora-spacing-7);
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+          & p + p {
+            margin-top: var(--noora-spacing-4);
+          }
+
+          & a {
+            color: var(--noora-surface-label-primary);
+            text-decoration: underline;
+          }
+        }
+      }
+    }
+  }
+}

@@ -19,16 +19,17 @@
 //     left intact, so there is no DeleteServer here.
 //
 // Every install goes out with an explicit storage block (see PlanStorage): a
-// mirrored root plus a separate XFS /data. Partitioning is an install-time
-// decision (a box adopted on OVH's default single-root layout cannot grow a
-// /data without another wipe), and /data is what makes a per-account cache
-// quota enforceable at all.
+// redundant root plus a separate XFS /data, at the RAID level the box's disk
+// count supports. Partitioning is an install-time decision (a box adopted on
+// OVH's default single-root layout cannot grow a /data without another wipe),
+// and /data is what makes a per-account cache quota enforceable at all.
 package ovh
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 
@@ -102,6 +103,86 @@ type service struct {
 
 type serviceResource struct {
 	DisplayName string `json:"displayName"`
+}
+
+type EgressSpec struct {
+	// Zero means "unknown" — no bandwidth block, or a unit we cannot convert — so
+	// callers keep their configured value rather than re-rate a node from a
+	// response they did not understand.
+	Mbps int32
+	// bandwidth.type: what distinguishes a box on a purchased uplink upgrade from
+	// its identically-specced neighbours, which is the drift this exists to catch.
+	Tier string
+	// The raw pair, so an unconverted response logs as what OVH said.
+	Unit  string
+	Value int64
+}
+
+// The same response carries `connection` and `vrack.bandwidth`, deliberately not
+// read: both report the switch-side link, 25 Gbit/s on every box we run whatever
+// the public path may carry, so either would over-commit it — 25x on a box limited
+// to 1 Gbit/s.
+type networkSpecifications struct {
+	Bandwidth *bandwidthDetails `json:"bandwidth"`
+}
+
+// The unit is a free-form string in OVH's schema, not an enum, so it has to be
+// read rather than assumed.
+type bandwidthDetails struct {
+	OvhToInternet *unitAndValue `json:"OvhToInternet"`
+	Type          string        `json:"type"`
+}
+
+// PublicEgress reads the box's OVH-to-Internet bandwidth limitation.
+//
+// OVH marks every field in the block nullable, so an absent or unconvertible
+// reading is an ordinary answer rather than an error: it yields Mbps 0 and leaves
+// the caller on its fallback. Only transport/decode failures are errors.
+func (c *Client) PublicEgress(ctx context.Context, serviceName string) (EgressSpec, error) {
+	var spec networkSpecifications
+	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/specifications/network", &spec); err != nil {
+		return EgressSpec{}, fmt.Errorf("get network specifications for %s: %w", serviceName, err)
+	}
+	if spec.Bandwidth == nil {
+		return EgressSpec{}, nil
+	}
+	out := EgressSpec{Tier: spec.Bandwidth.Type}
+	if spec.Bandwidth.OvhToInternet == nil {
+		return out, nil
+	}
+	out.Unit = spec.Bandwidth.OvhToInternet.Unit
+	out.Value = spec.Bandwidth.OvhToInternet.Value
+	out.Mbps = mbpsFromUnitAndValue(out.Unit, out.Value)
+	return out, nil
+}
+
+// Taking the bare value is the expensive bug here: a 5 Gbit/s box reported as
+// "5 Gbps" would advertise 5 Mbps and starve every pod on it.
+func mbpsFromUnitAndValue(unit string, value int64) int32 {
+	if value <= 0 {
+		return 0
+	}
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "mbps":
+		return mbpsInt32(value)
+	case "gbps":
+		if value > math.MaxInt64/1000 {
+			return 0
+		}
+		return mbpsInt32(value * 1000)
+	default:
+		return 0
+	}
+}
+
+// A wrapped conversion is worse than an obviously bad one: 4294967596 wraps to
+// 300, which clears the caller's floor and reads like a real reading. Out of range
+// joins everything else we cannot interpret at zero.
+func mbpsInt32(value int64) int32 {
+	if value > math.MaxInt32 {
+		return 0
+	}
+	return int32(value)
 }
 
 // AdoptParams scopes which pre-ordered servers a fleet may claim.
@@ -263,9 +344,9 @@ const (
 	bootPartitionMiB = 1024
 
 	// rootPartitionMiB caps / on a single-disk-group box so the rest of the
-	// mirror can become /data. The node keeps almost nothing on root: the
-	// self-join relocates containerd's image store and bind-mounts the kubelet
-	// root onto /data, so this holds the base OS and its logs.
+	// group's usable capacity can become /data. The node keeps almost nothing
+	// on root: the self-join relocates containerd's image store and bind-mounts
+	// the kubelet root onto /data, so this holds the base OS and its logs.
 	rootPartitionMiB = 64 * 1024
 
 	// fillRemainingMiB is the size value OVH reads as "give this partition the
@@ -331,10 +412,30 @@ func (g DiskGroup) capacityMiB() int64 {
 	return size * disks
 }
 
-// raidLevel is 1 (mirror) wherever the group has disks to mirror across. Every
-// box in the fleet does; a single-disk group degrades to no RAID rather than
-// failing the install.
+// raidLevel is the software RAID level every partition of the group's layout is
+// installed at. RAID 10 on an EVEN group of four or more disks, RAID 1 on two
+// or three, no RAID on one.
+//
+// The distinction is the group's usable capacity, not just its redundancy. A
+// layout installed at RAID 1 mirrors across ALL the disks the partitioning
+// covers, so a four-disk group installed that way yields ONE disk of usable
+// space: ordering a box with twice the disks buys nothing. RAID 10 stripes over
+// mirrored pairs instead, so the same four disks yield two disks of space at
+// the same single-disk-failure tolerance. Below four there is nothing to stripe
+// and RAID 1 is the only mirror available.
+//
+// An ODD count above three (5, 7) falls back to RAID 1 rather than reaching for
+// RAID 5 or 6: parity is a different durability, write-cost and rebuild story
+// that should be chosen deliberately for a shape that exists, no box in the
+// fleet has one, and a rejected payload is discovered by wiping a machine.
+//
+// 10 is a value dedicated.server.reinstall.storage.partitioning.layout accepts
+// for soft RAID (its RaidLevelEnum is 0/1/5/6/7/10), so this is a level the
+// install honours rather than one it fails on.
 func (g DiskGroup) raidLevel() int64 {
+	if g.NumberOfDisks >= 4 && g.NumberOfDisks%2 == 0 {
+		return 10
+	}
 	if g.NumberOfDisks >= 2 {
 		return 1
 	}
@@ -355,6 +456,12 @@ type Partition struct {
 
 // Partitioning is the layout applied to one disk group.
 type Partitioning struct {
+	// Disks is how many of the group's disks the layout is built across. OVH
+	// defaults it to the whole group; it is sent explicitly because the layout's
+	// RaidLevel is derived from the same count, and the two only describe a
+	// valid array together. A RAID 10 layout needs all four of a four-disk group
+	// to have its two mirrored pairs, so a Disks that disagreed with the count
+	// raidLevel was chosen from would ask for an array that cannot be built.
 	Disks  int64       `json:"disks,omitempty"`
 	Layout []Partition `json:"layout"`
 }
@@ -379,9 +486,10 @@ func (c *Client) DiskGroups(ctx context.Context, serviceName string) ([]DiskGrou
 }
 
 // PlanStorage derives the reinstall storage block from a server's disk groups:
-// one mirrored group carrying /boot, a capped /, and a separate XFS /data
+// one redundant group carrying /boot, a capped /, and a separate XFS /data
 // filling what is left. It is a pure function of the reported hardware so the
-// same code covers every shape in the fleet without an offer-keyed table.
+// same code covers every shape in the fleet without an offer-keyed table,
+// including the RAID level, which the group's disk count decides (raidLevel).
 //
 // Deliberately a SINGLE storage entry, on the largest disk group. OVH documents
 // storage customization for one disk group per install, so a box with a small OS
@@ -545,6 +653,31 @@ func mapTaskStatus(status string) InstallState {
 	default: // todo, doing, init, waitingAck, ...
 		return InstallRunning
 	}
+}
+
+// taskAlreadyExistsClass is the OVHcloud error class returned when the requested
+// task is already queued on the server. The class is a typed field on the API
+// error, so callers key on it rather than on the human-readable message (which
+// carries the task id, type and hostname and is not a stable contract).
+const taskAlreadyExistsClass = "Client::BadRequest::TaskAlreadyExists"
+
+// IsTaskAlreadyExists reports whether err is OVH's rejection of a task it
+// already has queued on the server, e.g. a second reinstall issued while the
+// first is still running:
+//
+//	OVHcloud API error (status code 400): Client::BadRequest::TaskAlreadyExists:
+//	"Task 563254948 of type reinstallServer with status todo is already running
+//	on server ns3048220.ip-51-255-75.eu"
+//
+// It says only that SOME task is in flight, not which; the message names the
+// type but the task list (InstallState) is the readable answer, so callers that
+// care about the type ask there.
+func IsTaskAlreadyExists(err error) bool {
+	var apiErr *ovh.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Class == taskAlreadyExistsClass
+	}
+	return false
 }
 
 // IsNotFound reports whether err is an OVH 404, so callers can treat an absent

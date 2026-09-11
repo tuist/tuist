@@ -13,6 +13,8 @@ defmodule Tuist.Marketing.Changelog do
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
 
+  alias Tuist.Marketing.Changelog.Entry
+
   def get_entries do
     Enum.reverse(content_entries())
   end
@@ -22,4 +24,6 @@ defmodule Tuist.Marketing.Changelog do
   end
 
   def get_entry_by_id(id), do: Enum.find(get_entries(), &(&1.id == id))
+
+  def get_entry_image_source(entry), do: Entry.image_source(entry)
 end

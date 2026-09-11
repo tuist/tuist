@@ -24,6 +24,21 @@ name: Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      hold_seconds:
+        description: >-
+          Seconds to hold the runner busy before finishing. Defaults to 0,
+          which keeps the dispatch smoke as fast as it has always been.
+          Set it (e.g. 300) when the point is to produce a billable job
+          window: runner usage is metered in compute-unit milliseconds and
+          the Price divides by 60000, so a job shorter than a minute
+          contributes a quantity that rounds down to zero on its own.
+          Sub-minute runs still accumulate across the billing period, but a
+          single long run makes one legible invoice line instead of one
+          assembled from fragments.
+        required: false
+        default: "0"
+
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -82,6 +97,16 @@ jobs:
           # Mac mini's security group at the IaaS layer, not
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
+
+      - name: Hold the runner to produce a billable window
+        if: >-
+          github.event_name == 'workflow_dispatch' &&
+          inputs.hold_seconds != '' && inputs.hold_seconds != '0'
+        run: |
+          set -euo pipefail
+          seconds="${{ inputs.hold_seconds }}"
+          echo "Holding this runner for ${seconds}s so the job window is billable."
+          sleep "${seconds}"
 
       - name: Kura runner-cache reachable over the PN
         run: |
