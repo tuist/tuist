@@ -173,6 +173,11 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
+  # changes the pod template and rolls these instances. No RBAC grant needed.
+  # Requires a Kura runtime image with built-in connectivity telemetry.
+  connectivityDiagnostics:
+    instances: []
   # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
     enabled: false

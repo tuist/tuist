@@ -247,6 +247,14 @@ Beyond the signals the standalone gate consumes, `/status/rollout` also reports 
 
 ## Observability
 
+Optional fixed-profile connectivity observations (`src/connectivity/`) run on a
+dedicated OS thread and Tokio runtime started before bootstrap. They receive no
+application state and do not participate in readiness, startup completion, or
+shutdown joins. A single outstanding blocking DNS lookup, serial deadline-bound
+samples, and bounded response/resolver buffers limit work. Results go to ordinary
+JSON logs. This shares the runtime process resource budget; it is not a separate
+security sandbox. See the [runbook](../../infra/kura-controller/connectivity-diagnostics.md).
+
 Each node exposes:
 
 - Prometheus metrics on `/metrics` (replication latency, FD pressure, manifest cache, RocksDB internals, outbox depth, traffic state, rollout-relevant counters).
