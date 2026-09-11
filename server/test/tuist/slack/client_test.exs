@@ -60,7 +60,7 @@ defmodule Tuist.Slack.ClientTest do
       result = Client.exchange_code_for_token("auth-code", "https://example.com/callback")
 
       assert {:error, message} = result
-      assert message =~ "Unexpected status code: 500"
+      assert message =~ "Slack OAuth responded 500"
     end
 
     test "returns error when request fails" do
@@ -74,7 +74,7 @@ defmodule Tuist.Slack.ClientTest do
       result = Client.exchange_code_for_token("auth-code", "https://example.com/callback")
 
       assert {:error, message} = result
-      assert message =~ "Request failed"
+      assert message =~ "Slack OAuth request failed"
     end
 
     test "includes incoming_webhook data when present in response" do
@@ -162,7 +162,7 @@ defmodule Tuist.Slack.ClientTest do
       result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
 
       assert {:error, message} = result
-      assert message =~ "Unexpected status code: 400"
+      assert message =~ "Slack incoming-webhook responded 400 with response body"
     end
 
     test "returns error on unexpected status code (transient)" do
@@ -173,7 +173,7 @@ defmodule Tuist.Slack.ClientTest do
       result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
 
       assert {:error, message} = result
-      assert message =~ "Unexpected status code: 500"
+      assert message =~ "Slack incoming-webhook responded 500 with response body"
     end
 
     test "returns error when request fails" do
@@ -184,7 +184,7 @@ defmodule Tuist.Slack.ClientTest do
       result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
 
       assert {:error, message} = result
-      assert message =~ "Request failed"
+      assert message =~ "Slack incoming-webhook request failed"
     end
   end
 end

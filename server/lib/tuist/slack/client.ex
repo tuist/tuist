@@ -103,11 +103,11 @@ defmodule Tuist.Slack.Client do
   end
 
   defp handle_oauth_response({:ok, %Req.Response{status: status, body: body}}) do
-    {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+    {:error, "Slack OAuth responded #{status} with body: #{inspect(body)}"}
   end
 
   defp handle_oauth_response({:error, reason}) do
-    {:error, "Request failed: #{inspect(reason)}"}
+    {:error, "Slack OAuth request failed: #{inspect(reason)}"}
   end
 
   defp handle_webhook_response({:ok, %Req.Response{status: status}}) when status in 200..299 do
@@ -126,16 +126,20 @@ defmodule Tuist.Slack.Client do
     if permanent_webhook_error?(body) do
       {:error, :webhook_revoked}
     else
-      {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+      {:error, unexpected_webhook_error(status, body)}
     end
   end
 
   defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
-    {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+    {:error, unexpected_webhook_error(status, body)}
   end
 
   defp handle_webhook_response({:error, reason}) do
-    {:error, "Request failed: #{inspect(reason)}"}
+    {:error, "Slack incoming-webhook request failed: #{inspect(reason)}"}
+  end
+
+  defp unexpected_webhook_error(status, body) do
+    "Slack incoming-webhook responded #{status} with response body: #{inspect(body)}"
   end
 
   defp permanent_webhook_error?(body) when is_binary(body) do
@@ -153,10 +157,10 @@ defmodule Tuist.Slack.Client do
   end
 
   defp handle_post_response({:ok, %Req.Response{status: status, body: body}}) do
-    {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+    {:error, "Slack chat.postMessage responded #{status} with response body: #{inspect(body)}"}
   end
 
   defp handle_post_response({:error, reason}) do
-    {:error, "Request failed: #{inspect(reason)}"}
+    {:error, "Slack chat.postMessage request failed: #{inspect(reason)}"}
   end
 end
