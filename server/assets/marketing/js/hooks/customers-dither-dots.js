@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Dither-dot field behind the customer story cards (Monzo / Trendyol).
  * The dot layout and shades are the Figma export verbatim
@@ -185,7 +186,9 @@ export const CustomersDitherDots = {
     // artwork stays at its natural size and tiles to fill (see render).
     this.resize = () => {
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.w = Math.max(1, Math.round(rect.width));
       this.canvas.width = this.w * dpr;
       this.canvas.height = HEIGHT * dpr;
@@ -207,10 +210,20 @@ export const CustomersDitherDots = {
       this.hover = this.hoverTarget > this.hover ? Math.min(1, this.hover + step) : Math.max(0, this.hover - step);
       this.render(now);
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.lastNow = 0;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.canvas, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.offThemeChange) this.offThemeChange();
     if (this.raf) cancelAnimationFrame(this.raf);
     if (this.observer) this.observer.disconnect();
@@ -225,7 +238,7 @@ export const CustomersDitherDots = {
     // Derive the logical width from the backing store rather than the last
     // measurement, so the drawn field always fills exactly the pixels the
     // canvas has — a stale measurement can scale it but never crop it.
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = this.canvas.width / dpr;
     ctx.clearRect(0, 0, w, HEIGHT);
     const angle = (now / PERIOD_MS) * TAU;

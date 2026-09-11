@@ -96,6 +96,7 @@
                   data-part="dither"
                   id={"cache-minimal-overhead-dither-#{index}"}
                   phx-hook="DitherTexture"
+                  phx-update="ignore"
                   data-pitch="2"
                   data-dot="2"
                   data-top="0.1"
@@ -135,6 +136,7 @@
             <canvas
               id="cache-low-latency-globe"
               phx-hook="DitherGlobe"
+              phx-update="ignore"
               data-size="2.05"
               data-pitch="2"
               data-tilt-x="0.07"
@@ -329,6 +331,7 @@
         data-part="dither"
         id="cache-cta-divider-top-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"
@@ -363,6 +366,7 @@
         data-part="dither"
         id="cache-cta-divider-bottom-dither"
         phx-hook="DitherTexture"
+        phx-update="ignore"
         data-pitch="2"
         data-dot="2"
         data-top="0"
