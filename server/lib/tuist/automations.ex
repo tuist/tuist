@@ -197,6 +197,8 @@ defmodule Tuist.Automations do
           generation = alert.baseline_generation + 1
           event_generation = if condition_changed?, do: generation, else: Alert.event_generation(alert)
 
+          discard_superseded_baseline_results(alert.id, generation)
+
           changeset
           |> Ecto.Changeset.put_change(:baseline_generation, generation)
           |> Ecto.Changeset.put_change(:event_generation, event_generation)
@@ -217,6 +219,22 @@ defmodule Tuist.Automations do
     end
     |> Repo.transaction()
     |> unwrap_update_alert_transaction()
+  end
+
+  # Generations only advance under the alert's row lock, and a worker rechecks
+  # the generation under that same lock before writing another result, so rows
+  # belonging to an older generation can never be read or extended again. Saves
+  # that bump the generation are a supported product flow now (opt-in,
+  # cancellation, action edit while pending), so leaving one row per matching
+  # test behind on every one of them would grow without bound.
+  defp discard_superseded_baseline_results(alert_id, generation) do
+    Repo.delete_all(
+      from(result in BaselineResult,
+        join: attempt in BaselineAttempt,
+        on: attempt.id == result.attempt_id,
+        where: attempt.alert_id == ^alert_id and attempt.baseline_generation < ^generation
+      )
+    )
   end
 
   defp unwrap_create_alert_transaction({:ok, %{alert: alert}}), do: {:ok, alert}
@@ -536,6 +554,23 @@ defmodule Tuist.Automations do
     }
   end
 
+  @doc """
+  Runs one bounded slice of an alert's baseline pass, resuming from the
+  attempt's durable checkpoints. Returns `:ok` whether it enumerated, published
+  or found nothing left to do.
+
+  `apply_match` turns the silent pass into the opted-in backlog pass. Both share
+  one pipeline on purpose: the backlog needs the same exact, resumable, bounded
+  matching set as the baseline, and running it separately would mean two
+  enumerations of the same project and two publishers racing for the same
+  events. The cost of that choice is real and deliberate — the pipeline only
+  runs while `baseline_established_at` is nil, so requesting a backlog clears it
+  and suspends this automation's triggers and recovery until the rescan
+  finishes, and separating `event_generation` from `baseline_generation` exists
+  only to keep the recovery ledger alive across that window. A backlog pass with
+  its own progress row could avoid the suspension, at the price of a second
+  enumeration and a second publisher to serialize against this one.
+  """
   def establish_alert_baseline(%Alert{} = alert, evaluate_batch, apply_match \\ nil)
       when is_function(evaluate_batch, 1) do
     case begin_alert_baseline(alert) do
@@ -547,8 +582,16 @@ defmodule Tuist.Automations do
 
       {:ok, %BaselineAttempt{state: "evaluating"} = attempt} ->
         case evaluate_alert_baseline(attempt, alert.project_id, evaluate_batch) do
-          {:ok, publishing_attempt} ->
+          {:ok, %BaselineAttempt{state: "publishing"} = publishing_attempt} ->
             publish_and_commit_alert_baseline(publishing_attempt, evaluate_batch, apply_match)
+
+          {:ok, %BaselineAttempt{}} ->
+            # A competing worker still owns the enumeration. The publication
+            # watermark orders by `test_case_id` while the evaluation cursor is
+            # keyset on the test case name tuple, so publishing now would filter
+            # out lower-id results that enumeration has not written yet and
+            # commit a baseline missing them. Leave the attempt for the next run.
+            :ok
 
           {:error, :stale} ->
             :ok

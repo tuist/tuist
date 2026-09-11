@@ -128,6 +128,74 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert updated.baseline_generation == automation.baseline_generation + 1
     end
 
+    test "cancels the in-flight count when the dialog closes without the dismiss button", context do
+      test_pid = self()
+
+      stub(Automations, :count_existing_matches, fn _alert ->
+        send(test_pid, {:counting, self()})
+
+        receive do
+          :finish -> 1
+        end
+      end)
+
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      assert_receive {:counting, task}
+
+      # Escape and click-outside close the dialog client-side and only reach the
+      # server through `on_open_change`, never through `on_dismiss`.
+      render_hook(lv, "create_automation_modal_open_change", %{"open" => false})
+
+      monitor = Process.monitor(task)
+      assert_receive {:DOWN, ^monitor, :process, ^task, _}
+      refute render(lv) =~ "Counting matching tests"
+    end
+
+    test "an unchanged save records no revision and leaves trigger_config alone", context do
+      # The form normalises the threshold and always emits a comparison, so the
+      # fixture starts from the config a dashboard save would produce. Any
+      # remaining diff is then the one this test is about.
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: context.project,
+          trigger_config: %{
+            "threshold" => 10.0,
+            "comparison" => "gte",
+            "window_type" => "last_days",
+            "window" => "30d"
+          }
+        )
+
+      revisions_before = length(Automations.list_alert_revisions(automation.id))
+
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "save_automation", %{})
+
+      reloaded = Repo.reload!(automation)
+      refute Map.has_key?(reloaded.trigger_config, "apply_actions_to_existing_matches")
+      assert reloaded.trigger_config == automation.trigger_config
+      assert length(Automations.list_alert_revisions(automation.id)) == revisions_before
+    end
+
+    test "a malformed recovery window blocks save instead of silently doing nothing", context do
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Recovery window"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      html = render_hook(lv, "update_create_automation_form_recovery_window", %{"value" => "14"})
+
+      assert html =~ ~s(disabled="" type="button" phx-click="save_automation")
+      render_hook(lv, "save_automation", %{})
+      assert Automations.list_alerts(context.project.id) == []
+
+      render_hook(lv, "update_create_automation_form_recovery_window", %{"value" => "14d"})
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.recovery_config["window"] == "14d"
+    end
+
     test "shows failure without blocking save and refreshes when reopened for editing", context do
       stub(Automations, :count_existing_matches, fn _alert -> exit(:unavailable) end)
       {:ok, lv, _html} = open(context.conn, context.organization, context.project)

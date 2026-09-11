@@ -73,8 +73,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  defp refresh_match_count_on_event("close_create_automation_modal", _params, socket) do
-    {:cont, socket |> cancel_match_count() |> assign(match_count: :idle, match_count_ref: nil)}
+  defp refresh_match_count_on_event(event, params, socket)
+       when event in ["close_create_automation_modal", "create_automation_modal_open_change"] do
+    # Noora wires `on_dismiss` to the ✕ only; Escape and click-outside close the
+    # dialog client-side and surface here through `on_open_change` instead.
+    if event == "close_create_automation_modal" or params["open"] == false do
+      {:cont, socket |> cancel_match_count() |> assign(match_count: :idle, match_count_ref: nil)}
+    else
+      {:cont, socket}
+    end
   end
 
   defp refresh_match_count_on_event(_event, _params, socket), do: {:cont, socket}
@@ -330,6 +337,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, push_event(socket, "close-modal", %{id: "create-automation-modal"})}
   end
 
+  def handle_event("create_automation_modal_open_change", _params, socket), do: {:noreply, socket}
+
   def handle_event("toggle_create_automation_form_section", %{"section" => section}, socket)
       when section in ["condition", "actions", "recovery"] do
     sections = socket.assigns.create_automation_form_sections
@@ -573,7 +582,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
-    if condition_inputs_valid?(assigns) and rolling_window_inputs_valid?(assigns) do
+    if condition_inputs_valid?(assigns) and rolling_window_inputs_valid?(assigns) and
+         day_window_inputs_valid?(assigns) do
       save_automation(socket)
     else
       {:noreply, socket}
@@ -777,11 +787,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_rolling_window_size
     )
     |> maybe_put_states(assigns.create_automation_form_trigger_states)
-    |> maybe_put_apply_existing_matches(assigns.create_automation_form_apply_existing_matches)
+    |> maybe_put_apply_existing_matches(
+      assigns.create_automation_form_apply_existing_matches,
+      assigns.create_automation_form_existing_matches_pending
+    )
   end
 
-  defp maybe_put_apply_existing_matches(config, true), do: Map.put(config, "apply_actions_to_existing_matches", true)
-  defp maybe_put_apply_existing_matches(config, false), do: Map.put(config, "apply_actions_to_existing_matches", false)
+  # The key records a pending operation for one save, not a persistent
+  # preference, so an unchecked box only writes `false` when there is a request
+  # to cancel. Writing it unconditionally made every no-op save of a metric
+  # automation record a `trigger_config` revision whose from/to render
+  # identically, and ping-ponged with API updates that omit `trigger_config`.
+  defp maybe_put_apply_existing_matches(config, true, _pending),
+    do: Map.put(config, "apply_actions_to_existing_matches", true)
+
+  defp maybe_put_apply_existing_matches(config, false, true),
+    do: Map.put(config, "apply_actions_to_existing_matches", false)
+
+  defp maybe_put_apply_existing_matches(config, false, false), do: config
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
 
@@ -1059,6 +1082,43 @@ defmodule TuistWeb.ProjectAutomationsLive do
            )
          ))
   end
+
+  @doc """
+  True when both day-level window inputs hold a value the schema accepts.
+
+  `condition_alert/1` builds its changeset from a bare `%Alert{}` and never
+  sets `recovery_enabled`, so `Alert.validate_recovery_config/1` short-circuits
+  and nothing validates the recovery `last_days` window. Without this the Save
+  button stayed enabled for `14` instead of `14d` and the click landed on the
+  catch-all handler, leaving the modal open with no feedback.
+  """
+  def day_window_inputs_valid?(assigns) do
+    is_nil(
+      day_window_error(
+        assigns.create_automation_form_window_type,
+        assigns.create_automation_form_window
+      )
+    ) and
+      (not assigns.create_automation_form_recovery_enabled or
+         is_nil(
+           day_window_error(
+             assigns.create_automation_form_recovery_window_type,
+             assigns.create_automation_form_recovery_window
+           )
+         ))
+  end
+
+  @doc """
+  User-facing error string for a day-level window input, or `nil` when the
+  value is valid (or the window mode isn't `last_days`).
+  """
+  def day_window_error("last_days", raw_window) do
+    if Alert.valid_day_window?(to_string(raw_window)),
+      do: nil,
+      else: dgettext("dashboard_projects", "e.g. 30d")
+  end
+
+  def day_window_error(_window_type, _raw_window), do: nil
 
   @doc """
   User-facing error string for a rolling-window size input, or `nil` when

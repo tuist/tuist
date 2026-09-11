@@ -382,7 +382,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp validate_window_shape(config, max_rolling_window_size) do
     case window_type(config) do
       "last_days" ->
-        if valid_window?(config["window"]),
+        if valid_day_window?(config["window"]),
           do: :ok,
           else: {:error, "window must be a string like '30d' (day-level only)"}
 
@@ -408,10 +408,15 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp window_type(%{"window_type" => type}) when type in @window_types, do: type
   defp window_type(_), do: :invalid
 
-  # The flaky-test monitor evaluates against a per-day-aggregated MV, so
-  # sub-day windows would silently round to a full day and look broken.
-  # Constrain `trigger_config.window` to day-level (`Nd`) up front so users
-  # don't think `1h` / `5m` are honored.
-  defp valid_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
-  defp valid_window?(_), do: false
+  @doc """
+  Whether a `last_days` window string is day-level (`Nd`).
+
+  The flaky-test monitor evaluates against a per-day-aggregated MV, so sub-day
+  windows would silently round to a full day and look broken. Constrain
+  `trigger_config.window` to day-level up front so users don't think `1h` /
+  `5m` are honored. Public so the dashboard form can gate Save on the same
+  rule instead of letting an invalid window reach a silent no-op.
+  """
+  def valid_day_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
+  def valid_day_window?(_window), do: false
 end

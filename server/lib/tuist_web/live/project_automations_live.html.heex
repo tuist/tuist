@@ -67,6 +67,7 @@
         }
         header_size="large"
         on_dismiss="close_create_automation_modal"
+        on_open_change="create_automation_modal_open_change"
       >
         <:trigger :let={attrs}>
           <.button
@@ -279,6 +280,12 @@
                         name="window"
                         value={@create_automation_form_window}
                         placeholder="30d"
+                        error={
+                          day_window_error(
+                            @create_automation_form_window_type,
+                            @create_automation_form_window
+                          )
+                        }
                         phx-keyup="update_create_automation_form_window"
                         phx-debounce="300"
                       />
@@ -776,6 +783,12 @@
                             name="recovery_days"
                             value={@create_automation_form_recovery_window}
                             placeholder="14d"
+                            error={
+                              day_window_error(
+                                @create_automation_form_recovery_window_type,
+                                @create_automation_form_recovery_window
+                              )
+                            }
                             phx-keyup="update_create_automation_form_recovery_window"
                             phx-debounce="300"
                           />
@@ -1093,6 +1106,7 @@
                 disabled={
                   @create_automation_form_name == "" or
                     not rolling_window_inputs_valid?(assigns) or
+                    not day_window_inputs_valid?(assigns) or
                     not condition_inputs_valid?(assigns) or
                     Enum.empty?(@create_automation_form_trigger_actions)
                 }
