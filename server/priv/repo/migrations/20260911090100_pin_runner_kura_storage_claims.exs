@@ -60,9 +60,8 @@ defmodule Tuist.Repo.Migrations.PinRunnerKuraStorageClaims do
           else: "50Gi"
 
       _ ->
-        # Raw queries return the id as its 16 raw bytes.
         raise ArgumentError,
-              "invalid runner storage claim #{inspect(claim)} for kura_server #{Ecto.UUID.load!(id)}; repair before enrollment"
+              "invalid runner storage claim #{inspect(claim)} for kura_server #{id}; repair before enrollment"
     end
   end
 
