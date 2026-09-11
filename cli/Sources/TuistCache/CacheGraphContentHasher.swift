@@ -151,25 +151,16 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         )
     }
 
-    /// Whether `excludedTargets` covers `target`, either by name or because the target is the resources
-    /// bundle of an excluded target.
-    ///
-    /// Callers that hash the full graph and narrow the result afterwards need the same rule the hashing
-    /// itself applies, so it lives here rather than being restated at every call site.
-    public static func isExcluded(
-        _ target: GraphTarget,
-        excludedTargets: Set<String>
-    ) -> Bool {
-        excludedTargets.contains(target.target.name) || excludedTargets
-            .contains(target.target.name.dropPrefix("\(target.project.name)_"))
-    }
-
     private func isGraphTargetHashable(
         _ target: GraphTarget,
         excludedTargets: Set<String>
     ) -> Bool {
         let product = target.target.product
-        let isExcluded = CacheGraphContentHasher.isExcluded(target, excludedTargets: excludedTargets)
+        let name = target.target.name
+
+        // The second condition is to exclude the resources bundle associated to the given target name
+        let isExcluded = excludedTargets.contains(name) || excludedTargets
+            .contains(target.target.name.dropPrefix("\(target.project.name)_"))
         let isTestBundle = target.target.product.testsBundle
         let isHashableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
 

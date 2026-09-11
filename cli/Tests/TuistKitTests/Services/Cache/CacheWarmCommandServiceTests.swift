@@ -71,7 +71,11 @@
                 .called(1)
         }
 
-        @Test(.inTemporaryDirectory) func run_hashesEveryCacheableTarget_whenAProfileNarrowsWhatIsWarmed() async throws {
+        /// Hashing a target runs its `additionalHashingInputs` scripts, and excluding one also makes its
+        /// dependents unhashable, which is what stops a warm from storing artifacts the same profile could
+        /// never read back. So a narrowing profile keeps its exclusions on the hashing call, and the
+        /// resulting map is too narrow to hand to binary replacement, which runs under `.allPossible`.
+        @Test(.inTemporaryDirectory) func run_keepsProfileExclusions_andHandsOverNoHashes() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let externalProjectPath = temporaryDirectory.appending(component: "external")
             let localTarget = Target.test(name: "Local", product: .framework)
@@ -82,7 +86,6 @@
                 targets: [externalTarget],
                 type: .external(hash: nil)
             )
-            let localGraphTarget = GraphTarget(path: temporaryDirectory, target: localTarget, project: localProject)
             let externalGraphTarget = GraphTarget(
                 path: externalProjectPath,
                 target: externalTarget,
@@ -106,20 +109,15 @@
             given(defaultConfigurationFetcher)
                 .fetch(configuration: .any, defaultConfiguration: .any, graph: .value(graph))
                 .willReturn("Debug")
-            // The profile narrows what gets warmed, never what gets hashed: binary replacement in the warm
-            // project needs a hash for the local target too.
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
                     configuration: .any,
                     defaultConfiguration: .any,
-                    excludedTargets: .value([]),
+                    excludedTargets: .value(["Local"]),
                     destination: .value(nil)
                 )
-                .willReturn([
-                    localGraphTarget: .test(hash: "local-hash"),
-                    externalGraphTarget: .test(hash: "external-hash"),
-                ])
+                .willReturn([externalGraphTarget: .test(hash: "external-hash")])
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
             given(generatorFactory)
                 .binaryCacheWarming(
@@ -154,11 +152,7 @@
                     },
                     configuration: .any,
                     cacheStorage: .any,
-                    targetHashes: .value([
-                        TargetReference(projectPath: temporaryDirectory, name: "Local"): .test(hash: "local-hash"),
-                        TargetReference(projectPath: externalProjectPath, name: "External"):
-                            .test(hash: "external-hash"),
-                    ])
+                    targetHashes: .value([:])
                 )
                 .called(1)
         }
