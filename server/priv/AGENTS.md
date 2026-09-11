@@ -35,3 +35,5 @@ This directory contains database migrations and other private assets.
 - GitLab runner assignments retain encrypted execution payloads temporarily; migration changes must preserve the documented cleanup and disjoint job-ID range. Connections are unique per account and instance URL; routing errors are retained as non-secret assignment metadata.
 
 - Gradle build start timestamps are nullable for backward compatibility and use `Nullable(DateTime64(6))` in ClickHouse. They align recorded operations and machine samples; no upload-time backfill is valid.
+
+- GitLab live-assignment expiry and connection lookups use concurrent partial indexes restricted to `payload IS NOT NULL`; retain historical metadata without making polling scan completed jobs.

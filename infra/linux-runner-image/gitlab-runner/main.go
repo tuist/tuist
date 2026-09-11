@@ -156,9 +156,19 @@ func execute(job assignment, buildsDir string) error {
 		trace.exitCode = 1
 		trace.mu.Unlock()
 		trace.Finish()
-		return errors.New("GitLab assignment cancelled")
+		return nil
 	}
-	return build.Run(common.NewConfig(), trace)
+	err = build.Run(common.NewConfig(), trace)
+	var buildError *common.BuildError
+	if errors.As(err, &buildError) {
+		// Job outcomes are already reported. Reserve non-zero runner exits
+		// for infrastructure failures, as required by the fleet controller.
+		switch buildError.FailureReason {
+		case "", common.ScriptFailure, common.JobCanceled, common.JobExecutionTimeout, common.ConfigurationError:
+			return nil
+		}
+	}
+	return err
 }
 
 func report(job assignment, endpoint string, body any) error {

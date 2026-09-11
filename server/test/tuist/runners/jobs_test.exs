@@ -433,6 +433,46 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  test "matches GitLab build and test payloads by project path and compatible host" do
+    account = account_fixture()
+    project = ProjectsFixtures.project_fixture(account: account)
+    other_project = ProjectsFixtures.project_fixture()
+    pipeline_id = System.unique_integer([:positive])
+    gitlab_job = %Tuist.Runners.GitLab.Job{url: "https://gitlab.example.com", project_path: "acme/mobile"}
+
+    for {name, provider, path, host, run_id, project_id} <- [
+          {"Current", "gitlab", "acme/mobile", "gitlab.example.com", pipeline_id, project.id},
+          {"Legacy", "gitlab", "acme/mobile", "", pipeline_id, project.id},
+          {"OtherInstance", "gitlab", "acme/mobile", "other.example.com", pipeline_id, project.id},
+          {"OtherPath", "gitlab", "acme/other", "gitlab.example.com", pipeline_id, project.id},
+          {"OtherPipeline", "gitlab", "acme/mobile", "gitlab.example.com", pipeline_id + 1, project.id},
+          {"OtherProvider", "github", "acme/mobile", "gitlab.example.com", pipeline_id, project.id},
+          {"OtherAccount", "gitlab", "acme/mobile", "gitlab.example.com", pipeline_id, other_project.id}
+        ] do
+      attrs = [
+        project_id: project_id,
+        scheme: name,
+        ci_provider: provider,
+        ci_project_handle: path,
+        ci_host: host,
+        ci_run_id: Integer.to_string(run_id)
+      ]
+
+      {:ok, _} = RunsFixtures.build_fixture(attrs)
+      {:ok, _} = RunsFixtures.test_fixture(attrs)
+    end
+
+    assert [project]
+           |> Jobs.list_runner_build_runs(pipeline_id, gitlab_job)
+           |> Enum.map(& &1.scheme)
+           |> Enum.sort() == ["Current", "Legacy"]
+
+    assert [project]
+           |> Jobs.list_runner_test_runs(pipeline_id, gitlab_job)
+           |> Enum.map(& &1.scheme)
+           |> Enum.sort() == ["Current", "Legacy"]
+  end
+
   describe "list_runner_test_runs/2" do
     test "returns latest completed test rows for the project and workflow run" do
       account = account_fixture()

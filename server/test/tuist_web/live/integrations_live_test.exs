@@ -434,6 +434,8 @@ defmodule TuistWeb.IntegrationsLiveTest do
              )
 
       refute has_element?(lv, "#gitlab-connection-#{connection.id} [data-part=title]")
+      assert has_element?(lv, "#gitlab-connection-#{connection.id} input[name=_id]")
+      refute has_element?(lv, "#gitlab-connection-#{connection.id} input[name=id]")
       lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: ""}) |> render_submit()
       assert GitLab.get_connection(connection.id).runner_token == "glrt-private-token"
       html = lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: "glrt-rotated"}) |> render_submit()

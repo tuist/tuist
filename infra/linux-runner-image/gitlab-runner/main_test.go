@@ -31,11 +31,13 @@ func TestExecute(t *testing.T) {
 		exit         string
 		cancel       bool
 		activeCancel bool
+		infraFailure bool
 	}{
-		{"success with checkout artifacts and masked logs", "0", false, false},
-		{"script failure", "7", false, false},
-		{"cancel before execution", "0", true, false},
-		{"cancel while running", "7", false, true},
+		{"success with checkout artifacts and masked logs", "0", false, false, false},
+		{"executor cannot start shell", "0", false, false, true},
+		{"script failure", "7", false, false, false},
+		{"cancel before execution", "0", true, false, false},
+		{"cancel while running", "7", false, true, false},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -155,21 +157,32 @@ func TestExecute(t *testing.T) {
 					"artifacts": []map[string]any{{"paths": []string{"artifact.txt"}, "when": "on_success", "artifact_type": "archive", "artifact_format": "zip"}},
 				},
 			})
-			var job assignment
-			if err := json.Unmarshal(data, &job); err != nil {
+			jobFile := filepath.Join(dir, "job.json")
+			if err := os.WriteFile(jobFile, data, 0600); err != nil {
 				t.Fatal(err)
 			}
-			err := execute(job, filepath.Join(dir, "builds"))
+			buildsDir := filepath.Join(dir, "builds")
+			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir)
+			if scenario.infraFailure {
+				cmd.Env = append(os.Environ(), "PATH="+dir)
+			}
+			output, err := cmd.CombinedOutput()
 			mu.Lock()
 			defer mu.Unlock()
-			if scenario.exit == "0" && !scenario.cancel && err != nil {
-				t.Fatalf("execute: %v\n%s", err, tuistLog.String())
+			if scenario.infraFailure && err == nil {
+				t.Fatal("infrastructure failure must exit the runner non-zero")
 			}
-			if (scenario.exit != "0" || scenario.cancel) && err == nil {
-				t.Error("expected execution failure")
+			if !scenario.infraFailure && err != nil {
+				t.Fatalf("job outcome must exit the runner zero: %v\n%s", err, output)
 			}
 			if outcome == nil {
 				t.Fatal("no completion report")
+			}
+			if scenario.infraFailure {
+				if outcome["exit_status"] == float64(0) || states[len(states)-1] != "failed" {
+					t.Fatalf("lost infrastructure failure: outcome=%v states=%v", outcome, states)
+				}
+				return
 			}
 			if scenario.cancel || scenario.activeCancel {
 				if outcome["cancelled"] != true {
@@ -196,7 +209,7 @@ func TestExecute(t *testing.T) {
 					t.Errorf("states: %v", states)
 				}
 			} else {
-				if outcome["exit_status"] == float64(0) {
+				if outcome["exit_status"] != float64(7) {
 					t.Errorf("lost script failure: %v", outcome)
 				}
 				if states[len(states)-1] != "failed" {

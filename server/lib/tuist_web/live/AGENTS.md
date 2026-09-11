@@ -39,3 +39,5 @@ This area owns LiveView pages and components for the web UI.
 - `BuildTimelineLoader` owns lazy metric bootstrapping, build identity, versioning, tab reentry and forced refresh for Xcode, Gradle and Bazel. It cancels superseded bootstrap tasks and rejects stale/inactive-tab hook requests. Step metadata stays out of LiveView state: every source supplies an authorized HTTP URL to `build_timeline_section`, which shares loading/error UI and preserves source-specific coverage notices. Xcode keeps cancellable server navigation/log tasks; Gradle and Bazel navigate downloaded steps locally, with Bazel logs loaded separately when available.
 
 - Gradle and Bazel detail tabs follow Xcode: Overview, Timeline, then cache and source-specific tabs. Gradle machine metrics appear only in Timeline; legacy `tab=machine-metrics` links open Timeline without eagerly loading samples on other tabs.
+
+- GitLab edit forms submit the connection identifier as `_id` and remap it to the context’s `id`; never use `name="id"` on an input because it shadows the form DOM property used by LiveView.

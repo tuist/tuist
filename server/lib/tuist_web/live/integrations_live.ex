@@ -81,8 +81,11 @@ defmodule TuistWeb.IntegrationsLive do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
         params
-        |> Map.take(["id", "url", "runner_token"])
-        |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
+        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.new(fn
+          {"_id", value} -> {:id, String.trim(value)}
+          {key, value} -> {String.to_existing_atom(key), String.trim(value)}
+        end)
 
       case GitLab.save_connection(account.id, attrs) do
         {:ok, _} ->

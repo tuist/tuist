@@ -192,16 +192,25 @@ defmodule Tuist.Runners.Jobs do
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
   end
 
-  # A Buildkite build number is unique only within its pipeline, so the
-  # pipeline handle is part of the match; without it two pipelines in the
-  # same account would cross-link at the same build number.
+  # The CLI reports the project path and instance host separately. Older
+  # uploads omit the host, so retain those matches without accepting a known
+  # different instance.
   defp ci_scope(query, %GitLabJob{url: url, project_path: path}) do
-    handle = "#{URI.parse(url).host}/#{path}"
-    where(query, [run], run.ci_provider == "gitlab" and run.ci_project_handle == ^handle)
+    host = URI.parse(url).host
+
+    where(
+      query,
+      [run],
+      run.ci_provider == "gitlab" and run.ci_project_handle == ^path and
+        run.ci_host in ["", ^host]
+    )
   end
 
   defp ci_scope(query, nil), do: where(query, [run], run.ci_provider == "github")
 
+  # A Buildkite build number is unique only within its pipeline, so the
+  # pipeline handle is part of the match; without it two pipelines in the
+  # same account would cross-link at the same build number.
   defp ci_scope(query, %{organization_slug: org, pipeline_slug: pipeline}) do
     handle = "#{org}/#{pipeline}"
     where(query, [run], run.ci_provider == "buildkite" and run.ci_project_handle == ^handle)

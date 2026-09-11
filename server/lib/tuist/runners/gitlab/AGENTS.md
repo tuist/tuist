@@ -45,3 +45,5 @@ assignment upstream if persistence fails.
 - Poll passes use the dedicated `runner_gitlab` queue and snooze between requests within each cron window. Inactive accounts stop early; rejected jobs do not stop subsequent acquisition. Settlement returns remaining assignments for capacity checks without a second joined query.
 - Disconnect performs only account-scoped database mutations in the request process; background polling settles assignments. Idle deletion is idempotent. Routing alerts survive empty polls until a routable job is acquired.
 - Persistence exceptions log their class and stack locations with argument values omitted; never log the assignment or exception message, which may contain tokens.
+
+- Build/test insight linkage follows CLI metadata: `ci_project_handle` is the bare project path, `ci_run_id` is the pipeline ID, and `ci_host` is matched separately. Accept legacy empty hosts, but exclude a known different instance. Partial indexes on non-null payloads keep waiting-assignment and expiry queries bounded by live assignments.
