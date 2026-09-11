@@ -27,13 +27,13 @@ dithered dividers. --%>
           "Runners that spin up in seconds and scale with your team and your agents."
         )}
       </p>
-      <%!-- The migration, one per CI: a GitHub/Buildkite switch over the
-      diff it selects (swap the runs-on label, or the agent queue). Code
-      stays untranslated, like the illustrations' annotations. The added
-      line types out behind a blinking terminal cursor — once per page
-      load, and again whenever the switch changes CI (ComputeHeroDiff);
-      the typed/cursor spans stay glued together on one line so no
-      whitespace opens between the text and the caret. --%>
+      <%!-- The migration, one per CI: a GitHub/GitLab/Buildkite switch
+      over the diff it selects (swap the runs-on label, the tag, or the
+      agent queue). Code stays untranslated, like the illustrations'
+      annotations. The added line types out behind a blinking terminal
+      cursor — once per page load, and again whenever the switch changes
+      CI (ComputeHeroDiff); the typed/cursor spans stay glued together
+      on one line so no whitespace opens between the text and the caret. --%>
       <div data-part="migration" id="compute-hero-migration" phx-hook="ComputeHeroDiff">
         <.button_group data-part="ci-switch" aria-label={dgettext("marketing", "CI provider")}>
           <.button_group_item
@@ -41,6 +41,11 @@ dithered dividers. --%>
             data-ci="github"
             data-selected
             aria-pressed="true"
+          />
+          <.button_group_item
+            label="GitLab"
+            data-ci="gitlab"
+            aria-pressed="false"
           />
           <.button_group_item
             label="Buildkite"
@@ -57,6 +62,16 @@ dithered dividers. --%>
             <span data-part="line" data-line="added">
               <span data-part="sign">+</span>
               <span data-part="code"><span data-part="typed">runs-on: tuist-macos</span><span data-part="cursor"></span></span>
+            </span>
+          </span>
+          <span data-part="variant" data-ci="gitlab">
+            <span data-part="line" data-line="removed">
+              <span data-part="sign">-</span>
+              <span data-part="code">tags: [macos]</span>
+            </span>
+            <span data-part="line" data-line="added">
+              <span data-part="sign">+</span>
+              <span data-part="code"><span data-part="typed">tags: [tuist-macos]</span><span data-part="cursor"></span></span>
             </span>
           </span>
           <span data-part="variant" data-ci="buildkite">

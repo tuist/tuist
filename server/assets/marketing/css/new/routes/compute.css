@@ -136,6 +136,7 @@
       }
 
       &[data-ci="github"] > [data-part="variant"][data-ci="github"],
+      &[data-ci="gitlab"] > [data-part="variant"][data-ci="gitlab"],
       &[data-ci="buildkite"] > [data-part="variant"][data-ci="buildkite"] {
         display: contents;
       }
