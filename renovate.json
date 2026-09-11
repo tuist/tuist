@@ -1,11 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit.",
+  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit. swifterpm's test and e2e fixtures are frozen real-world manifests (Package.swift + Package.resolved) that the resolution tests assert against; Renovate bumping the pins inside them only rewrites test data, so those paths are ignored (the first two ignorePaths entries restate Renovate's defaults, which setting the option replaces).",
   "schedule": ["before 6am on monday"],
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Renovate: dependency dashboard",
   "prConcurrentLimit": 25,
   "prHourlyLimit": 4,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "swifterpm/Tests/**/Fixtures/**",
+    "swifterpm/e2e/fixtures/**"
+  ],
   "customManagers": [
     {
       "customType": "regex",
