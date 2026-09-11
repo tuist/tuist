@@ -13,6 +13,42 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
     %{project: ProjectsFixtures.project_fixture()}
   end
 
+  test "series reuse includes hit-only modules, deduplicates products and fills empty days", %{project: project} do
+    first = event(project, "first", ~N[2024-04-01 10:00:00], git_branch: "main", is_ci: true)
+    last = event(project, "last", ~N[2024-04-03 10:00:00], git_branch: "feature", is_ci: false)
+    target(first, "Core", [], product: "framework", binary_cache_hit: :remote)
+    target(first, "Core", [], product: "staticLibrary", binary_cache_hit: :local)
+    target(first, "Miss", [])
+    target(last, "Core", [])
+    target(last, "NotCacheable", [], binary_cache_hash: nil)
+
+    for filters <- [[], [git_branch: "main"], [is_ci: false], [name: "Core"]] do
+      opts =
+        Keyword.merge(
+          [project_id: project.id, start_datetime: ~U[2024-04-01 00:00:00Z], end_datetime: ~U[2024-04-03 23:59:59Z]],
+          filters
+        )
+
+      series = opts |> Analytics.module_invalidation_breakdown() |> Analytics.module_timeseries_from_breakdown(opts)
+      assert series.timeseries == Analytics.module_invalidation_timeseries(opts)
+
+      if Keyword.has_key?(filters, :name) do
+        assert series.modules_series.counts == [1, 0, 1]
+      else
+        assert series.modules_series == Analytics.modules_timeseries(opts)
+      end
+
+      assert series.miss_reasons_series.changed == [0, 0, 0]
+      assert series.miss_reasons_series.upstream == [0, 0, 0]
+      assert series.miss_reasons_series.evicted == [0, 0, 0]
+      assert series.miss_reasons_series.cold == series.timeseries.invalidations
+
+      assert Enum.at(series.timeseries.invalidations, 1) == 0
+      assert Enum.at(series.timeseries.reuses, 1) == 0
+      assert Enum.at(series.modules_series.counts, 1) == 0
+    end
+  end
+
   test "batches independent names while retaining the full window and event filters", %{project: project} do
     names = Enum.map(1..257, &"Module#{String.pad_leading(Integer.to_string(&1), 3, "0")}")
 
@@ -32,7 +68,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
           assert query =~ "e.git_branch = {branch:String}"
           assert params.branch == "main"
           send(self(), {:batch, batch})
-          %{rows: Enum.map(batch, &[~D[2024-04-02], &1, "framework", 3, 2, 1, 0])}
+          %{rows: Enum.map(batch, &[~D[2024-04-02], &1, "framework", 3, 2, 1, 0, 1])}
 
         _ ->
           assert query =~ "GROUP BY xt.name"
@@ -51,7 +87,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
       )
 
     assert Enum.map(breakdown, & &1.name) == names
-    assert Enum.all?(breakdown, &(&1.appearances == 3 and &1.changed == 1))
+    assert Enum.all?(breakdown, &(&1.appearances == 3 and &1.changed == 1 and &1.evicted == 1))
     assert_received {:batch, first}
     assert first == Enum.take(names, 256)
     assert_received {:batch, ["Module257"]}
@@ -84,7 +120,7 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
 
     expect(ClickHouseRepo, :query!, fn _query, %{names: names} ->
       assert length(names) == 256
-      %{rows: [[~D[2024-04-02], "Module001", "framework", 3, 2, 1, 0]]}
+      %{rows: [[~D[2024-04-02], "Module001", "framework", 3, 2, 1, 0, 1]]}
     end)
 
     expect(ClickHouseRepo, :query!, fn _query, %{names: ["Module257"]} ->
@@ -110,7 +146,8 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
           appearances: 10,
           misses: index,
           changed: 1,
-          upstream: 0
+          upstream: 0,
+          evicted: 0
         }
       end)
 
@@ -128,7 +165,16 @@ defmodule Tuist.Builds.ModuleCacheQueryTest do
 
   test "a module missing from the latest graph has an unknown radius", %{project: project} do
     breakdown = [
-      %{day: ~D[2024-04-02], name: "Gone", product: "framework", appearances: 4, misses: 2, changed: 1, upstream: 0}
+      %{
+        day: ~D[2024-04-02],
+        name: "Gone",
+        product: "framework",
+        appearances: 4,
+        misses: 2,
+        changed: 1,
+        upstream: 0,
+        evicted: 0
+      }
     ]
 
     expect(ClickHouseRepo, :query!, fn _query, _params -> %{rows: [["latest"]]} end)

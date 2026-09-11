@@ -95,6 +95,13 @@ class TuistPlugin : Plugin<Settings> {
     private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
 
     override fun apply(settings: Settings) {
+        if (StressRepetitionContext.from(settings.startParameter.projectProperties) == null) {
+            settings.gradle.sharedServices.registerIfAbsent(
+                "tuistMachineMetrics",
+                TuistMachineMetricsService::class.java
+            ) {}.get()
+        }
+
         val extension = settings.extensions.create(
             "tuist",
             TuistExtension::class.java

@@ -12,17 +12,75 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
+  alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
     stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3.example.com/download" end)
     %{conn: conn, user: user}
+  end
+
+  for source <- [:build, :test, :other_project, :empty] do
+    @source source
+    test "module cache tab uses #{@source} evidence without copying lookups", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+      {:ok, run} = RunsFixtures.test_fixture(project_id: project.id, build_run_id: build.id)
+
+      test_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, build_run_id: build.id, test_run_id: run.id)
+
+      build_project_id = if @source == :other_project, do: ProjectsFixtures.project_fixture().id, else: project.id
+      build_event = CommandEventsFixtures.command_event_fixture(project_id: build_project_id, build_run_id: build.id)
+
+      if @source != :empty do
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: build_event.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        XcodeFixtures.xcode_target_fixture(
+          xcode_project_id: xcode_project.id,
+          name: "BuildFramework",
+          binary_cache_hash: "build-key",
+          binary_cache_hit: :remote
+        )
+      end
+
+      if @source == :test do
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_event.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        XcodeFixtures.xcode_target_fixture(
+          xcode_project_id: xcode_project.id,
+          name: "TestFramework",
+          binary_cache_hash: "test-key",
+          binary_cache_hit: :remote
+        )
+      end
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}?tab=module-cache")
+
+      if @source in [:build, :test] do
+        assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+        name = if @source == :build, do: "BuildFramework", else: "TestFramework"
+        assert has_element?(lv, "table span", name)
+        if @source == :test, do: refute(has_element?(lv, "table span", "BuildFramework"))
+      else
+        refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+      end
+
+      assert Xcode.has_binary_cache_data?(test_event) == (@source == :test)
+    end
   end
 
   test "shows details of a test run", %{

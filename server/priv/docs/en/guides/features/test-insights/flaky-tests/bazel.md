@@ -1,14 +1,21 @@
 ---
 {
-  "title": "Bazel",
-  "titleTemplate": ":title · Flaky Tests · Test Insights · Tuist",
+  "title": "Bazel Flaky Tests",
+  "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
   "description": "Detect flaky Bazel tests, mute their failures, and skip quarantined targets."
 }
 ---
 
-# Bazel {#bazel}
+# Bazel flaky tests {#bazel-flaky-tests}
 
-Configure build and test reporting with `tuist bazel setup`, then use `tuist bazel test` to fetch and apply Tuist's quarantine policy before each invocation.
+> [!WARNING]
+> **Requirements**
+>
+> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link> with Bazel selected as the build system
+> - `tuist bazel setup` has been run in the workspace (see <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link>)
+> - Tests are executed with `tuist bazel test` (see <.localized_link href="/guides/features/test-insights/bazel">Bazel test insights</.localized_link>)
+
+`tuist bazel test` fetches Tuist's quarantine policy before each invocation and applies it to the underlying `bazel test` run.
 
 ## Applying quarantine {#applying-quarantine}
 

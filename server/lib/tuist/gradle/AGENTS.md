@@ -15,3 +15,14 @@ Related: `gradle/AGENTS.md`, `server/lib/tuist_web/live/gradle_tasks_live.ex`.
 - `Gradle.get_task/3` retrieves one execution with UUID validation and both project/build scoping; never expose task details by task ID alone.
 
 - Keep task telemetry limited to identity, cacheability, incremental status, and cache outcomes used by the Tasks UI, plus transfer durations needed by existing throughput widgets. Do not collect unused explanations, build options, or duplicate project paths.
+
+- `Timeline` loads all timed tasks, configuration operations and transforms for the authorized build and project. Nullable `gradle_builds.started_at` is the report duration origin; legacy reports use the earliest recorded operation or machine timestamp and identify that fallback. Machine samples share this origin. Missing timestamps/outcomes are never inferred from upload time or overall build success. Existing source retention applies; no operation logs are collected.
+
+- Keep the nearest real machine sample before the build origin when there are samples during the build. Its negative offset brackets the first displayed interval without inventing a reading at zero. Samples entirely before the build provide no timeline coverage.
+
+- Step API/MCP queries normalize the three operation tables through a ClickHouse union with database filtering, ordering and pagination; detail lookups do not load the full timeline or machine samples. Legacy origins are computed from scalar minimum timestamps. The dashboard still loads all operations for the interactive timeline.
+
+- Timeline metric bootstrapping queries samples separately from step metadata. For legacy builds, scalar timestamp minima keep bootstrap and downloaded operations on exactly the same origin without loading all operations into LiveView.
+
+- Preserve zero-duration operations, including cached/skipped/no-source tasks, in both dashboard metadata and paginated step queries. If a legacy origin is absent, the captured query returns no steps; a subsequent request can discover a newly arrived origin instead of emitting epoch-sized offsets.
+- Full dashboard metadata retains every operation for local navigation but omits sample-row reads; scalar metric bounds preserve origin, duration and availability. Bootstrap reads samples without loading operation rows, and API/MCP step endpoints remain paginated.

@@ -308,6 +308,22 @@ clickhouse:
     # Rollback: turn it off. Nothing has read from that server.
     shadowWrites:
       enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
@@ -341,29 +357,39 @@ clickhouse:
     # the deploy that turns dual writes on above has finished rolling out: the
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
-    # Off. Arming this failed three canary releases in a row and rolled each
-    # one back, because helm 4 waits on ordinary Jobs:
+    # Step 5, the initial replication: everything canary wrote before the
+    # cutoff still lives only on Cloud, and this copies it.
     #
-    #   Error: UPGRADE FAILED: release tuist failed, and has been rolled back
-    #   due to rollback-on-failure being set: resource
-    #   Job/tuist-canary/tuist-tuist-clickhouse-backfill-r894 not ready.
-    #   status: Failed, message: Job Failed. failed: 1/1
+    # A post-upgrade hook, by inheriting `background: false`, which is the mode
+    # staging used successfully. The previous attempt set `background: true` on
+    # the belief that helm does not wait on ordinary Jobs. Helm 3 does not;
+    # helm 4 does, so the Job blocked the release and a failing one rolled
+    # three canary deploys back. Background mode stays unusable until there is
+    # a mechanism helm does not wait on, and that is a production problem:
+    # canary's dataset is small enough to wait for.
     #
-    # `background: true` was written for helm 3, where `--wait` covered pods
-    # and workloads but not Jobs, so an ordinary Job really did run beside the
-    # release. Under helm 4 it does not: the release waits for the Job, and a
-    # Job that fails fails the release. That inverts the whole reason the
-    # setting exists, and on a production-sized copy it would hold the release
-    # for hours and then roll it back on the deadline, which is exactly the
-    # outcome it was meant to prevent.
+    # Two bugs that stopped every previous run are fixed and deployed here:
+    # the advisory lock's connection is no longer capped at fifteen seconds,
+    # and the destination is waited for rather than raced.
     #
-    # So the backfill needs a way to run that helm does not wait on before it
-    # can be armed again, here or anywhere. Until then this stays off, and
-    # `name` and `task` keep naming the step it would run.
+    # `cutoff` is later than the last mirror error rather than the moment dual
+    # writes rolled out. Terminal shadow-write errors are rows that reached
+    # Cloud and not the destination, so a cutoff before them leaves those rows
+    # covered by neither side. The counter last moved at about 11:30Z and has
+    # been flat since, so this is comfortably after it.
+    #
+    # It will not reach clean parity in one run, by construction: this deploy
+    # restarts the server pods, and the writes lost while their mirror warms up
+    # land after the cutoff. The repair is another run with a later cutoff,
+    # which is what the runbook prescribes and what production will do anyway.
+    #
+    # Gate: every chunk recorded done in the ledger with no failures, read from
+    # the Job afterwards.
     migration:
-      enabled: false
+      enabled: true
       name: backfill
       task: Tuist.Release.backfill_clickhouse
+      cutoff: "2026-09-10T12:20:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"

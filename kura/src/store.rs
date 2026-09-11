@@ -61,6 +61,7 @@ use crate::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
     },
+    startup::RecoveryError,
     sync::feed::{
         SYNC_META_ENABLED, SYNC_META_FLOOR, SYNC_META_INCARNATION, SYNC_WM_PREFIX, SyncFeedKind,
         SyncFeedRow, SyncFeedState, SyncFeedTicket, SyncPosition, decode_sync_feed_row,
@@ -172,6 +173,7 @@ pub struct StorageSnapshotData {
 }
 
 pub struct Store {
+    startup_recovery: Option<Arc<crate::startup::Recovery>>,
     db: Arc<DB>,
     io: IoController,
     memory: MemoryController,
@@ -1150,6 +1152,8 @@ impl PersistArtifactOutcome {
 struct EvictionCommitLog {
     threads: Vec<std::thread::ThreadId>,
     chunk_bytes: Vec<usize>,
+    before_commit: Option<Arc<dyn Fn() + Send + Sync>>,
+    after_commit: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 /// Bookkeeping for the action-cache entries one segment eviction cascades.
@@ -1388,6 +1392,7 @@ impl Store {
             direct_small_uploads_enabled: AtomicBool::new(true),
             segment_writers_ahead_of_durability: AtomicU64::new(0),
             pending_capacity_evictions: StdMutex::new(VecDeque::new()),
+            startup_recovery: None,
             eviction_batch_budget_bytes: SEGMENT_EVICTION_MAX_BATCH_BYTES,
             #[cfg(test)]
             eviction_commits: Arc::new(StdMutex::new(EvictionCommitLog::default())),
@@ -4168,7 +4173,10 @@ impl Store {
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
         for segment in evicted_segments {
             let bytes = try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0);
-            let artifact_count = self.evict_segment(&segment.segment_id).await?;
+            let artifact_count = self
+                .evict_segment(&segment.segment_id)
+                .await
+                .map_err(|error| error.to_string())?;
             self.record_capacity_eviction(&segment, artifact_count, bytes);
         }
         Ok(())
@@ -4248,7 +4256,112 @@ impl Store {
         }
     }
 
-    async fn evict_segment(&self, segment_id: &str) -> Result<u64, String> {
+    pub fn set_startup_recovery(&mut self, recovery: Arc<crate::startup::Recovery>) {
+        self.startup_recovery = Some(recovery);
+    }
+
+    fn recovery_progress(&self, committed: bool) -> Result<(), RecoveryError> {
+        if let Some(recovery) = &self.startup_recovery {
+            recovery.completed_work(committed)?;
+        }
+        Ok(())
+    }
+
+    /// Each page owns its iterator only on a blocking thread. The exclusive
+    /// continuation key advances even when a concurrent writer retains a row;
+    /// committed deletions make a fresh recovery pass resumable after a crash.
+    async fn eviction_index_page(
+        &self,
+        column: &'static str,
+        prefix: &str,
+        after: Option<&[u8]>,
+    ) -> Result<Vec<Vec<u8>>, RecoveryError> {
+        let db = self.db.clone();
+        let prefix = prefix.as_bytes().to_vec();
+        let start = after.map_or_else(
+            || prefix.clone(),
+            |key| {
+                let mut next = key.to_vec();
+                next.push(0);
+                next
+            },
+        );
+        let rows = tokio::task::spawn_blocking(move || {
+            let mut options = ReadOptions::default();
+            options.set_iterate_lower_bound(prefix.clone());
+            options.fill_cache(false);
+            let mut upper = prefix.clone();
+            while upper.last() == Some(&u8::MAX) {
+                upper.pop();
+            }
+            if let Some(last) = upper.last_mut() {
+                *last += 1;
+                options.set_iterate_upper_bound(upper);
+            }
+            let iter = db.iterator_cf_opt(
+                db.cf_handle(column).expect("eviction column exists"),
+                options,
+                IteratorMode::From(&start, rocksdb::Direction::Forward),
+            );
+            let mut rows = Vec::new();
+            let mut bytes = 0;
+            for item in iter {
+                let (key, _) = item.map_err(|e| format!("failed to page eviction index: {e}"))?;
+                if !key.starts_with(&prefix) {
+                    break;
+                }
+                bytes += key.len();
+                rows.push(key.to_vec());
+                if rows.len() >= SEGMENT_EVICTION_YIELD_ROWS
+                    || bytes >= SEGMENT_EVICTION_MAX_BATCH_BYTES
+                {
+                    break;
+                }
+            }
+            Ok::<_, String>(rows)
+        })
+        .await
+        .map_err(|e| format!("eviction index task failed: {e}"))??;
+        self.recovery_progress(false)?;
+        Ok(rows)
+    }
+
+    // Re-read each candidate immediately before staging it rather than
+    // prefetching manifests for a whole page across intervening commits.
+    async fn eviction_candidate(
+        &self,
+        artifact_id: &str,
+        include_inline: bool,
+    ) -> Result<(Option<ArtifactManifest>, Option<Vec<u8>>), String> {
+        let db = self.db.clone();
+        let artifact_id = artifact_id.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let manifest = db
+                .get_cf(
+                    db.cf_handle(ROCKSDB_CF_MANIFESTS)
+                        .expect("manifest column exists"),
+                    artifact_id.as_bytes(),
+                )
+                .map_err(|e| format!("failed to read eviction manifest: {e}"))?
+                .map(|bytes| decode_manifest_record(&artifact_id, &bytes))
+                .transpose()?;
+            let inline = if include_inline && manifest.is_some() {
+                db.get_cf(
+                    db.cf_handle(ROCKSDB_CF_KEY_VALUE)
+                        .expect("inline column exists"),
+                    artifact_id.as_bytes(),
+                )
+                .map_err(|e| format!("failed to read eviction inline bytes: {e}"))?
+            } else {
+                None
+            };
+            Ok((manifest, inline))
+        })
+        .await
+        .map_err(|e| format!("eviction candidate task failed: {e}"))?
+    }
+
+    async fn evict_segment(&self, segment_id: &str) -> Result<u64, RecoveryError> {
         let prefix = segment_artifact_index_prefix(segment_id);
         let mut batch = WriteBatch::default();
         let mut saw_entries = false;
@@ -4259,90 +4372,90 @@ impl Store {
         // the serve-side presence gates remain the safety net for the rest.
         let cascade_active = self.action_cache_cascade_active();
         let mut cascade = CascadeProgress::default();
-        let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
-            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
-        );
-
         let mut scanned_rows = 0;
-        for item in iter {
-            let (index_key, _) =
-                item.map_err(|error| format!("failed to iterate segment index: {error}"))?;
-            if !index_key.starts_with(prefix.as_bytes()) {
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_SEGMENT_ARTIFACTS, &prefix, cursor.as_deref())
+                .await?;
+            if page.is_empty() {
                 break;
             }
-            // Everything below is synchronous RocksDB work, so without this the
-            // whole segment's scan runs in one poll and parks a runtime worker.
-            yield_scanned_row(&mut scanned_rows).await;
-            // A crash between chunks is safe: the segment stays in the ring
-            // state, and its file on disk, until this whole loop is done, so a
-            // restart re-runs the eviction and the `Some(_) | None` arm below
-            // absorbs whatever the previous attempt already removed.
-            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
-                self.commit_eviction_chunk(
-                    std::mem::take(&mut batch),
-                    &mut removed_artifact_ids,
-                    &mut cascade,
-                )
-                .await?;
-            }
-            saw_entries = true;
-            let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
-                .map_err(|error| format!("invalid segment index key: {error}"))?
-                .to_owned();
+            cursor = page.last().cloned();
+            for index_key in page {
+                // Share the CPU staging budget with nested cascades as well as
+                // bounding the RocksDB pages on the blocking pool.
+                yield_scanned_row(&mut scanned_rows).await;
+                // A crash between chunks is safe: the segment stays in the ring
+                // state, and its file on disk, until this whole loop is done, so a
+                // restart re-runs the eviction and the `Some(_) | None` arm below
+                // absorbs whatever the previous attempt already removed.
+                if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                    self.commit_eviction_chunk(
+                        std::mem::take(&mut batch),
+                        &mut removed_artifact_ids,
+                        &mut cascade,
+                    )
+                    .await?;
+                }
+                saw_entries = true;
+                let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                    .map_err(|error| format!("invalid segment index key: {error}"))?
+                    .to_owned();
 
-            match self.manifest_from_db(&artifact_id)? {
-                Some(manifest) if manifest.segment_id.as_deref() == Some(segment_id) => {
-                    // Cascade first, and let it commit chunks of its own: this
-                    // blob is going away, so every action-cache entry that
-                    // references it must go too, and per-blob fanout is
-                    // unbounded (a common output blob is referenced by very
-                    // many action results). Staging a whole cascade before
-                    // checking the budget is what let one blob carry the batch
-                    // far past it.
-                    //
-                    // Splitting here is legal because #12152's invariant is
-                    // one-directional: it forbids an *entry* outliving its
-                    // blob, not a blob outliving its entries. Entries committed
-                    // ahead of the blob leave, at worst, a blob with no
-                    // referrers — which this eviction removes moments later,
-                    // and which a crash in between leaves for the re-run.
-                    if manifest.producer == ArtifactProducer::Reapi {
-                        self.stage_chunk_recipe_cascade_for_chunk(
-                            &mut batch,
-                            &manifest,
-                            cascade_active,
-                            &mut cascade,
-                            &mut removed_artifact_ids,
-                            &mut scanned_rows,
-                        )
-                        .await?;
-                        if cascade_active {
-                            self.stage_action_cache_cascade_for_blob(
+                match self.eviction_candidate(&artifact_id, false).await?.0 {
+                    Some(manifest) if manifest.segment_id.as_deref() == Some(segment_id) => {
+                        // Cascade first, and let it commit chunks of its own: this
+                        // blob is going away, so every action-cache entry that
+                        // references it must go too, and per-blob fanout is
+                        // unbounded (a common output blob is referenced by very
+                        // many action results). Staging a whole cascade before
+                        // checking the budget is what let one blob carry the batch
+                        // far past it.
+                        //
+                        // Splitting here is legal because #12152's invariant is
+                        // one-directional: it forbids an *entry* outliving its
+                        // blob, not a blob outliving its entries. Entries committed
+                        // ahead of the blob leave, at worst, a blob with no
+                        // referrers — which this eviction removes moments later,
+                        // and which a crash in between leaves for the re-run.
+                        if manifest.producer == ArtifactProducer::Reapi {
+                            self.stage_chunk_recipe_cascade_for_chunk(
                                 &mut batch,
-                                &artifact_id,
+                                &manifest,
+                                cascade_active,
                                 &mut cascade,
                                 &mut removed_artifact_ids,
                                 &mut scanned_rows,
                             )
                             .await?;
+                            if cascade_active {
+                                self.stage_action_cache_cascade_for_blob(
+                                    &mut batch,
+                                    &artifact_id,
+                                    &mut cascade,
+                                    &mut removed_artifact_ids,
+                                    &mut scanned_rows,
+                                )
+                                .await?;
+                            }
                         }
+                        // The blob's own rows go last, so they can only land in a
+                        // chunk committed after every entry referencing it is gone.
+                        batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes());
+                        batch.delete_cf(
+                            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+                            namespace_artifact_index_key(&manifest.namespace_id, &artifact_id)
+                                .as_bytes(),
+                        );
+                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                        self.stage_backfill_index_delete(&mut batch, &manifest);
+                        *removed_artifacts.entry(manifest.producer).or_default() += 1;
+                        removed_artifact_ids.push(artifact_id);
                     }
-                    // The blob's own rows go last, so they can only land in a
-                    // chunk committed after every entry referencing it is gone.
-                    batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes());
-                    batch.delete_cf(
-                        self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
-                        namespace_artifact_index_key(&manifest.namespace_id, &artifact_id)
-                            .as_bytes(),
-                    );
-                    batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
-                    self.stage_backfill_index_delete(&mut batch, &manifest);
-                    *removed_artifacts.entry(manifest.producer).or_default() += 1;
-                    removed_artifact_ids.push(artifact_id);
-                }
-                Some(_) | None => {
-                    batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                    Some(_) | None => {
+                        batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
+                    }
                 }
             }
         }
@@ -4368,8 +4481,8 @@ impl Store {
         }
         self.remove_segment_handle(segment_id).await;
         self.io
-            .remove_file_if_exists(&self.segment_path(segment_id))
-            .await;
+            .remove_file_if_exists_result(&self.segment_path(segment_id))
+            .await?;
         self.mutate_segment_state(|state| state.remove_segment(segment_id))
             .await?;
         let mut total_artifacts = 0;
@@ -4405,7 +4518,7 @@ impl Store {
         batch: WriteBatch,
         removed_artifact_ids: &mut Vec<String>,
         cascade: &mut CascadeProgress,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         // An empty batch still carries a 12-byte header, so `size_in_bytes()`
         // is never zero and a small budget can trip the check before anything
         // is staged. Skip the write rather than spend a WAL append on nothing;
@@ -4438,7 +4551,30 @@ impl Store {
                 commits.threads.push(std::thread::current().id());
                 commits.chunk_bytes.push(chunk_bytes);
             }
-            db.write(batch)
+            #[cfg(test)]
+            {
+                let hook = commits
+                    .lock()
+                    .expect("eviction commit log poisoned")
+                    .before_commit
+                    .clone();
+                if let Some(hook) = hook {
+                    hook();
+                }
+            }
+            let result = db.write(batch);
+            #[cfg(test)]
+            if result.is_ok() {
+                let hook = commits
+                    .lock()
+                    .expect("eviction commit log poisoned")
+                    .after_commit
+                    .clone();
+                if let Some(hook) = hook {
+                    hook();
+                }
+            }
+            result
         })
         .await
         .map_err(|error| format!("segment eviction commit task failed: {error}"))?
@@ -4454,6 +4590,7 @@ impl Store {
         // Dedup is per-chunk; see `CascadeProgress`.
         cascade.seen.clear();
         cascade.seen_recipes.clear();
+        self.recovery_progress(true)?;
         Ok(())
     }
 
@@ -4505,61 +4642,77 @@ impl Store {
         cascade: &mut CascadeProgress,
         removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         let prefix = action_cache_blob_ref_prefix(blob_artifact_id);
-        let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_KEY_VALUE),
-            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
-        );
-        for item in iter {
-            let (ref_key, _) =
-                item.map_err(|error| format!("failed to iterate blob refs: {error}"))?;
-            if !ref_key.starts_with(prefix.as_bytes()) {
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_KEY_VALUE, &prefix, cursor.as_deref())
+                .await?;
+            if page.is_empty() {
                 break;
             }
-            yield_scanned_row(scanned_rows).await;
-            let entry_id = std::str::from_utf8(&ref_key[prefix.len()..])
-                .map_err(|error| format!("invalid blob-ref key: {error}"))?
-                .to_owned();
-            // The blob is going away, so its reverse row goes regardless of what
-            // we decide about the entry below.
-            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
-
-            if cascade.contains(&entry_id) {
-                continue;
-            }
-            let Some(entry_manifest) = self.manifest_from_db(&entry_id)? else {
-                // Entry already removed; the reverse row was stale.
-                continue;
-            };
-            if entry_manifest.producer != ArtifactProducer::Reapi
-                || action_cache_manifest_hash(&entry_manifest.key).is_none()
-            {
-                continue;
-            }
-            let Some(entry_bytes) = self.inline_bytes(&entry_id)? else {
-                continue;
-            };
-            let still_references = self
-                .action_cache_entry_blob_ids(&entry_manifest.namespace_id, &entry_bytes)
-                .iter()
-                .any(|id| id == blob_artifact_id);
-            if !still_references {
-                // Stale pair from a re-publish that moved the entry off this
-                // blob; deleting the pair above is enough, leave the live entry.
-                continue;
-            }
-            self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
-            cascade.record(&entry_manifest.namespace_id, entry_id);
-            // Bound the batch inside the cascade, not just between blobs. The
-            // caller stages this blob's own rows only after this returns, so
-            // committing here can never publish a blob deletion ahead of an
-            // entry that references it.
-            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
-                self.commit_eviction_chunk(std::mem::take(batch), removed_artifact_ids, cascade)
+            cursor = page.last().cloned();
+            for ref_key in page {
+                yield_scanned_row(scanned_rows).await;
+                let entry_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                    .map_err(|error| format!("invalid blob-ref key: {error}"))?
+                    .to_owned();
+                // The blob is going away, so its reverse row goes regardless of what
+                // we decide about the entry below.
+                if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                    self.commit_eviction_chunk(
+                        std::mem::take(batch),
+                        removed_artifact_ids,
+                        cascade,
+                    )
                     .await?;
+                }
+                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+
+                if cascade.contains(&entry_id) {
+                    continue;
+                }
+                let (entry_manifest, entry_bytes) =
+                    self.eviction_candidate(&entry_id, true).await?;
+                let Some(entry_manifest) = entry_manifest else {
+                    // Entry already removed; the reverse row was stale.
+                    continue;
+                };
+                if entry_manifest.producer != ArtifactProducer::Reapi
+                    || action_cache_manifest_hash(&entry_manifest.key).is_none()
+                {
+                    continue;
+                }
+                let Some(entry_bytes) = entry_bytes else {
+                    continue;
+                };
+                let still_references = self
+                    .action_cache_entry_blob_ids(&entry_manifest.namespace_id, &entry_bytes)
+                    .iter()
+                    .any(|id| id == blob_artifact_id);
+                if !still_references {
+                    // Stale pair from a re-publish that moved the entry off this
+                    // blob; deleting the pair above is enough, leave the live entry.
+                    continue;
+                }
+                self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+                cascade.record(&entry_manifest.namespace_id, entry_id);
+                // Bound the batch inside the cascade, not just between blobs. The
+                // caller stages this blob's own rows only after this returns, so
+                // committing here can never publish a blob deletion ahead of an
+                // entry that references it.
+                if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                    self.commit_eviction_chunk(
+                        std::mem::take(batch),
+                        removed_artifact_ids,
+                        cascade,
+                    )
+                    .await?;
+                }
             }
         }
+
         Ok(())
     }
 
@@ -4571,85 +4724,113 @@ impl Store {
         cascade: &mut CascadeProgress,
         removed_artifact_ids: &mut Vec<String>,
         scanned_rows: &mut usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RecoveryError> {
         let chunk_artifact_id = &chunk_manifest.artifact_id;
         let prefix = chunk_recipe_ref_prefix(chunk_artifact_id);
-        let iter = self.db.iterator_cf(
-            self.cf(ROCKSDB_CF_KEY_VALUE),
-            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
-        );
-        for item in iter {
-            let (ref_key, _) =
-                item.map_err(|error| format!("failed to iterate chunk recipe refs: {error}"))?;
-            if !ref_key.starts_with(prefix.as_bytes()) {
+        let mut cursor: Option<Vec<u8>> = None;
+        loop {
+            let page = self
+                .eviction_index_page(ROCKSDB_CF_KEY_VALUE, &prefix, cursor.as_deref())
+                .await?;
+            if page.is_empty() {
                 break;
             }
-            yield_scanned_row(scanned_rows).await;
-            let recipe_id = std::str::from_utf8(&ref_key[prefix.len()..])
-                .map_err(|error| format!("invalid chunk recipe ref key: {error}"))?
-                .to_owned();
-            batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
-            if cascade.seen_recipes.contains(&recipe_id) {
-                continue;
-            }
-            let Some(recipe_manifest) = self.manifest_from_db(&recipe_id)? else {
-                continue;
-            };
-            if recipe_manifest.producer != ArtifactProducer::Reapi
-                || !is_recipe_key(&recipe_manifest.key)
-            {
-                continue;
-            }
-            let Some(recipe_bytes) = self.inline_bytes(&recipe_id)? else {
-                continue;
-            };
-            if !self
-                .chunk_recipe_blob_ids(
-                    &recipe_manifest.namespace_id,
-                    &recipe_manifest.key,
-                    &recipe_bytes,
-                )
-                .iter()
-                .any(|id| id == chunk_artifact_id)
-            {
-                continue;
-            }
-
-            if cascade_action_cache && let Some(blob_key) = canonical_blob_key(&recipe_manifest.key)
-            {
-                let blob_id = artifact_storage_id(
-                    ArtifactProducer::Reapi,
-                    &self.tenant_id,
-                    &recipe_manifest.namespace_id,
-                    &blob_key,
-                );
-                let canonical_blob_survives =
-                    self.manifest_from_db(&blob_id)?.is_some_and(|manifest| {
-                        manifest.segment_id.as_deref() != chunk_manifest.segment_id.as_deref()
-                    });
-                // Action results reference the logical digest, not the recipe
-                // representation. Removing the recipe cannot strand them when
-                // the complete blob remains on another segment.
-                if !canonical_blob_survives {
-                    self.stage_action_cache_cascade_for_blob(
-                        batch,
-                        &blob_id,
-                        cascade,
+            cursor = page.last().cloned();
+            for ref_key in page {
+                yield_scanned_row(scanned_rows).await;
+                let recipe_id = std::str::from_utf8(&ref_key[prefix.len()..])
+                    .map_err(|error| format!("invalid chunk recipe ref key: {error}"))?
+                    .to_owned();
+                if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                    self.commit_eviction_chunk(
+                        std::mem::take(batch),
                         removed_artifact_ids,
-                        scanned_rows,
+                        cascade,
+                    )
+                    .await?;
+                }
+                if cascade.seen_recipes.contains(&recipe_id) {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                    continue;
+                }
+                let (recipe_manifest, recipe_bytes) =
+                    self.eviction_candidate(&recipe_id, true).await?;
+                let Some(recipe_manifest) = recipe_manifest else {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                    continue;
+                };
+                if recipe_manifest.producer != ArtifactProducer::Reapi
+                    || !is_recipe_key(&recipe_manifest.key)
+                {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                    continue;
+                }
+                let Some(recipe_bytes) = recipe_bytes else {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                    continue;
+                };
+                if !self
+                    .chunk_recipe_blob_ids(
+                        &recipe_manifest.namespace_id,
+                        &recipe_manifest.key,
+                        &recipe_bytes,
+                    )
+                    .iter()
+                    .any(|id| id == chunk_artifact_id)
+                {
+                    batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                    continue;
+                }
+
+                if cascade_action_cache
+                    && let Some(blob_key) = canonical_blob_key(&recipe_manifest.key)
+                {
+                    let blob_id = artifact_storage_id(
+                        ArtifactProducer::Reapi,
+                        &self.tenant_id,
+                        &recipe_manifest.namespace_id,
+                        &blob_key,
+                    );
+                    let canonical_blob_survives = self
+                        .eviction_candidate(&blob_id, false)
+                        .await?
+                        .0
+                        .is_some_and(|manifest| {
+                            manifest.segment_id.as_deref() != chunk_manifest.segment_id.as_deref()
+                        });
+                    // Action results reference the logical digest, not the recipe
+                    // representation. Removing the recipe cannot strand them when
+                    // the complete blob remains on another segment.
+                    if !canonical_blob_survives {
+                        self.stage_action_cache_cascade_for_blob(
+                            batch,
+                            &blob_id,
+                            cascade,
+                            removed_artifact_ids,
+                            scanned_rows,
+                        )
+                        .await?;
+                    }
+                }
+                // Nested action-cache cascades may commit and stop recovery.
+                // Keep the recipe discoverable until its own deletion commits
+                // atomically with this last reverse pointer.
+                batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), &ref_key);
+                self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
+                cascade.seen_recipes.insert(recipe_id.clone());
+                cascade.recipe_total += 1;
+                removed_artifact_ids.push(recipe_id);
+                if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
+                    self.commit_eviction_chunk(
+                        std::mem::take(batch),
+                        removed_artifact_ids,
+                        cascade,
                     )
                     .await?;
                 }
             }
-            self.stage_chunk_recipe_delete(batch, &recipe_manifest, &recipe_bytes);
-            cascade.seen_recipes.insert(recipe_id.clone());
-            cascade.recipe_total += 1;
-            removed_artifact_ids.push(recipe_id);
-            if batch.size_in_bytes() >= self.eviction_batch_budget_bytes {
-                self.commit_eviction_chunk(std::mem::take(batch), removed_artifact_ids, cascade)
-                    .await?;
-            }
         }
+
         Ok(())
     }
 
@@ -4726,7 +4907,7 @@ impl Store {
     /// path left to reclaim them. Must run at startup, under the data-dir
     /// writer lock and before any traffic, so it cannot race a rotation
     /// creating a segment whose state entry is not yet visible.
-    pub async fn sweep_orphaned_segments(&self) -> Result<usize, String> {
+    pub async fn sweep_orphaned_segments(&self) -> Result<usize, RecoveryError> {
         let segments_dir = self.data_dir.join("segments");
         let mut entries = match tokio::fs::read_dir(&segments_dir).await {
             Ok(entries) => entries,
@@ -4735,7 +4916,8 @@ impl Store {
                 return Err(format!(
                     "failed to list segments directory {}: {error}",
                     segments_dir.display()
-                ));
+                )
+                .into());
             }
         };
 
@@ -15770,10 +15952,9 @@ mod tests {
         // cache keeps serving rows the store no longer has, which is the
         // `CAS error: missing object` class #12152 closed.
         //
-        // The cancellation point is exact rather than timed: the future is
-        // polled by hand until a commit closure has recorded itself, then
-        // dropped on the spot, so the drop always lands with a commit in
-        // flight instead of wherever a timeout happened to fall.
+        // Hold the blocking commit immediately before db.write, cancel its
+        // waiter, then release the write. Synchronization makes the ordering
+        // independent of disk speed and blocking-pool scheduling on CI.
         let (_temp_dir, _config, mut store) = temp_store();
         store.eviction_batch_budget_bytes = 1;
         let store = Arc::new(store);
@@ -15817,58 +15998,60 @@ mod tests {
                 .expect("blob should exist");
         }
 
-        let mut eviction = Box::pin(store.evict_segment(&segment_id));
-        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-        let mut committed = false;
-        for _ in 0..10_000 {
-            if std::pin::Pin::new(&mut eviction)
-                .poll(&mut context)
-                .is_ready()
-            {
-                break;
-            }
-            if !store
-                .eviction_commits
-                .lock()
-                .expect("eviction commit log lock should not be poisoned")
-                .chunk_bytes
-                .is_empty()
-            {
-                committed = true;
-                break;
-            }
-            tokio::task::yield_now().await;
+        let commit_started = Arc::new(tokio::sync::Notify::new());
+        let commit_finished = Arc::new(tokio::sync::Notify::new());
+        let (release_commit, wait_for_release) = std::sync::mpsc::channel();
+        {
+            let mut commits = store.eviction_commits.lock().unwrap();
+            let started = commit_started.clone();
+            let wait_for_release = std::sync::Mutex::new(wait_for_release);
+            commits.before_commit = Some(Arc::new(move || {
+                started.notify_one();
+                wait_for_release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(60))
+                    .expect("test must release the paused eviction commit");
+            }));
+            let finished = commit_finished.clone();
+            commits.after_commit = Some(Arc::new(move || finished.notify_one()));
         }
+        let mut eviction = Box::pin(store.evict_segment(&segment_id));
+        tokio::time::timeout(Duration::from_secs(60), async {
+            tokio::select! {
+                biased;
+                _ = commit_started.notified() => {},
+                result = &mut eviction => panic!("eviction finished before its first commit: {result:?}"),
+            }
+        })
+        .await
+        .expect("eviction must reach its first blocking commit");
         drop(eviction);
         assert!(
-            committed,
-            "no chunk was committed before the drop, so this asserts nothing"
-        );
-
-        // The detached commit is still finishing on its blocking thread.
-        let mut evicted = Vec::new();
-        for _ in 0..10_000 {
-            evicted = artifact_ids
+            artifact_ids
                 .iter()
-                .filter(|artifact_id| {
-                    store
-                        .manifest_from_db(artifact_id)
-                        .expect("failed to read manifest")
-                        .is_none()
-                })
-                .cloned()
-                .collect();
-            if !evicted.is_empty() {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
+                .all(|id| store.manifest_from_db(id).unwrap().is_some()),
+            "the commit must remain paused until its async waiter is dropped"
+        );
+        release_commit.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(60), commit_finished.notified())
+            .await
+            .expect("the detached commit must finish after its waiter is dropped");
+
+        let evicted: Vec<_> = artifact_ids
+            .iter()
+            .filter(|artifact_id| {
+                store
+                    .manifest_from_db(artifact_id)
+                    .expect("failed to read manifest")
+                    .is_none()
+            })
+            .collect();
         assert!(
             !evicted.is_empty(),
             "the detached commit never landed, so this asserts nothing"
         );
 
-        // Peek rather than `manifest()`, which would repopulate what it reads.
         // Peek rather than `manifest()`, which would repopulate what it reads.
         let cache = store
             .manifest_cache
@@ -20530,6 +20713,187 @@ mod tests {
             segment_rotation_required_bytes(3 * MAX_SEGMENT_BYTES),
             3 * MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
         );
+    }
+
+    #[tokio::test]
+    async fn startup_recovery_resumes_committed_chunks_after_repeated_interruptions() {
+        for chunked in [false, true] {
+            assert_startup_recovery_resumes(chunked, 1024, 20, 3).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_recovery_resumes_recipe_cascade_at_production_batch_budget() {
+        assert_startup_recovery_resumes(true, SEGMENT_EVICTION_MAX_BATCH_BYTES, 6000, 1).await;
+    }
+
+    async fn assert_startup_recovery_resumes(
+        chunked: bool,
+        batch_budget: usize,
+        entry_count: usize,
+        interruptions: usize,
+    ) {
+        let (_temp_dir, config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = batch_budget;
+        let digest = reapi_digest(1, 5);
+        let blob = persist_reapi_blob(&store, "recovery", &digest, b"hello").await;
+        let logical_digest = if chunked {
+            reapi_digest(2, 5)
+        } else {
+            digest.clone()
+        };
+        let recipe = if chunked {
+            Some(persist_chunk_recipe(&store, "recovery", &logical_digest, vec![digest]).await)
+        } else {
+            None
+        };
+        let logical_blob_id = artifact_storage_id(
+            ArtifactProducer::Reapi,
+            &store.tenant_id,
+            "recovery",
+            &blob_key(&format!(
+                "{}/{}",
+                logical_digest.hash, logical_digest.size_bytes
+            )),
+        );
+        let mut entries = Vec::new();
+        for marker in 0..entry_count {
+            entries.push(
+                store
+                    .persist_inline_artifact_from_bytes(
+                        ArtifactProducer::Reapi,
+                        "recovery",
+                        &crate::utils::action_cache_key(&format!("{marker:064x}/0")),
+                        "application/octet-stream",
+                        &action_result_referencing(&[&logical_digest]),
+                    )
+                    .await
+                    .unwrap()
+                    .artifact_id,
+            );
+        }
+        let segment_id = blob.segment_id.clone().unwrap();
+        let mut ring = store.load_segment_state_from_db().unwrap();
+        ring.remove_segment(&segment_id);
+        store.save_segment_state(&ring).unwrap();
+
+        let mut previous_remaining = entries.len();
+        for _ in 0..interruptions {
+            let runtime = crate::runtime::RuntimeState::new();
+            let recovery =
+                crate::startup::Recovery::new(store.io.metrics().clone(), runtime.clone());
+            recovery.set_phase(crate::startup::Phase::CleaningSegments);
+            store.set_startup_recovery(recovery);
+            store.eviction_commits.lock().unwrap().after_commit = Some(Arc::new(move || {
+                runtime.request_drain();
+            }));
+            assert!(matches!(
+                store.sweep_orphaned_segments().await,
+                Err(RecoveryError::Interrupted)
+            ));
+            let remaining = entries
+                .iter()
+                .filter(|id| store.manifest_from_db(id).unwrap().is_some())
+                .count();
+            assert!(
+                remaining < previous_remaining,
+                "each attempt must retain committed progress"
+            );
+            assert!(
+                store.manifest_from_db(&blob.artifact_id).unwrap().is_some(),
+                "the blob must outlive its remaining referrers"
+            );
+            if let Some(recipe) = &recipe {
+                assert!(
+                    store
+                        .manifest_from_db(&recipe.artifact_id)
+                        .unwrap()
+                        .is_some()
+                );
+                assert_eq!(
+                    chunk_ref_recipe_ids(&store, &blob.artifact_id),
+                    vec![recipe.artifact_id.clone()],
+                    "a surviving recipe must remain discoverable after a nested cascade commit"
+                );
+            }
+            assert!(store.segment_path(&segment_id).exists());
+            previous_remaining = remaining;
+            let io = store.io.clone();
+            let memory = store.memory.clone();
+            drop(store);
+            store = Store::open(&config, io, memory).unwrap();
+            store.eviction_batch_budget_bytes = batch_budget;
+        }
+        let recovery = crate::startup::Recovery::new(
+            store.io.metrics().clone(),
+            crate::runtime::RuntimeState::new(),
+        );
+        recovery.set_phase(crate::startup::Phase::CleaningSegments);
+        store.set_startup_recovery(recovery);
+        assert_eq!(store.sweep_orphaned_segments().await.unwrap(), 1);
+        assert!(!store.segment_path(&segment_id).exists());
+        assert!(store.manifest_from_db(&blob.artifact_id).unwrap().is_none());
+        if let Some(recipe) = recipe {
+            assert!(
+                store
+                    .manifest_from_db(&recipe.artifact_id)
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(chunk_ref_recipe_ids(&store, &blob.artifact_id).is_empty());
+        }
+        assert!(blob_ref_entry_ids(&store, &logical_blob_id).is_empty());
+        for id in entries {
+            assert!(store.manifest_from_db(&id).unwrap().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn stale_reverse_rows_are_paged_and_cannot_bypass_eviction_batch_limits() {
+        let (_temp_dir, _config, mut store) = temp_store();
+        store.eviction_batch_budget_bytes = 1024;
+        let digest = reapi_digest(1, 5);
+        let blob = persist_reapi_blob(&store, "stale-recovery", &digest, b"hello").await;
+        let mut batch = WriteBatch::default();
+        for index in 0..(SEGMENT_EVICTION_YIELD_ROWS * 3) {
+            batch.put_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                action_cache_blob_ref_key(&blob.artifact_id, &format!("missing-{index:06}")),
+                [],
+            );
+            batch.put_cf(
+                store.cf(ROCKSDB_CF_KEY_VALUE),
+                chunk_recipe_ref_key(&blob.artifact_id, &format!("missing-{index:06}")),
+                [],
+            );
+        }
+        store.db.write(batch).unwrap();
+        store
+            .evict_segment(blob.segment_id.as_deref().unwrap())
+            .await
+            .unwrap();
+        {
+            let commits = store.eviction_commits.lock().unwrap();
+            assert!(commits.chunk_bytes.len() > 3);
+            assert!(
+                commits
+                    .chunk_bytes
+                    .iter()
+                    .all(|size| *size < 2 * store.eviction_batch_budget_bytes)
+            );
+        }
+        for prefix in [
+            action_cache_blob_ref_prefix(&blob.artifact_id),
+            chunk_recipe_ref_prefix(&blob.artifact_id),
+        ] {
+            assert!(
+                store
+                    .eviction_index_page(ROCKSDB_CF_KEY_VALUE, &prefix, None)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
     }
 
     #[tokio::test]

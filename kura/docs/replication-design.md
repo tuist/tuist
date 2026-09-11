@@ -320,7 +320,14 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
   during migration — never does: its only consumer already has it, and without
   this rule the two replicas would echo every record back and forth forever.
   Nor does an apply that changed nothing (last-writer-wins kept the local
-  record). A push received on the legacy routes *does* earn a row: it names
+  record), nor a *client* write that changed nothing: a REAPI action-cache
+  refresh re-publishing bytes the entry already holds, inside the damping
+  window, is skipped whole — no store write, no version bump, no row. It is
+  counted apart, as
+  `kura_artifact_writes_total{producer="reapi", result="damped"}`, so that the
+  write counter stays comparable with the §6 counters that also see only
+  applied changes; folded into `result="ok"` it reads as replication losing
+  entries. A push received on the legacy routes *does* earn a row: it names
   no region and may have crossed a boundary, so it is treated as
   cross-region. That cannot loop — an apply that arrived over the feed writes
   no row on the receiving side, and a same-region old-binary pusher never

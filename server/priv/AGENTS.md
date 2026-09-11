@@ -33,3 +33,5 @@ This directory contains database migrations and other private assets.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - GitLab runner assignments retain encrypted execution payloads temporarily; migration changes must preserve the documented cleanup and disjoint job-ID range. Connections are unique per account and instance URL; routing errors are retained as non-secret assignment metadata.
+
+- Gradle build start timestamps are nullable for backward compatibility and use `Nullable(DateTime64(6))` in ClickHouse. They align recorded operations and machine samples; no upload-time backfill is valid.

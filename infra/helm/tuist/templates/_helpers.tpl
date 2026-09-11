@@ -465,6 +465,67 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- end -}}
 {{- end -}}
 
+{{/*
+TUIST_CLICKHOUSE_URL env-var block. Emits a `value:` literal by default, or a
+`valueFrom.secretKeyRef` pointing at clickhouse.external.existingSecret when
+that field is set — the escape hatch for Vault-synced installs that don't
+want ClickHouse credentials rendered into the manifest. Mutually exclusive
+with `clickhouse.external.url`.
+*/}}
+{{- define "tuist.clickhouseUrlEnv" -}}
+{{- $existingSecret := "" -}}
+{{- if eq .Values.clickhouse.mode "external" -}}
+{{- $existingSecret = .Values.clickhouse.external.existingSecret | default "" -}}
+{{- end -}}
+{{- if ne $existingSecret "" -}}
+{{- if ne (.Values.clickhouse.external.url | default "") "" -}}
+{{- fail "clickhouse.external.existingSecret is mutually exclusive with clickhouse.external.url; pick one source for TUIST_CLICKHOUSE_URL." -}}
+{{- end -}}
+{{- $key := .Values.clickhouse.external.existingSecretKey | default "" -}}
+{{- if eq $key "" -}}
+{{- fail "clickhouse.external.existingSecretKey is required when clickhouse.external.existingSecret is set." -}}
+{{- end }}
+- name: TUIST_CLICKHOUSE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ $existingSecret | quote }}
+      key: {{ $key | quote }}
+{{- else }}
+- name: TUIST_CLICKHOUSE_URL
+  value: {{ include "tuist.clickhouseUrl" . | quote }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+TUIST_SECRET_KEY_BASE env-var block. Points at the chart-managed app-secrets
+Secret by default, or at server.secretKeyBaseExistingSecret when that field
+is set — the escape hatch for Vault-synced installs. Mutually exclusive with
+`server.secretKeyBase`.
+*/}}
+{{- define "tuist.secretKeyBaseEnv" -}}
+{{- $existingSecret := .Values.server.secretKeyBaseExistingSecret | default "" -}}
+{{- if ne $existingSecret "" -}}
+{{- if ne (.Values.server.secretKeyBase | default "") "" -}}
+{{- fail "server.secretKeyBaseExistingSecret is mutually exclusive with server.secretKeyBase; pick one source for TUIST_SECRET_KEY_BASE." -}}
+{{- end -}}
+{{- $key := .Values.server.secretKeyBaseExistingSecretKey | default "" -}}
+{{- if eq $key "" -}}
+{{- fail "server.secretKeyBaseExistingSecretKey is required when server.secretKeyBaseExistingSecret is set." -}}
+{{- end }}
+- name: TUIST_SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ $existingSecret | quote }}
+      key: {{ $key | quote }}
+{{- else }}
+- name: TUIST_SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") | quote }}
+      key: server-secret-key-base
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.clickhouseReadyUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
@@ -772,12 +833,33 @@ workload is enabled, which is what keeps the schema clone, the backfill and
 the shadow writes inert everywhere else.
 */ -}}
 {{- define "tuist.clickhouseBareMetalEnv" -}}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- end }}
+
+{{/*
+The same env, but reading the tailnet URL. Only for writers that are not on the
+pod network: the macOS fleet's xcresult-processor runs in a Tart VM with a
+tailnet address, so the in-cluster Service name in `url` does not resolve for
+it. It wrote the whole test family to the system of record and mirrored none
+of it until this existed.
+*/}}
+{{- define "tuist.clickhouseBareMetalTailnetEnv" -}}
+{{- if .Values.clickhouse.managed.tailscale.enabled }}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url-tailnet") }}
+{{- else }}
+{{- include "tuist.clickhouseBareMetalEnvForKey" (dict "root" . "key" "url") }}
+{{- end }}
+{{- end }}
+
+{{- define "tuist.clickhouseBareMetalEnvForKey" -}}
+{{- $key := .key }}
+{{- with .root }}
 {{- if .Values.clickhouse.managed.enabled }}
 - name: TUIST_CLICKHOUSE_BARE_METAL_URL
   valueFrom:
     secretKeyRef:
       name: {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}-credentials
-      key: url
+      key: {{ $key }}
       # `optional` because the migration Job is a pre-upgrade hook and this
       # Secret is an ordinary release resource, so on the deploy that first
       # introduces the managed ClickHouse the Secret does not exist yet. A
@@ -790,6 +872,7 @@ the shadow writes inert everywhere else.
 {{- if .Values.clickhouse.managed.shadowWrites.enabled }}
 - name: TUIST_CLICKHOUSE_SHADOW_WRITES_ENABLED
   value: "1"
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

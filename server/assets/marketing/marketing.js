@@ -5,7 +5,8 @@ import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
-import NooraTooltip from "noora/hooks/Tooltip.js";
+import { mountStaticHooks } from "./js/lib/static-hooks.js";
+import Noora from "noora";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -14,13 +15,28 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 // Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
 const liveSocketFallbackMs = 10000;
 
+const hooks = { ...Noora.Hooks, ...Hooks, ...colocatedHooks };
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
+  // Join/push timeout (default 10s). In dev every dynamic request pays a
+  // multi-second code-reloader pass under a global lock, so the first
+  // join of a page load can queue 10-25s behind the page's own requests;
+  // at the default timeout the client gives up, error-loops, and
+  // force-reloads the page, leaving every canvas hook unmounted. 30s lets
+  // the join ride out the queue (production joins reply in milliseconds,
+  // so the longer ceiling only matters under load, where waiting beats a
+  // reload storm anyway).
+  timeout: 30000,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { NooraTooltip, ...Hooks, ...colocatedHooks },
+  hooks,
 });
 liveSocket.connect();
 
+// The navbar and footer work before (and without) the LiveView join.
+mountStaticHooks(hooks, liveSocket);
+
+// Faro page views, including the ones LiveView navigation produces.
 initAnalytics();
 
 window.liveSocket = liveSocket;

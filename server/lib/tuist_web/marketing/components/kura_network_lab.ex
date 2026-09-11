@@ -448,9 +448,10 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
           },
         }
 
+        // `token` is a custom property name or any CSS color expression.
         function tokenColor(element, token) {
           const probe = document.createElement("span")
-          probe.style.color = `var(${token})`
+          probe.style.color = token.startsWith("--") ? `var(${token})` : token
           element.append(probe)
 
           const context = document.createElement("canvas").getContext("2d")
@@ -473,7 +474,7 @@ defmodule TuistWeb.Marketing.Components.KuraNetworkLab do
             this.isVisible = false
 
             this.colors = {
-              base: tokenColor(this.el, "--noora-purple-100"),
+              base: tokenColor(this.el, "light-dark(var(--noora-purple-100), var(--noora-purple-900))"),
               glow: tokenColor(this.el, "--noora-surface-background-primary"),
               cache: tokenColor(this.el, "--noora-button-primary-background"),
               client: tokenColor(this.el, "--noora-surface-label-primary"),

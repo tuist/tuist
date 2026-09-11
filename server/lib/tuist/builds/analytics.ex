@@ -1,6 +1,11 @@
 defmodule Tuist.Builds.Analytics do
   @moduledoc """
   Module for build-related analytics.
+
+  `module_invalidation_timeseries/1` and `modules_timeseries/1` retain the previous
+  raw-query implementations as independent regression oracles for breakdown-derived
+  series. They have no production callers; module-cache pages must reuse
+  `module_timeseries_from_breakdown/2` rather than add these scans back to page loads.
   """
   import Ecto.Query
 
@@ -2262,7 +2267,9 @@ defmodule Tuist.Builds.Analytics do
   only by one of its dependencies changing (`dependency_induced`).
 
   The classification window partitions by branch so a `main` build is never compared
-  against a feature-branch build, regardless of the `:git_branch` filter.
+  against a feature-branch build, regardless of the `:git_branch` filter. Remote
+  availability evidence crosses branch and environment filters within the same
+  project and endpoint, over the retained 30-day window ending at `:end_datetime`.
 
   ## Options
     * `:project_id` - The project ID (required)
@@ -2274,8 +2281,11 @@ defmodule Tuist.Builds.Analytics do
   ## Returns
     A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
     `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
-    `:dependency_induced`, and `:unclassified` (misses with no comparable prior
-    build: first-seen / cold / evicted).
+    `:dependency_induced`, `:evicted` (a previously remote-served exact key now
+    misses at the same endpoint), and `:unclassified` (misses without an earlier
+    observation in the comparison window, or not explained by the compared inputs).
+    These are command observations; restored cache results can be reported by
+    multiple test shards belonging to the same build.
   """
   def module_invalidations(opts \\ []) do
     opts
@@ -2284,11 +2294,13 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @module_invalidation_batch_size 256
+  @module_cache_history_days 30
 
   @doc """
   Returns, per module and day, how often it was built and why it missed:
   `appearances`, `misses`, `changed` (its own content differed from its previous
-  build) and `upstream` (only a dependency differed). Both the module list and
+  build), `upstream` (only a dependency differed), and `evicted`
+  (an exact key previously served remotely now misses at the same endpoint). Both the module list and
   miss-reason timeseries derive from this breakdown. Reads are batched by module
   name so each query sorts a bounded set of independent module histories, with
   dictionary-encoded names and branches to avoid repeating strings in memory.
@@ -2309,6 +2321,7 @@ defmodule Tuist.Builds.Analytics do
       %{project_id: project_id, start: start_datetime, end: end_datetime}
       |> Map.merge(filter_params)
       |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
 
     query = """
     SELECT
@@ -2317,15 +2330,17 @@ defmodule Tuist.Builds.Analytics do
       product,
       count() AS appearances,
       countIf(hit = 'miss') AS misses,
-      countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS changed,
-      countIf(
-        hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
-      ) AS upstream
+      countIf(reason = 'changed') AS changed,
+      countIf(reason = 'upstream') AS upstream,
+      countIf(reason = 'evicted') AS evicted
     FROM (
+      SELECT *, #{module_cache_reason()} AS reason
+      FROM (
       SELECT
-        day, name, product, hit, own, deps, ext,
+        day, name, product, hit, own, direct_inputs, deps, ext, previously_available,
         row_number() OVER w AS rn,
         lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
         lagInFrame(deps, 1) OVER w AS prev_deps,
         lagInFrame(ext, 1) OVER w AS prev_ext
       FROM (
@@ -2336,11 +2351,14 @@ defmodule Tuist.Builds.Analytics do
           toLowCardinality(xt.name) AS name,
           xt.product AS product,
           xt.binary_cache_hit AS hit,
+          #{previously_available()} AS previously_available,
           xt.own_hash AS own,
+          xt.direct_inputs_hashes AS direct_inputs,
           cityHash64(xt.dependencies_hash) AS deps,
           cityHash64(xt.external_hash) AS ext
         FROM xcode_targets_by_project AS xt
         INNER JOIN command_events AS e ON xt.command_event_id = e.id
+        #{module_cache_availability_join()}
         WHERE e.project_id = {project_id:Int64}
           AND e.ran_at >= {start:DateTime64(6)}
           AND e.ran_at <= {end:DateTime64(6)}
@@ -2352,6 +2370,7 @@ defmodule Tuist.Builds.Analytics do
         ORDER BY ran_at ASC
         ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
       )
+    )
     )
     GROUP BY day, name, product
     """
@@ -2365,7 +2384,7 @@ defmodule Tuist.Builds.Analytics do
     |> Enum.flat_map(fn names ->
       %{rows: rows} = ClickHouseRepo.query!(query, Map.put(params, :names, names))
 
-      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream] ->
+      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, evicted] ->
         %{
           day: normalize_date(day),
           name: name,
@@ -2373,10 +2392,81 @@ defmodule Tuist.Builds.Analytics do
           appearances: appearances,
           misses: misses,
           changed: changed,
-          upstream: upstream
+          upstream: upstream,
+          evicted: evicted
         }
       end)
     end)
+  end
+
+  # Availability is shared across branches and CI/local runs, but only within
+  # the same project and recorded endpoint. Use report time, not command start:
+  # an overlapping command might not have downloaded its artifact yet.
+  defp module_cache_availability_join do
+    """
+    LEFT JOIN (
+      SELECT
+        av_xt.name AS name,
+        av_xt.product AS product,
+        av_xt.binary_cache_hash AS hash,
+        av_e.cache_endpoint AS endpoint,
+        count() AS remote_hits,
+        min(av_e.created_at) AS first_remote_hit_at
+      FROM xcode_targets_by_project AS av_xt
+      INNER JOIN command_events AS av_e ON av_xt.command_event_id = av_e.id
+      WHERE av_e.project_id = {project_id:Int64}
+        AND av_xt.project_id = {project_id:Int64}
+        AND av_xt.name IN {names:Array(String)}
+        AND av_e.ran_at >= {availability_start:DateTime64(6)}
+        AND av_e.created_at <= {availability_end:DateTime64(6)}
+        AND av_xt.inserted_at >= {availability_targets_start:DateTime64(6)}
+        AND av_xt.inserted_at <= {targets_end:DateTime64(6)}
+        AND av_xt.binary_cache_hit = 'remote'
+        AND av_xt.binary_cache_hash IS NOT NULL
+        AND notEmpty(av_xt.binary_cache_hash)
+        AND notEmpty(av_e.cache_endpoint)
+      GROUP BY name, product, hash, endpoint
+    ) AS available
+      ON available.name = xt.name
+      AND available.product = xt.product
+      AND available.hash = xt.binary_cache_hash
+      AND available.endpoint = e.cache_endpoint
+    """
+  end
+
+  defp module_cache_availability_params(end_datetime) do
+    evidence_end = Enum.min_by([end_datetime, DateTime.utc_now()], &DateTime.to_unix(&1, :microsecond))
+    evidence_start = DateTime.add(evidence_end, -@module_cache_history_days, :day)
+
+    %{
+      availability_start: evidence_start,
+      availability_end: evidence_end,
+      availability_targets_start: xcode_target_pruning_params(evidence_start, evidence_end).targets_start
+    }
+  end
+
+  defp previously_available do
+    """
+    available.remote_hits > 0
+    AND available.first_remote_hit_at < least(e.ran_at, e.created_at - toIntervalMillisecond(e.duration))
+    """
+  end
+
+  defp module_cache_reason do
+    """
+    multiIf(
+      hit != 'miss', 'hit',
+      previously_available, 'evicted',
+      rn = 1, 'cold',
+      own != prev_own OR arrayExists(
+        input -> mapContains(prev_direct_inputs, input)
+          AND coalesce(direct_inputs[input] != prev_direct_inputs[input], false),
+        mapKeys(direct_inputs)
+      ), 'changed',
+      deps != prev_deps OR ext != prev_ext, 'upstream',
+      'cold'
+    )
+    """
   end
 
   defp module_invalidation_names(opts, params) do
@@ -2413,9 +2503,10 @@ defmodule Tuist.Builds.Analytics do
     breakdown
     |> Enum.group_by(&{&1.name, &1.product})
     |> Enum.map(fn {{name, product}, rows} ->
-      {appearances, invalidations, self_changes, dependency_induced} =
-        Enum.reduce(rows, {0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream} ->
-          {appearances + row.appearances, misses + row.misses, changed + row.changed, upstream + row.upstream}
+      {appearances, invalidations, self_changes, dependency_induced, evicted} =
+        Enum.reduce(rows, {0, 0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream, evicted} ->
+          {appearances + row.appearances, misses + row.misses, changed + row.changed, upstream + row.upstream,
+           evicted + row.evicted}
         end)
 
       %{
@@ -2427,7 +2518,8 @@ defmodule Tuist.Builds.Analytics do
         hit_rate: percentage(appearances - invalidations, appearances),
         self_changes: self_changes,
         dependency_induced: dependency_induced,
-        unclassified: max(invalidations - (self_changes + dependency_induced), 0)
+        evicted: evicted,
+        unclassified: max(invalidations - (self_changes + dependency_induced + evicted), 0)
       }
     end)
     |> Enum.filter(&(&1.invalidations > 0))
@@ -2482,36 +2574,59 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  The daily series `module_miss_reasons_timeseries/1` returns, derived from a
-  breakdown from `module_invalidation_breakdown/1` for the same options.
-  """
-  def miss_reasons_timeseries_from_breakdown(breakdown, opts) do
-    start_datetime =
-      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+  Daily hits, misses, miss reasons and distinct module names from a full breakdown.
+  Includes modules with no misses and counts a name once across its products.
 
+  Every series covers the breakdown's selected cohort, including any `:name`,
+  branch or environment filter. A name-scoped breakdown therefore has module
+  counts of zero or one, not project-wide counts. Use the same date bounds that
+  loaded the breakdown; omitted bounds default to the last 30 days.
+  """
+  def module_timeseries_from_breakdown(breakdown, opts) do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
 
     by_day =
       breakdown
       |> Enum.group_by(& &1.day)
       |> Map.new(fn {day, rows} ->
-        misses = rows |> Enum.map(& &1.misses) |> Enum.sum()
-        changed = rows |> Enum.map(& &1.changed) |> Enum.sum()
-        upstream = rows |> Enum.map(& &1.upstream) |> Enum.sum()
-        {day, %{changed: changed, upstream: upstream, cold: max(misses - changed - upstream, 0)}}
+        misses = Enum.sum(Enum.map(rows, & &1.misses))
+        changed = Enum.sum(Enum.map(rows, & &1.changed))
+        upstream = Enum.sum(Enum.map(rows, & &1.upstream))
+        evicted = Enum.sum(Enum.map(rows, & &1.evicted))
+
+        {day,
+         %{
+           invalidations: misses,
+           reuses: Enum.sum(Enum.map(rows, &(&1.appearances - &1.misses))),
+           modules: rows |> MapSet.new(& &1.name) |> MapSet.size(),
+           changed: changed,
+           upstream: upstream,
+           evicted: evicted,
+           cold: max(misses - changed - upstream - evicted, 0)
+         }}
       end)
 
-    dates =
-      start_datetime
-      |> DateTime.to_date()
-      |> Date.range(DateTime.to_date(end_datetime))
-      |> Enum.to_list()
+    dates = Date.range(DateTime.to_date(start_datetime), DateTime.to_date(end_datetime))
+    labels = Enum.map(dates, &Date.to_iso8601/1)
 
     %{
-      dates: Enum.map(dates, &Date.to_iso8601/1),
-      changed: Enum.map(dates, fn d -> get_in(by_day, [d, :changed]) || 0 end),
-      upstream: Enum.map(dates, fn d -> get_in(by_day, [d, :upstream]) || 0 end),
-      cold: Enum.map(dates, fn d -> get_in(by_day, [d, :cold]) || 0 end)
+      timeseries: %{
+        dates: labels,
+        invalidations: Enum.map(dates, &(get_in(by_day, [&1, :invalidations]) || 0)),
+        reuses: Enum.map(dates, &(get_in(by_day, [&1, :reuses]) || 0))
+      },
+      modules_series: %{
+        dates: labels,
+        counts: Enum.map(dates, &(get_in(by_day, [&1, :modules]) || 0))
+      },
+      miss_reasons_series: %{
+        dates: labels,
+        changed: Enum.map(dates, &(get_in(by_day, [&1, :changed]) || 0)),
+        upstream: Enum.map(dates, &(get_in(by_day, [&1, :upstream]) || 0)),
+        cold: Enum.map(dates, &(get_in(by_day, [&1, :cold]) || 0)),
+        evicted: Enum.map(dates, &(get_in(by_day, [&1, :evicted]) || 0))
+      }
     }
   end
 
@@ -2687,7 +2802,7 @@ defmodule Tuist.Builds.Analytics do
     * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
     * `:git_branch` - When set, restricts to a single branch
     * `:commit_sha` - When set, matches commit shas starting with it
-    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"` or `"cold"`
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`, `"cold"` or `"evicted"`
     * `:order` - `"desc"` (default, newest first) or `"asc"`
     * `:limit` - Rows per page (default 25)
 
@@ -2696,7 +2811,7 @@ defmodule Tuist.Builds.Analytics do
     start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
     `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
     `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
-    `"changed"`, `"upstream"` or `"cold"`).
+    `"changed"`, `"upstream"`, `"cold"` or `"evicted"`).
 
     `:scheme` comes from the build run the command event belongs to and is
     empty for the commands that produce no activity log, such as `generate` and
@@ -2727,6 +2842,7 @@ defmodule Tuist.Builds.Analytics do
       %{
         project_id: project_id,
         name: name,
+        names: [name],
         start: start_datetime,
         end: end_datetime,
         # One extra row tells us whether another page exists in the direction of travel.
@@ -2737,24 +2853,21 @@ defmodule Tuist.Builds.Analytics do
       |> Map.merge(commit_params)
       |> Map.merge(cursor_params)
       |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
 
     query = """
     SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
     FROM (
       SELECT
         id, scheme, ran_at, branch, commit_sha, hit,
-        multiIf(
-          hit != 'miss', 'hit',
-          rn = 1, 'cold',
-          own != prev_own, 'changed',
-          deps != prev_deps OR ext != prev_ext, 'upstream',
-          'cold'
-        ) AS reason
+        #{module_cache_reason()} AS reason
       FROM (
         SELECT
-          id, scheme, ran_at, branch, commit_sha, hit, own, deps, ext,
+          id, scheme, ran_at, branch, commit_sha, hit, own, direct_inputs, deps, ext,
+          previously_available,
           row_number() OVER w AS rn,
           lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
           lagInFrame(deps, 1) OVER w AS prev_deps,
           lagInFrame(ext, 1) OVER w AS prev_ext
         FROM (
@@ -2765,12 +2878,15 @@ defmodule Tuist.Builds.Analytics do
             coalesce(e.git_branch, '') AS branch,
             coalesce(e.git_commit_sha, '') AS commit_sha,
             xt.binary_cache_hit AS hit,
+            #{previously_available()} AS previously_available,
             xt.product AS product,
             xt.own_hash AS own,
+            xt.direct_inputs_hashes AS direct_inputs,
             cityHash64(xt.dependencies_hash) AS deps,
             cityHash64(xt.external_hash) AS ext
           FROM xcode_targets_by_project AS xt
           INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          #{module_cache_availability_join()}
           -- Commands that produce an activity log carry the build run they
           -- belong to, which is where the scheme lives. Bounded to the same
           -- project and window so the join builds a small hash table.
@@ -2829,7 +2945,7 @@ defmodule Tuist.Builds.Analytics do
 
   defp build_history_reason_filter(opts) do
     case Keyword.get(opts, :reason) do
-      reason when reason in ~w(hit changed upstream cold) -> {"reason = {reason:String}", %{reason: reason}}
+      reason when reason in ~w(hit changed upstream cold evicted) -> {"reason = {reason:String}", %{reason: reason}}
       _ -> {"", %{}}
     end
   end
@@ -3085,9 +3201,9 @@ defmodule Tuist.Builds.Analytics do
   defp percentage(_count, 0), do: 0.0
   defp percentage(count, total), do: Float.round(count / total * 100, 1)
 
-  defp module_name_filter(opts) do
+  defp module_name_filter(opts, alias_name \\ "xt") do
     case Keyword.get(opts, :name) do
-      name when is_binary(name) and name != "" -> {" AND xt.name = {name:String}", %{name: name}}
+      name when is_binary(name) and name != "" -> {" AND #{alias_name}.name = {name:String}", %{name: name}}
       _ -> {"", %{}}
     end
   end
@@ -3151,9 +3267,12 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  Returns a daily breakdown of why a module missed: `changed` (its own content
-  differed from its previous build), `upstream` (only a dependency differed), and
-  `cold` (a miss with no comparable prior build — first-seen or evicted).
+  Returns a daily breakdown of reported misses: `changed` (the module's compared
+  direct inputs differed), `upstream` (only its dependency or external package hash
+  differed), `evicted` (a previously served exact key now misses at the same endpoint),
+  and `cold` (missing comparison history or an unexplained miss without earlier
+  remote availability evidence). Cold does not establish that an artifact was
+  never cached or was evicted.
 
   Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
   day instead of by module. Requires `:name`.
@@ -3163,7 +3282,8 @@ defmodule Tuist.Builds.Analytics do
   def module_miss_reasons_timeseries(opts) do
     opts
     |> module_invalidation_breakdown()
-    |> miss_reasons_timeseries_from_breakdown(opts)
+    |> module_timeseries_from_breakdown(opts)
+    |> Map.fetch!(:miss_reasons_series)
   end
 
   @doc """

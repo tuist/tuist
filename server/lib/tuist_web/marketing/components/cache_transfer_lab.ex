@@ -113,8 +113,8 @@ defmodule TuistWeb.Marketing.Components.CacheTransferLab do
 
       .cache-transfer-lab__legend-swatch--transfer,
       .cache-transfer-lab__transfer {
-        fill: var(--noora-neutral-light-700);
-        background: var(--noora-neutral-light-700);
+        fill: var(--marketing-illustration-neutral-6);
+        background: var(--marketing-illustration-neutral-6);
       }
 
       .cache-transfer-lab__chart {
@@ -130,7 +130,7 @@ defmodule TuistWeb.Marketing.Components.CacheTransferLab do
       }
 
       .cache-transfer-lab__track {
-        fill: var(--noora-neutral-light-300);
+        fill: var(--marketing-illustration-neutral-2);
       }
 
       .cache-transfer-lab__sample-label,
@@ -189,7 +189,7 @@ defmodule TuistWeb.Marketing.Components.CacheTransferLab do
         .cache-transfer-lab__mobile-bar {
           display: flex;
           border-radius: var(--noora-radius-2);
-          background: var(--noora-neutral-light-300);
+          background: var(--marketing-illustration-neutral-2);
           height: var(--noora-spacing-3);
           overflow: hidden;
         }

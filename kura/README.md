@@ -103,6 +103,9 @@ mise x shellspec@0.28.1 -- shellspec
 
 Runtime configuration is summarized in the table under [Runtime Model And Limits](#-runtime-model-and-limits). Kura now derives sensible defaults for the main FD, memory, and metadata-store budgets at startup when you do not set them explicitly.
 
+During startup, `/up` and `/metrics` are available while the store recovers, but `/ready` and cache requests return 503 until recovery completes. Cleanup can exceed five minutes as long as bounded scan pages or deletion batches keep completing. Five minutes without recovery progress makes `/up` fail; opaque RocksDB opening has a separate 15-minute limit. `kura_startup_recovery_*` metrics expose the phase and completed work. Store cleanup failures stop startup, and shutdown signals are handled before recovery begins. A requested shutdown during recovery logs `kura.startup.interrupted` at INFO and exits successfully (code 0), without marking the recovery phase as failed.
+
+
 ## 🗺️ Project Areas
 
 Kura is easier to read by subsystem than by tutorial step. The sections below group the project by the main areas you operate or extend.
@@ -476,6 +479,9 @@ When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
 
+Usage delivery allows up to 3 seconds for connection setup, including DNS, within
+a 5-second total request deadline covering setup, upload, and response.
+
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
@@ -720,3 +726,7 @@ serve is refused before anything else happens.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
+
+### Bazel build timelines
+
+With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.

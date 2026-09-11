@@ -97,3 +97,9 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Embedded graph package: `cli/Sources/XcodeGraph/AGENTS.md`
 
 Note: `cli/TuistCacheEE` is a git submodule; keep any intent nodes for that package within the submodule itself.
+
+- Bazel setup enables JSON trace profiles without event merging, includes target and primary output identifiers, and selects the remote BEP artifact uploader. Keep explicit user profiling preferences when refreshing managed configuration. Do not use `experimental_stream_log_file_uploads`: the standard Bazel remote artifact uploader does not implement that streaming path.
+
+- Bazel setup records the local active logical processor count as `TUIST_CPU_COUNT` build metadata in the machine-specific `.bazelrc.tuist`. Endpoint refresh preserves this value; rerun setup when moving environments or changing CPU allocations. Build environments that override JVM processor availability must supply the matching count through build metadata. Never substitute Bazel job concurrency for CPU capacity.
+
+- Bazelrc credential-helper upgrades add CPU-capacity metadata when missing in both existing insights and cache-only configurations, preserving explicit metadata and option preferences.

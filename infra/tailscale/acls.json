@@ -201,7 +201,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
@@ -219,7 +226,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
@@ -237,7 +251,14 @@
 			//        images over this; without it the image
 			//        workflows lose their registry the moment the
 			//        catch-all grant above is removed.
-			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443"],
+			// :8123  the in-cluster ClickHouse proxy. The xcresult
+			//        processor writes the test tables and is the one
+			//        writer not on the pod network, so it reaches the
+			//        database this way or not at all. Without this port
+			//        the Service is exposed, the proxy node exists and
+			//        the VM still cannot connect, which is silent: its
+			//        logs reach neither kubectl nor Loki.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100", "tcp:443", "tcp:8123"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,

@@ -232,6 +232,11 @@ pub struct MetricsInner {
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
+    startup_recovery_phase: Gauge,
+    startup_recovery_last_progress_timestamp_seconds: Gauge,
+    startup_recovery_completed_pages: Gauge,
+    startup_recovery_committed_batches: Gauge,
+
     mmap_partial_page_exemptions: Counter,
     promotion_queue_depth: Gauge,
     promotion_failures: Counter,
@@ -308,6 +313,7 @@ struct HotReadMetrics {
 struct HotWriteMetrics {
     reapi_ok_writes: Counter,
     reapi_ok_write_bytes: Counter,
+    reapi_damped_writes: Counter,
     reapi_write_size_bytes: Histogram,
     bytestream_public_latency: Histogram,
 }
@@ -885,6 +891,10 @@ impl Metrics {
         let hot_write = Arc::new(HotWriteMetrics {
             reapi_ok_writes: artifact_writes.get_or_create_owned(&reapi_ok_labels),
             reapi_ok_write_bytes: artifact_write_bytes.get_or_create_owned(&reapi_ok_labels),
+            reapi_damped_writes: artifact_writes.get_or_create_owned(&ArtifactOpLabels {
+                producer: "reapi".to_owned(),
+                result: "damped".to_owned(),
+            }),
             reapi_write_size_bytes: artifact_write_size_bytes.get_or_create_owned(
                 &ArtifactRouteLabels {
                     producer: "reapi".to_owned(),
@@ -927,6 +937,11 @@ impl Metrics {
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
+        let startup_recovery_phase = Gauge::default();
+        let startup_recovery_last_progress_timestamp_seconds = Gauge::default();
+        let startup_recovery_completed_pages = Gauge::default();
+        let startup_recovery_committed_batches = Gauge::default();
+
         let mmap_partial_page_exemptions = Counter::default();
         let promotion_queue_depth = Gauge::default();
         let promotion_failures = Counter::default();
@@ -1846,6 +1861,26 @@ impl Metrics {
             writer_lock_owned.clone(),
         );
         registry.register(
+            "kura_startup_recovery_phase",
+            "Startup recovery phase",
+            startup_recovery_phase.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_last_progress_timestamp_seconds",
+            "Unix timestamp of the last completed recovery work or phase transition",
+            startup_recovery_last_progress_timestamp_seconds.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_completed_pages",
+            "Completed startup recovery scan pages",
+            startup_recovery_completed_pages.clone(),
+        );
+        registry.register(
+            "kura_startup_recovery_committed_batches",
+            "Committed startup recovery deletion batches",
+            startup_recovery_committed_batches.clone(),
+        );
+        registry.register(
             "kura_writer_lock_acquire_failures_total",
             "Number of writer-lock acquisition failures detected during startup or tests",
             writer_lock_acquire_failures.clone(),
@@ -2078,6 +2113,11 @@ impl Metrics {
                 initial_discovery_completed,
                 writer_lock_owned,
                 writer_lock_acquire_failures,
+                startup_recovery_phase,
+                startup_recovery_last_progress_timestamp_seconds,
+                startup_recovery_completed_pages,
+                startup_recovery_committed_batches,
+
                 mmap_partial_page_exemptions,
                 promotion_queue_depth,
                 promotion_failures,
@@ -2219,13 +2259,26 @@ impl Metrics {
     }
 
     pub fn record_artifact_write(&self, producer: ArtifactProducer, result: &str, bytes: u64) {
-        if producer == ArtifactProducer::Reapi && result == "ok" {
-            self.hot_write.reapi_ok_writes.inc();
-            if bytes > 0 {
-                self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
-                self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+        if producer == ArtifactProducer::Reapi {
+            match result {
+                "ok" => {
+                    self.hot_write.reapi_ok_writes.inc();
+                    if bytes > 0 {
+                        self.hot_write.reapi_ok_write_bytes.inc_by(bytes);
+                        self.hot_write.reapi_write_size_bytes.observe(bytes as f64);
+                    }
+                    return;
+                }
+                // A damped action-cache refresh shares the hot path of the
+                // write it declines to perform, so it gets the same pre-created
+                // counter rather than the label-allocating Family lookup. It
+                // stores nothing, so it carries no bytes and observes no size.
+                "damped" => {
+                    self.hot_write.reapi_damped_writes.inc();
+                    return;
+                }
+                _ => {}
             }
-            return;
         }
         let labels = ArtifactOpLabels {
             producer: producer.as_str().to_owned(),
@@ -3477,6 +3530,23 @@ impl Metrics {
         }
     }
 
+    pub fn record_startup_phase(&self, phase: i64) {
+        self.startup_recovery_phase.set(phase);
+    }
+
+    pub fn record_startup_progress_timestamp(&self, timestamp: i64) {
+        self.startup_recovery_last_progress_timestamp_seconds
+            .set(timestamp);
+    }
+
+    pub fn record_startup_work(&self, committed: bool) {
+        if committed {
+            self.startup_recovery_committed_batches.inc();
+        } else {
+            self.startup_recovery_completed_pages.inc();
+        }
+    }
+
     pub fn render(&self) -> String {
         let mut encoded = String::new();
         let registry = self.registry.lock().expect("metrics registry poisoned");
@@ -3853,6 +3923,38 @@ mod tests {
         assert_eq!(
             std::mem::size_of::<Metrics>(),
             std::mem::size_of::<Arc<MetricsInner>>()
+        );
+    }
+
+    // A damped REAPI action-cache refresh shares the write path's cardinality
+    // and its request rate, so it gets a pre-created counter like the applied
+    // write rather than the label-allocating Family lookup, and it never
+    // reaches write_bytes or the size histogram.
+    #[test]
+    fn damped_reapi_writes_use_a_registered_counter_without_bytes() {
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        metrics.record_artifact_write(ArtifactProducer::Reapi, "damped", 0);
+
+        let rendered = metrics.render();
+        assert!(rendered.lines().any(|line| {
+            line.starts_with("kura_artifact_writes_total")
+                && line.contains("producer=\"reapi\"")
+                && line.contains("result=\"damped\"")
+                && line.ends_with(" 1")
+        }));
+        assert!(
+            !rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_bytes_total") && line.contains("damped")
+            }),
+            "a damped refresh stored nothing, so it books no throughput"
+        );
+        assert!(
+            rendered.lines().any(|line| {
+                line.starts_with("kura_artifact_write_size_bytes_count")
+                    && line.contains("producer=\"reapi\"")
+                    && line.ends_with(" 0")
+            }),
+            "a damped refresh must not land in the stored-size distribution"
         );
     }
 

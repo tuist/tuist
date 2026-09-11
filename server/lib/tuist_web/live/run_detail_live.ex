@@ -199,7 +199,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:selective_testing_page_count, meta.total_pages)
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_active_filters, filters)
-    |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
+    |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
   end
@@ -214,7 +214,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, filters)
-    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
   end
@@ -243,12 +243,12 @@ defmodule TuistWeb.RunDetailLive do
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_active_filters, selective_testing_filters)
-    |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
+    |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, binary_cache_filters)
-    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
   end
@@ -262,7 +262,7 @@ defmodule TuistWeb.RunDetailLive do
 
     flop_params = %{
       filters: text_filters ++ filter_flop_filters,
-      page: String.to_integer(params["selective-testing-page"] || "1"),
+      page: Query.bounded_page(params["selective-testing-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
       order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
@@ -284,7 +284,7 @@ defmodule TuistWeb.RunDetailLive do
 
     flop_params = %{
       filters: text_filters ++ filter_flop_filters,
-      page: String.to_integer(params["binary-cache-page"] || "1"),
+      page: Query.bounded_page(params["binary-cache-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
       order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]

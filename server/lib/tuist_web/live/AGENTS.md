@@ -3,10 +3,12 @@
 This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
+- Module cache miss widgets, charts, filters, and history share four reasons: Changed, Upstream, Cold, and Evicted. History rows show a reason badge and tooltip; classification and prior remote-hit evidence belong in Builds.Analytics. Test-only runs read Module Cache results from their original build event when their own event has no lookups; the fallback is project scoped and never changes reported counts.
 - Xcode machine metrics with recorded build-relative offsets appear as shared-clock tracks in Timeline; legacy metrics without an offset retain the Machine Metrics tab. Samples travel in a small hook reply independently of the step metadata download.
 - Render LiveView pages and handle UI events.
 - The Xcode build detail loads only the selected tab's breakdown/cache queries. The Timeline hook downloads all step metadata from the authorized `timeline.json` HTTP endpoint (compressed by Bandit), while a small hook reply delivers machine metrics immediately. Step metadata never enters LiveView assigns or HTML. Keep metrics interactive above the step skeleton while metadata loads; abort downloads on navigation and reload on build completion. Keyboard navigation and step logs use cancellable async tasks scoped to the current build. Zoom, pan and search use the full metadata locally, with the full build duration initially visible. Older builds may have no timeline data.
 - Orchestrate UI state while delegating domain operations to `server/lib/tuist`.
+- Module-cache pages reuse their loaded breakdown for charts. Relative date presets stay fixed across table and widget patches; changing the date selection or remounting creates a new snapshot. Detail history filters refresh their relative window without reloading analytics or branch choices; cursor pagination retains the history window. Failed async loads retry on a matching patch while successful or in-flight loads are reused. Module count failure only affects its widget value; charts gate on their own series. Detail totals cover every product under the selected module name.
 - Bazel exposes test case automations through the shared project settings tabs. Keep quarantine setup and target-level skipping guidance in the Bazel flaky-tests documentation, not page banners.
 - Bazel's Skipped policy option explains whole-target exclusion, including healthy tests, at the manual and automation action menus. Keep this guidance scoped to Bazel.
 - Xcode overview charts opt into Noora's `data-lazy="true"` behavior so charts
@@ -33,3 +35,7 @@ This area owns LiveView pages and components for the web UI.
 - GitLab disconnect disables the connection immediately and leaves upstream settlement to background polling; the disabled connection renders a pending notice and a disabled Disconnect action.
 
 - Runner job detail omits the whole Insights card unless at least one build or test run matches the runner job; candidate account projects alone do not justify an empty card. GitLab jobs link to their GitLab instance and omit the structured Steps card, which currently receives data only from GitHub completion webhooks; GitLab execution output remains available in Logs.
+
+- `BuildTimelineLoader` owns lazy metric bootstrapping, build identity, versioning, tab reentry and forced refresh for Xcode, Gradle and Bazel. It cancels superseded bootstrap tasks and rejects stale/inactive-tab hook requests. Step metadata stays out of LiveView state: every source supplies an authorized HTTP URL to `build_timeline_section`, which shares loading/error UI and preserves source-specific coverage notices. Xcode keeps cancellable server navigation/log tasks; Gradle and Bazel navigate downloaded steps locally, with Bazel logs loaded separately when available.
+
+- Gradle and Bazel detail tabs follow Xcode: Overview, Timeline, then cache and source-specific tabs. Gradle machine metrics appear only in Timeline; legacy `tab=machine-metrics` links open Timeline without eagerly loading samples on other tabs.
