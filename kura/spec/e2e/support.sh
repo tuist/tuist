@@ -189,6 +189,18 @@ wait_for_http() {
   return 1
 }
 
+# `/up` alone only proves the process is alive: the bootstrap listener answers it
+# with 200 throughout store recovery while every cache route is short-circuited
+# with a plain-text 503 that never reaches the serving router or its metrics
+# middleware, so traffic driven at that point is neither served nor counted.
+# Gate on `/ready` before seeding or measuring a node. Joining nodes observed
+# mid-backfill are deliberately excluded: their readiness latches on ring
+# fullness, so those waits stay on `/up`.
+wait_for_node_ready() {
+  wait_for_http "$1/up" 60 1 || return 1
+  wait_for_status "$1/ready" 200 90 1 >/dev/null || return 1
+}
+
 wait_for_status() {
   local url="$1"
   local expected_status="$2"

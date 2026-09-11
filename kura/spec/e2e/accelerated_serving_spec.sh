@@ -18,7 +18,7 @@ Describe 'accelerated artifact serving'
     compose_up kura-us || return 1
 
     resolve_http_node KURA_US kura-us
-    wait_for_http "${KURA_US_URL}/up"
+    wait_for_node_ready "${KURA_US_URL}"
   }
 
   teardown_suite() {

@@ -52,6 +52,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
+- Wait for `/ready` (`wait_for_node_ready` in `spec/e2e/support.sh`) before seeding or measuring an E2E node: the bootstrap listener answers `/up` successfully during store recovery while cache routes still return 503 and are never counted by the serving router's metrics middleware. Keep mid-backfill observations on joining nodes independent of readiness.
 
 ## Resource Budgets
 Kura is bound by memory, disk, CPU, and egress, and each of those is a hard, shared bound on a mesh node. A change that buys latency by keeping more bytes resident, writing more segments, spending more CPU per request, or moving the same artifact across peers twice is a regression even when every test passes. Staying inside the four budgets is part of the change, not a follow-up.
