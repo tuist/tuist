@@ -439,16 +439,20 @@ therefore guard the concrete incoming body: EOF without END_STREAM becomes a typ
 abort, including for bodies without Content-Length. A transport may instead cancel
 the handler entirely; then no HTTP completion status can be emitted.
 
-Buffered readers classify the same way: `/_internal/backfill/bodies`, the body-fetch
-stage every catch-up pass runs on, distinguishes a transport failure from its own
+`/_internal/backfill/bodies`, the body-fetch stage every catch-up pass runs on,
+classifies the same way: it distinguishes a transport failure from its own
 `MAX_BACKFILL_BODIES_REQUEST_BYTES` ceiling rather than answering 413 for both.
+The push replication receivers keep their blanket 413 and are left to the pull
+migration.
 
 A rejected body never commits an artifact or multipart part. Staging cleanup releases
 its disk reservation after unlink succeeds; an unlink failure is logged and retains
 the reservation to avoid oversubscribing disk. Body-read failures increment the existing
 `result="error"` artifact-write/multipart-part counter or `outcome="error"`
-replication-apply counter. A payload refused by a size limit is a 413 and not a
-write failure, so it is counted only as the size rejection it is. Use HTTP status counters and completion results to
+replication-apply counter. A key-value payload refused by its size
+limit is a 413 and not a write failure, so it is counted only as the size
+rejection it is; the push replication receivers still book an apply error for
+their own 413. Use HTTP status counters and completion results to
 distinguish client failures from storage faults.
 Upload completion events retain bounded causes through internal response extensions;
 ordinary error responses, including cache-miss 404s, keep their previous logging behavior.
