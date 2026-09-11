@@ -5,12 +5,112 @@ import Path
 import Testing
 import TuistEnvironment
 import TuistTesting
-import TuistXcodeBuildProducts
-
 @testable import TuistXcodeBuildProducts
 
 struct DerivedDataLocatorTests {
     private let subject = DerivedDataLocator()
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: ["xcworkspace", "xcodeproj"])
+    func locate_uses_per_user_workspace_custom_root(extensionName: String) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = path.appending(component: "App.\(extensionName)")
+        let workspacePath = extensionName == "xcodeproj" ? projectPath.appending(component: "project.xcworkspace") : projectPath
+        let root = path.appending(component: "Custom DerivedData")
+        let settingsPath = workspacePath.appending(
+            components: "xcuserdata",
+            "\(NSUserName()).xcuserdatad",
+            "WorkspaceSettings.xcsettings"
+        )
+        try await FileSystem().makeDirectory(at: settingsPath.parentDirectory)
+        try await FileSystem().writeAsPlist([
+            "DerivedDataLocationStyle": "AbsolutePath",
+            "DerivedDataCustomLocation": root.pathString,
+        ], at: settingsPath)
+
+        let result = try await subject.locate(for: projectPath)
+
+        let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
+        #expect(result == root.appending(component: "App-\(hash)"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_uses_per_user_workspace_relative_root_without_hash() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = path.appending(component: "App.xcworkspace")
+        let settingsPath = projectPath.appending(
+            components: "xcuserdata",
+            "\(NSUserName()).xcuserdatad",
+            "WorkspaceSettings.xcsettings"
+        )
+        try await FileSystem().makeDirectory(at: settingsPath.parentDirectory)
+        try await FileSystem().writeAsPlist([
+            "DerivedDataLocationStyle": "WorkspaceRelativePath",
+            "DerivedDataCustomLocation": "Relative Data",
+        ], at: settingsPath)
+
+        #expect(try await subject.locate(for: projectPath) == path.appending(components: "Relative Data", "App"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: ["DERIVED_DATA_DIR", "BUILD_DIR", "BUILD_DIR_same_root"])
+    func locate_build_environment_overrides_workspace_settings(variable: String) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = path.appending(component: "App.xcworkspace")
+        let settingsPath = projectPath.appending(
+            components: "xcuserdata",
+            "\(NSUserName()).xcuserdatad",
+            "WorkspaceSettings.xcsettings"
+        )
+        try await FileSystem().makeDirectory(at: settingsPath.parentDirectory)
+        try await FileSystem().writeAsPlist([
+            "DerivedDataLocationStyle": "AbsolutePath",
+            "DerivedDataCustomLocation": path.appending(component: "Workspace Data").pathString,
+        ], at: settingsPath)
+        let override = path.appending(component: variable == "BUILD_DIR_same_root" ? "Workspace Data" : "Actual Build")
+        let environment = try #require(Environment.mocked)
+        let environmentKey = variable.hasPrefix("BUILD_DIR") ? "BUILD_DIR" : "DERIVED_DATA_DIR"
+        environment.variables[environmentKey] = environmentKey == "BUILD_DIR"
+            ? override.appending(components: "Build", "Products", "Debug").pathString : override.pathString
+
+        #expect(try await subject.locate(for: projectPath) == override)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: ["Default", "missing"])
+    func locate_workspace_default_uses_global_preferences(style: String) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = path.appending(component: "App.xcworkspace")
+        let settingsPath = projectPath.appending(
+            components: "xcuserdata",
+            "\(NSUserName()).xcuserdatad",
+            "WorkspaceSettings.xcsettings"
+        )
+        try await FileSystem().makeDirectory(at: settingsPath.parentDirectory)
+        var settings = ["DerivedDataCustomLocation": path.appending(component: "Stale Path").pathString]
+        if style != "missing" { settings["DerivedDataLocationStyle"] = style }
+        try await FileSystem().writeAsPlist(settings, at: settingsPath)
+        let environment = try #require(Environment.mocked)
+        let globalRoot = path.appending(component: "Global Data")
+        environment.derivedDataLocationStub = .custom(globalRoot)
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.parentDirectory == globalRoot)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_shared_settings_do_not_override_global_preferences() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = path.appending(component: "App.xcworkspace")
+        let settingsPath = projectPath.appending(components: "xcshareddata", "WorkspaceSettings.xcsettings")
+        try await FileSystem().makeDirectory(at: settingsPath.parentDirectory)
+        try await FileSystem().writeAsPlist([
+            "DerivedDataLocationStyle": "AbsolutePath",
+            "DerivedDataCustomLocation": path.appending(component: "Shared Data").pathString,
+        ], at: settingsPath)
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.parentDirectory == (try await Environment.current.derivedDataDirectory()))
+    }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func locate_uses_DERIVED_DATA_DIR_when_different_from_default() async throws {

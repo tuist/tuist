@@ -80,6 +80,12 @@ public struct RunCommand: AsyncParsableCommand {
         var configuration: String?
 
         @Option(
+            help: "Overrides the DerivedData directory used to build and run a generated project scheme.",
+            completion: .directory
+        )
+        var derivedDataPath: String?
+
+        @Option(
             name: .shortAndLong,
             help: "The OS version of the simulator.",
             envKey: .runOS
@@ -93,11 +99,19 @@ public struct RunCommand: AsyncParsableCommand {
         var rosetta: Bool = false
 
         @Argument(
-            parsing: .captureForPassthrough,
-            help: "Arguments to pass to the application during execution. All arguments after the scheme name are forwarded to the app. Example: tuist run MyApp --verbose --config debug",
+            parsing: .allUnrecognized,
+            help: "Arguments to pass to the application during execution. Use '--' to separate application arguments from Tuist options. Example: tuist run MyApp -- --verbose --config debug",
             envKey: .runArguments
         )
         var arguments: [String] = []
+
+        var applicationArguments: [String] {
+            var arguments = arguments
+            if let separator = arguments.firstIndex(of: "--") {
+                arguments.remove(at: separator)
+            }
+            return arguments
+        }
     #endif
 
     public func run() async throws {
@@ -108,10 +122,11 @@ public struct RunCommand: AsyncParsableCommand {
                 generate: generate,
                 clean: clean,
                 configuration: configuration,
+                derivedDataPath: derivedDataPath,
                 device: device,
                 osVersion: os,
                 rosetta: rosetta,
-                arguments: arguments
+                arguments: applicationArguments
             )
         #else
             try await RunCommandService().run(
