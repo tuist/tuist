@@ -1813,8 +1813,7 @@
 
         /* 4×4 hairline grid over the square: only the three interior lines
            per axis, so the box borders aren't doubled at the edges. */
-        background-image:
-          linear-gradient(
+        background-image: linear-gradient(
             90deg,
             transparent calc(25% - 1px),
             var(--marketing-stroke-default) calc(25% - 1px) 25%,
@@ -1943,8 +1942,11 @@
         border-radius: var(--noora-radius-6);
         /* The tint/gloss layers are translucent and read correctly on both
            bases; only the base flips (pale lavender / translucent purple). */
-        background:
-          radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%),
+        background: radial-gradient(
+            62.73% 96.07% at 43.01% 61.96%,
+            rgba(111, 44, 255, 0.14) 0%,
+            rgba(244, 66, 119, 0.04) 100%
+          ),
           linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%),
           var(--marketing-tint-purple);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
@@ -2321,8 +2323,11 @@
           0 0.75px 0.75px 0 rgba(255, 255, 255, 0.04) inset,
           0 0.25px 0.5px 0 rgba(255, 255, 255, 0.06) inset;
         border-radius: var(--noora-radius-6);
-        background:
-          radial-gradient(62.73% 96.07% at 43.01% 61.96%, rgba(111, 44, 255, 0.14) 0%, rgba(244, 66, 119, 0.04) 100%),
+        background: radial-gradient(
+            62.73% 96.07% at 43.01% 61.96%,
+            rgba(111, 44, 255, 0.14) 0%,
+            rgba(244, 66, 119, 0.04) 100%
+          ),
           linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%), var(--noora-purple-50);
         padding: var(--noora-spacing-2) var(--noora-spacing-4);
       }
