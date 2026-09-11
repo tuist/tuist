@@ -270,9 +270,6 @@ defmodule TuistWeb.Components.BuildTimeline do
             </aside>
           </div>
           <div data-part="tooltip" role="tooltip" hidden><strong></strong><span></span></div>
-          <p data-part="no-recorded-steps" hidden>
-            {dgettext("dashboard_builds", "No steps were recorded for this build.")}
-          </p>
           <p data-part="no-matches" hidden>
             {dgettext("dashboard_builds", "No steps in this time range match your filters.")}
           </p>

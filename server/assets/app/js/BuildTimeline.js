@@ -79,10 +79,11 @@ export default {
     if (wasFullBuild) this.range = { ...this.initialRange };
     this.stepsReady = true;
     this.part("payload-loading").hidden = true;
-    this.part("workspace").hidden = !timeline.total_count && !this.metrics.samples.length;
-    this.part("empty").hidden = !!timeline.total_count || !!this.metrics.samples.length;
-    this.part("step-count").hidden = false;
-    this.part("target-count").hidden = timeline.target_count == null;
+    const hasSteps = this.allEvents.length > 0;
+    this.part("workspace").hidden = !hasSteps;
+    this.part("empty").hidden = hasSteps || !!this.metrics.samples.length;
+    this.part("step-count").hidden = !hasSteps;
+    this.part("target-count").hidden = !hasSteps || timeline.target_count == null;
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
     this.el.querySelector('[data-stat="tasks"]').textContent = formatNumber(timeline.total_count);
     this.el.querySelector('[data-stat="targets"]').textContent = formatNumber(timeline.target_count);
@@ -430,8 +431,6 @@ export default {
         this.layoutDirty = false;
         this.syncScroll();
         this.layout = densityLayout(this.filtered, this.range, this.scrollport.clientHeight || 480);
-        this.part("no-recorded-steps").hidden =
-          !this.stepsReady || !this.metrics.samples.length || this.allEvents.length > 0;
         this.part("no-matches").hidden =
           !this.stepsReady ||
           !(this.search || this.category) ||

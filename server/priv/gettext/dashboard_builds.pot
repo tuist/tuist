@@ -335,7 +335,7 @@ msgstr ""
 msgid "Compressed Size (MB)"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:306
+#: lib/tuist_web/components/build_timeline.ex:303
 #: lib/tuist_web/live/build_run_live.html.heex:241
 #: lib/tuist_web/live/xcode_build_runs_live.ex:204
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:64
@@ -460,7 +460,7 @@ msgid "External"
 msgstr ""
 
 #: lib/tuist_web/components/build_timeline.ex:254
-#: lib/tuist_web/components/build_timeline.ex:318
+#: lib/tuist_web/components/build_timeline.ex:315
 #: lib/tuist_web/live/build_run_live.ex:1226
 #: lib/tuist_web/live/build_run_live.html.heex:262
 #: lib/tuist_web/live/build_run_live.html.heex:602
@@ -861,8 +861,8 @@ msgstr ""
 msgid "Remote"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:303
-#: lib/tuist_web/components/build_timeline.ex:311
+#: lib/tuist_web/components/build_timeline.ex:300
+#: lib/tuist_web/components/build_timeline.ex:308
 #: lib/tuist_web/components/runs/module_cache_tab.ex:371
 #, elixir-autogen, elixir-format
 msgid "Resources"
@@ -1541,12 +1541,12 @@ msgstr ""
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:287
+#: lib/tuist_web/components/build_timeline.ex:284
 #, elixir-autogen, elixir-format
 msgid "Compilation"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:288
+#: lib/tuist_web/components/build_timeline.ex:285
 #, elixir-autogen, elixir-format
 msgid "Linking"
 msgstr ""
@@ -1556,7 +1556,7 @@ msgstr ""
 msgid "No timeline available"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:317
+#: lib/tuist_web/components/build_timeline.ex:314
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr ""
@@ -1566,7 +1566,7 @@ msgstr ""
 msgid "Outcome"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:289
+#: lib/tuist_web/components/build_timeline.ex:286
 #, elixir-autogen, elixir-format
 msgid "Scripts"
 msgstr ""
@@ -1621,7 +1621,7 @@ msgstr ""
 msgid "Build Timeline"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:277
+#: lib/tuist_web/components/build_timeline.ex:274
 #, elixir-autogen, elixir-format
 msgid "No steps in this time range match your filters."
 msgstr ""
@@ -1695,11 +1695,6 @@ msgstr ""
 msgid "Write"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:274
-#, elixir-autogen, elixir-format
-msgid "No steps were recorded for this build."
-msgstr ""
-
 #: lib/tuist_web/components/build_timeline.ex:139
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
@@ -1745,12 +1740,12 @@ msgstr ""
 msgid "No direct target dependencies recorded"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:298
+#: lib/tuist_web/components/build_timeline.ex:295
 #, elixir-autogen, elixir-format
 msgid "Analysis/setup"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:307
+#: lib/tuist_web/components/build_timeline.ex:304
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
 msgstr ""
@@ -1760,12 +1755,12 @@ msgstr ""
 msgid "Cache hit"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:297
+#: lib/tuist_web/components/build_timeline.ex:294
 #, elixir-autogen, elixir-format
 msgid "Fetching"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:296
+#: lib/tuist_web/components/build_timeline.ex:293
 #, elixir-autogen, elixir-format
 msgid "File preparation"
 msgstr ""
@@ -1780,7 +1775,7 @@ msgstr ""
 msgid "No source"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:305
+#: lib/tuist_web/components/build_timeline.ex:302
 #, elixir-autogen, elixir-format
 msgid "Packaging"
 msgstr ""
@@ -1805,7 +1800,7 @@ msgstr ""
 msgid "Skipped"
 msgstr ""
 
-#: lib/tuist_web/components/build_timeline.ex:304
+#: lib/tuist_web/components/build_timeline.ex:301
 #, elixir-autogen, elixir-format
 msgid "Testing"
 msgstr ""
