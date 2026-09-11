@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
@@ -94,3 +95,6 @@ This directory contains the core business logic and domain modules for the serve
 
 - `Provisioner.external_endpoint/1` returns `%{url: ..., observed_at: ...}`. Private activation/refresh must persist that controller observation in `last_ready_at`, not replace it with the server clock. Both validation and dispatch use `Regions.private_endpoint_staleness_seconds/0`; storage maintenance must not freeze this clock. Private gateway URLs must not override public URL helpers. Retained NodePorts serve already-dispatched jobs only.
 - GitLab runner acquisition and credential boundary: `server/lib/tuist/runners/gitlab/AGENTS.md`. Shared runner-reported logs and billing live in `Runners.JobReports`.
+
+
+- Runner Kura participates in account disk sizing and plan memory/CPU profiles. New and returning instances pin the account claim; the enrollment migration immediately pins unpinned live runner instances to their account-sized claim (or plan default), capped at the historical 50Gi to avoid bypassing growth admission. The runner pool does not advertise `tuist.dev/memory-ceiling-mib`, so keep `memory_ceiling_bin_packed` disabled there. The region retains a conservative 50Gi accounting fallback for legacy rows without a pin or loaded account; governed creation and cold return pin the sized account budget before rendering. Disk sizing remains account-scoped across public and runner regions, including their telemetry and resize history.

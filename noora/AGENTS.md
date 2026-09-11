@@ -33,6 +33,8 @@ Web component metadata and documentation are generated from `components/*.json` 
 Do not bootstrap the npm package from a local machine. The first automated release reads a granular access token with permission to publish under the `@tuist` scope from `op://tuist/NPM_TOKEN/password` using `OP_SERVICE_ACCOUNT_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, revoke the long-lived token, and remove its 1Password item.
 
 ## Conventions
+- Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
+- Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
 - Brand icons use monochrome `currentColor` SVGs in `lib/noora/icons/`; `brand-gitlab.svg` comes from Simple Icons and is exposed as `brand_gitlab/1`.
 
