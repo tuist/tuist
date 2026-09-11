@@ -425,18 +425,34 @@ sampled with `KURA_REQUEST_LOG_SAMPLE_RATE`. Requests exceeding
 response bytes, time to first byte, total duration, and the serving path. The rate limit uses
 constant process memory and reports the number of suppressed events on the next warning.
 
-Staged uploads distinguish incoming request-body failures from storage I/O. Recognized
-disconnects (including premature EOF and remote HTTP/2 stream cancellation) are recorded
-as 499 with `kura.response.result=client_aborted`; malformed bodies are 400 with
-`invalid_request_body`. Unknown body failures remain 500 with `request_body_error`, and
-disk failures retain their existing 5xx or capacity response. A rejected body never
-commits an artifact or multipart part. Cleanup releases its disk reservation after unlink
-succeeds; an unlink failure is logged and retains the reservation to avoid oversubscribing
-disk. Handler completion events preserve error details,
-including a bounded source chain for request-body failures. An ingress may already have
-closed the upstream connection, so correlate request IDs rather than expecting its status
-to match Kura's local completion status. These classifications cover the shared staging
-path for CAS, Gradle, Nx, Metro, multipart parts, and file-backed peer replication.
+Staged and inline artifact uploads distinguish incoming request-body failures from
+storage I/O. Recognized disconnects (including premature EOF, remote HTTP/2 stream
+resets, and remote GOAWAY errors surfaced while reading a body) are recorded as 499
+with `kura.response.result=client_aborted`. Malformed framing is 400 with
+`invalid_request_body`; incoming-body timeouts are 408 with `request_timeout`.
+Unknown body failures remain 500 with `request_body_error`, and disk failures retain
+their existing 5xx or capacity response. Actual inline size-limit failures remain 413.
+Hyper enforces wire Content-Length framing: a short HTTP/1 body ends in the 499
+premature-EOF path; bytes after the declared body belong to the next message.
+Hyper 1.9 suppresses HTTP/2 CANCEL/NO_ERROR body errors. Public and peer listeners
+therefore guard the concrete incoming body: EOF without END_STREAM becomes a typed
+abort, including for bodies without Content-Length. A transport may instead cancel
+the handler entirely; then no HTTP completion status can be emitted.
+
+A rejected body never commits an artifact or multipart part. Staging cleanup releases
+its disk reservation after unlink succeeds; an unlink failure is logged and retains
+the reservation to avoid oversubscribing disk. Body-read failures increment the existing
+`result="error"` artifact-write/multipart-part counter or `outcome="error"`
+replication-apply counter. Use HTTP status counters and completion results to
+distinguish client failures from storage faults.
+Upload completion events retain bounded causes through internal response extensions;
+ordinary error responses, including cache-miss 404s, keep their previous logging behavior.
+Client-body failures have a separate warning limiter, so an abort storm cannot exhaust
+the warning budget for server faults. An ingress may already have closed the upstream
+connection, so correlate request IDs rather than expecting its status to match Kura's
+local completion status. These classifications cover CAS, Gradle, Nx, Metro,
+multipart parts, key-value uploads, and inline/file-backed peer artifact replication.
+The ShellSpec upload regression runs in CI's clients shard.
 
 HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 

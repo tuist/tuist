@@ -15,6 +15,7 @@ use tokio::{
     task::JoinHandle,
     time::{Instant, sleep},
 };
+use tower::ServiceExt;
 use tracing::{Instrument, info, warn};
 
 use crate::{
@@ -397,12 +398,23 @@ async fn initialize_and_serve(
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(None::<ShutdownBudget>);
     let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
 
+    let internal_router = http::internal_router(state.clone());
+    let internal_service = tower::service_fn(move |_: SocketAddr| {
+        let router = internal_router.clone();
+        std::future::ready(Ok::<_, std::convert::Infallible>(tower::service_fn(
+            move |request| {
+                router
+                    .clone()
+                    .oneshot(crate::utils::guard_incoming_request(request))
+            },
+        )))
+    });
+
     let internal_handle = if state.config.peer_tls.is_some() {
         let tls_config = state
             .internal_tls
             .clone()
             .expect("internal_tls is present whenever peer_tls is configured");
-        let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
@@ -432,7 +444,7 @@ async fn initialize_and_serve(
                         tls_config,
                     ))
                     .handle(handle)
-                    .serve(internal_router.into_make_service())
+                    .serve(internal_service)
                     .await
                 {
                     tracing::error!("internal mTLS server failed: {error}");
@@ -441,7 +453,6 @@ async fn initialize_and_serve(
             .in_current_span(),
         ))
     } else {
-        let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
         let shutdown_handle = handle.clone();
@@ -464,7 +475,7 @@ async fn initialize_and_serve(
             async move {
                 if let Err(error) = axum_server::bind(internal_address)
                     .handle(handle)
-                    .serve(internal_router.into_make_service())
+                    .serve(internal_service)
                     .await
                 {
                     tracing::error!("internal server failed: {error}");

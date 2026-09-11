@@ -304,6 +304,7 @@ pub enum BodyReadError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RequestBodyErrorKind {
     ClientAborted,
+    TimedOut,
     InvalidBody,
     Failed,
 }
@@ -315,7 +316,7 @@ pub struct RequestBodyError {
 }
 
 impl RequestBodyError {
-    fn from_error(error: axum::Error) -> Self {
+    pub(crate) fn from_error(error: axum::Error) -> Self {
         let mut kind = RequestBodyErrorKind::Failed;
         let mut messages = Vec::new();
         let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
@@ -330,6 +331,8 @@ impl RequestBodyError {
             if let Some(error) = error.downcast_ref::<hyper::Error>() {
                 if error.is_incomplete_message() {
                     kind = RequestBodyErrorKind::ClientAborted;
+                } else if error.is_timeout() {
+                    kind = RequestBodyErrorKind::TimedOut;
                 } else if error.is_parse() {
                     kind = RequestBodyErrorKind::InvalidBody;
                 }
@@ -340,6 +343,7 @@ impl RequestBodyError {
                     | std::io::ErrorKind::ConnectionReset
                     | std::io::ErrorKind::ConnectionAborted
                     | std::io::ErrorKind::UnexpectedEof => RequestBodyErrorKind::ClientAborted,
+                    std::io::ErrorKind::TimedOut => RequestBodyErrorKind::TimedOut,
                     std::io::ErrorKind::InvalidData | std::io::ErrorKind::InvalidInput => {
                         RequestBodyErrorKind::InvalidBody
                     }
@@ -352,10 +356,7 @@ impl RequestBodyError {
                     source = Some(cause);
                     continue;
                 }
-                if error.is_remote()
-                    && error.is_reset()
-                    && error.reason() == Some(h2::Reason::CANCEL)
-                {
+                if error.is_remote() && (error.is_reset() || error.is_go_away()) {
                     kind = RequestBodyErrorKind::ClientAborted;
                 } else if error.is_library() && error.reason() == Some(h2::Reason::PROTOCOL_ERROR) {
                     kind = RequestBodyErrorKind::InvalidBody;
@@ -367,6 +368,67 @@ impl RequestBodyError {
             kind,
             message: messages.join(": ").chars().take(1024).collect(),
         }
+    }
+}
+
+// Hyper 1.9 turns h2 CANCEL/NO_ERROR body errors into None without receiving
+// END_STREAM. Check the concrete Incoming body before Axum erases its type:
+// generic http_body implementations need not provide an exact end-stream hint.
+pub(crate) fn guard_incoming_request(request: hyper::Request<hyper::body::Incoming>) -> Request {
+    let http2 = request.version() == hyper::Version::HTTP_2;
+    request.map(|body| {
+        if http2 {
+            axum::body::Body::new(Http2IncomingBody { body, done: false })
+        } else {
+            axum::body::Body::new(body)
+        }
+    })
+}
+
+struct Http2IncomingBody {
+    body: hyper::body::Incoming,
+    done: bool,
+}
+
+impl http_body::Body for Http2IncomingBody {
+    type Data = bytes::Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        use std::task::Poll;
+        if self.done {
+            return Poll::Ready(None);
+        }
+        match std::pin::Pin::new(&mut self.body).poll_frame(cx) {
+            Poll::Ready(None) => {
+                self.done = true;
+                if self.body.is_end_stream() {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Ready(Some(Err(axum::Error::new(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "HTTP/2 request body ended without END_STREAM (remote cancellation)",
+                    )))))
+                }
+            }
+            Poll::Ready(Some(Err(error))) => {
+                self.done = true;
+                Poll::Ready(Some(Err(axum::Error::new(error))))
+            }
+            Poll::Ready(Some(Ok(frame))) => Poll::Ready(Some(Ok(frame))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.done || self.body.is_end_stream()
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        self.body.size_hint()
     }
 }
 
@@ -436,12 +498,12 @@ pub async fn read_request_to_temp(
         size += chunk.len() as u64;
         if size > max_bytes {
             drop(file);
-            staging.io.remove_file_if_exists(&temp_path).await;
+            cleanup.remove_and_disarm(staging.io).await;
             return Err(BodyReadError::TooLarge);
         }
         if let Err(error) = cleanup.grow_reservation_to(size) {
             drop(file);
-            staging.io.remove_file_if_exists(&temp_path).await;
+            cleanup.remove_and_disarm(staging.io).await;
             return Err(BodyReadError::TmpDirFull(error));
         }
         if let Some(limiter) = staging.bandwidth_limiter {
@@ -450,7 +512,7 @@ pub async fn read_request_to_temp(
 
         if let Err(error) = file.write_all(&chunk).await {
             drop(file);
-            staging.io.remove_file_if_exists(&temp_path).await;
+            cleanup.remove_and_disarm(staging.io).await;
             return Err(BodyReadError::Io(format!(
                 "failed to write temp file: {error}"
             )));
@@ -471,7 +533,7 @@ pub async fn read_request_to_temp(
             {
                 Ok(file) => file,
                 Err(error) => {
-                    staging.io.remove_file_if_exists(&temp_path).await;
+                    cleanup.remove_and_disarm(staging.io).await;
                     return Err(BodyReadError::Io(error));
                 }
             };
@@ -479,18 +541,9 @@ pub async fn read_request_to_temp(
         }
     }
 
-    if declared_bytes.is_some_and(|declared| declared != size) {
-        drop(file);
-        cleanup.remove_and_disarm(staging.io).await;
-        return Err(BodyReadError::Request(RequestBodyError {
-            kind: RequestBodyErrorKind::InvalidBody,
-            message: "request body length does not match Content-Length".into(),
-        }));
-    }
-
     if let Err(error) = file.flush().await {
         drop(file);
-        staging.io.remove_file_if_exists(&temp_path).await;
+        cleanup.remove_and_disarm(staging.io).await;
         return Err(BodyReadError::Io(format!(
             "failed to flush temp file: {error}"
         )));
@@ -1012,7 +1065,7 @@ mod tests {
             ),
             (ErrorKind::InvalidData, RequestBodyErrorKind::InvalidBody),
             (ErrorKind::InvalidInput, RequestBodyErrorKind::InvalidBody),
-            (ErrorKind::TimedOut, RequestBodyErrorKind::Failed),
+            (ErrorKind::TimedOut, RequestBodyErrorKind::TimedOut),
             (ErrorKind::Other, RequestBodyErrorKind::Failed),
         ] {
             let directory = tempdir().unwrap();

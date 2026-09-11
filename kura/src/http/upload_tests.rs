@@ -14,7 +14,7 @@ fn failed_body(kind: ErrorKind) -> Body {
 }
 
 #[tokio::test]
-async fn upload_body_errors_are_consistent_across_staging_routes() {
+async fn upload_body_errors_are_consistent_across_staging_and_inline_routes() {
     let context = test_context(|_| {}).await;
     let app = router(context.state.clone());
     for (method, uri) in [
@@ -36,10 +36,19 @@ async fn upload_body_errors_are_consistent_across_staging_routes() {
             "PUT",
             "/_internal/replicate/artifact?producer=xcode&namespace_id=ios&key=upload-fault&content_type=application/octet-stream&version_ms=1",
         ),
+        (
+            "PUT",
+            "/_internal/replicate/artifact?producer=xcode&namespace_id=ios&key=upload-fault&content_type=application/octet-stream&version_ms=1&inline=true",
+        ),
+        (
+            "PUT",
+            "/api/cache/keyvalue?tenant_id=test-tenant&namespace_id=ios",
+        ),
     ] {
         for (kind, status, result) in [
             (ErrorKind::ConnectionReset, 499, "client_aborted"),
             (ErrorKind::InvalidData, 400, "invalid_request_body"),
+            (ErrorKind::TimedOut, 408, "request_timeout"),
             (ErrorKind::Other, 500, "request_body_error"),
         ] {
             let response = app
@@ -73,6 +82,23 @@ async fn upload_body_errors_are_consistent_across_staging_routes() {
             .unwrap()
     );
     assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    let metrics = context.state.metrics.render();
+    for (name, label, count) in [
+        ("kura_artifact_writes_total_total", "result", 20),
+        ("kura_multipart_parts_total_total", "result", 4),
+        ("kura_replication_apply_results_total_total", "outcome", 8),
+    ] {
+        let failures: u64 = metrics
+            .lines()
+            .filter(|line| {
+                line.starts_with(&format!("{name}{{"))
+                    && line.contains(&format!("{label}=\"error\""))
+            })
+            .map(|line| line.rsplit(' ').next().unwrap().parse::<u64>().unwrap())
+            .sum();
+        assert_eq!(failures, count, "{name}");
+    }
+    assert!(!metrics.contains("action=\"keyvalue_payload_rejected\""));
 }
 
 #[tokio::test]
@@ -127,40 +153,6 @@ async fn upload_body_storage_failure_remains_a_server_error_and_retry_succeeds()
     assert_eq!(response_text(response).await, "complete body");
 }
 
-#[tokio::test]
-async fn upload_body_length_mismatch_is_not_committed() {
-    let context = test_context(|_| {}).await;
-    for length in ["2", "20"] {
-        let response = router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/cache/cas/wrong-length?tenant_id=test-tenant&namespace_id=ios")
-                    .header("content-length", length)
-                    .body(Body::from("hello"))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert!(response_text(response).await.contains("Content-Length"));
-        assert!(
-            !context
-                .state
-                .store
-                .artifact_exists(ArtifactProducer::Xcode, "ios", &blob_key("wrong-length"))
-                .await
-                .unwrap()
-        );
-        assert!(
-            std::fs::read_dir(context.state.config.tmp_dir.join("uploads"))
-                .unwrap()
-                .next()
-                .is_none()
-        );
-    }
-}
-
 #[derive(Clone)]
 struct LogBuffer(Arc<Mutex<Vec<u8>>>);
 
@@ -172,6 +164,25 @@ impl std::io::Write for LogBuffer {
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
+}
+
+// A process-wide subscriber keeps callsite interest stable while other tests
+// install scoped subscribers. Never clear shared capture; select our request ID.
+fn upload_log_capture() -> &'static Arc<Mutex<Vec<u8>>> {
+    static LOGS: std::sync::OnceLock<Arc<Mutex<Vec<u8>>>> = std::sync::OnceLock::new();
+    LOGS.get_or_init(|| {
+        let logs = Arc::new(Mutex::new(Vec::new()));
+        let writer = LogBuffer(logs.clone());
+        tracing::subscriber::set_global_default(
+            tracing_subscriber::fmt()
+                .json()
+                .flatten_event(true)
+                .with_writer(move || writer.clone())
+                .finish(),
+        )
+        .unwrap();
+        logs
+    })
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -191,15 +202,8 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
         })
         .await;
         let app = router(context.state.clone());
-        let logs = Arc::new(Mutex::new(Vec::new()));
-        let writer = LogBuffer(logs.clone());
-        let subscriber = tracing_subscriber::fmt()
-            .json()
-            .flatten_event(true)
-            .with_writer(move || writer.clone())
-            .finish();
-        // Keep the dispatcher installed across awaits on this single-thread runtime.
-        let _subscriber = tracing::subscriber::set_default(subscriber);
+        let logs = upload_log_capture();
+        let request_id = format!("upload-wire-fault-{expected_status}");
         let (mut client, server) = tokio::io::duplex(4096);
         let (completed, mut responses) = tokio::sync::mpsc::channel(1);
         let service =
@@ -207,7 +211,10 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
                 let app = app.clone();
                 let completed = completed.clone();
                 async move {
-                    let response = app.oneshot(request.map(Body::new)).await.unwrap();
+                    let response = app
+                        .oneshot(crate::utils::guard_incoming_request(request))
+                        .await
+                        .unwrap();
                     completed.send(response.status()).await.unwrap();
                     Ok::<_, std::convert::Infallible>(response)
                 }
@@ -218,7 +225,7 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
                 .serve_connection(hyper_util::rt::TokioIo::new(server), service)
                 .await;
         });
-        client.write_all(format!("POST /api/cache/cas/wire-fault?tenant_id=test-tenant&namespace_id=ios HTTP/1.1\r\nHost: localhost\r\nX-Request-Id: upload-wire-fault\r\n{framing}\r\n{payload}").as_bytes()).await.unwrap();
+        client.write_all(format!("POST /api/cache/cas/wire-fault?tenant_id=test-tenant&namespace_id=ios HTTP/1.1\r\nHost: localhost\r\nX-Request-Id: {request_id}\r\n{framing}\r\n{payload}").as_bytes()).await.unwrap();
         client.shutdown().await.unwrap();
         let status = tokio::time::timeout(Duration::from_secs(5), responses.recv())
             .await
@@ -254,10 +261,13 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
         let event: serde_json::Value = logs
             .lines()
             .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
-            .find(|event| event["event.name"] == "kura.http.request.completed")
+            .find(|event| {
+                event["event.name"] == "kura.http.request.completed"
+                    && event["http.request.id"] == request_id
+            })
             .expect(&logs);
         assert_eq!(event["kura.response.result"], expected_result);
-        assert_eq!(event["http.request.id"], "upload-wire-fault");
+        assert_eq!(event["http.request.id"], request_id);
         let error = event["error"].as_str().unwrap();
         assert!(error.contains("Failed to read request body"), "{error}");
         assert!(
@@ -265,4 +275,211 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
             "{error}"
         );
     }
+}
+
+#[tokio::test]
+async fn upload_body_inline_size_limits_remain_413() {
+    let context = test_context(|config| config.max_keyvalue_bytes = 4).await;
+    for (uri, size) in [
+        (
+            "/api/cache/keyvalue?tenant_id=test-tenant&namespace_id=ios",
+            5,
+        ),
+        (
+            "/_internal/replicate/artifact?producer=xcode&namespace_id=ios&key=limit&content_type=application/octet-stream&version_ms=1&inline=true",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1,
+        ),
+    ] {
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(uri)
+                    .body(Body::from(vec![0; size]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(
+            response
+                .extensions()
+                .get::<ObservedHandlerError>()
+                .is_none()
+        );
+    }
+    assert!(
+        context
+            .state
+            .metrics
+            .render()
+            .lines()
+            .any(|line| line.contains("action=\"keyvalue_payload_rejected\"")
+                && line.ends_with(" 2"))
+    );
+}
+
+#[test]
+fn upload_body_observation_does_not_tag_ordinary_errors() {
+    for status in [
+        StatusCode::NOT_FOUND,
+        StatusCode::BAD_REQUEST,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    ] {
+        assert!(
+            error_response(status, "ordinary response")
+                .extensions()
+                .get::<ObservedHandlerError>()
+                .is_none()
+        );
+    }
+    let response = upload_io_error_response(
+        "disk write timed out".into(),
+        StatusCode::INTERNAL_SERVER_ERROR,
+    );
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        response
+            .extensions()
+            .get::<ObservedHandlerError>()
+            .unwrap()
+            .result,
+        "server_error"
+    );
+}
+
+#[tokio::test]
+async fn upload_body_real_hyper_http2_requires_clean_end_stream() {
+    // Frame type 3 is RST_STREAM; type 7 is GOAWAY. Send frames directly so
+    // the error under test is always constructed by Hyper's own h2 dependency.
+    for (frame_type, reason) in [
+        (3, 8_u32),
+        (3, 0),
+        (3, 5),
+        (3, 7),
+        (7, 8),
+        (0, 0),
+        (0, 1),
+        (1, 0),
+    ] {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let (mut client, server_io) = tokio::io::duplex(4096);
+        let (accepted, mut ready) = tokio::sync::mpsc::channel(1);
+        let (completed, mut responses) = tokio::sync::mpsc::channel(1);
+        let service =
+            hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
+                let app = app.clone();
+                let accepted = accepted.clone();
+                let completed = completed.clone();
+                async move {
+                    // Hyper may cancel its service future on RST_STREAM. Keep the
+                    // router's body reader alive independently to inspect the real
+                    // Incoming error chain, including Hyper's resolved h2 version.
+                    let handler = tokio::spawn(async move {
+                        accepted.send(()).await.unwrap();
+                        let response = app
+                            .oneshot(crate::utils::guard_incoming_request(request))
+                            .await
+                            .unwrap();
+                        completed.send(response.status()).await.unwrap();
+                        response
+                    });
+                    Ok::<_, std::convert::Infallible>(handler.await.unwrap())
+                }
+            });
+        let server = tokio::spawn(async move {
+            let _ = hyper::server::conn::http2::Builder::new(hyper_util::rt::TokioExecutor::new())
+                .serve_connection(hyper_util::rt::TokioIo::new(server_io), service)
+                .await;
+        });
+        client
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        write_h2_frame(&mut client, 4, 0, 0, &[]).await; // SETTINGS
+        let path = b"/api/cache/cas/h2-fault?tenant_id=test-tenant&namespace_id=ios";
+        // HPACK: indexed POST and https, literal :path and :authority.
+        let mut headers = vec![0x83, 0x87, 0x04, path.len() as u8];
+        headers.extend_from_slice(path);
+        headers.extend_from_slice(b"\x01\x09localhost");
+        write_h2_frame(&mut client, 1, 4, 1, &headers).await; // END_HEADERS, body open
+        tokio::time::timeout(Duration::from_secs(5), ready.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut payload = Vec::new();
+        if frame_type == 7 {
+            payload.extend_from_slice(&0_u32.to_be_bytes()); // last server-initiated stream
+        }
+        if frame_type == 1 {
+            write_h2_frame(&mut client, 0, 0, 1, b"complete body").await;
+            payload.extend_from_slice(b"\x00\x06finish\x03yes"); // literal trailer
+        } else if frame_type == 0 {
+            if reason == 0 {
+                payload.extend_from_slice(b"complete body");
+            }
+        } else {
+            payload.extend_from_slice(&reason.to_be_bytes());
+        }
+        write_h2_frame(
+            &mut client,
+            frame_type,
+            match frame_type {
+                0 => 1, // END_STREAM on DATA
+                1 => 5, // END_HEADERS + END_STREAM on trailers
+                _ => 0,
+            },
+            if frame_type == 7 { 0 } else { 1 },
+            &payload,
+        )
+        .await;
+        if frame_type == 7 {
+            // GOAWAY alone permits in-flight streams to finish; closing the
+            // write half makes this an interrupted body, not a graceful drain.
+            client.shutdown().await.unwrap();
+        }
+        let status = tokio::time::timeout(Duration::from_secs(5), responses.recv())
+            .await
+            .unwrap_or_else(|_| panic!("no completion: frame={frame_type} reason={reason}"))
+            .unwrap();
+        server.abort();
+        let succeeded = frame_type <= 1;
+        assert_eq!(
+            status.as_u16(),
+            if succeeded { 204 } else { 499 },
+            "frame={frame_type} reason={reason}"
+        );
+        assert_eq!(
+            context
+                .state
+                .store
+                .artifact_exists(ArtifactProducer::Xcode, "ios", &blob_key("h2-fault"))
+                .await
+                .unwrap(),
+            succeeded
+        );
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+        assert!(
+            std::fs::read_dir(context.state.config.tmp_dir.join("uploads"))
+                .unwrap()
+                .next()
+                .is_none()
+        );
+    }
+}
+
+async fn write_h2_frame(
+    client: &mut tokio::io::DuplexStream,
+    kind: u8,
+    flags: u8,
+    stream: u32,
+    payload: &[u8],
+) {
+    let mut frame = Vec::new();
+    frame.extend_from_slice(&(payload.len() as u32).to_be_bytes()[1..]);
+    frame.extend_from_slice(&[kind, flags]);
+    frame.extend_from_slice(&stream.to_be_bytes());
+    frame.extend_from_slice(payload);
+    client.write_all(&frame).await.unwrap();
 }

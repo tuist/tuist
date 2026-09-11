@@ -2002,11 +2002,8 @@ async fn put_keyvalue(
         Err(error) => {
             state
                 .metrics
-                .record_memory_action("keyvalue_payload_rejected");
-            return error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Failed to read key-value request body: {error}"),
-            );
+                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
+            return buffered_upload_error_response(error, &state.metrics);
         }
     };
     let body = match serde_json::from_slice::<KeyValuePutRequest>(&body) {
@@ -2364,9 +2361,13 @@ async fn upload_module_part(
                 "server is applying upload memory backpressure",
             );
         }
-        Err(BodyReadError::Request(error)) => return request_body_error_response(error),
+        Err(BodyReadError::Request(error)) => {
+            state.metrics.record_multipart_part("error");
+            return request_body_error_response(error);
+        }
         Err(BodyReadError::Io(error)) => {
-            return io_error_response(
+            state.metrics.record_multipart_part("error");
+            return upload_io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
@@ -3585,14 +3586,8 @@ async fn internal_replicate_artifact(
             Err(error) => {
                 state
                     .metrics
-                    .record_memory_action("keyvalue_payload_rejected");
-                state
-                    .metrics
                     .record_replication_apply("replication", "artifact", "error");
-                return error_response(
-                    StatusCode::PAYLOAD_TOO_LARGE,
-                    format!("Failed to read replication body: {error}"),
-                );
+                return buffered_upload_error_response(error, &state.metrics);
             }
         };
 
@@ -3688,7 +3683,7 @@ async fn internal_replicate_artifact(
             state
                 .metrics
                 .record_replication_apply("replication", "artifact", "error");
-            return io_error_response(
+            return upload_io_error_response(
                 format!("Failed to read replication body: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
@@ -3925,9 +3920,13 @@ async fn put_blob_artifact(
                 "server is applying upload memory backpressure",
             );
         }
-        Err(BodyReadError::Request(error)) => return request_body_error_response(error),
+        Err(BodyReadError::Request(error)) => {
+            state.metrics.record_artifact_write(producer, "error", 0);
+            return request_body_error_response(error);
+        }
         Err(BodyReadError::Io(error)) => {
-            return io_error_response(
+            state.metrics.record_artifact_write(producer, "error", 0);
+            return upload_io_error_response(
                 format!("Failed to persist artifact: {error}"),
                 StatusCode::INTERNAL_SERVER_ERROR,
             );
@@ -4761,15 +4760,11 @@ fn draining_response(version: Version) -> Response {
 }
 
 fn error_response(status: StatusCode, message: impl Into<String>) -> Response {
-    observed_error_response(
+    (
         status,
-        message.into(),
-        if status.is_server_error() {
-            "server_error"
-        } else {
-            "ok"
-        },
+        Json(serde_json::json!({ "message": message.into() })),
     )
+        .into_response()
 }
 
 #[derive(Clone)]
@@ -4793,6 +4788,7 @@ fn request_body_error_response(error: RequestBodyError) -> Response {
             StatusCode::from_u16(499).expect("499 is a valid status code"),
             "client_aborted",
         ),
+        RequestBodyErrorKind::TimedOut => (StatusCode::REQUEST_TIMEOUT, "request_timeout"),
         RequestBodyErrorKind::InvalidBody => (StatusCode::BAD_REQUEST, "invalid_request_body"),
         RequestBodyErrorKind::Failed => (StatusCode::INTERNAL_SERVER_ERROR, "request_body_error"),
     };
@@ -4801,6 +4797,34 @@ fn request_body_error_response(error: RequestBodyError) -> Response {
         format!("Failed to read request body: {}", error.message),
         result,
     )
+}
+
+fn upload_io_error_response(error: String, fallback_status: StatusCode) -> Response {
+    let mut response = io_error_response(error.clone(), fallback_status);
+    if response.status().is_server_error() {
+        response.extensions_mut().insert(ObservedHandlerError {
+            message: error,
+            result: "server_error",
+        });
+    }
+    response
+}
+
+// to_bytes wraps both the size limiter and transport errors in axum::Error.
+// Only the actual limiter error is a 413 (and a memory rejection).
+fn buffered_upload_error_response(error: axum::Error, metrics: &Metrics) -> Response {
+    use std::error::Error;
+    if error
+        .source()
+        .is_some_and(|source| source.is::<http_body_util::LengthLimitError>())
+    {
+        metrics.record_memory_action("keyvalue_payload_rejected");
+        return error_response(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "Request body exceeded allowed size",
+        );
+    }
+    request_body_error_response(RequestBodyError::from_error(error))
 }
 
 fn io_error_response(error: String, fallback_status: StatusCode) -> Response {

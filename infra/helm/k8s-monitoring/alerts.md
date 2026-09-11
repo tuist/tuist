@@ -979,21 +979,28 @@ reason for rejecting the bodies was not established; do not infer it from a
 400 alone or treat every recorded 500 as a response delivered to the client.
 
 The corrected staging path distinguishes typed premature EOF/reset/cancellation
-(499, `client_aborted`) and invalid bodies (400, `invalid_request_body`) from
-unknown body failures (500, `request_body_error`) and local disk failures
+(499, `client_aborted`), invalid bodies (400, `invalid_request_body`), and
+incoming-body timeouts (408, `request_timeout`) from unknown body failures
+(500, `request_body_error`) and local disk failures
 (their existing 5xx/capacity response). It covers CAS, Gradle, Nx, Metro,
-multipart parts, and file-backed peer replication. Completion events carry
-the cause through response extensions, under the existing warning rate limit.
-Match `http.request.id` against ingress before attributing an upload alert.
+multipart parts, key-value uploads, and inline/file-backed peer replication.
+Rejected body reads increment the existing domain failure counters
+(`result="error"` for writes/parts, `outcome="error"` for replication apply).
+Completion events carry the cause through upload-specific response extensions;
+client-body failures use a separate warning limiter from server faults.
+The HTTP/2 adapter also rejects EOF without END_STREAM because Hyper suppresses
+some reset errors. If the transport cancels the handler entirely, no completion
+status is emitted. Match `http.request.id` against ingress before attributing
+an upload alert.
 
 Roll out through the normal canary-to-production release, without changing
 this alert's query or threshold. Confirm the running image contains the fix;
 older and newer pods can safely coexist because no storage or replication
-format changes. Validate that interrupted uploads produce 499/400 rather than
-500, temporary files are reclaimed, retries store complete artifacts, and
+format changes. Validate that interrupted or invalid uploads produce
+499/400/408 rather than 500, temporary files are reclaimed, retries store complete artifacts, and
 actual staging I/O faults still appear as 5xx with a nonempty cause. Monitor
-successful upload traffic as well as the error rate. A rollback only restores
-the old classification and logging; it requires no data migration. Until that
+successful upload traffic and domain write failures as well as the 5xx rate.
+A rollback restores the previous transport, classification, and logging behavior; it requires no data migration. Until that
 rollout is verified, the live annotation must not be treated as a guarantee
 that upload-side disconnects are excluded.
 
