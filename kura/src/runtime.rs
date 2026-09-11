@@ -60,6 +60,7 @@ impl TrafficState {
 
 pub struct RuntimeState {
     draining: AtomicBool,
+    drain_requested: Notify,
     serving: AtomicBool,
     // Boot guardrail for nodes whose peer view arrives from the control plane
     // (managed peers sync): serving is withheld until the first successful
@@ -81,6 +82,7 @@ impl RuntimeState {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             draining: AtomicBool::new(false),
+            drain_requested: Notify::new(),
             serving: AtomicBool::new(false),
             peer_view_required: AtomicBool::new(false),
             peer_view_ready: AtomicBool::new(false),
@@ -99,7 +101,20 @@ impl RuntimeState {
     }
 
     pub fn request_drain(&self) -> bool {
-        !self.draining.swap(true, Ordering::SeqCst)
+        let entered = !self.draining.swap(true, Ordering::SeqCst);
+        if entered {
+            self.drain_requested.notify_waiters();
+        }
+        entered
+    }
+
+    pub async fn wait_for_drain(&self) {
+        let notified = self.drain_requested.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        if !self.is_draining() {
+            notified.await;
+        }
     }
 
     pub fn is_draining(&self) -> bool {

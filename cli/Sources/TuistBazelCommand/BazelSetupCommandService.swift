@@ -85,8 +85,6 @@ private struct BazelrcImportEditor {
                 return trimmedLine.split(whereSeparator: \.isWhitespace).contains { token in
                     token == "--remote_cache"
                         || token.hasPrefix("--remote_cache=")
-                        || token == "--experimental_remote_downloader"
-                        || token.hasPrefix("--experimental_remote_downloader=")
                         || token == "--bes_backend"
                         || token.hasPrefix("--bes_backend=")
                 }
@@ -110,6 +108,9 @@ private struct BazelrcImportEditor {
             }
         }
 
+        if let preferenceIndex = lines.firstIndex(where: hasDownloaderPreference) {
+            insertionIndex = min(insertionIndex, preferenceIndex)
+        }
         lines.insert(importLine, at: insertionIndex)
         var result = lines.joined(separator: newline)
         if !result.hasSuffix(newline) {
@@ -121,6 +122,19 @@ private struct BazelrcImportEditor {
     private func isBazelrcImportDirective(_ line: String) -> Bool {
         guard let directive = line.split(whereSeparator: \.isWhitespace).first else { return false }
         return directive == "try-import" || directive == "import"
+    }
+
+    private func hasDownloaderPreference(_ line: String) -> Bool {
+        let configuration = line.split(separator: "#", maxSplits: 1).first ?? ""
+        return configuration.split(whereSeparator: \.isWhitespace).contains { token in
+            [
+                "--experimental_remote_downloader",
+                "--experimental_remote_downloader_local_fallback",
+                "--noexperimental_remote_downloader_local_fallback",
+            ].contains { option in
+                token == Substring(option) || token.hasPrefix("\(option)=")
+            }
+        }
     }
 }
 

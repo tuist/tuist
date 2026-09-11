@@ -1,4 +1,4 @@
-use std::{net::IpAddr, time::Duration};
+use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
 use reqwest::{
@@ -22,7 +22,90 @@ use crate::{
     utils::{TempFileCleanup, blob_key, drop_staging_cache_range, temp_file_path},
 };
 
-impl AssetService {
+#[derive(Clone)]
+pub(super) struct OriginClient {
+    client: reqwest::Client,
+    policy: PublicResolver,
+}
+
+#[derive(Clone, Copy, Default)]
+struct PublicResolver {
+    #[cfg(test)]
+    allow_loopback: bool,
+}
+
+#[derive(Debug)]
+struct PrivateAddress;
+
+impl std::fmt::Display for PrivateAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("asset origin resolves to a non-public address")
+    }
+}
+
+impl std::error::Error for PrivateAddress {}
+
+impl PublicResolver {
+    fn validate(&self, ip: IpAddr) -> Result<(), PrivateAddress> {
+        #[cfg(test)]
+        if self.allow_loopback && ip.is_loopback() {
+            return Ok(());
+        }
+        if is_public_ip(ip) {
+            Ok(())
+        } else {
+            Err(PrivateAddress)
+        }
+    }
+}
+
+impl reqwest::dns::Resolve for PublicResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let policy = *self;
+        Box::pin(async move {
+            let addresses = tokio::net::lookup_host((name.as_str(), 0))
+                .await?
+                .take(32)
+                .collect::<Vec<_>>();
+            if addresses.is_empty() {
+                return Err(std::io::Error::other("asset origin DNS returned no addresses").into());
+            }
+            for address in &addresses {
+                policy.validate(address.ip())?;
+            }
+            Ok(Box::new(addresses.into_iter()) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+impl Default for OriginClient {
+    fn default() -> Self {
+        Self::new(PublicResolver::default())
+    }
+}
+
+impl OriginClient {
+    fn new(policy: PublicResolver) -> Self {
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .dns_resolver(Arc::new(policy))
+            .pool_max_idle_per_host(2)
+            .pool_idle_timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(30))
+            .build()
+            .expect("failed to initialize asset downloader");
+        Self { client, policy }
+    }
+
+    #[cfg(test)]
+    pub(super) fn allowing_loopback() -> Self {
+        Self::new(PublicResolver {
+            allow_loopback: true,
+        })
+    }
+
     async fn open(
         &self,
         mut url: Url,
@@ -34,49 +117,21 @@ impl AssetService {
                 .host_str()
                 .expect("validated URL")
                 .trim_matches(['[', ']']);
-            let port = url.port_or_known_default().expect("HTTP port");
-            let addresses = if let Ok(ip) = host.parse::<IpAddr>() {
-                vec![std::net::SocketAddr::new(ip, port)]
-            } else {
-                tokio::net::lookup_host((host, port))
-                    .await
-                    .map_err(|_| Status::unavailable("asset origin DNS lookup failed"))?
-                    .take(32)
-                    .collect::<Vec<_>>()
-            };
-            if addresses.is_empty() {
-                return Err(Status::unavailable(
-                    "asset origin DNS returned no addresses",
-                ));
+            // IP literals bypass reqwest's resolver. Domain connections use only the
+            // addresses validated by PublicResolver, including after pool expiration.
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                self.policy
+                    .validate(ip)
+                    .map_err(|error| Status::permission_denied(error.to_string()))?;
             }
-            for address in &addresses {
-                #[cfg(test)]
-                if self.allow_loopback && address.ip().is_loopback() {
-                    continue;
-                }
-                if !is_public_ip(address.ip()) {
-                    return Err(Status::permission_denied(
-                        "asset origin resolves to a non-public address",
-                    ));
-                }
-            }
-            // Resolve once, validate, and pin the result to the connection. Automatic redirects,
-            // proxies and a second DNS lookup would each bypass the destination check.
-            let client = reqwest::Client::builder()
-                .no_proxy()
-                .redirect(reqwest::redirect::Policy::none())
-                .resolve_to_addrs(host, &addresses)
-                .connect_timeout(Duration::from_secs(10))
-                .read_timeout(Duration::from_secs(30))
-                .build()
-                .map_err(|_| Status::internal("failed to initialize asset downloader"))?;
-            let response = client
+            let response = self
+                .client
                 .get(url.clone())
                 .headers(headers.clone())
                 .header(ACCEPT_ENCODING, "identity")
                 .send()
                 .await
-                .map_err(|_| Status::unavailable("asset origin connection failed"))?;
+                .map_err(transport_status)?;
             if matches!(response.status().as_u16(), 301 | 302 | 303 | 307 | 308) {
                 if redirects == 10 {
                     return Err(Status::aborted("asset origin exceeded the redirect limit"));
@@ -116,8 +171,64 @@ impl AssetService {
         }
         unreachable!("redirect loop is bounded")
     }
+}
 
+fn transport_status(error: reqwest::Error) -> Status {
+    // is_connect also includes transient DNS/refusal failures. Inspect typed causes
+    // so certificate and destination-policy failures never enter the retry loop.
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(&error);
+    while let Some(cause) = source {
+        if cause.is::<PrivateAddress>() {
+            return Status::permission_denied("asset origin resolves to a non-public address");
+        }
+        if cause.is::<rustls::Error>() {
+            return Status::failed_precondition("asset origin TLS negotiation failed");
+        }
+        // io::Error::source skips its wrapped error and returns that error's source.
+        // Inspect get_ref first so the concrete TLS error does not disappear.
+        if let Some(inner) = cause
+            .downcast_ref::<std::io::Error>()
+            .and_then(std::io::Error::get_ref)
+        {
+            source = Some(inner);
+            continue;
+        }
+        source = cause.source();
+    }
+    if error.is_builder() || error.is_redirect() {
+        Status::failed_precondition("asset origin request could not be sent")
+    } else {
+        Status::unavailable("asset origin transport failed")
+    }
+}
+
+impl AssetService {
     pub(super) async fn download(
+        &self,
+        spec: &FetchSpec,
+        index: usize,
+        namespace: &str,
+    ) -> Result<
+        (
+            bazel_remote_apis::build::bazel::remote::execution::v2::Digest,
+            bool,
+        ),
+        Status,
+    > {
+        let result = self.download_inner(spec, index, namespace).await;
+        let (outcome, bytes) = match &result {
+            Ok((digest, true)) => ("ok", digest.size_bytes as u64),
+            Ok((_, false)) => ("damped", 0),
+            Err(_) => ("error", 0),
+        };
+        self.reapi
+            .state
+            .metrics
+            .record_artifact_write(ArtifactProducer::Reapi, outcome, bytes);
+        result
+    }
+
+    async fn download_inner(
         &self,
         spec: &FetchSpec,
         index: usize,
@@ -131,6 +242,7 @@ impl AssetService {
     > {
         let state = &self.reapi.state;
         let response = self
+            .http
             .open(spec.uris[index].clone(), spec.headers[index].clone())
             .await?;
         let declared = response.content_length();
@@ -233,9 +345,6 @@ impl AssetService {
             })?;
         cleanup.remove_and_disarm(&state.io).await;
         state.notify.notify_one();
-        state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", size);
         Ok((digest, !persisted.already_present))
     }
 }

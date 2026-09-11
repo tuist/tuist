@@ -34,8 +34,7 @@ pub(super) struct AssetService {
     reapi: ReapiService,
     slots: Arc<Semaphore>,
     flights: Arc<Mutex<HashMap<String, Weak<AsyncMutex<()>>>>>,
-    #[cfg(test)]
-    allow_loopback: bool,
+    http: http::OriginClient,
 }
 
 pub(super) fn server(reapi: ReapiService) -> FetchServer<AssetService> {
@@ -64,8 +63,7 @@ impl AssetService {
             reapi,
             slots: Arc::new(Semaphore::new(MAX_CONCURRENT_FETCHES)),
             flights: Arc::new(Mutex::new(HashMap::new())),
-            #[cfg(test)]
-            allow_loopback: false,
+            http: http::OriginClient::default(),
         }
     }
 
@@ -157,6 +155,9 @@ impl AssetService {
             return Err(Status::invalid_argument(
                 "oldest_content_accepted is in the future",
             ));
+        }
+        if let Some((index, digest)) = self.cached(namespace, spec).await? {
+            return Ok(success(request, index, digest));
         }
         let _slot = self
             .slots
@@ -280,7 +281,14 @@ impl Fetch for AssetService {
     ) -> Result<Response<asset::FetchBlobResponse>, Status> {
         require_sha256(request.get_ref().digest_function)?;
         let spec = FetchSpec::parse(request.get_ref())?;
-        let response = match tokio::time::timeout(spec.timeout, self.fetch(&request, &spec)).await {
+        let result = tokio::select! {
+            biased;
+            _ = self.reapi.state.runtime.wait_for_drain() => {
+                return Err(Status::unavailable("server is draining"));
+            }
+            result = tokio::time::timeout(spec.timeout, self.fetch(&request, &spec)) => result,
+        };
+        let response = match result {
             Ok(result) => result?,
             Err(_) => asset::FetchBlobResponse {
                 status: Some(bazel_remote_apis::google::rpc::Status {

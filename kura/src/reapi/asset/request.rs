@@ -56,13 +56,9 @@ impl Checksum {
 
 impl FetchSpec {
     pub fn parse(request: &FetchBlobRequest) -> Result<Self, Status> {
-        if request.uris.is_empty()
-            || request.uris.len() > 16
-            || request.qualifiers.len() > 64
-            || prost::Message::encoded_len(request) > MAX_REQUEST_BYTES
-        {
+        if request.uris.is_empty() || request.uris.len() > 16 || request.qualifiers.len() > 64 {
             return Err(Status::invalid_argument(
-                "fetch requires 1–16 URIs and at most 64 qualifiers within 64 KiB",
+                "fetch requires 1–16 URIs and at most 64 qualifiers",
             ));
         }
         let timeout = match request.timeout.as_ref() {

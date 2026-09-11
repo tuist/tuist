@@ -242,6 +242,31 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_imports_managed_cache_before_repository_downloader_preferences() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
+        given(serverAuthenticationController).authenticationToken(serverURL: .any).willReturn(.project("token"))
+        try await fileSystem.touch(temporaryDirectory.appending(component: "MODULE.bazel"))
+        let bazelrcPath = temporaryDirectory.appending(component: ".bazelrc")
+
+        for preference in [
+            "build --experimental_remote_downloader=",
+            "build --experimental_remote_downloader=grpcs://custom.example.com",
+            "common --experimental_remote_downloader_local_fallback=false",
+        ] {
+            try await fileSystem.writeText(preference + "\n", at: bazelrcPath, options: Set([.overwrite]))
+            try await subject.run(directory: temporaryDirectory.pathString)
+            try await subject.run(directory: temporaryDirectory.pathString)
+            #expect(try await fileSystem.readTextFile(at: bazelrcPath)
+                == "try-import %workspace%/.bazelrc.tuist\n" + preference + "\n")
+            let generated = try await fileSystem.readTextFile(at: temporaryDirectory.appending(component: ".bazelrc.tuist"))
+            #expect(generated.contains("build --remote_cache="))
+            #expect(generated.contains("build --bes_backend="))
+            #expect(generated.contains("build --credential_helper="))
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_adds_bazelrc_import_once() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
