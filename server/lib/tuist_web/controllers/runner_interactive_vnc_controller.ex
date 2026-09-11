@@ -19,7 +19,7 @@ defmodule TuistWeb.RunnerInteractiveVNCController do
     with {:ok, token} <- vnc_token(conn),
          %Account{} = account <- Accounts.get_account_by_handle(account_handle),
          %User{} <- current_user,
-         :ok <- Authorization.authorize(:runners_read, current_user, account),
+         :ok <- Authorization.authorize(:runners_interactive_access, current_user, account),
          {:ok, session} <- InteractiveSessions.validate_token(token, account, current_user),
          :ok <- validate_vnc_session(session) do
       conn

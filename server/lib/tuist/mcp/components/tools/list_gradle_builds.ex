@@ -27,6 +27,10 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
           "type" => "string",
           "description" => "Filter by status: success, failure, or cancelled."
         },
+        "tag" => %{
+          "type" => "string",
+          "description" => "Filter by a custom build tag."
+        },
         "page" => %{
           "type" => "integer",
           "description" => "Page number (default: 1)."
@@ -56,6 +60,15 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
               "git_commit_sha" => %{"type" => "string"},
               "root_project_name" => %{"type" => "string"},
               "requested_tasks" => %{"type" => "array", "items" => %{"type" => "string"}},
+              "custom_metadata" => %{
+                "type" => "object",
+                "properties" => %{
+                  "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+                  "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+                },
+                "required" => ["tags", "values"],
+                "additionalProperties" => false
+              },
               "tasks_local_hit_count" => %{"type" => "integer"},
               "tasks_remote_hit_count" => %{"type" => "integer"},
               "tasks_executed_count" => %{"type" => "integer"},
@@ -74,6 +87,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
               "git_commit_sha",
               "root_project_name",
               "requested_tasks",
+              "custom_metadata",
               "tasks_local_hit_count",
               "tasks_remote_hit_count",
               "tasks_executed_count",
@@ -128,6 +142,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
              git_commit_sha: build.git_commit_sha,
              root_project_name: build.root_project_name,
              requested_tasks: build.requested_tasks,
+             custom_metadata: %{tags: build.custom_tags, values: build.custom_values},
              tasks_local_hit_count: build.tasks_local_hit_count,
              tasks_remote_hit_count: build.tasks_remote_hit_count,
              tasks_executed_count: build.tasks_executed_count,
@@ -143,9 +158,10 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
   defp build_filters(project_id, args) do
     base = [%{field: :project_id, op: :==, value: project_id}]
 
-    Enum.reduce([:git_branch, :status], base, fn field, filters ->
+    Enum.reduce([:git_branch, :status, :tag], base, fn field, filters ->
       case Map.get(args, to_string(field)) do
         nil -> filters
+        value when field == :tag -> filters ++ [%{field: :custom_tags, op: :contains, value: value}]
         value -> filters ++ [%{field: field, op: :==, value: value}]
       end
     end)

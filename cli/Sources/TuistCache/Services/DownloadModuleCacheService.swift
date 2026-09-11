@@ -47,6 +47,19 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
     }
 }
 
+extension DownloadModuleCacheServiceError: HTTPStatusCodeError {
+    public var httpStatusCode: Int {
+        switch self {
+        case let .unknownError(statusCode): return statusCode
+        case .unauthorized: return 401
+        case .forbidden: return 403
+        case .notFound: return 404
+        case .badRequest: return 400
+        case .rateLimited: return 429
+        }
+    }
+}
+
 public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
     public init() {}
 

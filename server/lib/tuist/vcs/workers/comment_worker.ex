@@ -7,7 +7,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   """
   use Oban.Worker,
     queue: :vcs_comments,
-    unique: [keys: [:project_id, :git_ref], states: [:available], period: :infinity]
+    unique: [keys: [:project_id, :git_ref], states: :incomplete, period: :infinity]
 
   use Phoenix.VerifiedRoutes,
     endpoint: TuistWeb.Endpoint,

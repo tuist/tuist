@@ -1,0 +1,293 @@
+/*
+ * Entry point for the REDESIGNED marketing pages (served as bundle-new.css).
+ *
+ * The root layout links this bundle instead of bundle.css when a page is
+ * flagged onto the new design (see TuistWeb.Marketing.Design). Old and new
+ * designs restyle the same selectors (#marketing-home, the navbar classes),
+ * so they must never be loaded together: page-level styles for redesigned
+ * pages live under css/new/ and are imported here, while their legacy
+ * counterparts stay in marketing.css. Once every page has migrated, this
+ * file replaces marketing.css and the legacy files are deleted.
+ */
+
+/* Self-hosted fonts (loaded before noora to provide font definitions) */
+@import "../app/css/fonts.css";
+@import "noora/noora.css";
+@import "css/shared/tokens.css";
+@import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
+@import "css/shared/pages.css";
+/* Colocated style blocks (TuistWeb.ColocatedCSS) from LiveView components,
+   e.g. the blog posts' interactive labs — the same extract the legacy
+   bundle links. */
+@import "phoenix-colocated/tuist/colocated.css";
+@import "css/new/routes/home.css";
+@import "css/new/routes/about.css";
+@import "css/new/routes/home-hero.css";
+@import "css/new/routes/blog.css";
+@import "css/new/routes/blog-post.css";
+@import "css/new/routes/changelog.css";
+@import "css/new/routes/changelog-entry.css";
+@import "css/new/routes/customers.css";
+@import "css/new/routes/case-study.css";
+@import "css/new/routes/page.css";
+@import "css/new/routes/brand.css";
+@import "css/new/routes/cache.css";
+@import "css/new/routes/pricing.css";
+@import "css/new/routes/compute.css";
+@import "css/new/routes/tests.css";
+@import "css/new/routes/download.css";
+@import "css/new/routes/previews.css";
+@import "css/new/routes/not-found.css";
+@import "css/new/routes/newsletter.css";
+@import "css/new/outline-mode.css";
+@import "css/new/layouts/components/dropdown.css";
+@import "css/new/layouts/components/navbar.css";
+@import "css/new/layouts/components/footer.css";
+@import "css/layouts/components/banner.css";
+@import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
+
+:root {
+  /* thumb, then track */
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600))
+    light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1100));
+  scrollbar-width: thin;
+  /* Both schemes are supported; the root layout's theme bootstrap narrows
+     this (and sets data-theme) when the user has an explicit preference. */
+  color-scheme: light dark;
+}
+
+::selection {
+  background: light-dark(var(--noora-purple-100), var(--noora-alpha-purple));
+  color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+/* Theme-following fills for inline illustration SVGs (framework logos and
+   friends): a path carries data-fill="neutral-N" and picks up the matching
+   illustration-ramp token here. CSS rather than fill="var(--…)" presentation
+   attributes, because Firefox does not resolve var() inside presentation
+   attributes (Chromium and Safari do) and renders fallback black. */
+[data-fill="neutral-1"] {
+  fill: var(--marketing-illustration-neutral-1);
+}
+
+[data-fill="neutral-2"] {
+  fill: var(--marketing-illustration-neutral-2);
+}
+
+[data-fill="neutral-3"] {
+  fill: var(--marketing-illustration-neutral-3);
+}
+
+[data-fill="neutral-4"] {
+  fill: var(--marketing-illustration-neutral-4);
+}
+
+[data-fill="neutral-5"] {
+  fill: var(--marketing-illustration-neutral-5);
+}
+
+[data-fill="neutral-6"] {
+  fill: var(--marketing-illustration-neutral-6);
+}
+
+[data-fill="neutral-7"] {
+  fill: var(--marketing-illustration-neutral-7);
+}
+
+[data-fill="neutral-8"] {
+  fill: var(--marketing-illustration-neutral-8);
+}
+
+[data-fill="neutral-9"] {
+  fill: var(--marketing-illustration-neutral-9);
+}
+
+[data-fill="neutral-10"] {
+  fill: var(--marketing-illustration-neutral-10);
+}
+
+/* Purple accent dots in the customer cover artwork (see
+   MarketingCustomerCovers): 500 needs the light background, 400 the dark
+   one, same flip as the site-wide focus ring. */
+[data-fill="purple"] {
+  fill: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+/* Page-white paints in the blog cover artwork (MarketingBlogCovers) follow
+   the surface. */
+[data-fill="surface"] {
+  fill: var(--noora-surface-background-primary);
+}
+
+[data-fill="surface-tertiary"] {
+  fill: var(--noora-surface-background-tertiary);
+}
+
+/* The same ramp for strokes: the blog covers are drawn illustrations, so
+   their hairlines carry data-stroke the way their fills carry data-fill. */
+[data-stroke="neutral-1"] {
+  stroke: var(--marketing-illustration-neutral-1);
+}
+
+[data-stroke="neutral-2"] {
+  stroke: var(--marketing-illustration-neutral-2);
+}
+
+[data-stroke="neutral-3"] {
+  stroke: var(--marketing-illustration-neutral-3);
+}
+
+[data-stroke="neutral-4"] {
+  stroke: var(--marketing-illustration-neutral-4);
+}
+
+[data-stroke="neutral-5"] {
+  stroke: var(--marketing-illustration-neutral-5);
+}
+
+[data-stroke="neutral-6"] {
+  stroke: var(--marketing-illustration-neutral-6);
+}
+
+[data-stroke="neutral-7"] {
+  stroke: var(--marketing-illustration-neutral-7);
+}
+
+[data-stroke="neutral-8"] {
+  stroke: var(--marketing-illustration-neutral-8);
+}
+
+[data-stroke="neutral-9"] {
+  stroke: var(--marketing-illustration-neutral-9);
+}
+
+[data-stroke="neutral-10"] {
+  stroke: var(--marketing-illustration-neutral-10);
+}
+
+[data-stroke="purple"] {
+  stroke: light-dark(var(--noora-purple-500), var(--noora-purple-400));
+}
+
+[data-stroke="surface"] {
+  stroke: var(--noora-surface-background-primary);
+}
+
+[data-stroke="surface-tertiary"] {
+  stroke: var(--noora-surface-background-tertiary);
+}
+
+/* One focus treatment for the whole redesign, noora components included:
+   Tuist purple, flipped per scheme (500 needs the light background, 300 the
+   dark one). :focus-visible only, so mouse clicks stay ring-free. Elements
+   flush against a clipping container pull the ring inward with an
+   outline-offset override (see the mega-menu cards in css/new/layouts/components/navbar.css);
+   everything else floats it 2px out. */
+:focus-visible {
+  outline: 2px solid light-dark(var(--noora-purple-500), var(--noora-purple-300));
+  outline-offset: 2px;
+}
+
+/* Page-to-page navigation between the redesigned pages runs as a
+   cross-document view transition (Chromium and WebKit; engines without it
+   load the page as before). The outgoing page stays on screen until the
+   incoming one has rendered, so a load never flashes, and the navbar — the
+   one element every page shares — is captured on its own and swapped in
+   place with no cross-fade, so it reads as untouched by the switch. Only
+   the page content underneath cross-fades, briefly. */
+@view-transition {
+  navigation: auto;
+}
+
+#marketing-navbar {
+  view-transition-name: marketing-navbar;
+}
+
+/* The pseudo-element tree overlays the page while the transition runs and
+   would swallow clicks (a navbar menu couldn't open until it ended). */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(marketing-navbar),
+::view-transition-old(marketing-navbar),
+::view-transition-new(marketing-navbar) {
+  animation: none;
+}
+
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* Sideways panning on phones: iOS lets touch pan into overflow that
+   overflow-x: hidden leaves scrollable (it propagates from body to the
+   viewport, which iOS ignores for touch), and the page then sticks off to
+   the side. clip removes the overflow from the scrollable area on both
+   elements and, unlike hidden, turns neither into a scroll container, so
+   the sticky navbar keeps the viewport as its scroller. */
+html {
+  overflow-x: clip;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-2);
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  background: var(--noora-surface-background-primary);
+  padding: 0px;
+  overflow-x: clip;
+  font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Nicer paragraph wrapping site-wide (avoids orphans/short last lines).
+     Inherited, so it cascades to all body text; headings override below. */
+  text-wrap: pretty;
+
+  & > div[data-part="content"] {
+    background: var(--noora-surface-background-primary);
+  }
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+/* Balanced line breaks on headings site-wide (no-op where text fits one line). */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}

@@ -108,6 +108,16 @@ spec:
                             a pre-ordered box (or a box re-adopted after a previous Machine released
                             it), so the bootstrap SSH would fail.
                           type: string
+                        kataRuntime:
+                          description: |-
+                            KataRuntime provisions the box to run microVM-isolated Pods: it installs
+                            kata-static under /opt/kata, registers the kata-qemu handler with
+                            containerd, and adds the `katacontainers.io/kata-runtime` label the
+                            kata-qemu RuntimeClass selects on. Required for a Linux runner pool, since
+                            every runner Pod carries `runtimeClassName: kata-qemu` and a node without
+                            the label never matches that RuntimeClass. Cache fleets leave it false and
+                            skip the download entirely.
+                          type: boolean
                         nodeTaints:
                           description: |-
                             NodeTaints are passed to the kubelet's `--register-with-taints` in the

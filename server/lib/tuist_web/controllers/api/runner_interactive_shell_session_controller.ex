@@ -63,7 +63,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionController do
     with %User{} <- current_user,
          {:ok, job} <- resolve_job(job_ref),
          {:ok, account} <- Accounts.get_account_by_id(job.account_id),
-         :ok <- Authorization.authorize(:runners_read, current_user, account),
+         :ok <- Authorization.authorize(:runners_interactive_access, current_user, account),
          {:ok, session} <- InteractiveSessions.request_shell(job, account, current_user) do
       json(conn, %{
         session_id: session.id,

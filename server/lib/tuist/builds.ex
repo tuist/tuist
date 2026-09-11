@@ -12,6 +12,8 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
+  alias Tuist.Builds.Step
+  alias Tuist.Builds.Timeline
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -21,6 +23,7 @@ defmodule Tuist.Builds do
 
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
+  @task_cas_outputs_page_size 20
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -139,21 +142,15 @@ defmodule Tuist.Builds do
 
       {:ok, build_map} = Build.Buffer.insert(build_map)
 
-      # Per-table writes go through Bufferable Buffers (async cast).
-      # Previously these were synchronous IngestRepo.insert_all/3 calls fanned
-      # out via Task.await_many; under ClickHouse pressure the await_many would
-      # blow the worker's wall-time budget and orphan in-flight builds, which
-      # made ProcessBuildWorker the dominant source of stuck "executing" rows
-      # in Oban. Routing through buffers makes create_build/1 effectively
-      # non-blocking on ClickHouse health, at the cost of losing in-memory
-      # rows on hard pod kill — acceptable since the existing Build.Buffer
-      # write above already had that property.
+      # Summary tables share ingestion buffers. Log-heavy steps stream through
+      # bounded per-worker writes so one build cannot monopolize a global buffer.
       create_build_issues(build_map, Map.get(attrs, :issues, []))
       create_build_files(build_map, Map.get(attrs, :files, []))
       create_build_targets(build_map, Map.get(attrs, :targets, []))
       create_cacheable_tasks(build_map, cacheable_tasks)
       create_cas_outputs(build_map, cas_outputs)
       create_machine_metrics(build_map, machine_metrics)
+      create_build_steps(build_map, Map.get(attrs, :build_steps, []))
 
       project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
 
@@ -195,6 +192,49 @@ defmodule Tuist.Builds do
       end)
 
     BuildFile.Buffer.insert_all(files)
+  end
+
+  defp create_build_steps(build, steps) do
+    inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
+
+    steps
+    |> Stream.map(&build_step_entry(build.id, inserted_at, &1))
+    |> Step.insert_all()
+  end
+
+  defp build_step_entry(build_run_id, inserted_at, step) do
+    %{
+      build_run_id: build_run_id,
+      event_id: step.event_id,
+      title: step.title,
+      target: Map.get(step, :target, ""),
+      project: Map.get(step, :project, ""),
+      category: Map.get(step, :category, ""),
+      start_ms: step.start_ms,
+      duration_ms: step.duration_ms,
+      status: step.status,
+      inserted_at: inserted_at,
+      log: Map.get(step, :log, ""),
+      log_truncated: Map.get(step, :log_truncated, false)
+    }
+  end
+
+  def build_timeline(build_run_id, opts \\ []) do
+    Timeline.load(build_run_id, opts)
+  end
+
+  def neighbor_build_step(build_run_id, event_id, direction, opts),
+    do: Timeline.neighbor(build_run_id, event_id, direction, opts)
+
+  def build_step_log(build_run_id, event_id) when is_integer(event_id) and event_id >= 0 do
+    ClickHouseRepo.one(
+      from(e in Step,
+        hints: ["FINAL"],
+        where: e.build_run_id == ^build_run_id and e.event_id == ^event_id,
+        select: map(e, [:log, :log_truncated]),
+        limit: 1
+      )
+    )
   end
 
   defp create_build_targets(build, targets) do
@@ -297,6 +337,7 @@ defmodule Tuist.Builds do
           build_run_id: build.id,
           gradle_build_id: nil,
           timestamp: metric.timestamp,
+          offset_ms: Map.get(metric, :offset_ms),
           cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,
@@ -352,8 +393,23 @@ defmodule Tuist.Builds do
     ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
-  def list_cacheable_tasks(attrs) do
-    case ClickHouseFlop.validate_and_run(CacheableTask, attrs, for: CacheableTask) do
+  def list_cacheable_tasks(attrs, opts \\ []) do
+    query =
+      if Keyword.get(opts, :include_cas_output_node_ids, true) do
+        CacheableTask
+      else
+        from(t in CacheableTask,
+          select: %{
+            key: t.key,
+            type: t.type,
+            status: t.status,
+            description: t.description,
+            has_cas_outputs: type(fragment("notEmpty(?)", t.cas_output_node_ids), :boolean)
+          }
+        )
+      end
+
+    case ClickHouseFlop.validate_and_run(query, attrs, for: CacheableTask) do
       {:ok, result} -> {:ok, result}
       {:error, %Flop.Meta{errors: errors}} -> {:error, errors}
     end
@@ -363,23 +419,28 @@ defmodule Tuist.Builds do
     ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
-  def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
-    distinct = Keyword.get(opts, :distinct, false)
+  def list_cacheable_task_cas_outputs(build_run_id, task_key, page) when is_integer(page) and page > 0 do
+    node_ids =
+      from(t in CacheableTask,
+        where: t.build_run_id == ^build_run_id and t.key == ^task_key,
+        select: fragment("arrayJoin(?)", t.cas_output_node_ids)
+      )
 
-    if Enum.empty?(node_ids) do
-      []
-    else
-      query = from(c in CASOutput, where: c.build_run_id == ^build_run_id and c.node_id in ^node_ids)
+    # Resolve membership inside ClickHouse so the request never contains the task's ID array.
+    # Group before paginating to keep retried uploads and download/upload pairs on one page.
+    outputs =
+      ClickHouseRepo.all(
+        from(c in CASOutput,
+          where: c.build_run_id == ^build_run_id and c.node_id in subquery(node_ids),
+          group_by: c.node_id,
+          order_by: c.node_id,
+          select: %{node_id: c.node_id, type: min(c.type)},
+          limit: ^(@task_cas_outputs_page_size + 1),
+          offset: ^((page - 1) * @task_cas_outputs_page_size)
+        )
+      )
 
-      query =
-        if distinct do
-          from(c in query, distinct: c.node_id)
-        else
-          query
-        end
-
-      ClickHouseRepo.all(query)
-    end
+    %{outputs: Enum.take(outputs, @task_cas_outputs_page_size), has_next?: length(outputs) > @task_cas_outputs_page_size}
   end
 
   def cas_output_metrics(build_run_id) do
@@ -474,14 +535,38 @@ defmodule Tuist.Builds do
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
+    {custom_tag_filters, attrs} = pop_custom_tag_filters(attrs)
 
-    base_query = apply_custom_values_filter(from(b in Build, hints: ["FINAL"]), custom_values)
+    base_query =
+      from(b in Build, hints: ["FINAL"])
+      |> apply_custom_values_filter(custom_values)
+      |> apply_custom_tag_filters(custom_tag_filters)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
     results = Repo.preload(results, preload)
 
     {results, meta}
+  end
+
+  defp pop_custom_tag_filters(attrs) do
+    {filters, attrs} = Map.pop(attrs, :filters, [])
+    {custom_tag_filters, filters} = Enum.split_with(filters, &custom_tag_filter?/1)
+    {custom_tag_filters, Map.put(attrs, :filters, filters)}
+  end
+
+  defp custom_tag_filter?(%{field: :custom_tags, op: op}) when op in [:contains, :not_contains], do: true
+
+  defp custom_tag_filter?(_), do: false
+
+  defp apply_custom_tag_filters(query, filters) do
+    Enum.reduce(filters, query, fn
+      %{op: :contains, value: value}, q ->
+        from(b in q, where: fragment("has(?, ?)", b.custom_tags, ^value))
+
+      %{op: :not_contains, value: value}, q ->
+        from(b in q, where: fragment("NOT has(?, ?)", b.custom_tags, ^value))
+    end)
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do

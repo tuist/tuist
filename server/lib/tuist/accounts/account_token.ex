@@ -41,6 +41,7 @@ defmodule Tuist.Accounts.AccountToken do
       "project:runs:write"
     ],
     @mcp_scope => [
+      "account:runners:read",
       "project:admin:read",
       "project:cache:read",
       "project:previews:read",
@@ -59,6 +60,7 @@ defmodule Tuist.Accounts.AccountToken do
     "account:members:write",
     "account:registry:read",
     "account:registry:write",
+    "account:runners:read",
     "project:previews:read",
     "project:previews:write",
     "project:admin:read",

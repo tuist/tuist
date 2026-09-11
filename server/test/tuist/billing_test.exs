@@ -10,6 +10,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Environment
+  alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -23,13 +24,11 @@ defmodule Tuist.BillingTest do
         },
         "pro" => %{
           "usage" => ["pro.usage"],
-          "flat_monthly" => ["pro.flat.monthly"],
-          "flat_yearly" => ["pro.flat.yearly"]
+          "flat_monthly" => ["pro.flat.monthly"]
         },
         "enterprise" => %{
           "usage" => ["enterprise.usage"],
-          "flat_monthly" => ["enterprise.flat.monthly"],
-          "flat_yearly" => ["enterprise.flat.yearly"]
+          "flat_monthly" => ["enterprise.flat.monthly"]
         },
         "runners" => %{}
       }
@@ -115,37 +114,105 @@ defmodule Tuist.BillingTest do
   end
 
   describe "get_estimated_next_payment_money/1" do
-    test "when current_month_remote_cache_hits_count is under the threshold" do
+    test "when the count is under the threshold" do
       # Given
       remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold / 2)
+      remote_cache_hits_count = round(remote_cache_hit_threshold / 2)
 
       # When
-      got =
-        Billing.get_estimated_next_payment_money(%{
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-        })
+      got = Billing.get_estimated_next_payment_money(remote_cache_hits_count)
 
       # Then
       assert got == Money.new(0, :USD)
     end
 
-    test "when current_month_remote_cache_hits_count is above the threshold" do
+    test "when the count is above the threshold" do
       # Given
       remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold * 2)
+      remote_cache_hits_count = round(remote_cache_hit_threshold * 2)
 
       # When
-      got =
-        Billing.get_estimated_next_payment_money(%{
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-        })
+      got = Billing.get_estimated_next_payment_money(remote_cache_hits_count)
 
       # Then
       assert got ==
                50
                |> Money.new(:USD)
-               |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
+               |> Money.multiply(remote_cache_hits_count - remote_cache_hit_threshold)
+    end
+  end
+
+  describe "current_billing_period/1" do
+    test "reads the boundaries mirrored onto the subscription row" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        current_period_start: ~U[2026-09-08 10:00:00Z],
+        current_period_end: ~U[2026-10-08 10:00:00Z]
+      )
+
+      # The webhooks keep the row current, so the page render that asks
+      # for the period owes Stripe nothing.
+      reject(&Stripe.Subscription.retrieve/1)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+
+    test "asks Stripe when the mirrored period has already closed" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      # A renewal webhook that is late, or an older event delivered after
+      # a newer one, leaves a period the account has already been
+      # invoiced for on the row.
+      now = DateTime.utc_now()
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_id",
+        current_period_start: DateTime.truncate(DateTime.shift(now, month: -2), :second),
+        current_period_end: DateTime.truncate(DateTime.shift(now, month: -1), :second)
+      )
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+         }}
+      end)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+
+    test "falls back to Stripe for a row that has not seen a webhook yet" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_id")
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+         }}
+      end)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
     end
   end
 
@@ -205,6 +272,62 @@ defmodule Tuist.BillingTest do
       assert subscription.plan == :air
       assert subscription.default_payment_method == "pm_some-id"
       refute subscription.cancel_at_period_end
+    end
+
+    test "persists the current service period from the Stripe payload" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+        current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.current_period_start == ~U[2026-09-08 10:00:00Z]
+      assert subscription.current_period_end == ~U[2026-10-08 10:00:00Z]
+    end
+
+    test "moves the persisted service period when the subscription renews" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      payload = %{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+        })
+      )
+
+      # When
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-11-08 10:00:00Z])
+        })
+      )
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.current_period_start == ~U[2026-10-08 10:00:00Z]
+      assert subscription.current_period_end == ~U[2026-11-08 10:00:00Z]
     end
 
     test "persists cancel_at_period_end from the Stripe payload" do
@@ -310,24 +433,6 @@ defmodule Tuist.BillingTest do
         customer: "customer_id",
         default_payment_method: nil,
         items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
-      })
-
-      # Then
-      assert Billing.get_current_active_subscription(account).plan == :enterprise
-    end
-
-    test "when it's a new enterprise yearly subscription" do
-      # Given
-      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
-      account = Accounts.get_account_from_user(user)
-
-      # When
-      Billing.on_subscription_change(%{
-        id: "sub_some-id",
-        status: "active",
-        customer: "customer_id",
-        default_payment_method: nil,
-        items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
       })
 
       # Then
@@ -554,6 +659,35 @@ defmodule Tuist.BillingTest do
       end)
 
       %{account: Accounts.get_account_from_user(user)}
+    end
+
+    test "adding runner items never invoices usage recorded before they existed", %{account: account} do
+      # A trial's whole promise is that its minutes are free. Stripe's
+      # default proration can bill usage already recorded in the open
+      # period when the item is added, which would charge for exactly the
+      # minutes the trial covered.
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_ending_trial",
+        plan: :pro,
+        status: "active"
+      )
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_ending_trial" ->
+        {:ok, %Stripe.Subscription{items: %{data: []}}}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_ending_trial", params ->
+        send(parent, {:params, params})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = Billing.sync_runner_subscription_items(account)
+
+      assert_received {:params, params}
+      assert params.proration_behavior == "none"
     end
 
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
@@ -1115,6 +1249,83 @@ defmodule Tuist.BillingTest do
       assert Billing.usage_windows(account, period_start, period_end) == {:error, error}
     end
 
+    test "splits the window where a runner trial ended inside it", %{account: account} do
+      # The day a trial is cancelled is reported as one event stamped at
+      # the day's end, which postdates the runner item the cancellation
+      # adds — so Stripe billed the whole day, including the minutes the
+      # trial still covered. Splitting puts those in an event of their
+      # own, stamped before the item existed.
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      trial_end = ~U[2026-07-16 11:15:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(~U[2026-07-01 00:00:00Z])})
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    test "keeps the window whole when the trial ended outside it", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      account = runner_trial_ended(account, ~U[2026-07-12 11:15:00Z])
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(~U[2026-07-01 00:00:00Z])})
+
+      assert Billing.usage_windows(account, period_start, period_end) == {:ok, [{period_start, period_end}]}
+    end
+
+    test "splits at a trial end and a renewal falling in the same window", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      renewal = ~U[2026-07-16 06:00:00Z]
+      trial_end = ~U[2026-07-16 18:00:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+      subscription_with_stripe(account, %{current_period_start: DateTime.to_unix(renewal)})
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, renewal},
+                  {renewal, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    test "splits at a trial end for an account with no subscription", %{account: account} do
+      # Nothing is invoiced for such an account either way, but the split
+      # is the same one the reporting path takes everywhere else, and a
+      # boundary that appears only for subscribers is a boundary that has
+      # to be reasoned about twice.
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      trial_end = ~U[2026-07-16 11:15:00Z]
+
+      account = runner_trial_ended(account, trial_end)
+
+      assert Billing.usage_windows(account, period_start, period_end) ==
+               {:ok,
+                [
+                  {period_start, trial_end},
+                  {trial_end, period_end}
+                ]}
+    end
+
+    defp runner_trial_ended(account, at) do
+      account
+      |> Ecto.Changeset.change(
+        runner_trial_started_at: at |> DateTime.add(-30, :day) |> DateTime.truncate(:second),
+        runner_trial_ended_at: DateTime.truncate(at, :second)
+      )
+      |> Repo.update!()
+    end
+
     defp subscription_with_stripe(account, stripe_attrs, opts \\ []) do
       subscription_id = "sub-#{UUIDv7.generate()}"
 
@@ -1197,14 +1408,14 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2025-01-02 00:00:00Z]
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
 
       other_org = AccountsFixtures.organization_fixture()
-      other_account = Tuist.Repo.get_by!(Account, organization_id: other_org.id)
+      other_account = Repo.get_by!(Account, organization_id: other_org.id)
 
       other_account =
-        Tuist.Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
+        Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
 
       # Yesterday usage for target account (should be included)
       {:ok, _} =
@@ -1503,6 +1714,45 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "reset_free_tier/1" do
+    test "zeroes the counter so the account is no longer blocked" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 2,
+          preload: [:account]
+        )
+
+      assert Billing.cache_access_blocked?(account)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert account.current_month_remote_cache_hits_count == 0
+      refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
+    end
+
+    test "moves the counting window forward so the nightly recount does not undo it" do
+      # Given
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: 500,
+          preload: [:account]
+        )
+
+      before = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert DateTime.after?(account.free_tier_reset_at, before)
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given
@@ -1572,7 +1822,7 @@ defmodule Tuist.BillingTest do
                                                   %{id: "pro.flat.monthly", deleted: true},
                                                   %{id: "pro.usage", deleted: true},
                                                   %{price: "enterprise.usage"},
-                                                  %{price: "enterprise.flat.yearly", quantity: 0}
+                                                  %{price: "enterprise.flat.monthly", quantity: 0}
                                                 ],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
@@ -1583,11 +1833,13 @@ defmodule Tuist.BillingTest do
            status: "active",
            customer: "customer_id",
            default_payment_method: nil,
-           items: %{data: [%{price: %{id: "enterprise.flat.yearly"}}]}
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly"}}]}
          }}
       end)
 
-      # When
+      # When — a caller still asking for yearly gets monthly anyway. The
+      # yearly price is being retired, and enterprises are invoiced off
+      # to the side rather than through it.
       {:ok, _} =
         Billing.upgrade_to_enterprise(account, %{
           name: "Acme",

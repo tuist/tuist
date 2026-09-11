@@ -26,7 +26,7 @@ public struct OrganizationUpdateMemberCommand: AsyncParsableCommand {
 
     @Option(
         help: "The new member role",
-        completion: .list(["admin", "user"]),
+        completion: .list(["admin", "user", "viewer"]),
         envKey: .organizationUpdateMemberRole
     )
     var role: String

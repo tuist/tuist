@@ -169,7 +169,6 @@ defmodule Noora.Filter do
     @moduledoc false
     alias Noora.Filter.Filter
 
-    @valid_operators [:==, :!=, :=~, :"!=~", :<, :>, :<=, :>=, :empty, :not_empty]
     @valid_actions [:change_value, :change_operator, :delete]
 
     def update_filters(current_filters, :change_value, params) do
@@ -188,17 +187,16 @@ defmodule Noora.Filter do
     def update_filters(current_filters, :change_operator, params) do
       filter_id = params["payload_filter_id"]
 
-      case coerce_operator(params["value"]) do
-        nil ->
-          current_filters
+      Enum.map(current_filters, fn
+        %Filter{id: ^filter_id} = filter ->
+          case coerce_operator(params["value"], filter) do
+            nil -> filter
+            new_operator -> %{filter | operator: new_operator}
+          end
 
-        new_operator ->
-          Enum.map(current_filters, fn filter ->
-            if filter.id == filter_id,
-              do: %{filter | operator: new_operator},
-              else: filter
-          end)
-      end
+        filter ->
+          filter
+      end)
     end
 
     def update_filters(current_filters, :delete, params) do
@@ -308,7 +306,7 @@ defmodule Noora.Filter do
       with base_filter when not is_nil(base_filter) <-
              Enum.find(available_filters, &(&1.id == id)),
            op_str when not is_nil(op_str) <- params["filter_#{id}_op"],
-           operator when not is_nil(operator) <- coerce_operator(op_str) do
+           operator when not is_nil(operator) <- coerce_operator(op_str, base_filter) do
         val = normalize_value(params["filter_#{id}_val"])
         processed_val = coerce_option_value(val, base_filter)
 
@@ -318,13 +316,15 @@ defmodule Noora.Filter do
       end
     end
 
-    defp coerce_operator(op) when op in @valid_operators, do: op
-
-    defp coerce_operator(op_str) when is_binary(op_str) do
-      Enum.find(@valid_operators, fn op -> to_string(op) == op_str end)
+    defp coerce_operator(op, filter) when is_atom(op) do
+      if op in Noora.Filter.operators(filter), do: op
     end
 
-    defp coerce_operator(_), do: nil
+    defp coerce_operator(op_str, filter) when is_binary(op_str) do
+      Enum.find(Noora.Filter.operators(filter), fn op -> to_string(op) == op_str end)
+    end
+
+    defp coerce_operator(_, _), do: nil
 
     defp coerce_action(action_str) do
       Enum.find(@valid_actions, fn action -> to_string(action) == action_str end)
@@ -406,7 +406,7 @@ defmodule Noora.Filter do
     <div id={@filter.id} class="noora-filter">
       <span data-part="label">{@filter.display_name}</span>
       <div
-        :if={length(operators(@filter.type)) > 1}
+        :if={length(operators(@filter)) > 1}
         id={"filter-#{@filter.id}-operator-dropdown"}
         phx-hook="NooraDropdown"
         data-part="dropdown"
@@ -430,14 +430,14 @@ defmodule Noora.Filter do
         <div data-part="positioner">
           <div class="noora-dropdown-content" data-part="content">
             <.dropdown_item
-              :for={operator <- operators(@filter.type)}
+              :for={operator <- operators(@filter)}
               value={operator}
               label={operator_text(operator)}
             />
           </div>
         </div>
       </div>
-      <span :if={length(operators(@filter.type)) == 1} data-part="label">
+      <span :if={length(operators(@filter)) == 1} data-part="label">
         {operator_text(@filter.operator)}
       </span>
       <div
@@ -569,16 +569,23 @@ defmodule Noora.Filter do
     """
   end
 
-  defp operators(:option), do: [:==, :!=]
-  defp operators(:text), do: [:==, :=~, :"!=~"]
-  defp operators(:number), do: [:==, :<, :>, :<=, :>=]
-  defp operators(:percentage), do: [:==, :<, :>, :<=, :>=]
-  defp operators(:list), do: [:=~, :"!=~"]
+  def operators(%Filter{type: :option, operator: operator}) when operator in [:contains, :not_contains],
+    do: [:contains, :not_contains]
+
+  def operators(%Filter{type: type}), do: operators(type)
+
+  def operators(:option), do: [:==, :!=]
+  def operators(:text), do: [:==, :=~, :"!=~"]
+  def operators(:number), do: [:==, :<, :>, :<=, :>=]
+  def operators(:percentage), do: [:==, :<, :>, :<=, :>=]
+  def operators(:list), do: [:=~, :"!=~"]
 
   def operator_text(:==), do: "is"
   def operator_text(:!=), do: "is not"
   def operator_text(:=~), do: "contains"
   def operator_text(:"!=~"), do: "does not contain"
+  def operator_text(:contains), do: "contains"
+  def operator_text(:not_contains), do: "does not contain"
   def operator_text(:<), do: "less than"
   def operator_text(:>), do: "greater than"
   def operator_text(:<=), do: "less than or equal to"

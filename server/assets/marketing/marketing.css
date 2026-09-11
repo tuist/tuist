@@ -1,6 +1,7 @@
 /* Self-hosted fonts (loaded before noora to provide font definitions) */
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
+@import "phoenix-colocated/tuist/colocated.css";
 @import "css/shared/tokens.css";
 @import "../shared/css/prose.css";
 @import "../shared/css/code-window.css";
@@ -16,10 +17,6 @@
 @import "css/routes/changelog-entry.css";
 @import "css/routes/pricing.css";
 @import "css/routes/cache.css";
-@import "css/routes/build-insights.css";
-@import "css/routes/selective-testing.css";
-@import "css/routes/flaky-tests.css";
-@import "css/routes/test-insights.css";
 @import "css/routes/previews.css";
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";

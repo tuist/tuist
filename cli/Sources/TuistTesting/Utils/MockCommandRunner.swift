@@ -64,12 +64,13 @@ public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
 
     public func run(
         arguments: [String],
-        environment _: [String: String],
+        environment: [String: String],
         workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<CommandEvent, any Error> {
         AsyncThrowingStream { continuation in
             let command = arguments.joined(separator: " ")
             lock.lock()
+            env = environment
             _calls.append(command)
             _workingDirectories.append(workingDirectory)
             let stub = _captureStubs[command] ?? _defaultCaptureStubs

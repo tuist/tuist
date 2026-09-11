@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 /**
  * Formats elapsed time into a human readable string
@@ -53,12 +53,20 @@ function formatBytes(bytes) {
   }
 }
 
+function formatCurrency(amount, currency = "USD") {
+  return Number(amount).toLocaleString(navigator.language, {
+    style: "currency",
+    currency,
+  });
+}
+
 function formatMbps(bytesPerSecond) {
   const mbps = (bytesPerSecond * 8) / 1_000_000;
   return `${mbps.toFixed(1)} Mbps`;
 }
 
 const formatters = {
+  formatNumber: () => (value) => formatNumber(value),
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(navigator.language, {
@@ -87,6 +95,9 @@ const formatters = {
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },
+  formatCurrency: (el) => (value, _) => {
+    return formatCurrency(value);
+  },
   formatMbps: (el) => (value, _) => {
     return formatMbps(value);
   },
@@ -102,7 +113,9 @@ const formatters = {
 };
 
 const tooltipFormatters = {
+  formatNumber,
   formatBytes,
+  formatCurrency,
   formatMbps,
   formatMilliseconds,
   formatSeconds,
@@ -111,12 +124,39 @@ const tooltipFormatters = {
 
 export default {
   mounted() {
-    this.render();
-    this.colorSchemeListener = () => this.render();
+    this.renderReady =
+      this.el.dataset.lazy !== "true" ||
+      typeof IntersectionObserver === "undefined";
+    this.colorSchemeListener = () => {
+      if (this.renderReady) this.render();
+    };
+    this.resizeListener = () => this.chart?.resize();
     window.addEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
     );
+    window.addEventListener("resize", this.resizeListener);
+    window.addEventListener("phx:resize", this.resizeListener);
+
+    if (this.renderReady) {
+      this.render();
+    } else {
+      this.visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          if (
+            this.visibilityObserver &&
+            entries.some((entry) => entry.isIntersecting)
+          ) {
+            this.visibilityObserver.disconnect();
+            this.visibilityObserver = null;
+            this.renderReady = true;
+            this.render();
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      this.visibilityObserver.observe(this.el);
+    }
   },
   render({ animate = true } = {}) {
     if (this.chart) this.chart.dispose();
@@ -159,22 +199,19 @@ export default {
         chartDom.style.cursor = "default";
       });
     }
-
-    this.resizeListener = () => {
-      this.chart.resize();
-    };
-    window.addEventListener("resize", this.resizeListener);
-    window.addEventListener("phx:resize", this.resizeListener);
   },
   updated() {
     // Re-render fully to update theme (including tooltip formatter), but skip
     // the entry animation so LiveView patches don't visibly re-animate charts.
-    this.render({ animate: false });
+    if (this.renderReady) this.render({ animate: false });
   },
   destroyed() {
+    this.visibilityObserver?.disconnect();
+    this.visibilityObserver = null;
+    this.renderReady = false;
     const chartDom = this.el.querySelector("[data-part='chart']");
     if (chartDom) chartDom.__nooraChart = null;
-    this.chart.dispose();
+    this.chart?.dispose();
     window.removeEventListener(
       "changed-preferred-theme",
       this.colorSchemeListener,
@@ -250,6 +287,22 @@ export function prepareChartOptions(input, element) {
     }
   }
 
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axes = [option[axisName]].flat().filter(Boolean);
+    for (const axis of axes) {
+      const isValueAxis = axis.type === "value" || (!axis.type && !axis.data);
+      if (
+        isValueAxis &&
+        (!axis.axisLabel?.formatter || axis.axisLabel.formatter === "{value}")
+      ) {
+        axis.axisLabel = {
+          ...axis.axisLabel,
+          formatter: (value) => formatNumber(value),
+        };
+      }
+    }
+  }
+
   for (const path of ["xAxis.axisLabel", "yAxis.axisLabel"]) {
     const parent = path
       .split(".")
@@ -268,6 +321,46 @@ export function prepareChartOptions(input, element) {
       ) {
         parent.formatter = window.nooraChartFormatters[functionName](element);
       }
+    }
+  }
+
+  if (option.tooltip?.formatter === "fn:rangeBarTooltip") {
+    option.tooltip.formatter = rangeBarTooltipFormatter;
+    option.tooltip.trigger ??= "item";
+  }
+
+  if (Array.isArray(option.series)) {
+    let hasRangeBarSeries = false;
+
+    option.series.forEach((series) => {
+      if (series.renderItem === "fn:rangeBar") {
+        series.renderItem = rangeBarRenderItem;
+        series.encode ??= { x: [1, 2], y: 0 };
+        hasRangeBarSeries = true;
+      }
+    });
+
+    if (hasRangeBarSeries) {
+      const hasMultipleXAxes = Array.isArray(option.xAxis);
+      const hasMultipleYAxes = Array.isArray(option.yAxis);
+      const xAxes = hasMultipleXAxes ? option.xAxis : [option.xAxis];
+      const yAxes = hasMultipleYAxes ? option.yAxis : [option.yAxis];
+      const xAxis = { ...(xAxes[0] ?? {}) };
+      const yAxis = { ...(yAxes[0] ?? {}) };
+
+      if (yAxis.data === undefined && Array.isArray(xAxis.data)) {
+        yAxis.data = xAxis.data;
+        delete xAxis.data;
+      }
+
+      const rangeXAxis = { ...xAxis, type: "value" };
+      const rangeYAxis = { ...yAxis, type: "category" };
+      option.xAxis = hasMultipleXAxes
+        ? [rangeXAxis, ...xAxes.slice(1)]
+        : rangeXAxis;
+      option.yAxis = hasMultipleYAxes
+        ? [rangeYAxis, ...yAxes.slice(1)]
+        : rangeYAxis;
     }
   }
 
@@ -390,6 +483,86 @@ function processItemColor(dataItem) {
       });
     }
   }
+}
+
+function rangeBarRenderItem(params, api) {
+  const lane = api.value(0);
+  const start = api.value(1);
+  const end = api.value(2);
+
+  if (
+    !Number.isFinite(lane) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end < start
+  ) {
+    return null;
+  }
+
+  const startCoordinate = api.coord([start, lane]);
+  const endCoordinate = api.coord([end, lane]);
+  const height = api.size([0, 1])[1] * 0.62;
+  const shape = echarts.graphic.clipRectByRect(
+    {
+      x: startCoordinate[0],
+      y: startCoordinate[1] - height / 2,
+      width: Math.max(endCoordinate[0] - startCoordinate[0], 1),
+      height,
+    },
+    {
+      x: params.coordSys.x,
+      y: params.coordSys.y,
+      width: params.coordSys.width,
+      height: params.coordSys.height,
+    },
+  );
+
+  if (!shape) return null;
+
+  return {
+    type: "rect",
+    shape,
+    style: api.style(),
+  };
+}
+
+export function rangeBarTooltipFormatter(params) {
+  const param = Array.isArray(params) ? params[0] : params;
+  if (!param) return "";
+
+  const [, start, end] = Array.isArray(param.value) ? param.value : [];
+  const duration =
+    Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? end - start
+      : null;
+  const data = param.data && typeof param.data === "object" ? param.data : {};
+  const description = data.name || param.name;
+  const rows = [
+    rangeBarTooltipRow(data.durationLabel, duration),
+    rangeBarTooltipRow(data.startLabel, start),
+  ].filter(Boolean);
+  const title = description
+    ? `<span data-part="title">${escapeHtml(description)}</span>`
+    : "";
+  const divider =
+    description && rows.length > 0
+      ? '<div class="noora-line-divider"><div data-part="line"></div></div>'
+      : "";
+
+  if (!title && rows.length === 0) return "";
+
+  return `<div class="noora-chart-tooltip">${title}${divider}${rows.join("")}</div>`;
+}
+
+function rangeBarTooltipRow(label, value) {
+  if (!label) return "";
+
+  const formattedValue = Number.isFinite(value)
+    ? formatMilliseconds(value)
+    : "\u2014";
+  const labelElement = `<span data-part="label">${escapeHtml(label)}</span>`;
+
+  return `<div data-part="series-item">${labelElement}<span data-part="value">${escapeHtml(formattedValue)}</span></div>`;
 }
 
 function transformColorProperty(colorProp) {
@@ -532,10 +705,13 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace("{value}", value);
+      formattedValue = options.valueFormat.replace(
+        "{value}",
+        options.valueFormat === "{value}" ? formatNumber(value) : value,
+      );
     }
   } else {
-    formattedValue = value;
+    formattedValue = formatNumber(value);
   }
 
   const hasExtra = data && typeof data === "object" && data.tooltipExtra;

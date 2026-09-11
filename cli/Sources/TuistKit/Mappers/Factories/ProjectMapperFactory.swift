@@ -106,8 +106,8 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(IDETemplateMacrosMapper())
 
         // Xcode cache settings. The `kura` client feature flag selects the CAS
-        // plugin + machine-wide proxy; without it, the legacy per-project daemon
-        // path (COMPILATION_CACHE_REMOTE_SERVICE_PATH) is used.
+        // plugin + machine-wide proxy; disabling it falls back to the legacy
+        // per-project daemon path (COMPILATION_CACHE_REMOTE_SERVICE_PATH).
         mappers.append(XcodeCacheSettingsProjectMapper(
             tuist: tuist,
             kuraEnabled: ClientFeatureFlags.contains("kura"),

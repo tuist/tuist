@@ -6,7 +6,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker do
     unique: [
       fields: [:queue, :worker],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable]
+      states: :incomplete
     ]
 
   import Tuist.Storage.Workers.ArtifactRetentionWorker

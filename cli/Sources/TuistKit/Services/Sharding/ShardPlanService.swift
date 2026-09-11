@@ -131,6 +131,7 @@
             let modules = xcTestRun.testModules
             let parallelizableModules = xcTestRun.parallelizableTestModules
             let selectedTestSuites = xcTestRun.selectedTestSuiteIdentifiers()
+            let skippedTestSuites = xcTestRun.skippedTestSuiteIdentifiers()
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -142,6 +143,10 @@
             // large plans — it could take an hour) and sends only the module universe from the
             // deterministic `.xctestrun`, plus the suites that bundle limits a module to, which are
             // known exactly and don't need inferring.
+            //
+            // The suites the bundle skips go with them. A test plan that disables tests still builds
+            // the target, so it stays in the module universe, and without the skips the server would
+            // resolve its suites from history and plan work the products cannot run.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -151,6 +156,7 @@
                 modules: modules,
                 parallelizableModules: parallelizableModules,
                 testSuites: selectedTestSuites.isEmpty ? nil : selectedTestSuites,
+                skippedTestSuites: skippedTestSuites.isEmpty ? nil : skippedTestSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

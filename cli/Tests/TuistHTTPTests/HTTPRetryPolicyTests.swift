@@ -10,6 +10,16 @@ struct HTTPRetryPolicyTests {
         #expect(subject.baseDelayMilliseconds == 100)
     }
 
+    @Test(arguments: [400, 401, 402, 403, 404, 409, 422])
+    func client_errors_are_permanent(statusCode: Int) {
+        #expect(HTTPRetryPolicy.isPermanentClientError(statusCode: statusCode))
+    }
+
+    @Test(arguments: [408, 429, 500, 502, 503, 504])
+    func retryable_status_codes_are_not_permanent(statusCode: Int) {
+        #expect(!HTTPRetryPolicy.isPermanentClientError(statusCode: statusCode))
+    }
+
     @Test func uses_environment_overrides() {
         let subject = HTTPRetryPolicy(environment: [
             "TUIST_HTTP_MAXIMUM_RETRY_COUNT": "1",

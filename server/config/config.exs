@@ -10,14 +10,21 @@ import Config
 # esbuild
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   max_ttl: [authorization_code: 300],
+  # `access_tokens` is deliberately absent: it defaults to
+  # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
+  # configured here, and copies of it silently rot. Atlas ran the same copy
+  # with `resource` missing from the attributes it persisted, and every OAuth
+  # refresh failed with `invalid_target` for four months. The copy justified
+  # itself by resolving the client through `Tuist.OAuth.Clients`, which the
+  # upstream adapter already does through this `clients` context.
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
-    clients: Tuist.OAuth.Clients,
-    access_tokens: Tuist.OAuth.AccessTokens
+    clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
@@ -48,15 +55,51 @@ config :esbuild,
       "--loader:.jpg=dataurl",
       "--loader:.png=dataurl",
       "--loader:.webp=dataurl",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
+  ],
+  # CSS-only bundle for the redesigned marketing pages. The root layout links
+  # bundle-new.css instead of bundle.css when TuistWeb.Marketing.Design flags
+  # the page onto the new design; JS stays in the shared marketing bundle.
+  marketing_new: [
+    args: [
+      "marketing_new.css",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--outfile=../../priv/static/marketing/assets/bundle-new.css",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--external:/marketing/*",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
+    cd: Path.expand("../assets/marketing", __DIR__),
+    # build_path resolves the colocated CSS extract (phoenix-colocated/...),
+    # as for the legacy bundle above.
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
   ],
   docs: [
     args: [
@@ -168,6 +211,11 @@ config :logger, :console,
     :labels,
     :installation_id,
     :requested_labels,
+    # Tuist.Runners.Buildkite structured fields
+    :queue,
+    :job_uuid,
+    :errors,
+    :requested,
     :target,
     :observed,
     :gap,
@@ -238,7 +286,10 @@ config :logger, :console,
     :cap,
     :urls,
     :configured,
-    :reconciling
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
   ]
 
 config :mdex_native, syntax_highlighter: :lumis
@@ -412,6 +463,11 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# Baseline machine-minutes every account gets free per billing period.
+# Must match the first tier of the environment's runner Stripe Price;
+# see `Tuist.Runners.Allowance`.
+config :tuist, :runner_free_monthly_minutes, 100
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
@@ -420,6 +476,11 @@ config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1
 # cluster's pools and the server's catalog share one source of truth in
 # prod and can't drift. Exactly one entry should carry `default: true`
 # (preselected in the "new profile" form).
+#
+# A Linux shape is only runnable where a bare-metal host can seat it,
+# so like the macOS catalog below this list is per-environment on the
+# Helm side: the 64 GB shape needs an AX162-R and is not offered in
+# environments whose Linux fleet is 64 GB AX42-U only.
 config :tuist, :runner_linux_shapes, [
   %{vcpus: 1, memory_gb: 2},
   %{vcpus: 2, memory_gb: 4},
@@ -428,15 +489,21 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 4, memory_gb: 16},
   %{vcpus: 8, memory_gb: 16},
   %{vcpus: 8, memory_gb: 32},
-  %{vcpus: 16, memory_gb: 32}
+  %{vcpus: 16, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 64}
 ]
 
-# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
-# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
-# ships here. Managed deploys override at boot from
-# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+# macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
+# deploys override at boot from `TUIST_RUNNER_MACOS_SHAPES` (Helm
+# injects from `runnersFleet.shapes`).
+#
+# A macOS shape is only runnable on a host SKU whose advertised
+# `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
+# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
+# environments whose fleet is M2-L only.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true}
+  %{vcpus: 6, memory_gb: 14, default: true},
+  %{vcpus: 12, memory_gb: 28}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the

@@ -13,7 +13,7 @@ defmodule Tuist.Marketing.MDExConverter do
   alias Tuist.Markdown
 
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
-  @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon %{__changed__: nil} |> Noora.Icon.check() |> Safe.to_iodata() |> IO.iodata_to_binary()
 
   @mdex_options [
     extension: [
@@ -21,6 +21,7 @@ defmodule Tuist.Marketing.MDExConverter do
       table: true,
       autolink: true,
       tasklist: true,
+      math_dollars: true,
       header_id_prefix: "",
       phoenix_heex: true,
       alerts: true
@@ -33,7 +34,9 @@ defmodule Tuist.Marketing.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      formatter: {:html_inline, theme: "github_light"}
+      # light-dark() token colors so code blocks follow the page's
+      # color-scheme, same as the docs (see Tuist.DocsLoader).
+      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
     ]
   ]
 
@@ -55,20 +58,31 @@ defmodule Tuist.Marketing.MDExConverter do
     [markdown: markdown]
     |> Keyword.merge(@mdex_options)
     |> MDEx.new()
+    |> MDExKatex.attach(
+      katex_init: "",
+      katex_block_attrs: &katex_block_attrs/1,
+      katex_inline_attrs: &katex_inline_attrs/1
+    )
     |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
+  end
+
+  defp katex_block_attrs(sequence) do
+    ~s(id="katex-#{sequence}" class="katex-block" phx-hook="KaTeX" phx-update="ignore")
+  end
+
+  defp katex_inline_attrs(sequence) do
+    ~s(id="katex-inline-#{sequence}" class="katex-inline" phx-hook="KaTeX" phx-update="ignore")
   end
 
   defp compile_heex_template(html, path) do
     env = __ENV__
 
-    EEx.compile_string(
+    Phoenix.LiveView.TagEngine.compile(
       html,
-      engine: Phoenix.LiveView.TagEngine,
       file: path,
       line: 1,
       caller: env,
       indentation: 0,
-      source: html,
       tag_handler: Phoenix.LiveView.HTMLEngine
     )
   end
@@ -152,7 +166,7 @@ defmodule Tuist.Marketing.MDExConverter do
       <div class="code-window">\
       <div data-part="bar">\
       <div data-part="language">#{language}</div>\
-      <div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
+      <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
       </div>\
       <template data-part="copy-source">#{copy_source}</template>\
       <div data-part="code">#{highlighted_html}</div>\

@@ -44,6 +44,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
       terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.affinity }}
@@ -60,8 +61,14 @@ spec:
       {{- end }}
       containers:
         - name: server
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.seedAccountCredentials.secretName }}
+          volumeMounts:
+            - name: seed-account-credentials
+              mountPath: /var/run/tuist/seed-account
+              readOnly: true
+          {{- end }}
           command:
             - /app/bin/tuist
             - start
@@ -107,13 +114,8 @@ spec:
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             {{- end }}
-            - name: TUIST_CLICKHOUSE_URL
-              value: {{ include "tuist.clickhouseUrl" . | quote }}
-            - name: TUIST_SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $secretName }}
-                  key: server-secret-key-base
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
             {{- end }}
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
@@ -121,6 +123,14 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.turnstile.enabled }}
+            - name: TUIST_TURNSTILE_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.kuraCapacityAdmission.enabled }}
+            - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
+              value: "1"
+            {{- end }}
             {{- if .Values.server.config.cacheTokenKey.signing }}
             - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED
               value: "1"
@@ -162,6 +172,10 @@ spec:
             - name: TUIST_CODEBASE_SEARCH_URL
               value: {{ printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "codebase-search")) .Values.codebaseSearch.service.port | quote }}
             {{- end }}
+            {{- with .Values.server.faro.collectorUrl }}
+            - name: TUIST_FARO_COLLECTOR_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
               value: {{ . | quote }}
@@ -197,6 +211,11 @@ spec:
             # was meant to do, defeating the whole point of a separate parse
             # fleet.
             - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            # Bazel test reports have a separate queue and concurrency limit,
+            # but share the processor deployment. Keep their untrusted parsing
+            # off the web pods whenever that deployment is enabled.
+            - name: TUIST_DELEGATE_PROCESS_BAZEL_TESTS
               value: "1"
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
@@ -380,6 +399,17 @@ spec:
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
+            {{- if .Values.kuraRuntime.rollout.expediteTag }}
+            - name: TUIST_KURA_ROLLOUT_EXPEDITE_TAG
+              value: {{ .Values.kuraRuntime.rollout.expediteTag | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name }}
+            - name: TUIST_OPS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
+                  key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
+            {{- end }}
             - name: TUIST_KURA_TUIST_BASE_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
@@ -399,6 +429,7 @@ spec:
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -455,4 +486,11 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.seedAccountCredentials.secretName }}
+      volumes:
+        - name: seed-account-credentials
+          secret:
+            secretName: {{ . }}
+            optional: true
+      {{- end }}
 {{- end }}

@@ -18,7 +18,7 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand 
         CommandConfiguration(
             commandName: "xcodebuild",
             abstract:
-            "tuist xcodebuild extends the xcodebuild CLI with server capabilities such as selective testing or analytics.",
+            "tuist xcodebuild extends the xcodebuild CLI with server capabilities such as insights and analytics.",
             subcommands: [
                 XcodeBuildTestCommand.self,
                 XcodeBuildTestWithoutBuildingCommand.self,

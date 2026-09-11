@@ -72,6 +72,10 @@ public struct GetGenerationService: GetGenerationServicing {
             case let .json(error):
                 throw GetGenerationServiceError.forbidden(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetGenerationServiceError.unknownError(statusCode)
         }

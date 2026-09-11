@@ -25,7 +25,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -82,7 +82,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -115,7 +115,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -145,7 +145,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -174,7 +174,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       upload_id = "upload-id"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -219,7 +219,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -256,7 +256,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       binary_id = "550E8400-E29B-41D4-A716-446655440000"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -290,7 +290,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       build_version = "123"
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -372,7 +372,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         )
 
       expect(Storage, :multipart_start, fn _object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # When
@@ -1174,30 +1174,24 @@ defmodule TuistWeb.PreviewsControllerTest do
       project: project,
       account: account
     } do
-      # Given
-      _preview_one =
-        AppBuildsFixtures.preview_fixture(
-          project: project,
-          bundle_identifier: "com.bundle.app.one"
-        )
+      # Given — stamped a second apart. Preview timestamps are
+      # second-precision and the listing orders on them alone, so
+      # fixtures created in the same second tie and come back in
+      # whichever order Postgres pleases.
+      now = DateTime.truncate(DateTime.utc_now(), :second)
 
-      _preview_two =
+      for {identifier, seconds_ago} <- [
+            {"com.bundle.app.one", 40},
+            {"com.bundle.app.one", 30},
+            {"com.bundle.app.two", 20},
+            {"com.bundle.app.two", 10}
+          ] do
         AppBuildsFixtures.preview_fixture(
           project: project,
-          bundle_identifier: "com.bundle.app.one"
+          bundle_identifier: identifier,
+          inserted_at: DateTime.add(now, -seconds_ago, :second)
         )
-
-      _preview_three =
-        AppBuildsFixtures.preview_fixture(
-          project: project,
-          bundle_identifier: "com.bundle.app.two"
-        )
-
-      _preview_four =
-        AppBuildsFixtures.preview_fixture(
-          project: project,
-          bundle_identifier: "com.bundle.app.two"
-        )
+      end
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -1212,10 +1206,11 @@ defmodule TuistWeb.PreviewsControllerTest do
       response =
         json_response(conn, :ok)
 
-      assert Enum.map(response["previews"], & &1["bundle_identifier"]) == [
-               "com.bundle.app.one",
-               "com.bundle.app.two"
-             ]
+      # One per identifier, which is what distinct_field asks for. Which
+      # identifier sorts first is incidental to that.
+      assert response["previews"]
+             |> Enum.map(& &1["bundle_identifier"])
+             |> Enum.sort() == ["com.bundle.app.one", "com.bundle.app.two"]
     end
 
     test "does not list any previews with distinct bundle identifiers for the latest specifier when the only preview has a nil preview_id",

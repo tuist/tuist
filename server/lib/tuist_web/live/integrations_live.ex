@@ -5,9 +5,15 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
+  alias Tuist.FeatureFlags
   alias Tuist.Projects
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.GitLab
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+
+  # The fields the Buildkite modal renders an input for.
+  @buildkite_form_fields [:organization_slug, :agent_token]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -26,15 +32,12 @@ defmodule TuistWeb.IntegrationsLive do
 
     vcs_connections = vcs_connections(selected_account)
     github_enterprise_available? = Entitlements.allows?(selected_account, :github_enterprise_server)
+    github_app_configured? = Tuist.Environment.github_app_configured?()
 
     # When github.com isn't configured (no `TUIST_GITHUB_APP_*` env
     # vars on the deployment) but the account is entitled to GHES,
-    # default the UI to the Enterprise tab. Otherwise the github.com
-    # tab is selected by default and its Install button generates a
-    # broken `/apps//installations/new` URL until the user manually
-    # switches tabs.
-    default_to_enterprise? =
-      github_enterprise_available? and not Tuist.Environment.github_app_configured?()
+    # default the UI to the Enterprise tab.
+    default_to_enterprise? = github_enterprise_available? and not github_app_configured?
 
     socket =
       socket
@@ -49,7 +52,15 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(github_app_owner_error: nil)
       |> assign(show_github_enterprise_input: default_to_enterprise?)
       |> assign(github_enterprise_available?: github_enterprise_available?)
+      |> assign(github_app_configured?: github_app_configured?)
       |> assign(github_card_visible?: github_card_visible?(selected_account, github_installation))
+      |> assign(runner_integrations_visible?: FeatureFlags.runners_enabled?(selected_account))
+      |> assign(buildkite_field_errors: %{})
+      |> assign(buildkite_form_error: nil)
+      |> assign(buildkite_flash: nil)
+      |> assign(buildkite_has_changes: false)
+      |> assign_buildkite_installation()
+      |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -66,10 +77,139 @@ defmodule TuistWeb.IntegrationsLive do
   end
 
   @impl true
+  def handle_event("save-gitlab", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      attrs =
+        params
+        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.new(fn
+          {"_id", value} -> {:id, String.trim(value)}
+          {key, value} -> {String.to_existing_atom(key), String.trim(value)}
+        end)
+
+      case GitLab.save_connection(account.id, attrs) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(gitlab_connections: GitLab.list_connections(account.id), gitlab_error: nil)
+           |> push_event("close-modal", %{id: "connect-gitlab-modal"})}
+
+        {:error, _} ->
+          {:noreply,
+           assign(
+             socket,
+             :gitlab_error,
+             dgettext(
+               "dashboard_integrations",
+               "Check the GitLab URL and runner authentication token."
+             )
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-gitlab", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    :ok = GitLab.delete_connection(account.id, id)
+    {:noreply, assign(socket, :gitlab_connections, GitLab.list_connections(account.id))}
+  end
+
+  @impl true
+  def handle_event("close-connect-gitlab-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-gitlab-modal"})}
+  end
+
+  @impl true
   def handle_event("close-add-connection-modal", _params, socket) do
     socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("close-connect-buildkite-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "connect-buildkite-modal"})}
+  end
+
+  @impl true
+  def handle_event("connect-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    # Only what the modal showed: the slug and the token on first connect,
+    # the token alone afterwards (the slug is edited on the card). The
+    # stack key identifies this controller to Buildkite and scopes its
+    # reservations, so it is derived from the account rather than typed: a
+    # customer-chosen key that collided with another account's would hand
+    # them each other's reservations.
+    attrs =
+      params
+      |> Map.take(["organization_slug", "agent_token"])
+      |> Map.new(fn {field, value} -> {String.to_existing_atom(field), String.trim(value)} end)
+      |> Map.put(:stack_key, "tuist-#{account.id}")
+
+    case Buildkite.upsert_installation(account.id, attrs) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil)
+         |> assign_buildkite_installation()
+         |> push_event("close-modal", %{id: "connect-buildkite-modal"})}
+
+      {:error, changeset} ->
+        {field_errors, form_error} = split_buildkite_errors(changeset)
+
+        {:noreply, assign(socket, buildkite_field_errors: field_errors, buildkite_form_error: form_error)}
+    end
+  end
+
+  @impl true
+  def handle_event("validate-buildkite", params, %{assigns: %{buildkite_installation: installation}} = socket) do
+    values = Map.merge(socket.assigns.buildkite_form_values, Map.take(params, ["organization_slug", "agent_token"]))
+
+    has_changes =
+      String.trim(values["organization_slug"]) != installation.organization_slug or
+        String.trim(values["agent_token"]) != ""
+
+    {:noreply, assign(socket, buildkite_form_values: values, buildkite_has_changes: has_changes, buildkite_flash: nil)}
+  end
+
+  @impl true
+  def handle_event("save-buildkite", params, %{assigns: %{selected_account: account}} = socket) do
+    token = params |> Map.get("agent_token", "") |> String.trim()
+    attrs = %{organization_slug: params |> Map.get("organization_slug", "") |> String.trim()}
+
+    # A blank token keeps the current one: it is never shown again, so
+    # there is nothing for the customer to re-enter.
+    attrs = if token == "", do: attrs, else: Map.put(attrs, :agent_token, token)
+
+    case Buildkite.upsert_installation(account.id, attrs) do
+      {:ok, _installation} ->
+        {:noreply,
+         socket
+         |> assign(buildkite_field_errors: %{})
+         |> assign(buildkite_flash: {"success", dgettext("dashboard_integrations", "Buildkite connection saved.")})
+         |> assign_buildkite_installation()}
+
+      {:error, changeset} ->
+        {field_errors, form_error} = split_buildkite_errors(changeset)
+
+        {:noreply,
+         assign(socket,
+           buildkite_field_errors: field_errors,
+           buildkite_flash: if(form_error, do: {"error", form_error}),
+           buildkite_form_values: Map.take(params, ["organization_slug", "agent_token"])
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-buildkite", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Buildkite.delete_installation(account.id)
+
+    {:noreply,
+     socket
+     |> assign(buildkite_field_errors: %{}, buildkite_form_error: nil, buildkite_flash: nil)
+     |> assign_buildkite_installation()}
   end
 
   @impl true
@@ -257,14 +397,19 @@ defmodule TuistWeb.IntegrationsLive do
   # The Install button is disabled when:
   #   * The current URL has a validation error.
   #   * The Enterprise tab is showing and the URL is empty or still
-  #     collapsed to the github.com default — clicking Install in that
+  #     collapsed to the github.com default. Clicking Install in that
   #     state would silently target github.com from inside the GHES tab.
+  #   * The github.com tab is showing but the deployment has no
+  #     github.com App configured. The install URL embeds
+  #     `TUIST_GITHUB_APP_NAME`, so without it the button sends the user
+  #     to `https://github.com/apps//installations/new`, which 404s.
   defp install_button_disabled?(assigns) do
     not is_nil(assigns.github_client_url_error) or
       not is_nil(assigns.github_app_owner_error) or
       (assigns.show_github_enterprise_input and
          (assigns.github_client_url in ["", nil] or
-            assigns.github_client_url == VCS.default_client_url()))
+            assigns.github_client_url == VCS.default_client_url())) or
+      (not assigns.show_github_enterprise_input and not assigns.github_app_configured?)
   end
 
   defp validate_github_client_url(raw_url, enterprise_tab?) do
@@ -358,6 +503,59 @@ defmodule TuistWeb.IntegrationsLive do
     Tuist.Environment.github_app_configured?() or
       not is_nil(github_installation) or
       Entitlements.allows?(account, :github_enterprise_server)
+  end
+
+  # Rendered on both sides of the connected/not-connected split, so the
+  # header is defined once.
+  defp buildkite_header(assigns) do
+    ~H"""
+    <div data-part="header">
+      <span data-part="title">{dgettext("dashboard_integrations", "Buildkite")}</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Run Buildkite jobs on Tuist runners. Tuist watches the self-hosted queues in your cluster and runs what it finds there."
+        )}
+      </span>
+    </div>
+    """
+  end
+
+  defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
+    installation = Buildkite.get_installation(account.id)
+
+    socket
+    |> assign(buildkite_installation: installation)
+    |> assign(buildkite_has_changes: false)
+    |> assign(
+      buildkite_form_values: %{
+        "organization_slug" => (installation && installation.organization_slug) || "",
+        "agent_token" => ""
+      }
+    )
+  end
+
+  # Errors land on the input that caused them. `stack_key` is derived, not
+  # typed, so it has no input to attach to and would be invisible as a
+  # field error; it becomes a banner instead.
+  defp split_buildkite_errors(changeset) do
+    errors =
+      Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+        Regex.replace(~r/%\{(\w+)\}/, message, fn _whole, key ->
+          opts |> Keyword.get(String.to_existing_atom(key), "") |> to_string()
+        end)
+      end)
+
+    {shown, hidden} = Enum.split_with(errors, fn {field, _} -> field in @buildkite_form_fields end)
+
+    field_errors = Map.new(shown, fn {field, messages} -> {Atom.to_string(field), List.first(messages)} end)
+
+    form_error =
+      hidden
+      |> Enum.flat_map(fn {field, messages} -> Enum.map(messages, &"#{field} #{&1}") end)
+      |> List.first()
+
+    {field_errors, form_error}
   end
 
   defp vcs_connections(account, opts \\ []) do

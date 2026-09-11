@@ -1,5 +1,8 @@
-<%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
-  {TuistWeb.GradleBuildsLive.render(assigns)}
-<% else %>
-  {TuistWeb.XcodeBuildsLive.render(assigns)}
+<%= cond do %>
+  <% Tuist.Projects.Project.bazel_project?(@selected_project) -> %>
+    {TuistWeb.BazelBuildsLive.render(assigns)}
+  <% Tuist.Projects.Project.gradle_project?(@selected_project) -> %>
+    {TuistWeb.GradleBuildsLive.render(assigns)}
+  <% true -> %>
+    {TuistWeb.XcodeBuildsLive.render(assigns)}
 <% end %>

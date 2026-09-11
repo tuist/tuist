@@ -8,12 +8,13 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
-| `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
+| `kura-*-ingress-nginx` | Regional Kura gateways on host-network DaemonSets or shared cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
+| `kuraGatewayNetworkPolicy` | Lets a region's host-network Kura gateways reach Kura pods on its other boxes |
 | `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
@@ -27,21 +28,22 @@ kubectl create namespace platform
 kubectl -n platform create secret generic cloudflare-api-token \
   --from-literal=api-token="$CLOUDFLARE_API_TOKEN"
 
-# 3. Fetch chart dependencies.
-helm dependency update infra/helm/platform
-
-# 4. Install the platform with the right provider overlay.
-helm upgrade --install platform infra/helm/platform \
-  -n platform \
-  -f infra/helm/platform/values-hetzner.yaml
+# 3. Install the platform through the managed-cluster task. It reconciles the
+# cert-manager custom resource definitions before Helm renders the ClusterIssuer.
+mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-<environment>
 ```
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
 sets the provider-specific LoadBalancer annotations + any LB-specific
 ingress-nginx config. The production `values-tuist.yaml` overlay also enables
-three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
+three Kura-specific ingress-nginx aliases (`kura-eu-west`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
+
+Those gateways are host-network DaemonSets, one nginx per cache box. A region
+running more than one box also needs `kuraGatewayNetworkPolicy.enabled`, or a
+gateway can only serve the Kura pods that happen to share its box and answers
+504 for the rest. See `templates/kura-gateway-network-policy.yaml`.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
@@ -192,4 +194,22 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
 - Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
-- cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.
+- cert-manager custom resource definitions are reconciled by `k8s:install-platform` before the Helm release. A direct Helm install is supported only after another tool has applied those definitions.
+
+## Runner Kura gateway
+
+`kura-runners-ingress-nginx` is enabled in staging, canary and production on the
+`kura-scw-fr-par` pool. It reuses the shared Kura streaming configuration and
+terminates TLS for per-account private hostnames. Its listeners bind the host
+interfaces; HTTP and gRPC access is restricted by each Ingress's source allowlist.
+It does not trust forwarded headers, PROXY protocol or real-IP rewriting.
+The controller publishes private A records through DNSEndpoint; ingress status
+publication stays disabled so external-dns cannot substitute public node IPs.
+The managed certificate issuer uses DNS-01, which works with private A records.
+
+See [runner migration and verification](../../kura-controller/private-runner-rollouts.md).
+
+The Tuist chart's managed gateway policy explicitly allows the backend hop from
+Cilium host and remote-node identities to TCP 4000 on private gateway-labelled Kura pods.
+The runner CIDR allowlist remains at nginx and on legacy NodePorts. A healthy DNS
+gateway remains selected across primary handoffs, including cross-host ones.

@@ -114,7 +114,10 @@ enum ManifestLoader {
         }
         args.append("dump-package")
         let result = try await SystemProcess.run(
-            "/usr/bin/swift", args, workingDirectory: packageDir
+            "/usr/bin/swift",
+            args,
+            workingDirectory: packageDir,
+            customEnvironment: Environment.manifestValues
         )
         let cache = cacheFilePath(packageDir: packageDir)
         try? await fileSystem.atomicWrite(result.stdout, to: cache)

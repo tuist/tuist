@@ -9,7 +9,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which release.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which server-production-deployment.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -18,7 +18,7 @@
     },
     {
       "customType": "regex",
-      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which server-production-deployment.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
@@ -47,9 +47,9 @@
     },
     {
       "customType": "regex",
-      "description": "Single source for the mise CLI version pinned across every GitHub Actions workflow (MISE_VERSION env). Renovate tracks jdx/mise releases and bumps all MISE_VERSION literals together in one PR, keeping the whole repo on one version. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
-      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
-      "matchStrings": ["MISE_VERSION:\\s*\"(?<currentValue>[^\"]+)\""],
+      "description": "Single source for the mise CLI version. Every workflow installs mise through .github/actions/mise, so the pin exists once and this manager bumps that one line. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
+      "fileMatch": ["^\\.github/actions/mise/action\\.yml$"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+version: \"(?<currentValue>[^\"]+)\""],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "jdx/mise",
       "extractVersionTemplate": "^v?(?<version>.+)$"

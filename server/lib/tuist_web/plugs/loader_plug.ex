@@ -9,8 +9,11 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Errors.ServiceUnavailableError
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
+
+  require Logger
 
   def init([]), do: [:project, :account, :run]
   def init(opts), do: opts
@@ -93,6 +96,19 @@ defmodule TuistWeb.Plugs.LoaderPlug do
       {:error, :not_found} ->
         raise NotFoundError,
               dgettext("dashboard", "The run with ID %{run_id} was not found.", %{run_id: run_id})
+
+      # The run lives in ClickHouse, which rejects reads it has no memory
+      # budget for. That is a transient backend condition, not a malformed
+      # request, so it renders as 503 rather than falling through this case
+      # as an unmatched clause and surfacing to the user as a 500.
+      {:error, reason} ->
+        Logger.warning("Failed to load run #{run_id}: #{inspect(reason)}")
+
+        raise ServiceUnavailableError,
+              dgettext(
+                "dashboard",
+                "Run analytics are temporarily unavailable. Please try again in a moment."
+              )
     end
   end
 

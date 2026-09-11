@@ -80,6 +80,16 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	VRackID string `json:"vRackID,omitempty"`
 
+	// KataRuntime provisions the box to run microVM-isolated Pods: it installs
+	// kata-static under /opt/kata, registers the kata-qemu handler with
+	// containerd, and adds the `katacontainers.io/kata-runtime` label the
+	// kata-qemu RuntimeClass selects on. Required for a Linux runner pool, since
+	// every runner Pod carries `runtimeClassName: kata-qemu` and a node without
+	// the label never matches that RuntimeClass. Cache fleets leave it false and
+	// skip the download entirely.
+	// +optional
+	KataRuntime bool `json:"kataRuntime,omitempty"`
+
 	// EgressBudgetMbps is the throughput, in Mbps, this box may assign across
 	// the Kura pods it hosts — its NIC ceiling minus headroom. When set, the
 	// controller advertises it as the Node's `tuist.dev/egress-mbps` extended
@@ -134,6 +144,12 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 
+	// Egress is what the controller knows about the box's egress budget: what the
+	// node was set to and why, and what OVH last reported. Nil while the machine
+	// has no configured budget; replaced when the machine moves to another box.
+	// +optional
+	Egress *EgressStatus `json:"egress,omitempty"`
+
 	// BootstrapAttempts counts consecutive bootstrap failures on the current
 	// server. Reset on a successful bootstrap or whenever the underlying
 	// ServiceName changes.
@@ -147,12 +163,52 @@ type OVHDedicatedMachineStatus struct {
 	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
 }
 
+// EgressStatus is the egress budget the node was last set to, and OVH's reading.
+type EgressStatus struct {
+	// ServiceName is the box this status describes. A status recorded against
+	// another box is discarded, so a re-adopted machine is never rated from its
+	// predecessor's reading.
+	ServiceName string `json:"serviceName"`
+
+	// BudgetMbps is what the node was last set to advertise. With Source
+	// "configured" or "discovery" it is a promise the controller never lowers;
+	// with Source "manual" it is a temporary pin that leaves no promise behind.
+	// +optional
+	BudgetMbps int32 `json:"budgetMbps,omitempty"`
+
+	// Source is what decided BudgetMbps: "configured" (spec.egressBudgetMbps),
+	// "discovery" (OVH's reading) or "manual" (the override annotation).
+	// +optional
+	Source string `json:"source,omitempty"`
+
+	// ReportedMbps is OVH's last usable reading of the box's public egress
+	// limitation (bandwidth.OvhToInternet), and Tier its bandwidth offer.
+	// +optional
+	ReportedMbps int32 `json:"reportedMbps,omitempty"`
+	// +optional
+	Tier string `json:"tier,omitempty"`
+
+	// ResolvedAt is when ReportedMbps was read; AttemptedAt is the last read,
+	// successful or not, and bounds the next one.
+	// +optional
+	ResolvedAt *metav1.Time `json:"resolvedAt,omitempty"`
+	// +optional
+	AttemptedAt *metav1.Time `json:"attemptedAt,omitempty"`
+
+	// ReadFailures counts consecutive failed reads. Reset on any answer.
+	// +optional
+	ReadFailures int32 `json:"readFailures,omitempty"`
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=ovhdedicatedmachines,scope=Namespaced,categories=cluster-api,shortName=odm
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
+// +kubebuilder:printcolumn:name="Egress",type=integer,JSONPath=".status.egress.budgetMbps"
+// +kubebuilder:printcolumn:name="EgressSource",type=string,JSONPath=".status.egress.source"
+// +kubebuilder:printcolumn:name="EgressReported",type=integer,JSONPath=".status.egress.reportedMbps",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // OVHDedicatedMachine is one OVHcloud dedicated server in the cluster.

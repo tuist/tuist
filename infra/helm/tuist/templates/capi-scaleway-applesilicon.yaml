@@ -9,6 +9,10 @@
 {{- range $f := .Values.ovhFleets }}
 {{- if $f.enabled }}{{- $ovhAny = true -}}{{- $ovhEndpoint = $f.endpoint | default $ovhEndpoint -}}{{- end }}
 {{- end }}
+{{- /* Same idea for Vultr: one account, one credential, wired when any fleet
+   in the map is on. */ -}}
+{{- $vultrAny := false -}}
+{{- range $f := .Values.vultrFleets }}{{- if $f.enabled }}{{- $vultrAny = true -}}{{- end }}{{- end }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
 # minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
@@ -43,6 +47,11 @@ rules:
       - ovhdedicatedmachinetemplates
       - dediboxmachines
       - dediboxmachinetemplates
+      - vultrmachines
+      - vultrmachinetemplates
+      - rackapplesiliconmachines
+      - rackapplesiliconmachinetemplates
+      - rackhosts
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -56,6 +65,15 @@ rules:
       - ovhdedicatedmachines/finalizers
       - dediboxmachines/status
       - dediboxmachines/finalizers
+      - vultrmachines/status
+      - vultrmachines/finalizers
+      - rackapplesiliconmachines/status
+      - rackapplesiliconmachines/finalizers
+      # rackhosts/status carries the claim. It is the only status in this
+      # provider written by a DIFFERENT object's reconciler, and it is written
+      # with Update rather than a merge patch so the apiserver's
+      # resourceVersion check makes the claim atomic.
+      - rackhosts/status
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
@@ -344,6 +362,15 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            # Fleet-wide fallback for a Machine that does not set
+            # spec.guestCapacity. Sizes the per-guest host resources (the
+            # VNC relay port range, the disk-pressure goldens floor); it
+            # neither creates nor caps capacity, which comes from
+            # hostCPU/hostMemoryMB and Tart's own SLA enforcement. Leave
+            # at 1 and set spec.guestCapacity on the multi-guest SKU's
+            # MachineTemplate — raising it here would over-provision
+            # every single-guest host in every fleet this operator owns.
+            - --tartkubelet-guest-capacity={{ .Values.macosFleet.tartKubelet.guestCapacity | default 1 }}
             {{- with .Values.macosFleet.runnerCacheVolume }}
             {{- if .gib }}
             # Per-account cache volumes: bootstrap provisions a
@@ -547,6 +574,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
                   key: consumer-key
+            {{- end }}
+            {{- if $vultrAny }}
+            # Vultr reconciler credential. Its presence gates the reconciler on
+            # (cmd/manager/main.go). Note the key is inert unless the cluster's
+            # egress address is on Vultr's source-IP allowlist, which no other
+            # provider here has an equivalent of: a 401 naming an address is that,
+            # not a bad key.
+            - name: VULTR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ dig "secretName" "" .Values.vultrFleet | default (include "tuist.componentName" (dict "root" . "component" "vultr")) }}
+                  key: api-key
             {{- end }}
           ports:
             - name: metrics

@@ -17,8 +17,8 @@ defmodule Tuist.Kura.Deployment do
 
   `cluster_id` is an audit field: which backing cluster the deployment
   actually targeted, captured at insert time so operators reading the
-  deployment list see something concrete (`"eu-central-1"`) rather
-  than the abstract region (`"eu-central"`).
+  deployment list see something concrete (`"eu-west-1"`) rather
+  than the abstract region (`"eu-west"`).
   """
   use Ecto.Schema
 
@@ -50,6 +50,11 @@ defmodule Tuist.Kura.Deployment do
 
     belongs_to :kura_server, Server, type: :binary_id
 
+    # Which rollout minted this deployment (see `Tuist.Kura.Rollouts`);
+    # nil for pre-rollout history, server-creation installs, warm-handoff
+    # moves, and operator retries.
+    belongs_to :kura_rollout, Tuist.Kura.Rollout, type: :binary_id
+
     # Sub-second precision so deployments inserted in quick succession
     # keep a deterministic order when listed.
     # credo:disable-for-next-line Credo.Checks.TimestampsType
@@ -60,11 +65,12 @@ defmodule Tuist.Kura.Deployment do
 
   def create_changeset(deployment \\ %__MODULE__{}, attrs) do
     deployment
-    |> cast(attrs, [:cluster_id, :image_tag, :kura_server_id])
+    |> cast(attrs, [:cluster_id, :image_tag, :kura_server_id, :kura_rollout_id])
     |> validate_required([:cluster_id, :image_tag, :kura_server_id])
     |> validate_format(:image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:image_tag, max: 128)
     |> foreign_key_constraint(:kura_server_id)
+    |> foreign_key_constraint(:kura_rollout_id)
     |> unique_constraint(:kura_server_id,
       name: :kura_deployments_one_open_per_server_index,
       message: "already has an open deployment"

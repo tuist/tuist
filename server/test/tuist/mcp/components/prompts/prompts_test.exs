@@ -10,6 +10,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   alias Tuist.MCP.Components.Prompts.CompareTestCase
   alias Tuist.MCP.Components.Prompts.CompareTestRuns
   alias Tuist.MCP.Components.Prompts.FixFlakyTest
+  alias Tuist.MCP.Components.Prompts.IntegrateBazelProject
   alias Tuist.MCP.Components.Prompts.IntegrateGradleProject
   alias Tuist.MCP.Components.Prompts.IntegrateXcodeProject
   alias Tuist.Projects
@@ -27,6 +28,36 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   end
 
   describe "compare_builds" do
+    test "uses each build system's step tools and explains recording limits" do
+      for build_system <- [:gradle, :bazel] do
+        stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
+          %{default_branch: "main", build_system: build_system}
+        end)
+
+        %{messages: [%{content: %{text: text}}]} =
+          CompareBuilds.template(nil, %{
+            "account_handle" => "acme",
+            "project_handle" => "app",
+            "head" => "head-id"
+          })
+
+        assert text =~ "list_#{build_system}_build_steps"
+        assert text =~ "get_#{build_system}_build_step"
+        refute text =~ "list_xcode_build_steps"
+
+        if build_system == :bazel do
+          assert text =~ "invocation_id"
+          assert text =~ "trace_profile"
+          assert text =~ "retained_action_spans"
+          assert text =~ "recorded action log when available"
+          refute text =~ "Per-action outcomes and logs are unavailable"
+          refute text =~ "build_run_id=head-id"
+        else
+          assert text =~ "time_origin"
+        end
+      end
+    end
+
     test "returns prompt messages with default branch" do
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
         %{default_branch: "develop", build_system: :xcode}
@@ -200,6 +231,43 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "CI=1 ./gradlew clean TASK"
       assert text =~ "list_gradle_build_tasks"
       assert text =~ "remote_cache,test_sharding"
+    end
+  end
+
+  describe "integrate_bazel_project" do
+    test "returns prompt messages" do
+      result =
+        IntegrateBazelProject.template(nil, %{
+          "account_handle" => "acme",
+          "project_handle" => "bazel",
+          "server_url" => "https://tuist.dev"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+      assert text =~ "Integrate an existing Bazel project with Tuist"
+      assert text =~ "`acme/bazel`"
+      assert text =~ "create_project"
+      assert text =~ "build_system=bazel"
+      assert text =~ "tuist.toml"
+      assert text =~ "tuist bazel setup"
+      assert text =~ "list_bazel_invocations"
+      assert text =~ "sanitized `test.log` artifacts"
+    end
+
+    test "rejects an unsafe server origin before rendering commands" do
+      result =
+        IntegrateBazelProject.template(nil, %{
+          "server_url" => "https://attacker.example;touch"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+
+      assert text =~ "could not be generated"
+      assert text =~ "Do not edit files or run authentication commands"
+      refute text =~ "attacker.example"
+      refute text =~ ";touch"
     end
   end
 

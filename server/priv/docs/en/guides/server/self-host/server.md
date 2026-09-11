@@ -91,6 +91,14 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
+#### ClickHouse replication topology {#clickhouse-replication-topology}
+
+Multi-replica ClickHouse behind Tuist is supported on ClickHouse Cloud only. Self-managed ClickHouse is single-replica.
+
+The ingest migrations emit a plain `MergeTree` engine. On Cloud that becomes a `SharedMergeTree` transparently, so writes land in shared object storage and any replica count works. On self-managed ClickHouse, `MergeTree` writes to local disk on one replica only; a multi-replica setup will either split ingest silently across replicas or reject the CREATE with `UNKNOWN_STORAGE: Only tables with a Replicated engine or tables which do not store data on disk are allowed in a Replicated database.` depending on how `database_replicated_allow_only_replicated_engine` is set on the connecting user.
+
+Run one shard with one replica on self-managed ClickHouse, and take regular backups of the ClickHouse data directory. There is no second replica to fall back to if the node is lost.
+
 #### Capping operational log retention {#capping-operational-log-retention}
 
 Retention can be applied to `system.text_log`, `system.query_log`, `system.query_thread_log`, `system.query_views_log`, `system.trace_log`, `system.metric_log`, `system.asynchronous_metric_log`, and `system.part_log`.
@@ -207,7 +215,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_USE_IPV6` | When `1` it configures the app to use IPv6 addresses | No | `0` | `1`|
 | `TUIST_LOG_LEVEL` | The log level to use for the app | No | `info` | [Log levels](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |
-| `TUIST_GITHUB_APP_NAME` | The URL version of your GitHub app name | No | | `my-app` |
+| `TUIST_GITHUB_APP_NAME` | The slug of your GitHub app, taken from `https://github.com/apps/<slug>`. Required to install the app. See <.localized_link href="/guides/server/self-host/server#platform-github">GitHub</.localized_link> | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
@@ -442,13 +450,62 @@ Tuist can <.localized_link href="/guides/server/authentication">integrate with G
 
 #### GitHub {#platform-github}
 
-You will need to [create a GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). You can reuse the one you created for authentication, unless you created an OAuth GitHub app. In the `Permissions and events`'s `Repository permissions` section, you will need to additionally set the `Pull requests` permission to `Read and write`.
+A self-hosted Tuist server cannot install the GitHub App that runs on `https://tuist.dev`. GitHub Apps are bound to the server that registered them, so your deployment needs its own App on github.com.
 
-On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`, you will need the following environment variables:
+##### Registering the App {#platform-github-registering-the-app}
+
+[Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) owned by your GitHub organization. You can reuse the App you created for authentication, unless you created an OAuth App. Configure it with the following, replacing `YOUR_APP_URL` with the value of `TUIST_APP_URL`:
+
+| Setting | Value |
+| --- | --- |
+| Callback URL | `YOUR_APP_URL/users/auth/github/callback` |
+| Setup URL | `YOUR_APP_URL/integrations/github/setup` |
+| Redirect on update | Enabled |
+| Webhook URL | `YOUR_APP_URL/webhooks/github` |
+| Webhook secret | Any random string. You will set it as `TUIST_GITHUB_APP_WEBHOOK_SECRET` |
+
+Grant the following repository permissions:
+
+| Permission | Access |
+| --- | --- |
+| Contents | Read-only |
+| Metadata | Read-only |
+| Issues | Read and write |
+| Pull requests | Read and write |
+| Checks | Read and write |
+
+Subscribe the App to the `Check run`, `Pull request`, and `Issue comment` events.
+
+##### Configuring the server {#platform-github-configuring-the-server}
+
+Set the following environment variables, then restart the server:
 
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
-| `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes | | `-----BEGIN RSA PRIVATE KEY-----...` |
+| `TUIST_GITHUB_APP_NAME` | The App's slug, which is the last path component of its public page URL `https://github.com/apps/<slug>` | Yes | | `my-company-tuist` |
+| `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
+| `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key of the GitHub application. Preferred over `TUIST_GITHUB_APP_PRIVATE_KEY`, which is sensitive to how your platform handles newlines | Yes | | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |
+| `TUIST_GITHUB_APP_WEBHOOK_SECRET` | The webhook secret configured on the GitHub application | No | | `a4c1e0f2b8d6...` |
+
+> [!IMPORTANT]
+> **All four required variables must be set**
+>
+> The **Install GitHub App** button on the organization's integrations page stays disabled until `TUIST_GITHUB_APP_NAME`, `TUIST_GITHUB_APP_CLIENT_ID`, `TUIST_GITHUB_APP_CLIENT_SECRET`, and the private key are all set. The install URL embeds the App slug, so a missing `TUIST_GITHUB_APP_NAME` in particular produces a link that GitHub answers with a 404.
+
+Once the server restarts, organization admins install the App and connect repositories to projects following the <.localized_link href="/guides/integrations/gitforge/github">GitHub integration guide</.localized_link>.
+
+##### OIDC authentication depends on this {#platform-github-oidc}
+
+<.localized_link href="/guides/server/authentication#oidc-tokens">OIDC authentication</.localized_link> resolves the repository claim in the CI token against the repositories connected to your projects, and a connection can only be created through an installed GitHub App. Complete the setup above before your CI workflows run `tuist auth login` without a token.
+
+Your Tuist server also needs outbound access to your CI provider's OIDC issuer to fetch its signing keys:
+
+| CI provider | Host |
+| --- | --- |
+| GitHub Actions | `token.actions.githubusercontent.com` |
+| CircleCI | `oidc.circleci.com` |
+| Bitrise | `token.builds.bitrise.io` |
 
 ##### GitHub Enterprise Server {#platform-github-enterprise-server}
 
@@ -568,6 +625,36 @@ helm install tuist oci://ghcr.io/tuist/charts/tuist \
   --set server.license.key="YOUR_LICENSE_KEY" \
   --version 0.1.0
 ```
+
+### License {#helm-license}
+
+Passing the license with `--set` works for a quick install. If you keep your values in version control, store the license in a Kubernetes Secret that you manage outside Helm, for example with Vault, Sealed Secrets, or SOPS, and point the chart at it:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: TUIST_LICENSE
+      certificateBase64: ""
+```
+
+For an air-gapped installation, reference the Base64-encoded license certificate instead:
+
+```yaml
+# values.yaml
+server:
+  license:
+    existingSecret: tuist-license
+    existingSecretKeys:
+      key: ""
+      certificateBase64: TUIST_LICENSE_CERTIFICATE_BASE64
+```
+
+Each entry under `existingSecretKeys` names a key in your Secret and defaults to the chart's own key name, so set the entries your Secret doesn't contain to an empty string. Otherwise the pods reference keys that don't exist and fail to start.
+
+Configure the license through one source only: `server.license.key`, `server.license.certificateBase64`, or `server.license.existingSecret`. The chart fails to render when none is set or when sources are combined. A license passed through `server.extraEnv` doesn't count as a source, so use `existingSecret` instead. Create the Secret in the release namespace before you install or upgrade the chart.
 
 ### Infrastructure dependencies {#helm-infrastructure-dependencies}
 

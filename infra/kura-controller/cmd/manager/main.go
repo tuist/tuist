@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -33,22 +35,40 @@ func main() {
 	var enableLeaderElection bool
 	var watchNamespace string
 	var grpcClusterIssuer string
+	var publicTLSSecretName string
+	var publicTLSDNSNames string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var connectivityDiagnosticsInstances string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Single-leader election")
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
-	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
+	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer backing the per-instance public-host certificate (leaves public TLS unprovisioned when empty)")
+	flag.StringVar(&publicTLSSecretName, "public-tls-secret-name", "", "Shared wildcard TLS Secret every public Ingress terminates on (falls back to a per-instance certificate when empty or not yet issued)")
+	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
+	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	probeInstances := splitNames(connectivityDiagnosticsInstances)
+	if len(probeInstances) != 0 && watchNamespace == "" {
+		setupLog.Error(errors.New("connectivity diagnostics require watch-namespace"), "invalid probe configuration")
+		os.Exit(1)
+	}
+
+	if len(probeInstances) != 0 {
+		if !controllers.ValidConnectivityProfile(deploymentEnvironment) {
+			setupLog.Error(errors.New("unsupported connectivity profile"), "invalid probe environment")
+			os.Exit(1)
+		}
+	}
 
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
@@ -69,17 +89,40 @@ func main() {
 		os.Exit(1)
 	}
 
+	metricsClient, err := controllers.NewPodMetricsClient(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "build pod metrics client")
+		os.Exit(1)
+	}
+
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:             mgr.GetClient(),
-		APIReader:          mgr.GetAPIReader(),
-		Scheme:             mgr.GetScheme(),
-		GRPCClusterIssuer:  grpcClusterIssuer,
-		OTLPTracesEndpoint: otlpTracesEndpoint,
-		Environment:        deploymentEnvironment,
+		Client:                           mgr.GetClient(),
+		APIReader:                        mgr.GetAPIReader(),
+		Scheme:                           mgr.GetScheme(),
+		GRPCClusterIssuer:                grpcClusterIssuer,
+		PublicTLSSecretName:              publicTLSSecretName,
+		OTLPTracesEndpoint:               otlpTracesEndpoint,
+		Environment:                      deploymentEnvironment,
+		MetricsClient:                    metricsClient,
+		ConnectivityDiagnosticsInstances: probeInstances,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
+	if publicTLSDNSNames != "" {
+		names := splitNames(publicTLSDNSNames)
+		if err := mgr.Add(&controllers.PublicWildcardCertificate{
+			Client:        mgr.GetClient(),
+			Namespace:     watchNamespace,
+			SecretName:    publicTLSSecretName,
+			DNSNames:      names,
+			ClusterIssuer: grpcClusterIssuer,
+		}); err != nil {
+			setupLog.Error(err, "setup PublicWildcardCertificate")
+			os.Exit(1)
+		}
+	}
+
 	if err := (&controllers.PeerDemuxReconciler{
 		Client:    mgr.GetClient(),
 		APIReader: mgr.GetAPIReader(),
@@ -104,4 +147,14 @@ func main() {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
 	}
+}
+
+func splitNames(value string) []string {
+	var names []string
+	for _, name := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			names = append(names, trimmed)
+		}
+	}
+	return names
 }

@@ -58,6 +58,7 @@ defmodule Tuist.Kura.RunnerCache do
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias Tuist.Runners.Profile
@@ -338,7 +339,22 @@ defmodule Tuist.Kura.RunnerCache do
 
   defp nodes_to_retry(region_id, account_ids, image_tag) do
     servers = failed_first_deploy_servers(region_id, account_ids)
-    failure_histories = retry_failure_histories(servers, image_tag)
+
+    # The tag each node would actually be retried on. `retry_server/2`
+    # resolves the account's rollout wave state, so a node whose wave is
+    # still pending deploys the rollout's baseline rather than the
+    # configured target. Keying the backoff history on the configured tag
+    # therefore found no failures for it and re-provisioned a hard-failing
+    # node every tick, with the backoff never engaging. Keyed per node on
+    # the tag it will get, a change in that tag still resets the history —
+    # a new image is a new chance — while the history stays about attempts
+    # that actually happened.
+    resolved_tags =
+      Map.new(servers, fn server ->
+        {server.id, Rollouts.provisioning_image_tag(server.account_id, image_tag)}
+      end)
+
+    failure_histories = retry_failure_histories(servers, resolved_tags)
 
     Enum.filter(servers, &retry_due?(&1, Map.get(failure_histories, &1.id, [])))
   end
@@ -358,15 +374,14 @@ defmodule Tuist.Kura.RunnerCache do
     )
   end
 
-  defp retry_failure_histories([], _image_tag), do: %{}
+  defp retry_failure_histories([], _resolved_tags), do: %{}
 
-  defp retry_failure_histories(servers, image_tag) do
+  defp retry_failure_histories(servers, resolved_tags) do
     server_ids = Enum.map(servers, & &1.id)
 
     ranked_failures =
       from(d in Deployment,
         where: d.kura_server_id in ^server_ids,
-        where: d.image_tag == ^image_tag,
         where: d.status == :failed,
         windows: [
           per_server: [
@@ -376,6 +391,7 @@ defmodule Tuist.Kura.RunnerCache do
         ],
         select: %{
           finished_at: d.finished_at,
+          image_tag: d.image_tag,
           rank: over(row_number(), :per_server),
           server_id: d.kura_server_id
         }
@@ -385,9 +401,13 @@ defmodule Tuist.Kura.RunnerCache do
     |> subquery()
     |> where([failure], failure.rank <= ^length(@retry_backoff_seconds))
     |> order_by([failure], asc: failure.server_id, asc: failure.rank)
-    |> select([failure], {failure.server_id, failure.finished_at})
+    |> select([failure], {failure.server_id, failure.image_tag, failure.finished_at})
     |> Repo.all()
-    |> Enum.group_by(fn {server_id, _finished_at} -> server_id end, fn {_server_id, finished_at} -> finished_at end)
+    |> Enum.filter(fn {server_id, image_tag, _finished_at} -> resolved_tags[server_id] == image_tag end)
+    |> Enum.group_by(
+      fn {server_id, _image_tag, _finished_at} -> server_id end,
+      fn {_server_id, _image_tag, finished_at} -> finished_at end
+    )
   end
 
   defp retry_due?(%Server{} = server, failures) do

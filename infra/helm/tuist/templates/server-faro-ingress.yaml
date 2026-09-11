@@ -1,0 +1,44 @@
+{{- if and .Values.server.enabled .Values.server.ingress.enabled .Values.server.faro.receiverHost (hasPrefix "/" .Values.server.faro.collectorUrl) }}
+{{- /*
+Alloy's faro.receiver serves POST on /collect and nothing else, so the collector
+path has to be rewritten before it reaches the receiver. rewrite-target is a
+per-Ingress annotation, which is why this is a separate object from the server
+Ingress rather than another path on it: applied there it would rewrite "/" too
+and take the whole site down.
+
+ingress-nginx merges rules for a host across Ingress objects, so this adds the
+collector path to the same host the server Ingress already serves. It also
+denies an Ingress whose host and path another Ingress already defines, so
+collectorUrl must differ from every path the server Ingress lists.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "faro") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: faro
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /collect
+spec:
+  {{- with .Values.server.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.server.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ .Values.server.ingress.host | quote }}
+      secretName: {{ .Values.server.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.server.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.server.faro.collectorUrl | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tuist.componentName" (dict "root" . "component" "faro-receiver") }}
+                port:
+                  number: {{ .Values.server.faro.receiverPort }}
+{{- end }}

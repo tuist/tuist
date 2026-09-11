@@ -99,15 +99,7 @@ func (t Tree) EnsureTree(ctx context.Context, nodeMbps int64, classes map[uint16
 	// caller degrades the joined error to a requeue.
 	var classErrs []error
 	for minor, class := range classes {
-		// HTB rejects rate 0; a tenant without a floor still needs a class
-		// to be countable and cappable, so it gets a 1 Mbit token trickle
-		// and lives off borrowing.
-		floor := max(class.FloorMbps, 1)
-		ceil := class.BurstMbps
-		if ceil == 0 || ceil > nodeMbps {
-			ceil = nodeMbps
-		}
-		ceil = max(ceil, floor)
+		floor, ceil := classRates(class, nodeMbps)
 		if _, err := run(ctx, "tc", "class", "replace", "dev", t.TrampolineDev,
 			"parent", fmt.Sprintf("1:%x", rootClassMinor), "classid", ClassIDString(minor),
 			"htb", "rate", fmt.Sprintf("%dmbit", floor), "ceil", fmt.Sprintf("%dmbit", ceil),
@@ -149,12 +141,28 @@ func (t Tree) PruneClasses(ctx context.Context, classes map[uint16]TenantClass) 
 	return nil
 }
 
-// ClassStats is one tenant class's kernel counters, for the metrics endpoint.
+// ClassStats is one tenant class's kernel counters and applied rates, for the
+// metrics endpoint.
+//
+// LendedPackets and BorrowedPackets are HTB's own accounting of where a
+// class's traffic came from: a packet a leaf sends within its own rate counts
+// as lended, one it can only send by taking tokens from the root class counts
+// as borrowed. Their ratio is the tenant's demand against its floor, which no
+// byte counter carries.
+//
+// RateBps and CeilBps are read back from the kernel rather than taken from the
+// desired class, so they describe what HTB is enforcing — clamps and hand
+// edits included — and land in the same unit as SentBytes, which is what the
+// demand-against-floor query compares.
 type ClassStats struct {
-	Minor        uint16
-	SentBytes    uint64
-	Drops        uint64
-	BacklogBytes uint64
+	Minor           uint16
+	SentBytes       uint64
+	Drops           uint64
+	BacklogBytes    uint64
+	LendedPackets   uint64
+	BorrowedPackets uint64
+	RateBps         uint64
+	CeilBps         uint64
 }
 
 // Stats reads the per-class counters and the root qdisc's direct-packet
@@ -171,10 +179,14 @@ func (t Tree) Stats(ctx context.Context) ([]ClassStats, uint64, error) {
 			continue
 		}
 		stats = append(stats, ClassStats{
-			Minor:        minor,
-			SentBytes:    class.Stats.Bytes,
-			Drops:        class.Stats.Drops,
-			BacklogBytes: class.Stats.Backlog,
+			Minor:           minor,
+			SentBytes:       class.Stats.Bytes,
+			Drops:           class.Stats.Drops,
+			BacklogBytes:    class.Stats.Backlog,
+			LendedPackets:   class.Stats.Lended,
+			BorrowedPackets: class.Stats.Borrowed,
+			RateBps:         class.Rate,
+			CeilBps:         class.Ceil,
 		})
 	}
 	direct, err := t.directPackets(ctx)
@@ -184,13 +196,20 @@ func (t Tree) Stats(ctx context.Context) ([]ClassStats, uint64, error) {
 	return stats, direct, nil
 }
 
+// tcClass is the shape of one `tc -s -j class show` entry. HTB's xstats
+// (lended/borrowed/giants/tokens) are printed into the same JSON object as the
+// generic stats, not beside it — tc_class.c opens "stats" around both.
 type tcClass struct {
 	Class  string `json:"class"`
 	Handle string `json:"handle"`
+	Rate   uint64 `json:"rate"`
+	Ceil   uint64 `json:"ceil"`
 	Stats  struct {
-		Bytes   uint64 `json:"bytes"`
-		Drops   uint64 `json:"drops"`
-		Backlog uint64 `json:"backlog"`
+		Bytes    uint64 `json:"bytes"`
+		Drops    uint64 `json:"drops"`
+		Backlog  uint64 `json:"backlog"`
+		Lended   uint64 `json:"lended"`
+		Borrowed uint64 `json:"borrowed"`
 	} `json:"stats"`
 }
 
@@ -279,4 +298,33 @@ func run(ctx context.Context, name string, args ...string) ([]byte, error) {
 
 func writeSysctl(path, value string) error {
 	return os.WriteFile(path, []byte(value), 0o644)
+}
+
+// classRates resolves the rate/ceil pair tc is given for one tenant class,
+// bounded so that whatever the annotation said, the class is buildable and the
+// box cap holds.
+//
+//   - HTB rejects rate 0, and a tenant without a floor still needs a class to be
+//     countable and cappable, so it gets a 1 Mbit token trickle and lives off
+//     borrowing.
+//   - The box cap binds the floor as well as the ceiling. A floor is a promise
+//     out of the node's budget, so one larger than the whole budget is not a
+//     bigger promise, it is an unkeepable one: the root class cannot hand out
+//     what it does not have.
+//   - A ceiling under its own floor is a guarantee that can never be reached:
+//     ceil is the hard cap, so a class whose rate sits above it is throttled
+//     below its own floor for ever. tc accepts such a class without complaint
+//     (measured: `rate 900mbit ceil 100mbit` returns 0 and installs), which is
+//     exactly why this has to be normalised here — the kernel will not object on
+//     our behalf. The floor wins, having already been bounded by the box, so the
+//     tenant keeps a reachable guarantee and the neighbours keep their cap.
+//     Without the floor being bounded first, this last step is what would carry
+//     a bad floor past the box cap and onto the neighbours.
+func classRates(class TenantClass, nodeMbps int64) (floor, ceil int64) {
+	floor = min(max(class.FloorMbps, 1), nodeMbps)
+	ceil = class.BurstMbps
+	if ceil == 0 || ceil > nodeMbps {
+		ceil = nodeMbps
+	}
+	return floor, max(ceil, floor)
 }

@@ -77,6 +77,15 @@ var guestStatusReaders = []struct {
 			return present
 		},
 	},
+	{
+		name:    "runner-heartbeat",
+		file:    runnerHeartbeatFile,
+		content: heartbeatStatePolling + "\n",
+		accepted: func(d string) bool {
+			_, _, ok := readRunnerHeartbeat(d)
+			return ok
+		},
+	},
 }
 
 // The happy path is the whole point of the hardening being narrow: a guest that

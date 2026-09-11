@@ -39,6 +39,20 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert project.build_system == :gradle
   end
 
+  test "creates a Bazel project", %{conn: conn, account: account} do
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    render_hook(view, "select_build_system", %{"value" => ["bazel"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-bazel-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-bazel-project")
+
+    assert project.build_system == :bazel
+  end
+
   test "shows why a reserved project name cannot be created", %{conn: conn, account: account} do
     {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
 
@@ -55,6 +69,21 @@ defmodule TuistWeb.ProjectsLiveTest do
     html = view |> element("#create-project-form-modal-footer-portal") |> render()
 
     assert html =~ ~s(form="create-project-form")
+  end
+
+  test "renders several project cards without duplicating dom ids", %{conn: conn, account: account} do
+    for name <- ["first-project", "second-project", "third-project"] do
+      ProjectsFixtures.project_fixture(account_id: account.id, name: name)
+    end
+
+    {:ok, _view, html} = live(conn, ~p"/#{account.name}/projects")
+
+    document = Floki.parse_fragment!(html)
+
+    assert document |> Floki.find(~s([data-part="project"])) |> length() == 3
+
+    ids = Floki.attribute(document, "[id]", "id")
+    assert ids == Enum.uniq(ids)
   end
 
   test "ignores a stale pagination cursor on initial load", %{conn: conn, account: account} do

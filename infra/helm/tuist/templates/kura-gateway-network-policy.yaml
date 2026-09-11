@@ -1,0 +1,24 @@
+{{- if and .Values.kuraController.enabled .Values.kuraController.privateGateway.enabled }}
+# Host-network nginx connects as a node identity, including when proxying to
+# another host. Kubernetes ipBlock/namespace selectors cannot express that in
+# Cilium. Grant only the cache port on gateway-backed Kura pods; nginx enforces
+# the private client CIDRs and Kura continues to authenticate every request.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "kura-gateway") }}
+  namespace: {{ .Values.kuraController.namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kura
+      tuist.dev/host-network-gateway: "true"
+  ingress:
+    - fromEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - port: "4000"
+              protocol: TCP
+{{- end }}

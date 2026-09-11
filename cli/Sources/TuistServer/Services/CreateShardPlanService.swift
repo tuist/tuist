@@ -11,6 +11,7 @@ public protocol CreateShardPlanServicing {
         modules: [String]?,
         parallelizableModules: [String]?,
         testSuites: [String]?,
+        skippedTestSuites: [String]?,
         shardMin: Int?,
         shardMax: Int?,
         shardTotal: Int?,
@@ -55,6 +56,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         modules: [String]?,
         parallelizableModules: [String]?,
         testSuites: [String]?,
+        skippedTestSuites: [String]?,
         shardMin: Int?,
         shardMax: Int?,
         shardTotal: Int?,
@@ -83,6 +85,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
                     shard_max_duration: shardMaxDuration,
                     shard_min: shardMin,
                     shard_total: shardTotal,
+                    skipped_test_suites: skippedTestSuites,
                     test_suites: testSuites
                 )
             )
@@ -114,6 +117,10 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             case let .json(error):
                 throw CreateShardPlanServiceError.badRequest(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode, _):
             throw CreateShardPlanServiceError.unknownError(statusCode)
         }

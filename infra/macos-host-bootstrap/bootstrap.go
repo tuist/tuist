@@ -271,12 +271,36 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// MinGoldensKept floors how many golden base VMs tart-kubelet's
+	// disk-pressure reclaim may leave on the host
+	// (`--min-goldens-kept`). 0 uses tart-kubelet's own default of 1.
+	//
+	// A host that runs guests from more than one pool wants at least
+	// one golden per pool: reclaiming to a single golden under
+	// pressure strands the other pool into a full cold image pull
+	// (~10 min) on its next job. Only relevant once a host runs more
+	// than one guest — a single-guest host has one live pool at a
+	// time by construction.
+	MinGoldensKept int
+
 	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
 	// relay coordinates that tart-kubelet advertises after a dashboard
 	// session is requested. Managed tailnet clusters set these to the
 	// per-Mac Tailscale egress Service DNS name and port.
 	VNCRelayHost string
 	VNCRelayPort int
+
+	// VNCRelayPortCount is how many contiguous ports from VNCRelayPort
+	// tart-kubelet may bind for relays (`--vnc-relay-port-count`). 0 or
+	// 1 is the single pinned port.
+	//
+	// A pinned relay port is a per-host resource but a relay is a
+	// per-Pod one, so this must be at least the number of guests the
+	// host can run concurrently or the second guest's relay fails to
+	// bind and interactive sessions break on that half of the fleet.
+	// Every port in the range has to be declared on whatever fronts
+	// the host (the per-Mac Tailscale egress Service).
+	VNCRelayPortCount int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -356,12 +380,14 @@ type Config struct {
 	// RunnerCacheVolumeGiB > 0.
 	CacheVolumeMasterCapGiB int
 
-	// CacheVolumeCASGiB is the Xcode compilation cache's byte budget WITHIN
-	// each per-account cache image (folded in as a subdir), passed to
+	// CacheVolumeCASGiB is the Xcode compilation cache's FOOTPRINT allowance
+	// WITHIN each per-account cache image (folded in as a subdir), passed to
 	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
 	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
-	// 0 (default) leaves the compilation cache VM-local. Only meaningful when
-	// RunnerCacheVolumeGiB > 0.
+	// The compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE, which
+	// bounds one generation of a store that keeps two — so this is what the
+	// store should OCCUPY. 0 (default) leaves the compilation cache VM-local.
+	// Only meaningful when RunnerCacheVolumeGiB > 0.
 	CacheVolumeCASGiB int
 }
 
@@ -907,6 +933,12 @@ exit 1
 `, shellQuote(cfg.SSHUser))
 }
 
+// defaultMinGoldensKept mirrors tart-kubelet's own default for
+// --min-goldens-kept. Kept here so the plist renderer can tell "the
+// operator asked for the default" apart from "the operator asked for
+// more", and omit the flag in the first case.
+const defaultMinGoldensKept = 1
+
 func renderLaunchdPlist(cfg Config) string {
 	cpu := cfg.HostCPU
 	if cpu == 0 {
@@ -998,6 +1030,21 @@ func renderLaunchdPlist(cfg Config) string {
 	vncRelayPortArg := ""
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+		// Only rendered above 1 so a single-guest host's plist is
+		// byte-identical to what it rendered before the range existed
+		// and the fleet doesn't drift for a no-op flag.
+		if cfg.VNCRelayPortCount > 1 {
+			vncRelayPortArg += fmt.Sprintf("\n    <string>--vnc-relay-port-count=%d</string>", cfg.VNCRelayPortCount)
+		}
+	}
+	// Same rule, and the threshold is 1 rather than 0 because that is
+	// tart-kubelet's own default: a single-guest host resolves this to
+	// 1, and rendering it explicitly would say nothing while changing
+	// the fleet-wide config hash — drifting every existing mini to push
+	// a flag that does not alter behaviour.
+	minGoldensKeptArg := ""
+	if cfg.MinGoldensKept > defaultMinGoldensKept {
+		minGoldensKeptArg = fmt.Sprintf("\n    <string>--min-goldens-kept=%d</string>", cfg.MinGoldensKept)
 	}
 	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
@@ -1036,7 +1083,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -1050,7 +1097,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg, minGoldensKeptArg)
 }
 
 func shellQuote(s string) string {
@@ -1205,44 +1252,15 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 // macOS implements auto-login via:
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
-func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
-	// No password to XOR into /etc/kcpassword means we'd write a
-	// broken kcpassword (just the cipher key with no plaintext under
-	// it) and macOS would silently fail to auto-login the user. That
-	// path is hit on adopted pool hosts where Scaleway no longer
-	// surfaces the bootstrap password; the operator is expected to
-	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
-	// prep-script flow. Bail before doing damage.
-	if password == "" {
-		return nil
-	}
+//
+// autoLoginScript renders the auto-login setup. Split out of EnableAutoLogin
+// so its content is assertable without an SSH session: the sealed-marker
+// check inside it is a hardcoded constant that has to stay in step with
+// encodeKCPassword, and it must not reacquire a dependency on Xcode Command
+// Line Tools, which a rack host does not have.
+func autoLoginScript(user, password string) string {
 	encoded := encodeKCPassword(password)
-	// Stage the binary kcpassword via base64 to avoid TTY issues.
-	//
-	// Why we kick loginwindow at the end:
-	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
-	// macOS's loginwindow at boot does NOT honor the auto-login
-	// preference unless a display device is attached — so the system
-	// boots, the console stays at the root user, and no Aqua (GUI)
-	// session for the auto-login user comes up. Apple's
-	// Virtualization.framework refuses to start macOS guests in that
-	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
-	// which means tart-kubelet's `tart run` fails on every pod even
-	// after Tart and the kubelet are correctly installed.
-	//
-	// `launchctl kickstart -k system/com.apple.loginwindow` is the
-	// modern way to do this and handles both cases uniformly:
-	//   * loginwindow IS running: SIGTERM the existing instance and
-	//     respawn it.
-	//   * loginwindow is NOT running: just spawn it.
-	// `killall -HUP loginwindow` (the previous approach) exits 1 with
-	// "No matching processes were found" when loginwindow is missing,
-	// which is the state we land in if the host had loginwindow exit
-	// via SIGHUP earlier (launchd's policy is to not auto-respawn
-	// after SIGHUP for a console-bound daemon). kickstart talks to
-	// launchd's service registry directly so the missing-process case
-	// is a clean start, not an error.
-	script := fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -euo pipefail
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
@@ -1270,25 +1288,71 @@ done
 # session — Tart can't start guests, all runner pods hit
 # TartCreateFailed indefinitely.
 #
-# Read kcpassword as root and XOR-decode it; the first 8 bytes are
-# the signal. Python exit 1 here propagates via 'set -e' and fails
-# the bootstrap loudly, so the operator fixes the bootstrap-Secret-
-# vs-host password drift before the host ships.
-sudo /usr/bin/python3 - <<'CHECK'
-import sys
-key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
-with open('/etc/kcpassword', 'rb') as f:
-    enc = f.read()
-dec = bytes(b ^ key[i %% len(key)] for i, b in enumerate(enc))
-if dec.startswith(b'<sealed>'):
-    sys.stderr.write("kcpassword replaced by macOS with <sealed> marker — bootstrap-stored password does not match m1's actual password on this host\n")
-    sys.exit(1)
-CHECK
+# Compared as CIPHERTEXT rather than XOR-decoded, which is the same
+# test done with tools every macOS has. Apple's key is fixed and so is
+# the marker, so "<sealed>" always encodes to these 8 bytes; matching
+# them is equivalent to decoding and checking the prefix.
+#
+# This used to decode with /usr/bin/python3. That is a Command Line
+# Tools SHIM, not an interpreter: on a host without Xcode it exits
+# non-zero with "xcode-select: error: No developer tools were found",
+# which set -e turned into a bootstrap failure that named auto-login
+# and said nothing about the real cause. Rented images ship Xcode so
+# this never surfaced there; an MDM-provisioned rack host does not, and
+# it failed all 8 attempts on the BER1 prototype (2026-09-09). od is in
+# the base system and needs no developer tools.
+#
+# A match exits 1, which propagates via set -e and fails the bootstrap
+# loudly, so the operator fixes the password drift before the host
+# ships.
+if [ "$(sudo od -An -v -tx1 -N 8 /etc/kcpassword 2>/dev/null | tr -d ' \n')" = "41fa3742bed9b9d4" ]; then
+  echo "kcpassword replaced by macOS with the <sealed> marker: the stored password does not match this host's actual password for '%[1]s'" >&2
+  exit 1
+fi
 
 if [ "$session_up" = "0" ]; then
   echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
 fi
 `, user, encoded)
+}
+
+func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+	// No password to XOR into /etc/kcpassword means we'd write a
+	// broken kcpassword (just the cipher key with no plaintext under
+	// it) and macOS would silently fail to auto-login the user. That
+	// path is hit on adopted pool hosts where Scaleway no longer
+	// surfaces the bootstrap password; the operator is expected to
+	// stage `/etc/kcpassword` + autoLoginUser by hand as part of the
+	// prep-script flow. Bail before doing damage.
+	if password == "" {
+		return nil
+	}
+	// Stage the binary kcpassword via base64 to avoid TTY issues.
+	//
+	// Why we kick loginwindow at the end:
+	// On headless Apple Silicon Mac minis (Scaleway, AWS EC2 Mac, etc.)
+	// macOS's loginwindow at boot does NOT honor the auto-login
+	// preference unless a display device is attached — so the system
+	// boots, the console stays at the root user, and no Aqua (GUI)
+	// session for the auto-login user comes up. Apple's
+	// Virtualization.framework refuses to start macOS guests in that
+	// state ("Failed to get current host key" / VZErrorDomain Code=-9),
+	// which means tart-kubelet's `tart run` fails on every pod even
+	// after Tart and the kubelet are correctly installed.
+	//
+	// `launchctl kickstart -k system/com.apple.loginwindow` is the
+	// modern way to do this and handles both cases uniformly:
+	//   * loginwindow IS running: SIGTERM the existing instance and
+	//     respawn it.
+	//   * loginwindow is NOT running: just spawn it.
+	// `killall -HUP loginwindow` (the previous approach) exits 1 with
+	// "No matching processes were found" when loginwindow is missing,
+	// which is the state we land in if the host had loginwindow exit
+	// via SIGHUP earlier (launchd's policy is to not auto-respawn
+	// after SIGHUP for a console-bound daemon). kickstart talks to
+	// launchd's service registry directly so the missing-process case
+	// is a clean start, not an error.
+	script := autoLoginScript(user, password)
 	return RunCommand(ctx, client, script)
 }
 

@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
@@ -679,6 +680,140 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
     assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  test "hides insights when no project matches the job repository", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_502,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "unmatched/repository",
+        workflow_run_id: 315_020,
+        job_name: "test"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315020/jobs/31502")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "No matching project was found"
+  end
+
+  test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 900
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        fleet_name: "linux-amd64",
+        repository: "acme/mobile",
+        workflow_run_id: 900,
+        workflow_name: "pipeline",
+        job_name: "test",
+        head_branch: "main"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert has_element?(lv, ~s(a[href="https://gitlab.example.com/acme/mobile/-/jobs/42"]), "GitLab")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "https://github.com/acme/mobile"
+    refute html =~ "steps-card"
+    refute html =~ "job-secret"
+  end
+
+  describe "Buildkite jobs" do
+    defp buildkite_job!(account, workflow_run_id, job_name) do
+      {:ok, mapping} =
+        %Buildkite.Job{}
+        |> Buildkite.Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme",
+          pipeline_slug: "ios-app",
+          build_number: workflow_run_id,
+          queue_key: "tuist-macos"
+        })
+        |> Repo.insert(returning: true)
+
+      # `repository` holds the pipeline slug on this lane, exactly as
+      # `Buildkite.lifecycle_attrs/4` fills it.
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: mapping.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "ios-app",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "ios-app",
+          run_attempt: 1,
+          job_name: job_name,
+          head_branch: "main",
+          head_sha: ""
+        })
+
+      flush_outbox!()
+      mapping
+    end
+
+    test "links to the Buildkite build instead of a non-existent GitHub repository", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4821, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4821/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "https://buildkite.com/acme/ios-app/builds/4821"
+      # The GitHub deep link would be built from the pipeline slug and 404.
+      refute html =~ "https://github.com/ios-app"
+    end
+
+    test "omits the steps card, which this lane never populates", %{conn: conn, account: account} do
+      mapping = buildkite_job!(account, 4822, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4822/jobs/#{mapping.workflow_job_id}")
+
+      refute html =~ "Steps will appear here once the job finishes."
+    end
+
+    test "still offers insights, which resolve through the pipeline handle", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4823, "test")
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: "4823"
+        )
+
+      flush_outbox!()
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "Insights"
+      assert html =~ build_run.id
+    end
   end
 
   test "renders captured logs on mount", %{conn: conn, account: account} do
@@ -1356,6 +1491,51 @@ defmodule TuistWeb.RunnerJobLiveTest do
              lv,
              ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
            )
+  end
+
+  test "refuses a shell session to a member demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    # Given — a job whose shell is requestable, with the page already open while
+    # the member could still attach.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_999,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_990,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Demoted Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-demoted", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_999, "tuist-runner-linux-demoted", claimed_at)
+
+    flush_outbox!()
+
+    # Mounted away from the terminal tab, which auto-requests a session on
+    # connect and would create one before the demotion lands.
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/319990/jobs/31999")
+
+    # When — demoted without reloading. `InteractiveSessions` mints tokens
+    # without authorizing, so the socket's cached answer must not be what
+    # decides this.
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    render_hook(lv, "request_shell_session", %{})
+
+    # Then
+    assert is_nil(InteractiveSessions.current_for_job(account.id, 31_999, :shell))
   end
 
   test "closes the shell session when the browser terminal disconnects", %{

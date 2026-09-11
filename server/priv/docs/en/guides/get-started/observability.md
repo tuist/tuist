@@ -2,7 +2,7 @@
 {
   "title": "Observe",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Understand build and test performance, failures, flaky behavior, and regressions across Xcode and Gradle projects."
+  "description": "Understand build and test performance, failures, flaky behavior, and regressions across Xcode, Gradle, and Bazel projects."
 }
 ---
 # Observe {#observe}
@@ -26,6 +26,7 @@ Connect the guide that matches the build system already used by the project:
 - For an existing Xcode project or workspace, follow the <.localized_link href="/guides/features/build-insights/xcode">Xcode build insights guide</.localized_link>.
 - For a generated Xcode project, follow the <.localized_link href="/guides/features/build-insights/generated-projects">generated project build insights guide</.localized_link>.
 - For a Gradle project, follow the <.localized_link href="/guides/features/build-insights/gradle">Gradle build insights guide</.localized_link>.
+- For a Bazel project, follow the <.localized_link href="/guides/features/build-insights/bazel">Bazel build insights guide</.localized_link>.
 
 Once builds appear in the dashboard, compare runs that perform similar work. A clean build and an incremental build answer different questions, just as a small source change and a dependency update create different workloads. Keeping those comparisons focused makes a regression easier to identify and explain.
 
@@ -37,6 +38,7 @@ Connect test insights through the guide for your project:
 
 - For Xcode projects, follow the <.localized_link href="/guides/features/test-insights/xcode">Xcode test insights guide</.localized_link>.
 - For Gradle projects, follow the <.localized_link href="/guides/features/test-insights/gradle">Gradle test insights guide</.localized_link>.
+- For Bazel projects, follow the <.localized_link href="/guides/features/test-insights/bazel">Bazel test insights guide</.localized_link>.
 - Use <.localized_link href="/guides/features/test-insights/flaky-tests">flaky test detection</.localized_link> to identify tests whose results change without a corresponding code change.
 
 Not every test failure has the same cause. A test that fails consistently after a source change can point to a regression, while a test whose result changes without a corresponding code change can interrupt the workflow without providing useful feedback. Looking at results over time helps the team separate these cases and decide whether to fix product behavior, improve the test, or investigate the environment.

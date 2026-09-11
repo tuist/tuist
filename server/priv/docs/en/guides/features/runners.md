@@ -2,7 +2,7 @@
 {
   "title": "Runners",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Tuist Runners are managed macOS and Linux GitHub Actions runners with a cache colocated next to the compute and shared with your local machines."
+  "description": "Tuist Runners are managed macOS and Linux runners for GitHub Actions and Buildkite, with a cache colocated next to the compute and shared with your local machines."
 }
 ---
 # Runners {#runners}
@@ -13,11 +13,13 @@
 > Tuist Runners are currently invite-only while we scale capacity. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account. Pricing isn't public yet; we'll announce it later this year, when Runners become generally available.
 
 
-Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses, with no runner agent to install and no infrastructure to maintain.
+Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows and Buildkite pipelines. Instead of running jobs on your CI provider's hosted machines, you point a job at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and it runs on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses, with no runner agent to install and no infrastructure to maintain.
 
-Adopting them is usually a one-line change to your workflow:
+Adopting them is usually a one-line change to a job:
 
-```diff
+::: code-group
+
+```diff [GitHub Actions]
  jobs:
    build:
 -    runs-on: macos-latest
@@ -27,6 +29,17 @@ Adopting them is usually a one-line change to your workflow:
        - run: tuist test
 ```
 
+```diff [Buildkite]
+ steps:
+   - label: "Test"
+     command: tuist test
+     agents:
+-      queue: macos
++      queue: tuist-macos
+```
+<!-- -->
+:::
+
 ## Concurrency limits {#concurrency-limits}
 
 Each account has independent vCPU and memory concurrency limits for macOS and Linux. Before Tuist admits a job, it checks the job's <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape</.localized_link> against all jobs currently running on that platform. The job starts only when both its vCPU and memory fit within the remaining capacity; otherwise it stays queued until capacity becomes available. Work on one platform never consumes the other platform's capacity.
@@ -35,20 +48,28 @@ The **Concurrency** section of the Runners dashboard shows the peak admitted vCP
 
 Your current limits are shown alongside each chart. If your workflows regularly reach them and spend time queued, [contact us](mailto:contact@tuist.dev) with your account handle, platform, and expected parallel workload. We'll review the required capacity and help raise the limits.
 
-<HomeCards>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Getting started"
-        details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
-        linkText="Get started"
-        link="/guides/features/runners/getting-started"/>
-    <HomeCard
-        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
-        title="Profiles"
-        details="Choose a platform, size, and Xcode version with named machine profiles you reference from runs-on."
-        linkText="Manage profiles"
-        link="/guides/features/runners/profiles"/>
-</HomeCards>
+<.home_cards>
+  <.home_card
+    title="GitHub Actions"
+    details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
+    link="/guides/features/runners/github-actions"
+/>
+  <.home_card
+    title="Buildkite"
+    details="Connect your cluster, name a queue after a Tuist profile, and target it from a step."
+    link="/guides/features/runners/buildkite"
+/>
+  <.home_card
+    title="GitLab CI"
+    details="Connect GitLab once and choose each job’s machine with pipeline tags."
+    link="/guides/features/runners/gitlab-ci"
+/>
+  <.home_card
+    title="Profiles"
+    details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
+    link="/guides/features/runners/profiles"
+/>
+</.home_cards>
 
 ## Why Tuist Runners {#why-tuist-runners}
 
