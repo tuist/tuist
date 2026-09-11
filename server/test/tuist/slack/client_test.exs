@@ -133,6 +133,38 @@ defmodule Tuist.Slack.ClientTest do
                Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
     end
 
+    test "returns :webhook_revoked on Slack's permanent auth/team errors" do
+      cases = [
+        {400, "invalid_token"},
+        {401, "invalid_token"},
+        {403, "action_prohibited"},
+        {400, "team_disabled"},
+        {400, "no_team"},
+        {400, "no_service_id"}
+      ]
+
+      for {status, reason} <- cases do
+        stub(Req, :post, fn _url, _opts ->
+          {:ok, %Req.Response{status: status, body: reason}}
+        end)
+
+        assert {:error, :webhook_revoked} =
+                 Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", []),
+               "expected :webhook_revoked for #{status} #{reason}"
+      end
+    end
+
+    test "returns transient error on 400 with an unknown body" do
+      stub(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 400, body: "invalid_payload"}}
+      end)
+
+      result = Client.post_to_webhook("https://hooks.slack.com/services/T0/B0/abcd", [])
+
+      assert {:error, message} = result
+      assert message =~ "Unexpected status code: 400"
+    end
+
     test "returns error on unexpected status code (transient)" do
       stub(Req, :post, fn _url, _opts ->
         {:ok, %Req.Response{status: 500, body: "boom"}}

@@ -17,6 +17,14 @@ defmodule Tuist.Slack.Client do
   @oauth_token_url "https://slack.com/api/oauth.v2.access"
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
+  # Slack incoming-webhook error strings that mean the destination is dead
+  # and further attempts will keep failing until the user re-authorizes the
+  # app: token revoked, workspace uninstalled the app, service or team is
+  # gone. Slack returns these as a plain-text body alongside a 400/401/403
+  # (or 404 for `no_service`, already handled by the status-only clause).
+  # See https://api.slack.com/messaging/webhooks#handling_errors.
+  @permanent_webhook_errors ~w(invalid_token no_service no_service_id no_team team_disabled action_prohibited)
+
   @doc """
   Exchanges an OAuth authorization code for an `incoming-webhook` token.
   """
@@ -114,6 +122,14 @@ defmodule Tuist.Slack.Client do
     {:error, :webhook_revoked}
   end
 
+  defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) when status in [400, 401, 403] do
+    if permanent_webhook_error?(body) do
+      {:error, :webhook_revoked}
+    else
+      {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
+    end
+  end
+
   defp handle_webhook_response({:ok, %Req.Response{status: status, body: body}}) do
     {:error, "Unexpected status code: #{status}. Body: #{inspect(body)}"}
   end
@@ -121,6 +137,12 @@ defmodule Tuist.Slack.Client do
   defp handle_webhook_response({:error, reason}) do
     {:error, "Request failed: #{inspect(reason)}"}
   end
+
+  defp permanent_webhook_error?(body) when is_binary(body) do
+    String.trim(body) in @permanent_webhook_errors
+  end
+
+  defp permanent_webhook_error?(_body), do: false
 
   defp handle_post_response({:ok, %Req.Response{status: 200, body: %{"ok" => true}}}) do
     :ok
