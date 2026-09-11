@@ -1999,12 +1999,26 @@ async fn put_keyvalue(
 
     let body = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
         Ok(body) => body,
-        Err(error) => {
-            state
-                .metrics
-                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
-            return buffered_upload_error_response(error, &state.metrics);
-        }
+        Err(error) => match classify_buffered_body_error(error) {
+            // A payload above the limit was refused before a write was ever
+            // attempted, so it stays out of the write counter: that counter
+            // means "a write we accepted did not land".
+            BufferedBodyError::TooLarge => {
+                state
+                    .metrics
+                    .record_memory_action("keyvalue_payload_rejected");
+                return error_response(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Request body exceeded allowed size",
+                );
+            }
+            BufferedBodyError::Request(error) => {
+                state
+                    .metrics
+                    .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
+                return request_body_error_response(error);
+            }
+        },
     };
     let body = match serde_json::from_slice::<KeyValuePutRequest>(&body) {
         Ok(body) => body,
@@ -3046,10 +3060,17 @@ async fn internal_backfill_bodies(State(state): State<SharedState>, request: Req
             state
                 .metrics
                 .record_backfill_bodies_peer_request(&peer_label, "invalid");
-            return error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                format!("Failed to read backfill bodies request: {error}"),
-            );
+            match classify_buffered_body_error(error) {
+                BufferedBodyError::TooLarge => {
+                    return error_response(
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        "Backfill bodies request exceeded allowed size",
+                    );
+                }
+                BufferedBodyError::Request(error) => {
+                    return request_body_error_response(error);
+                }
+            }
         }
     };
     let request_body: BackfillBodiesRequest = match serde_json::from_slice(&body) {
@@ -3587,7 +3608,20 @@ async fn internal_replicate_artifact(
                 state
                     .metrics
                     .record_replication_apply("replication", "artifact", "error");
-                return buffered_upload_error_response(error, &state.metrics);
+                match classify_buffered_body_error(error) {
+                    BufferedBodyError::TooLarge => {
+                        state
+                            .metrics
+                            .record_memory_action("keyvalue_payload_rejected");
+                        return error_response(
+                            StatusCode::PAYLOAD_TOO_LARGE,
+                            "Request body exceeded allowed size",
+                        );
+                    }
+                    BufferedBodyError::Request(error) => {
+                        return request_body_error_response(error);
+                    }
+                }
             }
         };
 
@@ -4810,21 +4844,25 @@ fn upload_io_error_response(error: String, fallback_status: StatusCode) -> Respo
     response
 }
 
+enum BufferedBodyError {
+    TooLarge,
+    Request(RequestBodyError),
+}
+
 // to_bytes wraps both the size limiter and transport errors in axum::Error.
-// Only the actual limiter error is a 413 (and a memory rejection).
-fn buffered_upload_error_response(error: axum::Error, metrics: &Metrics) -> Response {
+// Only the actual limiter error is a size rejection; everything else is the
+// same incoming-body failure the staged uploads classify. Callers decide which
+// domain counters a rejection belongs in, because a payload we refused to read
+// and a read that failed under us are different workload outcomes.
+fn classify_buffered_body_error(error: axum::Error) -> BufferedBodyError {
     use std::error::Error;
     if error
         .source()
         .is_some_and(|source| source.is::<http_body_util::LengthLimitError>())
     {
-        metrics.record_memory_action("keyvalue_payload_rejected");
-        return error_response(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "Request body exceeded allowed size",
-        );
+        return BufferedBodyError::TooLarge;
     }
-    request_body_error_response(RequestBodyError::from_error(error))
+    BufferedBodyError::Request(RequestBodyError::from_error(error))
 }
 
 fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
