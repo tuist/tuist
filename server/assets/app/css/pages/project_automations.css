@@ -418,8 +418,8 @@
 
   [data-part="section-toggle"] {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
     gap: var(--noora-spacing-5);
     cursor: pointer;
     border: 0;
