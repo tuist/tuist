@@ -9,6 +9,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
+  alias Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -328,6 +329,138 @@ defmodule Tuist.BillingTest do
       subscription = Billing.get_current_active_subscription(account)
       assert subscription.current_period_start == ~U[2026-10-08 10:00:00Z]
       assert subscription.current_period_end == ~U[2026-11-08 10:00:00Z]
+    end
+
+    test "asks for the account's standing prepaid minutes when the subscription renews" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      payload = %{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+        })
+      )
+
+      # When
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-11-08 10:00:00Z])
+        })
+      )
+
+      # Then
+      assert_enqueued(
+        worker: ApplyStandingRunnerPrepaidWorker,
+        args: %{account_id: account.id, period_start: "2026-10-08T10:00:00Z"}
+      )
+    end
+
+    test "does not ask again for a subscription change that is not a renewal" do
+      # Stripe sends `customer.subscription.updated` for far more than
+      # renewals. Asking on each one would grant, and so bill, a standing
+      # customer several times over inside one period.
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      payload = %{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+        current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+
+      Billing.on_subscription_change(payload)
+
+      assert_enqueued(
+        worker: ApplyStandingRunnerPrepaidWorker,
+        args: %{account_id: account.id, period_start: "2026-09-08T10:00:00Z"}
+      )
+
+      # When
+      Billing.on_subscription_change(Map.put(payload, :default_payment_method, "pm_other"))
+
+      # Then
+      assert [_only_one] =
+               all_enqueued(worker: ApplyStandingRunnerPrepaidWorker)
+    end
+
+    test "ignores an older event delivered after a newer one" do
+      # Stripe guarantees no ordering. A stale event rewrites the row with
+      # a period already closed, and treating any change of period as a
+      # renewal would grant against that one and then grant again when the
+      # newer period is restored, billing the customer twice. Uniqueness
+      # cannot catch this: each period is a key of its own.
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      payload = %{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-11-08 10:00:00Z])
+        })
+      )
+
+      # When
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+        })
+      )
+
+      # Then
+      refute_enqueued(
+        worker: ApplyStandingRunnerPrepaidWorker,
+        args: %{account_id: account.id, period_start: "2026-09-08T10:00:00Z"}
+      )
+
+      assert [_only_the_newer] = all_enqueued(worker: ApplyStandingRunnerPrepaidWorker)
+    end
+
+    test "does not ask on a change that leaves the subscription unable to carry the charge" do
+      # A cancelled subscription generates no invoice, so a prepaid charge
+      # raised against it would sit pending indefinitely.
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      _account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "canceled",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+        current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # Then
+      refute_enqueued(worker: ApplyStandingRunnerPrepaidWorker)
     end
 
     test "persists cancel_at_period_end from the Stripe payload" do

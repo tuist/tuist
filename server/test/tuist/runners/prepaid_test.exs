@@ -592,6 +592,70 @@ defmodule Tuist.Runners.PrepaidTest do
     end
   end
 
+  describe "apply_standing_minutes/1" do
+    test "grants the standing level the account carries" do
+      stub(CreditGrants, :list_for_customer, fn _customer_id -> {:ok, []} end)
+      stub_account_period(~U[2026-10-21 01:29:59Z])
+
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.amount == 36_000
+        {:ok, %{id: "ii_1"}}
+      end)
+
+      expect(CreditGrants, :create, fn attrs ->
+        assert attrs.amount_cents == 45_000
+        {:ok, %{id: "credgr_1"}}
+      end)
+
+      account = %Account{customer_id: "cus_standing", runner_prepaid_monthly_minutes: 6_000}
+
+      assert {:ok, _} = Prepaid.apply_standing_minutes(account)
+    end
+
+    test "does nothing for an account carrying no standing level" do
+      # Almost every account. It must cost no Stripe call at all, since
+      # every renewal in the fleet runs through here.
+      reject(&Stripe.Invoiceitem.create/1)
+      reject(&CreditGrants.create/1)
+
+      assert {:ok, :no_standing_order} =
+               Prepaid.apply_standing_minutes(%Account{customer_id: "cus_none", runner_prepaid_monthly_minutes: nil})
+    end
+
+    test "converges on the standing level when the period opens with credit still live" do
+      # A grant normally expires with the period it was bought for, but
+      # one Stripe reported no bounds for is dated a month out and can
+      # outlive its own period. Setting rather than granting means the
+      # account still ends up holding the standing figure.
+      stub(CreditGrants, :list_for_customer, fn _customer_id ->
+        {:ok, [prepaid_grant("credgr_old", "ii_old")]}
+      end)
+
+      stub_account_period(~U[2026-10-21 01:29:59Z])
+
+      expect(Stripe.Invoiceitem, :delete, fn "ii_old" -> {:ok, %{id: "ii_old", deleted: true}} end)
+      expect(CreditGrants, :void, fn "credgr_old" -> {:ok, %{id: "credgr_old"}} end)
+
+      expect(Stripe.Invoiceitem, :create, fn params ->
+        assert params.amount == 36_000
+        {:ok, %{id: "ii_new"}}
+      end)
+
+      expect(CreditGrants, :create, fn _attrs -> {:ok, %{id: "credgr_new"}} end)
+
+      account = %Account{customer_id: "cus_standing", runner_prepaid_monthly_minutes: 6_000}
+
+      assert {:ok, _} = Prepaid.apply_standing_minutes(account)
+    end
+  end
+
+  describe "standing_minutes/1" do
+    test "reads the level off the account" do
+      assert Prepaid.standing_minutes(%Account{runner_prepaid_monthly_minutes: 6_000}) == 6_000
+      assert Prepaid.standing_minutes(%Account{runner_prepaid_monthly_minutes: nil}) == nil
+    end
+  end
+
   describe "refresh_balance/1" do
     test "writes the cache even when nothing is left" do
       # summarize/1 answers nil for an account holding nothing, and the

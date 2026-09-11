@@ -28,6 +28,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:ok, account} ->
         account = preload_billing(account)
         balance = Prepaid.balance(account)
+        subscription = Billing.get_current_active_subscription(account)
 
         {:ok,
          socket
@@ -38,7 +39,8 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:prepaid_minutes_value, held_minutes(balance))
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
-         |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign_standing_prepaid(account, subscription)
+         |> assign(:has_subscription, not is_nil(subscription))
          |> assign_free_tier(account)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
@@ -216,6 +218,43 @@ defmodule TuistWeb.OpsAccountLive do
 
       :error ->
         {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to clear."))}
+    end
+  end
+
+  @impl true
+  def handle_event("quote_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    {:noreply, assign(socket, :standing_prepaid_quote, quote_minutes(minutes))}
+  end
+
+  # Recording the level only. Setting it does not touch the period
+  # already running, so an operator agreeing a deal mid-cycle uses the
+  # field above for this cycle and this one for every cycle after.
+  @impl true
+  def handle_event("set_standing_prepaid_minutes", %{"minutes" => minutes}, socket) do
+    case parse_minutes(minutes) do
+      {:ok, minutes} ->
+        level = if minutes == 0, do: nil, else: minutes
+
+        case Prepaid.set_standing_minutes(socket.assigns.account, level) do
+          {:ok, account} ->
+            {:noreply,
+             socket
+             |> assign(:account, preload_billing(account))
+             |> assign(:standing_prepaid_minutes_value, minutes)
+             |> assign(:standing_prepaid_quote, nil)
+             |> put_flash(:info, set_standing_minutes_message(account, level))}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard", "Could not set the standing monthly minutes: %{reason}", reason: inspect(reason))
+             )}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard", "Enter a whole number of minutes, or zero to stop."))}
     end
   end
 
@@ -496,6 +535,35 @@ defmodule TuistWeb.OpsAccountLive do
       account: account.name
     )
   end
+
+  defp assign_standing_prepaid(socket, account, subscription) do
+    socket
+    |> assign(:standing_prepaid_minutes_value, Prepaid.standing_minutes(account) || 0)
+    |> assign(:standing_prepaid_quote, nil)
+    # The renewal is what grants the standing level, so the end of the
+    # period now running is when the next one lands.
+    |> assign(:standing_prepaid_next_at, subscription && subscription.current_period_end)
+  end
+
+  defp set_standing_minutes_message(account, nil) do
+    dgettext("dashboard", "%{account} will no longer be granted minutes at each renewal.", account: account.name)
+  end
+
+  defp set_standing_minutes_message(account, minutes) do
+    quoted = Prepaid.quote_minutes(minutes)
+
+    dgettext(
+      "dashboard",
+      "%{account} will be granted %{minutes} minutes at each renewal, billed %{amount} a cycle. The cycle now running is unchanged.",
+      minutes: format_number(minutes),
+      amount: format_money(quoted.invoiced),
+      account: account.name
+    )
+  end
+
+  def standing_prepaid_next_label(nil), do: dgettext("dashboard", "the next renewal")
+
+  def standing_prepaid_next_label(%DateTime{} = next_at), do: Timex.format!(next_at, "{Mfull} {D}, {YYYY}")
 
   # The field opens on what the account holds, so an operator corrects a
   # figure rather than working out the difference from the table above.

@@ -67,6 +67,7 @@ defmodule Tuist.Accounts.Account do
     field :custom_cache_endpoints_enabled, :boolean, default: false
     field :runner_trial_started_at, :utc_datetime
     field :runner_trial_ended_at, :utc_datetime
+    field :runner_prepaid_monthly_minutes, :integer
 
     belongs_to :organization, Organization
     belongs_to :user, User
@@ -135,6 +136,16 @@ defmodule Tuist.Accounts.Account do
 
   def runner_trial_changeset(account, attrs) do
     cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
+  end
+
+  # `nil` is the off state, so the level is deliberately not required.
+  # Zero would read as a standing order to hold nothing, which is a way
+  # of destroying minutes on a schedule rather than an arrangement
+  # anyone sells.
+  def runner_prepaid_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:runner_prepaid_monthly_minutes])
+    |> validate_number(:runner_prepaid_monthly_minutes, greater_than: 0)
   end
 
   def free_tier_reset_changeset(account, attrs) do
