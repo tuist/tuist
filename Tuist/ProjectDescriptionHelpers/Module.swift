@@ -1474,6 +1474,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .appleArchiver:
                 [
+                    .target(name: Module.logging.targetName),
                     .external(name: "Path"),
                     .external(name: "Mockable"),
                 ]
@@ -1626,6 +1627,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .appleArchiver:
                 [
+                    .target(name: Module.loggerTesting.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
