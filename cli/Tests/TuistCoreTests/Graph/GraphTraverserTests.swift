@@ -3429,6 +3429,57 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableDependencies_includeTransitiveDynamicCachedDependenciesOfStaticFrameworks() throws {
+        // App -> StaticFeature -> CachedFeature -> CachedModels
+        //
+        // CachedFeature's public API can expose CachedModels types. The application therefore needs
+        // both cached dynamic frameworks in its link phase, despite CachedFeature being reached through
+        // a static framework.
+        let app = Target.test(name: "App", product: .app)
+        let staticFeature = Target.test(name: "StaticFeature", product: .staticFramework)
+        let cachedFeaturePath = try AbsolutePath(validating: "/path/to/frameworks/CachedFeature.xcframework")
+        let cachedModelsPath = try AbsolutePath(validating: "/path/to/frameworks/CachedModels.xcframework")
+        let cachedFeature = GraphDependency.testXCFramework(
+            path: cachedFeaturePath,
+            linking: .dynamic
+        )
+        let cachedModels = GraphDependency.testXCFramework(
+            path: cachedModelsPath,
+            linking: .dynamic
+        )
+        let cachedImplementation = GraphDependency.testXCFramework(
+            path: "/path/to/frameworks/CachedImplementation.xcframework",
+            linking: .static
+        )
+        let project = Project.test(path: "/path/project", targets: [app, staticFeature])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: staticFeature.name, path: project.path),
+                ],
+                .target(name: staticFeature.name, path: project.path): [cachedFeature],
+                cachedFeature: [cachedModels, cachedImplementation],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.linkableDependencies(path: project.path, name: app.name)
+        let searchPathDependencies = subject.precompiledSearchPathDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(result.sorted(), [
+            .product(target: "StaticFeature", productName: "StaticFeature.framework"),
+            GraphDependencyReference(cachedFeature),
+            GraphDependencyReference(cachedModels),
+        ])
+        XCTAssertEqual(searchPathDependencies.precompiledPaths, [
+            cachedFeaturePath,
+            cachedModelsPath,
+        ])
+    }
+
     func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
         // Given
         // App > DynamicFramework > PrecompiledDynamicFramework
