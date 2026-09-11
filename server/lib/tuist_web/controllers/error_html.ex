@@ -2,7 +2,6 @@ defmodule TuistWeb.ErrorHTML do
   use TuistWeb, :html
   use Noora
 
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Layouts
   alias TuistWeb.Marketing.MarketingHTML
 
@@ -54,17 +53,13 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
-  # Every 404 renders the redesigned marketing page once its page flag is on
-  # (tuist.dev shares one host between the marketing site and the dashboard:
-  # an unknown single-segment URL like /r is the dashboard's account route
-  # missing, and it should read as the public not-found page). Other statuses
-  # keep the dashboard error page.
-  def render("404.html", %{conn: %Plug.Conn{} = conn} = assigns) do
-    if Design.new?(conn) do
-      render_marketing_not_found(assigns)
-    else
-      render_dashboard_not_found(assigns)
-    end
+  # Every 404 renders the marketing not-found page (tuist.dev shares one host
+  # between the marketing site and the dashboard: an unknown single-segment
+  # URL like /r is the dashboard's account route missing, and it should read
+  # as the public not-found page). Other statuses keep the dashboard error
+  # page.
+  def render("404.html", %{conn: %Plug.Conn{}} = assigns) do
+    render_marketing_not_found(assigns)
   end
 
   def render("404.html", assigns), do: render_dashboard_not_found(assigns)
@@ -159,7 +154,6 @@ defmodule TuistWeb.ErrorHTML do
 
     assigns =
       assigns
-      |> Map.put(:new_design, true)
       |> Map.put(:current_path, conn.request_path)
       |> Map.put(:head_title, dgettext("marketing", "Page not found") <> " · Tuist")
       |> Map.put(
@@ -170,7 +164,7 @@ defmodule TuistWeb.ErrorHTML do
       |> Map.put(:head_twitter_card, "summary_large_image")
 
     assigns
-    |> Map.put(:inner_content, MarketingHTML.not_found_new(assigns))
+    |> Map.put(:inner_content, MarketingHTML.not_found(assigns))
     |> Layouts.root()
   end
 

@@ -29,7 +29,6 @@ debug_errors_enabled = System.get_env("TUIST_DEV_DISABLE_DEBUG_ERRORS") not in [
 base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap --watch)]},
-  esbuild_marketing_new: {Esbuild, :install_and_run, [:marketing_new, ~w(--sourcemap --watch)]},
   esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap --watch)]},
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap --watch)]}
 ]
@@ -110,6 +109,7 @@ config :esbuild,
       "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--external:/marketing/*",
       "--alias:@=.",
       "--alias:noora/hooks=#{noora_source_path}/js",
       "--alias:noora=#{noora_source_path}/js/index.js",

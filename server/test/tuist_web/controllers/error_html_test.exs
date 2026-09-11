@@ -33,7 +33,7 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
            |> List.first()
   end
 
-  describe "render 404.html with the redesigned page flag" do
+  describe "render 404.html (marketing not-found page)" do
     setup do
       # The redesigned footer asks for ongoing incidents; keep that off the
       # network.
@@ -41,22 +41,17 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
       :ok
     end
 
-    defp render_not_found(conn, flag_enabled) do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> flag_enabled
-        _flag -> false
-      end)
-
+    defp render_not_found(conn) do
       "404.html"
       |> TuistWeb.ErrorHTML.render(%{conn: conn, status: 404, kind: :error, reason: nil, stack: []})
       |> Phoenix.LiveViewTest.rendered_to_string()
       |> Floki.parse_document!()
     end
 
-    test "renders the marketing 404 for an unrouted URL when the page flag is on" do
+    test "renders the marketing 404 for an unrouted URL" do
       conn = %{build_conn() | request_path: "/does-not-exist"}
 
-      html = render_not_found(conn, true)
+      html = render_not_found(conn)
 
       assert html |> Floki.find("#marketing-not-found") |> List.first()
 
@@ -72,7 +67,7 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
                "404"
 
       assert html |> Floki.find("#marketing-navbar") |> List.first()
-      assert html |> Floki.find("link[href='/marketing/assets/bundle-new.css']") |> List.first()
+      assert html |> Floki.find("link[href='/marketing/assets/bundle.css']") |> List.first()
       assert html |> Floki.find("title:fl-contains('Page not found · Tuist')") |> List.first()
       assert html |> Floki.find("link[rel='canonical'][href$='/does-not-exist']") |> List.first()
     end
@@ -83,18 +78,9 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
         |> Map.put(:request_path, "/blog/missing-post")
         |> Plug.Conn.put_private(:phoenix_pipelines, [:open_api, :browser_marketing, :assign_current_path])
 
-      html = render_not_found(conn, true)
+      html = render_not_found(conn)
 
       assert html |> Floki.find("#marketing-not-found") |> List.first()
-    end
-
-    test "keeps the dashboard error page while the page flag is off" do
-      conn = %{build_conn() | request_path: "/does-not-exist"}
-
-      html = render_not_found(conn, false)
-
-      assert html |> Floki.find("#error-page") |> List.first()
-      refute html |> Floki.find("#marketing-not-found") |> List.first()
     end
 
     test "renders the marketing 404 for dashboard requests too (one host, one not-found page)" do
@@ -103,7 +89,7 @@ defmodule TuistWeb.Controllers.ErrorHTMLTest do
         |> Map.put(:request_path, "/r")
         |> Plug.Conn.put_private(:phoenix_pipelines, [:browser_app])
 
-      html = render_not_found(conn, true)
+      html = render_not_found(conn)
 
       assert html |> Floki.find("#marketing-not-found") |> List.first()
       refute html |> Floki.find("#error-page") |> List.first()

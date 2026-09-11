@@ -5,60 +5,20 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Marketing.Changelog
-  alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
     %{entry: List.first(Changelog.get_entries())}
   end
 
   describe "GET /changelog/:id" do
-    test "renders the legacy design and stylesheet by default", %{conn: conn, entry: entry} do
+    test "renders the page with the marketing stylesheet", %{conn: conn, entry: entry} do
       {:ok, _lv, html} = live(conn, ~p"/changelog/#{entry.id}")
 
       assert html =~ "/marketing/assets/bundle.css"
-      refute html =~ "/marketing/assets/bundle-new.css"
-    end
-
-    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn, entry: entry} do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      {:ok, _lv, html} = live(conn, ~p"/changelog/#{entry.id}")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
-    end
-
-    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn, entry: entry} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-
-      stub(FunWithFlags, :enabled?, fn _flag -> false end)
-
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing, [for: %{id: ^user_id}] -> true
-        _flag, _opts -> false
-      end)
-
-      {:ok, _lv, html} = conn |> log_in_user(user) |> live(~p"/changelog/#{entry.id}")
-
-      assert html =~ "/marketing/assets/bundle-new.css"
-      refute html =~ "/marketing/assets/bundle.css"
     end
   end
 
-  describe "GET /changelog/:id (new design)" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :new_marketing -> true
-        _ -> false
-      end)
-
-      :ok
-    end
-
+  describe "GET /changelog/:id (article)" do
     test "renders the entry with breadcrumb, title and date", %{conn: conn, entry: entry} do
       {:ok, _lv, html} = live(conn, ~p"/changelog/#{entry.id}")
 

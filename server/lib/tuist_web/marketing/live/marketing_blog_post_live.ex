@@ -4,32 +4,23 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   use Noora
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
-  import TuistWeb.Marketing.MarketingHTML, only: [marketing_banner: 1]
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Blog.CoverArtwork
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingBlogCovers
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
   embed_templates "marketing_blog_post_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (blog_post_new/1) distinct from the legacy blog_post/1.
-  embed_templates "marketing_blog_post_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: blog_post_new(assigns)
   def render(assigns), do: blog_post(assigns)
 
   def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:csp_nonce, get_csp_nonce())
-     |> assign(:new_design, Design.new?(socket.assigns[:current_user]))}
+    {:ok, assign(socket, :csp_nonce, get_csp_nonce())}
   end
 
   def handle_params(_params, url, socket) do
@@ -45,11 +36,10 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
     author = Blog.get_authors()[post.author]
     post_image_url = post_image_url(post)
 
-    # The redesign swaps a post's raster image for its generated cover
-    # artwork (dark variant on the social card); crawlers see it once the
-    # page's flag flips for anonymous traffic.
+    # A post with cover artwork puts its dark variant on the social card
+    # instead of the raster image.
     head_image_url =
-      if socket.assigns.new_design and MarketingBlogCovers.cover?(post) do
+      if MarketingBlogCovers.cover?(post) do
         Tuist.Environment.app_url(
           path: OpenGraph.image_path(:marketing_blog_cover, slug: CoverArtwork.basename(post)),
           marketing: true

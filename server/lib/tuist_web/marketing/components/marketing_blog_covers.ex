@@ -6,7 +6,7 @@ defmodule TuistWeb.Marketing.MarketingBlogCovers do
   The artwork comes from `Tuist.Marketing.Blog.CoverArtwork`, read from
   `priv/marketing/blog/covers/<basename>.svg` — the same file that feeds
   the post's Open Graph image. Paints carry data-fill / data-stroke
-  attributes (theme-following CSS, see marketing_new.css) so one SVG
+  attributes (theme-following CSS, see marketing.css) so one SVG
   serves both themes; posts without a cover file keep their raster image.
 
   The blog index also lists the customer case studies; those cards show
