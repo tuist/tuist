@@ -1,133 +1,98 @@
 #!/usr/bin/env bash
-# rust_libtest_junit.sh — run a Rust libtest binary and translate its stable
-# text output into a JUnit `test.xml` at $XML_OUTPUT_FILE.
+# rust_libtest_junit.sh — run a Rust libtest binary and translate its
+# structured JSON event stream into a JUnit `test.xml` at $XML_OUTPUT_FILE.
 #
-# Bazel sets $XML_OUTPUT_FILE for every test action and expects the runner to
-# write a JUnit report there. rules_rs / rules_rust's rust_test uses stable
-# libtest, which writes only human-readable text; without JUnit, Bazel
-# synthesizes a one-case-per-target report and Tuist collapses the target to
-# a single row. This wrapper parses the text output line by line and writes
-# real per-case rows so Tuist Test Insights shows every #[test].
+# Bazel sets $XML_OUTPUT_FILE for every test action and expects the runner
+# to write a JUnit report there. rules_rs / rules_rust's rust_test uses
+# stable libtest, which by default writes only human-readable text; without
+# JUnit, Bazel synthesizes a one-case-per-target report and Tuist collapses
+# the target to a single row. The wrapper unlocks libtest's structured
+# per-test event stream (`--format=json --report-time`, both -Z
+# unstable-options) via `RUSTC_BOOTSTRAP=1` on the pinned stable toolchain
+# and writes one <testcase> per emitted event with libtest's own
+# `exec_time`. Parsing pretty text with --test-threads=1 was the first
+# attempt and lost cases whenever a test wrote to the process's real fds
+# between the "test <name> ..." prefix and the trailing verdict (spotted by
+# esnunes on the PR: kura's `startup::tests::startup_signals_are_handled_
+# before_the_store_exists` disappeared under that shape).
 #
 # Invocation (from rust_junit_test in kura/bazel/rust_junit_test.bzl):
-#   rust_libtest_junit.sh <test-binary> [args-forwarded-to-binary...]
+#   rust_libtest_junit.sh <test-binary> <public-target-name> [args...]
+#
+# The public target name is threaded through as the JUnit suite/classname so
+# the durable per-case identity (name + classname + module) does not depend
+# on the macro's private `.binary` inner-target suffix (also esnunes' note).
 #
 # Environment inputs from Bazel:
 #   XML_OUTPUT_FILE — where JUnit XML must be written (required by Bazel)
 #   TEST_TMPDIR     — writable scratch dir (used for the captured raw log)
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "rust_libtest_junit.sh: expected the test binary as first argument" >&2
+if [[ $# -lt 2 ]]; then
+  echo "rust_libtest_junit.sh: expected <binary> <suite> as first two arguments" >&2
   exit 2
 fi
 
 binary=$1
-shift
+suite=$2
+shift 2
 
-# Bazel's runfiles: convert Bazel's short-path arg into a real path we can
-# execute regardless of how the wrapper is invoked (bazel test vs. bazel run).
 if [[ ! -x $binary && -n ${RUNFILES_DIR:-} && -x $RUNFILES_DIR/$binary ]]; then
   binary=$RUNFILES_DIR/$binary
 fi
 
-suite=$(basename "$binary")
 raw=${TEST_TMPDIR:-/tmp}/${suite}.raw.log
 
-# --format=pretty is the libtest default and is what emits one
-# "test <name> ... <result>" line per case; --format=terse (which I first
-# tried) only prints a dot per pass, which leaves the parser with nothing to
-# match. --test-threads=1 forces serial execution so consecutive output
-# lines correspond to consecutive test wall-clock windows: with parallel
-# tests, lines interleave and per-case timing collapses. The runtime cost
-# vs. the default parallelism is real (roughly 4x on kura's ~1000-case
-# suite) but is worth it for populated per-case duration percentiles in
-# Tuist Test Insights, since stable libtest does not expose --report-time.
-#
-# Each stdout line is prefixed with the wall-clock second at which the
-# wrapper observed it. The Python parser derives per-case duration from the
-# gap between a case's completion line and the previous one, and the "running
-# N tests" line seeds the first case.
 set +e
-"$binary" --format=pretty --test-threads=1 "$@" 2>&1 | python3 -u -c '
-import sys, time
-for line in sys.stdin:
-    sys.stdout.write(f"{time.time():.6f} {line}")
-' | tee "$raw"
+RUSTC_BOOTSTRAP=1 "$binary" -Z unstable-options --format json --report-time "$@" | tee "$raw"
 status=${PIPESTATUS[0]}
 set -e
 
 python3 - "$suite" "$raw" "$XML_OUTPUT_FILE" <<'PY'
-import re
+import json
 import sys
 from xml.sax.saxutils import escape
 
 suite, raw_path, xml_path = sys.argv[1:]
 
-ts_re = re.compile(r"^(?P<ts>\d+\.\d+) (?P<rest>.*)$")
-case_re = re.compile(r"^test (?P<name>.+?) \.\.\. (?P<result>ok|FAILED|ignored)\b")
-running_re = re.compile(r"^running \d+ tests?\b")
-failure_hdr_re = re.compile(r"^---- (?P<name>.+?) stdout ----")
-
-cases = []  # (name, result, duration_seconds)
-failures = {}
-current_fail = None
-last_ts = None  # wall clock of the previous case's completion line
+cases = []  # (name, verdict, duration_seconds, failure_message)
 
 with open(raw_path, "r", errors="replace") as fh:
-    for line in fh:
-        tsm = ts_re.match(line)
-        if not tsm:
-            # A rare unprefixed line (child process, panic-only) does not
-            # affect timing: only prefixed completion lines advance last_ts.
-            payload = line.rstrip("\n")
-            ts = None
-        else:
-            ts = float(tsm.group("ts"))
-            payload = tsm.group("rest").rstrip("\n")
-
-        if running_re.match(payload):
-            last_ts = ts
+    for raw_line in fh:
+        line = raw_line.strip()
+        if not line or not line.startswith("{"):
             continue
-
-        m = case_re.match(payload)
-        if m:
-            name = m.group("name")
-            result = m.group("result")
-            if ts is not None and last_ts is not None:
-                duration = max(ts - last_ts, 0.0)
-            else:
-                duration = 0.0
-            cases.append((name, result, duration))
-            if ts is not None:
-                last_ts = ts
-            current_fail = None
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            # A non-JSON line inside JSON output is either foreign output
+            # from a test that wrote to the real fds or a libtest banner
+            # line. Both are safe to skip: the "started"/"ok"/"failed" events
+            # for a real case are always their own line.
             continue
-
-        m = failure_hdr_re.match(payload)
-        if m:
-            current_fail = m.group("name")
-            failures[current_fail] = []
+        if event.get("type") != "test":
             continue
+        verdict = event.get("event")
+        if verdict not in ("ok", "failed", "ignored"):
+            # "started" and any future variants are not terminal; ignore.
+            continue
+        name = event.get("name", "")
+        duration = float(event.get("exec_time", 0.0) or 0.0)
+        failure = event.get("stdout") if verdict == "failed" else None
+        cases.append((name, verdict, duration, failure))
 
-        if current_fail is not None:
-            if payload.startswith("failures:") or payload.startswith("test result:"):
-                current_fail = None
-            else:
-                failures[current_fail].append(payload)
-
-def testcase(name, result, duration):
+def testcase(name, verdict, duration, failure):
     body = ""
-    if result == "FAILED":
-        msg = "\n".join(failures.get(name, [])).strip() or "test failed"
+    if verdict == "failed":
+        msg = (failure or "").strip() or "test failed"
         body = f'<failure message="test failed">{escape(msg)}</failure>'
-    elif result == "ignored":
+    elif verdict == "ignored":
         body = '<skipped/>'
     return f'    <testcase name="{escape(name)}" classname="{escape(suite)}" time="{duration:.6f}">{body}</testcase>'
 
 total = len(cases)
-failed = sum(1 for _, r, _ in cases if r == "FAILED")
-skipped = sum(1 for _, r, _ in cases if r == "ignored")
+failed = sum(1 for _, v, _, _ in cases if v == "failed")
+skipped = sum(1 for _, v, _, _ in cases if v == "ignored")
 
 with open(xml_path, "w") as out:
     out.write('<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -135,8 +100,8 @@ with open(xml_path, "w") as out:
     out.write(
         f'  <testsuite name="{escape(suite)}" tests="{total}" failures="{failed}" skipped="{skipped}">\n'
     )
-    for name, result, duration in cases:
-        out.write(testcase(name, result, duration) + "\n")
+    for name, verdict, duration, failure in cases:
+        out.write(testcase(name, verdict, duration, failure) + "\n")
     out.write('  </testsuite>\n')
     out.write('</testsuites>\n')
 PY
