@@ -294,9 +294,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageSettings: packageSettings
         )
 
+        let registryIdentities = Set(packageInfos.filter { $0.kind == "registry" }.map(\.id))
         let enabledTraitsPerPackage = Self.enabledTraits(
             rootPackageInfo: rootPackage,
-            packageInfos: packageInfoDictionary
+            packageInfos: packageInfoDictionary,
+            registryIdentities: registryIdentities
         )
 
         let packageModuleAliases = mutablePackageModuleAliases
@@ -318,7 +320,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
-                    enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
+                    enabledTraits: enabledTraitsPerPackage[
+                        Self.canonicalIdentity(packageInfo.id, registryIdentities: registryIdentities)
+                    ] ?? []
                 )
             )
         }
@@ -360,23 +364,33 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
     static func enabledTraits(
         rootPackageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo]
+        packageInfos: [String: PackageInfo],
+        registryIdentities: Set<String> = []
     ) -> [String: Set<String>] {
         var result: [String: Set<String>] = [:]
+
+        // Key the package infos by their canonical identity so lookups match
+        // regardless of whether a package is resolved through the registry (scoped
+        // identity) or source control (package name only).
+        let normalizedPackageInfos = packageInfos.reduce(into: [:]) { result, element in
+            result[canonicalIdentity(element.key, registryIdentities: registryIdentities)] = element.value
+        }
 
         processTraits(
             from: rootPackageInfo.dependencies,
             enabledTraitsForCurrentPackage: [],
-            packageInfos: packageInfos,
+            packageInfos: normalizedPackageInfos,
+            registryIdentities: registryIdentities,
             result: &result
         )
 
-        for (packageId, packageInfo) in packageInfos {
+        for (packageId, packageInfo) in normalizedPackageInfos {
             let enabledForThisPackage = result[packageId] ?? []
             processTraits(
                 from: packageInfo.dependencies,
                 enabledTraitsForCurrentPackage: enabledForThisPackage,
-                packageInfos: packageInfos,
+                packageInfos: normalizedPackageInfos,
+                registryIdentities: registryIdentities,
                 result: &result
             )
         }
@@ -388,6 +402,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         from dependencies: [PackageDependency],
         enabledTraitsForCurrentPackage: Set<String>,
         packageInfos: [String: PackageInfo],
+        registryIdentities: Set<String>,
         result: inout [String: Set<String>]
     ) {
         for dependency in dependencies {
@@ -401,14 +416,28 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 }
             }
 
+            let canonicalIdentity = canonicalIdentity(dependency.identity, registryIdentities: registryIdentities)
+
             let resolvedTraits = resolvedEnabledTraits(
                 enabledTraits,
-                packageTraits: packageInfos[dependency.identity]?.traits ?? []
+                packageTraits: packageInfos[canonicalIdentity]?.traits ?? []
             )
 
             guard !resolvedTraits.isEmpty else { continue }
-            result[dependency.identity, default: []].formUnion(resolvedTraits)
+            result[canonicalIdentity, default: []].formUnion(resolvedTraits)
         }
+    }
+
+    /// Normalizes a package identity so it can be correlated across sources.
+    ///
+    /// Registry packages are identified by a scoped identifier in the form
+    /// `scope.package-name` while source control and local packages are identified
+    /// by the package name alone. Dropping the scope (and lowercasing) lets the
+    /// same package resolve to the same key regardless of the source it came from.
+    static func canonicalIdentity(_ identity: String, registryIdentities: Set<String>) -> String {
+        let lowercasedIdentity = identity.lowercased()
+        guard registryIdentities.contains(lowercasedIdentity) else { return lowercasedIdentity }
+        return lowercasedIdentity.split(separator: ".").last.map(String.init) ?? lowercasedIdentity
     }
 
     private static func resolvedEnabledTraits(
