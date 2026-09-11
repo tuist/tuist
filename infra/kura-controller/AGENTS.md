@@ -4,6 +4,16 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Scope
 
+- Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
+  metrics are omitted rather than recorded as zero; auxiliary-container usage
+  must never influence the runtime request bands.
+- Optional fixed connectivity diagnostics: [`../../kura/src/connectivity/AGENTS.md`](../../kura/src/connectivity/AGENTS.md).
+  Exact deployment-configured instance names receive `KURA_CONNECTIVITY_PROFILE`
+  on the existing runtime container. No sidecar or readiness dependency is added.
+  Disabled by default; no RBAC, token-mount, or JIT policy changes. See
+  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
+  the environment change rolls selected instances under their existing strategy.
+
 - API group: `kura.tuist.dev`
 - Primary resource: `KuraInstance`
 - Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.

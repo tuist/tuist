@@ -150,10 +150,11 @@ type KuraInstanceReconciler struct {
 
 	// MetricsClient sources the readings behind requests.cpu. Nil leaves
 	// every instance on the cold-start constant.
-	MetricsClient  PodMetricsClient
-	gatewayCacheMu sync.Mutex
-	gatewayCache   map[string]gatewaySnapshot
-	clientDNSCache map[string]clientDNSObservation
+	MetricsClient                    PodMetricsClient
+	ConnectivityDiagnosticsInstances []string
+	gatewayCacheMu                   sync.Mutex
+	gatewayCache                     map[string]gatewaySnapshot
+	clientDNSCache                   map[string]clientDNSObservation
 
 	// podSamples holds the last-known /status/rollout report per pod, keyed
 	// by instance. It exists for the rollout-health aggregate: a pod that
@@ -3146,6 +3147,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 			// enrollment's hot reload does not watch these Secret files.
 			sts.Spec.Template.Annotations["kura.tuist.dev/peer-tls-certificate-hash"] = fmt.Sprintf("%x", sha256.Sum256(secret.Data[peerTLSCertFile]))
 		}
+		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
 		} else {

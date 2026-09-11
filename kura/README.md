@@ -378,6 +378,15 @@ Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sen
 
 ## 📊 Observability
 
+Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
+observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
+`production`, `staging`, or `canary` and is disabled when unset or invalid. The
+controller sets it only for deployment-selected instances. A dedicated thread
+and async runtime keep network waits and diagnostic failures out of startup and
+readiness decisions; this remains telemetry inside Kura's process resource budget.
+See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
+for fixed targets, sample interpretation, access boundaries, and rollout.
+
 Kura ships with a fairly complete local observability story:
 
 - 📈 Prometheus metrics

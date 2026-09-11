@@ -162,3 +162,11 @@ publication gate was not rerun under the human staging role, which cannot read
 DNSEndpoints. The previous CI deployment's DNS record checks remain the live
 record-count evidence. These targeted follow-up probes do not repeat or add to
 the earlier 960/12,288-operation traffic counts.
+
+
+After this deployment, main's opt-in connectivity-diagnostics change was merged.
+Conflict resolution retained both the diagnostic configuration and regional
+routing, wildcard SAN extension and peer certificate rollout. The final merged
+controller passed `go test -race ./...`, `go vet ./...` and managed Helm/plan
+checks again. That combined image was not redeployed; the live checks above
+apply specifically to `sha-f7e660ce42d6`.

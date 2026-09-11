@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,6 +41,7 @@ func main() {
 	var regionalRoutingConfig string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var connectivityDiagnosticsInstances string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -50,6 +52,7 @@ func main() {
 	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
+	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 
 	flag.StringVar(&regionalRoutingConfig, "regional-routing-config", "", "JSON array of regional wildcard domains and existing host-network ingress DaemonSets")
 
@@ -58,6 +61,18 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	probeInstances := splitNames(connectivityDiagnosticsInstances)
+	if len(probeInstances) != 0 && watchNamespace == "" {
+		setupLog.Error(errors.New("connectivity diagnostics require watch-namespace"), "invalid probe configuration")
+		os.Exit(1)
+	}
+
+	if len(probeInstances) != 0 {
+		if !controllers.ValidConnectivityProfile(deploymentEnvironment) {
+			setupLog.Error(errors.New("unsupported connectivity profile"), "invalid probe environment")
+			os.Exit(1)
+		}
+	}
 
 	regions, err := controllers.ParseRegionalRouting(regionalRoutingConfig)
 	if err != nil {
@@ -101,26 +116,22 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:              mgr.GetClient(),
-		APIReader:           mgr.GetAPIReader(),
-		Scheme:              mgr.GetScheme(),
-		GRPCClusterIssuer:   grpcClusterIssuer,
-		PublicTLSSecretName: publicTLSSecretName,
-		RegionalRouting:     regions,
-		OTLPTracesEndpoint:  otlpTracesEndpoint,
-		Environment:         deploymentEnvironment,
-		MetricsClient:       metricsClient,
+		Client:                           mgr.GetClient(),
+		APIReader:                        mgr.GetAPIReader(),
+		Scheme:                           mgr.GetScheme(),
+		GRPCClusterIssuer:                grpcClusterIssuer,
+		PublicTLSSecretName:              publicTLSSecretName,
+		OTLPTracesEndpoint:               otlpTracesEndpoint,
+		Environment:                      deploymentEnvironment,
+		MetricsClient:                    metricsClient,
+		ConnectivityDiagnosticsInstances: probeInstances,
+		RegionalRouting:                  regions,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
 	if publicTLSDNSNames != "" {
-		names := []string{}
-		for _, name := range strings.Split(publicTLSDNSNames, ",") {
-			if trimmed := strings.TrimSpace(name); trimmed != "" {
-				names = append(names, trimmed)
-			}
-		}
+		names := splitNames(publicTLSDNSNames)
 		for _, region := range regions {
 			names = append(names, "*."+region.Domain)
 		}
@@ -167,4 +178,14 @@ func main() {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)
 	}
+}
+
+func splitNames(value string) []string {
+	var names []string
+	for _, name := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(name); trimmed != "" {
+			names = append(names, trimmed)
+		}
+	}
+	return names
 }
