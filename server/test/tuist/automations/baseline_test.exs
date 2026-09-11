@@ -1,5 +1,6 @@
 defmodule Tuist.Automations.BaselineTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import Ecto.Query
 
@@ -306,6 +307,41 @@ defmodule Tuist.Automations.BaselineTest do
 
     assert Automations.list_active_alert_events(changed) == []
     assert changed.event_generation == changed.baseline_generation
+  end
+
+  test "silent retries deduplicate identical payloads but accept a changed active event set" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+    attempt = publishing_attempt(alert, [first, second])
+    test_pid = self()
+
+    for _ <- 1..2 do
+      expect(ClickHouseRepo, :all, fn _query, _opts -> [%{test_case_id: first}] end)
+
+      expect(IngestRepo, :insert_all, fn AlertEvent, records, opts ->
+        send(test_pid, {:publication, Enum.map(records, & &1.test_case_id), opts[:settings][:insert_deduplication_token]})
+        raise "unknown insert outcome"
+      end)
+
+      assert_raise RuntimeError, "unknown insert outcome", fn ->
+        Automations.establish_alert_baseline(alert, & &1)
+      end
+    end
+
+    assert_receive {:publication, [^second], first_token}
+    assert_receive {:publication, [^second], ^first_token}
+    assert Repo.reload!(attempt).last_published_test_case_id == nil
+
+    expect(ClickHouseRepo, :all, fn _query, _opts -> [] end)
+
+    expect(IngestRepo, :insert_all, fn AlertEvent, records, opts ->
+      assert Enum.map(records, & &1.test_case_id) == [first, second]
+      refute opts[:settings][:insert_deduplication_token] == first_token
+      {length(records), nil}
+    end)
+
+    assert :ok = Automations.establish_alert_baseline(alert, & &1)
+    assert Repo.reload!(attempt).state == "committed"
   end
 
   test "actioned baseline events start recovery dwell when actions run" do

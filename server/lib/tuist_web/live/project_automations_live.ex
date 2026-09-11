@@ -122,28 +122,33 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def handle_async(:match_count, _result, socket), do: {:noreply, socket}
 
   defp condition_inputs_valid?(assigns) do
-    event_driven_monitor_type?(assigns.create_automation_form_metric) or match_count_alert(assigns) != :invalid
+    condition_alert(assigns) != :invalid
   end
 
   defp match_count_alert(assigns) do
+    if event_driven_monitor_type?(assigns.create_automation_form_metric), do: :invalid, else: condition_alert(assigns)
+  end
+
+  defp condition_alert(assigns) do
     metric = assigns.create_automation_form_metric
     integer_threshold? = metric == "flaky_run_count"
 
     valid_numbers? =
-      valid_preview_number?(assigns.create_automation_form_threshold, integer_threshold?) and
-        (assigns.create_automation_form_window_type != "rolling" or
-           valid_preview_number?(assigns.create_automation_form_rolling_window_size, true))
+      event_driven_monitor_type?(metric) or
+        (valid_preview_number?(assigns.create_automation_form_threshold, integer_threshold?) and
+           (assigns.create_automation_form_window_type != "rolling" or
+              valid_preview_number?(assigns.create_automation_form_rolling_window_size, true)))
 
     changeset =
       Alert.changeset(%Alert{}, %{
         project_id: assigns.selected_project.id,
-        name: "Match preview",
+        name: "Condition validation",
         monitor_type: metric,
         trigger_config: trigger_config_for(metric, assigns),
-        trigger_actions: [default_add_label_action()]
+        trigger_actions: [default_change_state_action("muted")]
       })
 
-    if valid_numbers? and not event_driven_monitor_type?(metric) and changeset.valid? do
+    if valid_numbers? and changeset.valid? do
       {:ok, Ecto.Changeset.apply_changes(changeset)}
     else
       :invalid

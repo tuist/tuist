@@ -849,7 +849,31 @@ defmodule Tuist.Automations do
       alert.baseline_generation != attempt.baseline_generation
   end
 
-  defp publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) when is_function(apply_match, 2) do
+  defp publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) do
+    # Pin the session lock across external calls, but keep row-lock transactions
+    # short so edits and cancellation do not wait on Slack. A competing publisher
+    # leaves the pending attempt for the next scheduled evaluation.
+    lock_name = "automation-baseline:#{attempt.alert_id}"
+
+    Repo.checkout(
+      fn ->
+        case Repo.query!("SELECT pg_try_advisory_lock(hashtextextended($1, 0))", [lock_name]) do
+          %{rows: [[true]]} ->
+            try do
+              do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match)
+            after
+              Repo.query!("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lock_name])
+            end
+
+          %{rows: [[false]]} ->
+            :ok
+        end
+      end,
+      timeout: :infinity
+    )
+  end
+
+  defp do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) when is_function(apply_match, 2) do
     test_case_ids = list_unpublished_baseline_results(attempt)
 
     case test_case_ids do
@@ -870,13 +894,13 @@ defmodule Tuist.Automations do
           end)
 
         case result do
-          {:ok, next_attempt} -> publish_and_commit_alert_baseline(next_attempt, evaluate_batch, apply_match)
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, evaluate_batch, apply_match)
           {:error, :stale} -> :ok
         end
     end
   end
 
-  defp publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt, _evaluate_batch, nil) do
+  defp do_publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt, _evaluate_batch, nil) do
     test_case_ids = list_unpublished_baseline_results(attempt)
 
     case test_case_ids do
@@ -887,7 +911,7 @@ defmodule Tuist.Automations do
         result = publish_silent_baseline_batch(attempt, test_case_ids)
 
         case result do
-          {:ok, next_attempt} -> publish_and_commit_alert_baseline(next_attempt, nil, nil)
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, nil, nil)
           {:error, :stale} -> :ok
         end
     end
@@ -915,9 +939,20 @@ defmodule Tuist.Automations do
   end
 
   defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
-    # Each side effect needs its own durable checkpoint: batching this write
-    # would replay all successful actions when a later match fails. The lock
-    # also serializes concurrent publishers and edits of the same automation.
+    case prepare_baseline_match(attempt, test_case_id) do
+      {:ok, {:ready, alert, current_attempt}} ->
+        maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids, apply_match)
+        checkpoint_baseline_match(current_attempt, test_case_id)
+
+      {:ok, {:already_published, current_attempt}} ->
+        {:ok, current_attempt}
+
+      {:error, :stale} ->
+        {:error, :stale}
+    end
+  end
+
+  defp prepare_baseline_match(attempt, test_case_id) do
     with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
       cond do
         stale_alert_baseline_attempt?(alert, current_attempt) or not alert.enabled ->
@@ -925,15 +960,21 @@ defmodule Tuist.Automations do
 
         current_attempt.last_published_test_case_id != nil and
             current_attempt.last_published_test_case_id >= test_case_id ->
-          current_attempt
+          {:already_published, current_attempt}
 
         true ->
-          maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids, apply_match)
-
-          current_attempt
-          |> BaselineAttempt.changeset(%{last_published_test_case_id: test_case_id})
-          |> Repo.update!()
+          {:ready, alert, current_attempt}
       end
+    end)
+  end
+
+  defp checkpoint_baseline_match(attempt, test_case_id) do
+    # An edit may have cancelled this generation while its action was in flight.
+    # Record the completed action; the next preflight stops any remaining work.
+    with_locked_alert_baseline_attempt(attempt, fn _alert, current_attempt ->
+      current_attempt
+      |> BaselineAttempt.changeset(%{last_published_test_case_id: test_case_id})
+      |> Repo.update!()
     end)
   end
 
@@ -977,7 +1018,8 @@ defmodule Tuist.Automations do
 
     IngestRepo.insert_all(AlertEvent, records,
       settings: [
-        insert_deduplication_token: baseline_event_deduplication_token(attempt.id, attempt.last_published_test_case_id)
+        insert_deduplication_token:
+          baseline_event_deduplication_token(attempt.id, attempt.last_published_test_case_id, test_case_ids)
       ]
     )
   end
@@ -988,8 +1030,15 @@ defmodule Tuist.Automations do
     where(query, [result], result.test_case_id > ^test_case_id)
   end
 
-  defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id) do
-    "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}"
+  defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id, test_case_ids) do
+    digest =
+      test_case_ids
+      |> Enum.sort()
+      |> :erlang.term_to_binary()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+
+    "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}:#{digest}"
   end
 
   @doc false

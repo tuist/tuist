@@ -200,4 +200,36 @@ struct BazelrcFileTests {
 
         #expect(rewritten.contains("build --remote_cache=grpcs://acme-ca-east-1.kura.tuist.dev:8443"))
     }
+
+    @Test func turns_on_wire_compression_by_default() throws {
+        #expect(rendered().contains("build --remote_cache_compression=true"))
+    }
+
+    @Test func backfills_wire_compression_on_a_file_that_predates_it() throws {
+        // A file generated before the flag existed. The unchanged endpoint
+        // means the only diff should be the appended compression flag.
+        let unchangedEndpoint = GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
+        let legacy = rendered().replacingOccurrences(of: "build --remote_cache_compression=true\n", with: "")
+
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: unchangedEndpoint))
+
+        #expect(rewritten.contains("build --remote_cache_compression=true"))
+    }
+
+    @Test func preserves_an_explicit_wire_compression_opt_out() throws {
+        // A developer that has turned compression off (or on) explicitly must
+        // keep that value, so the migration does not fight local preferences.
+        let unchangedEndpoint = GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
+        let existing = rendered().replacingOccurrences(
+            of: "build --remote_cache_compression=true",
+            with: "build --remote_cache_compression=false"
+        )
+
+        let rewritten = BazelrcFile.replacingRemoteCache(in: existing, with: unchangedEndpoint)
+
+        // Nothing changed, so the function returns nil.
+        #expect(rewritten == nil)
+        #expect(existing.contains("build --remote_cache_compression=false"))
+        #expect(!existing.contains("build --remote_cache_compression=true"))
+    }
 }

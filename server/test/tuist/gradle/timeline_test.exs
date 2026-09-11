@@ -11,12 +11,28 @@ defmodule Tuist.Gradle.TimelineTest do
 
   @start ~U[2026-09-09 10:00:00.123000Z]
 
+  test "availability accepts aligned samples but not samples entirely before the build" do
+    for {offset, available} <- [{-1, false}, {1, true}] do
+      id =
+        GradleFixtures.build_fixture(
+          started_at: @start,
+          machine_metrics: [
+            metric(DateTime.to_unix(@start, :microsecond) / 1_000_000 + offset)
+          ]
+        )
+
+      {:ok, build} = Gradle.get_build(id)
+      assert Timeline.available?(build) == available
+    end
+  end
+
   test "zero-duration task outcomes are retained in the timeline and step API" do
     outcomes = ~w(cache_hit up_to_date skipped no_source)
     tasks = Enum.map(outcomes, &Map.put(task(":#{&1}", &1, @start), :duration_ms, 0))
     id = GradleFixtures.build_fixture(started_at: @start, tasks: tasks)
     {:ok, build} = Gradle.get_build(id)
     assert Timeline.load(build).total_count == 4
+    assert Timeline.available?(build)
 
     for outcome <- outcomes do
       assert {:ok, %{steps: [%{status: ^outcome, duration_ms: 0} = step]}} = RecordedSteps.list(build, %{status: outcome})

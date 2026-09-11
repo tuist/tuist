@@ -2,12 +2,12 @@
   <main id="marketing-about">
     <header data-part="header">
       <h1 data-part="title">
-        {dgettext("marketing", "Building the future of scalable app development")}
+        {dgettext("marketing", "Automation only moves as fast as the loop it runs in.")}
       </h1>
       <p data-part="subtitle">
         {dgettext(
           "marketing",
-          "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges, so you can deliver exceptional apps at speed."
+          "Tuist compresses that loop. Builds, tests, and the retries in between finish in seconds instead of minutes, so your developers stay in flow, your CI stops burning time, and the agents in your pipeline can think, try, and correct their way to code that works."
         )}
       </p>
     </header>
@@ -42,26 +42,31 @@
       <span data-part="eyebrow">{dgettext("marketing", "Mission")}</span>
       <div data-part="main">
         <h2 data-part="title">
-          <span data-part="line">{dgettext("marketing", "We want to enable")}</span>
-          <span data-part="line">{dgettext("marketing", "teams to scale with joy")}</span>
+          <span data-part="line">{dgettext("marketing", "We want developers to build")}</span>
+          <span data-part="line">{dgettext("marketing", "better software, faster.")}</span>
         </h2>
+        <% shopify_link =
+          ~s(<a href="https://www.shopify.com/" data-part="link" target="_blank" rel="noopener noreferrer">Shopify</a>) %>
         <article data-part="body">
           <p>
-            {dgettext(
-              "marketing",
-              "We believe building apps should be a joyful experience. But as teams and products grow, developers often spend more time managing fragmented tools, infrastructure, and workflows than creating great software. Tuist brings these pieces together so teams can build and share high-quality apps with greater speed and scale."
+            {raw(
+              dgettext(
+                "marketing",
+                "We're obsessed with helping developers build better software, faster. That obsession comes from doing the work at scale ourselves. Our team spent years shipping the tools behind mobile at %{shopify}, and Tuist is what we learned along the way.",
+                shopify: shopify_link
+              )
             )}
           </p>
           <p>
             {dgettext(
               "marketing",
-              "We are building an integrated platform for the entire app development lifecycle, from the first idea to production. By combining continuous integration, testing, caching, analytics, and release automation into one cohesive experience, Tuist removes unnecessary complexity and lets developers focus on building."
+              "Tuist started as a client-side toolkit for the Apple ecosystem. We turned it into a business so we could do what we love most, full time: building the infrastructure and technology to support the full diversity of build toolchains developers use today. Whatever you build with, we want the toolchain underneath to feel invisible."
             )}
           </p>
           <p>
             {dgettext(
               "marketing",
-              "Tuist was born in the Apple ecosystem, but our ambition goes beyond a single platform. We want to make building software at scale delightful for every developer, with an open and flexible platform that integrates seamlessly into their repository and simply works."
+              "Then AI happened, and optimizing your toolchain stopped being a luxury only large teams could afford. Every developer, and every agent working alongside them, needs the same fast, reliable feedback loops. That's what we're building next, with a stubborn commitment to sparking joy in the people who use it."
             )}
           </p>
           <.link_button
@@ -185,7 +190,7 @@
     </div>
 
     <section data-part="cta" aria-labelledby="cta-title">
-      <span data-part="eyebrow">{dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste!")}</span>
+      <span data-part="eyebrow">{dgettext("marketing", "Hola! Hello! Hallo! Olá! Namaste! Ahoj!")}</span>
       <h2 id="cta-title">{dgettext("marketing", "Your platform team, as a service")}</h2>
       <div data-part="actions" role="group" aria-labelledby="cta-title">
         <.button href={~p"/users/register"} label={dgettext("marketing", "Get started")} />

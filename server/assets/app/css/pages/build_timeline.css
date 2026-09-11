@@ -425,8 +425,7 @@
   }
 
   & [data-part="notice"],
-  & [data-part="no-matches"],
-  & [data-part="no-recorded-steps"] {
+  & [data-part="no-matches"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }

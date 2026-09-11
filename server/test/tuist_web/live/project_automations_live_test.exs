@@ -668,6 +668,25 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute automation.recovery_enabled
     end
 
+    test "requires an event selection before saving a test_updated automation", context do
+      {:ok, lv, _html} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State change"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
+      assert render(lv) =~ ~s(disabled="" type="button" phx-click="save_automation")
+      assert render(lv) =~ "Complete a valid condition."
+      render_hook(lv, "save_automation", %{})
+      assert Automations.list_alerts(context.project.id) == []
+
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
+      refute render(lv) =~ ~s(disabled="" type="button" phx-click="save_automation")
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.trigger_config["events"] == ["marked_flaky"]
+    end
+
     test "Save is disabled when switching to test_updated strips the only action", %{
       conn: conn,
       organization: organization,
