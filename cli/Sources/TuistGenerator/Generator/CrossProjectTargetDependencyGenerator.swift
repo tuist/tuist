@@ -69,6 +69,92 @@ struct CrossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenera
             )
         }
         productReferenceGenerator.removeOrphanedReferences()
+
+        wireTransitiveProjectReferences(
+            edges: edges,
+            descriptorsByPath: descriptorsByPath,
+            fileRefCache: &fileRefCache
+        )
+    }
+
+    /// Whether a target dependency lands in another generated SPM package (external) project.
+    /// Unlike `foreignBuild()` aggregates and macros, plain package-to-package dependencies (e.g. a
+    /// package linking a product of another package) get no explicit edge from the checks above,
+    /// even though each generated package becomes its own separate `.xcodeproj`. Without an edge here,
+    /// Xcode's implicit dependency discovery is the only thing ordering the two package projects,
+    /// which is only correct by accident (see the transitive-reference note below for the standalone
+    /// `-project` build implications once this edge exists).
+    private func isExternalPackageProject(_ graphTarget: GraphTarget) -> Bool {
+        if case .external = graphTarget.project.type { return true }
+        return false
+    }
+
+    /// `xcodebuild -project` (i.e. without a wrapping `.xcworkspace`) only discovers subprojects
+    /// declared directly in the primary project's own `PBXProject.projectReferences` — it does not
+    /// recurse into a nested subproject's own `projectReferences` to find further-nested projects.
+    /// A consumer that depends on a package project which itself depends on another package
+    /// project (e.g. an app linking `swift-nio`, which itself links `swift-atomics`) therefore
+    /// never gets `swift-atomics.xcodeproj` opened/scheduled at all when built as a standalone
+    /// project, even though the target-dependency graph between `swift-nio` and `swift-atomics` is
+    /// entirely correct — confirmed via a plain `xcodebuild -project` build never scheduling the
+    /// second-hop package's targets at all, while the same build succeeds through the generated
+    /// `.xcworkspace`, which lists every package project as a flat top-level member.
+    ///
+    /// To make standalone `-project` builds work the same way, every project's
+    /// `PBXProject.projectReferences` is expanded to the full transitive closure of package
+    /// projects reachable from it, not just its direct one-hop dependencies. No additional
+    /// `PBXTargetDependency` is added here: the real build-order edge already exists at whichever
+    /// level the actual target dependency lives (wired above by `wire(edge:...)`); this only adds
+    /// the file-reference "visibility" Xcode needs to discover and open the project at all.
+    private func wireTransitiveProjectReferences(
+        edges: [Edge],
+        descriptorsByPath: [AbsolutePath: ProjectDescriptor],
+        fileRefCache: inout [FileRefKey: PBXFileReference]
+    ) {
+        var adjacency: [AbsolutePath: Set<AbsolutePath>] = [:]
+        for edge in edges {
+            adjacency[edge.consumerProjectPath, default: []].insert(edge.dependencyProjectPath)
+        }
+
+        for consumerPath in adjacency.keys.sorted() {
+            let directNeighbors = adjacency[consumerPath] ?? []
+            let closure = transitiveClosure(from: consumerPath, adjacency: adjacency)
+            let indirectDependencyPaths = closure.subtracting(directNeighbors).subtracting([consumerPath])
+            guard !indirectDependencyPaths.isEmpty else { continue }
+
+            for dependencyPath in indirectDependencyPaths.sorted() {
+                guard let consumerDescriptor = descriptorsByPath[consumerPath],
+                      let dependencyDescriptor = descriptorsByPath[dependencyPath],
+                      let consumerProject = consumerDescriptor.xcodeProj.pbxproj.projects.first
+                else { continue }
+
+                _ = remoteProjectFileReference(
+                    consumerProject: consumerProject,
+                    consumerPbxproj: consumerDescriptor.xcodeProj.pbxproj,
+                    consumerXcodeprojDirectory: consumerDescriptor.xcodeprojPath.parentDirectory,
+                    remoteXcodeprojPath: dependencyDescriptor.xcodeprojPath,
+                    cacheKey: FileRefKey(
+                        consumerProjectPath: consumerPath,
+                        remoteXcodeprojPath: dependencyDescriptor.xcodeprojPath
+                    ),
+                    cache: &fileRefCache
+                )
+            }
+        }
+    }
+
+    private func transitiveClosure(
+        from start: AbsolutePath,
+        adjacency: [AbsolutePath: Set<AbsolutePath>]
+    ) -> Set<AbsolutePath> {
+        var visited: Set<AbsolutePath> = []
+        var stack = Array(adjacency[start] ?? [])
+        while let next = stack.popLast() {
+            guard !visited.contains(next) else { continue }
+            visited.insert(next)
+            stack.append(contentsOf: adjacency[next] ?? [])
+        }
+        return visited
     }
 
     private struct Edge: Hashable {
@@ -92,7 +178,9 @@ struct CrossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenera
                 guard target.foreignBuild == nil else { continue }
                 for reference in graphTraverser.directTargetDependencies(path: consumerPath, name: target.name) {
                     guard reference.graphTarget.path != consumerPath else { continue }
-                    guard reference.graphTarget.target.foreignBuild != nil || reference.graphTarget.target.product == .macro
+                    guard reference.graphTarget.target.foreignBuild != nil
+                        || reference.graphTarget.target.product == .macro
+                        || isExternalPackageProject(reference.graphTarget)
                     else {
                         continue
                     }
