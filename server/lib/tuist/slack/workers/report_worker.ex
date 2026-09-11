@@ -146,13 +146,20 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     end
   end
 
-  # Any other 4xx is a client-side error we don't recognize — retrying will
-  # fail the same way, so discard the job instead of burning the remaining
-  # attempts. Leave the destination in place: it may be a bug in the payload
-  # we build, and clearing the user's config would hide that.
+  # Any other 4xx is a client-side error we don't recognize — Slack is
+  # telling us our request is wrong, so it likely is a bug on our side
+  # (malformed Block Kit, wrong Content-Type, etc.). Report it explicitly
+  # so we still see it in Hive, then discard the job: the same request
+  # will fail the same way on retry, and clearing the user's destination
+  # would hide the bug behind a wiped config.
   defp handle_bad_request(project, status, body) do
     Logger.warning(
       "Slack rejected the incoming-webhook payload for project #{project.id} (status #{status}, body #{inspect(body)})"
+    )
+
+    Sentry.capture_message("Slack rejected the incoming-webhook payload",
+      level: :error,
+      extra: %{project_id: project.id, status: status, response_body: inspect(body)}
     )
 
     {:discard, {:slack_bad_request, status}}

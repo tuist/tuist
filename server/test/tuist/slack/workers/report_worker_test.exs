@@ -230,6 +230,15 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       reject(&Client.post_message/3)
 
+      expect(Sentry, :capture_message, fn message, opts ->
+        assert message == "Slack rejected the incoming-webhook payload"
+        assert opts[:level] == :error
+        assert opts[:extra][:project_id] == project.id
+        assert opts[:extra][:status] == 400
+        assert opts[:extra][:response_body] =~ "invalid_payload"
+        :ok
+      end)
+
       assert {:discard, {:slack_bad_request, 400}} =
                ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
 
