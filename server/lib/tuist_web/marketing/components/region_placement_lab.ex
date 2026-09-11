@@ -24,7 +24,7 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
         { label: "ap-northeast", base: 0.50, amplitude: 0.37, rate: 0.16, phase: 2.4 },
       ]
 
-      const CHART_X = 96
+      const CHART_X = 120
       const CHART_RIGHT = 624
       const LANE_TOP = 26
       const LANE_HEIGHT = 74
