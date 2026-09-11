@@ -37,39 +37,40 @@ defmodule Tuist.AccountsTest do
     :ok
   end
 
-  describe "new_organizations_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
+  describe "new_organizations_in_period/2" do
+    test "includes the start, excludes the end, and orders organizations by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      creator = AccountsFixtures.user_fixture()
+      later = AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.organization_fixture(creator: creator, created_at: start_at)
+      AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.organization_fixture(creator: creator, created_at: end_at)
 
-      # When
-      assert Accounts.new_organizations_in_last_hour() == [organization]
+      assert Accounts.new_organizations_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_organizations_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.organization_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_organizations_in_last_hour() == []
+    test "returns an empty list when no organizations were created in the period" do
+      assert Accounts.new_organizations_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
-  describe "new_users_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+  describe "new_users_in_period/2" do
+    test "includes the start, excludes the end, and orders users by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      later = AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.user_fixture(created_at: start_at)
+      AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.user_fixture(created_at: end_at)
 
-      # When
-      assert Accounts.new_users_in_last_hour() == [user]
+      assert Accounts.new_users_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.user_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_users_in_last_hour() == []
+    test "returns an empty list when no users were created in the period" do
+      assert Accounts.new_users_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 

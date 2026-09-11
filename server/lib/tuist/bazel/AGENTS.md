@@ -52,3 +52,24 @@ does not expose a second Build Event Service listener.
   identity convention aligned with the local Bazel muted-failure reader.
 - Update `server/data-export.md` and the public retention guide whenever a
   retained field, table, or retention period changes.
+
+- `Profile` ingests the complete Bazel JSON trace profile through Kura's signed profile webhook. `Timeline` prefers that profile and uses the bounded BEP summary only for older builds. Profile times use the native profile origin; CPU is measured in cores, memory in MiB and network in megabits/s before conversion for the UI. Never manufacture missing counters or rank away short events.
+- `Action` stores BEP outcomes and sanitized diagnostic output, keyed by project, invocation, primary output and execution start. Step lists exclude logs; details and the dashboard fetch them separately. Ambiguous repeated-output actions are not assigned a guessed outcome.
+- Profile and action rows expire after 90 days. Profile size limits reject the whole payload explicitly. Keep migration, data export and public retention documentation aligned.
+- Native resource counters are one-second interval aggregates, timestamped at the bucket start. Attach `duration_ms` to each bucket, clipped to the timeline end, including when reading older stored profiles. Preserve the original offset and value; do not backfill the interval before collection or interpolate between aggregates.
+- Remove trailing all-zero resource buckets only when they include zero total host memory, identifying Bazel's empty export padding. Apply this on ingestion and loading existing profiles. Preserve legitimate zero CPU/network readings and ambiguous CPU-only buckets; do not extend the previous measurement over the removed interval.
+
+- On profile load, valid positive integer `TUIST_CPU_COUNT` invocation metadata converts native core usage to a percentage. Retain native readings and use cores when metadata is absent, invalid, or smaller than recorded usage; do not normalize against an observed peak or job count.
+
+- Profile webhooks stage bounded compressed bytes in PostgreSQL; `ProcessProfileWorker` parses them on the existing bounded `:process_bazel_tests` processor queue. Decoding limits nesting and decoded container memory during parsing. Publish normalized metadata only after all digest-versioned `ProfileSteps` rows exist; step APIs filter, sort, paginate and look up details in ClickHouse. Legacy profile blobs remain readable. Staged bytes are removed on success/rejection; daily ingestion retention cleans up status rows.
+- Action writes use the shared ingestion buffer and support atomically validated batches of up to 32. Resolve repeated primary outputs against the profile epoch and step interval; zero BEP timestamps mean unavailable and permit a match only when the output has one unambiguous result. Leave ambiguous matches unknown. `Invocation.timeline_spans/1` owns the retained column-array decoder, preserving lanes and zero-duration entries.
+
+- `Profile.load(include_steps: false)` provides timeline metric bootstrapping without loading indexed steps or enriching action outcomes. Full HTTP metadata downloads perform step loading and enrichment separately; both paths preserve native bucket intervals and CPU normalization.
+
+- Full indexed timeline downloads reuse the same server-side action join as step API queries; never serialize all profile output names into an HTTP query parameter. Legacy blob enrichment fetches invocation-scoped action metadata without logs or an output IN-list.
+- Profile decoding bounds input/string bytes separately from estimated heap words, including accumulator cells. Do not add external serialization size to heap size; that recounts the same JSON data. The limits are independent, and complex profiles may reach the heap budget before the entry or input-byte caps.
+- Staging atomically accepts new uploads and resets rejected/failed rows to pending, clearing the error and replacing compressed bytes. Only accepted transitions enqueue a job, in the same transaction. Pending and processed duplicates are unchanged. Do not add invocation-wide Oban uniqueness that can suppress fresh work while a terminal attempt finishes.
+
+- Retained numeric step IDs remain resolvable after profile publication; resolve them against the retained summary, never a different profile interval. Indexed lists distinguish missing/expired step rows from filters with no matches.
+- Decode retained spans by zipping all five column arrays, including lanes; incomplete rows are omitted. Zero profile epochs are unavailable for both SQL and legacy action matching. Unknown outcomes must not select a guessed zero-timestamp log.
+- Native resource counters use explicit Bazel series keys (`system cpu`, `system memory`, and `system network up/down (Mbps)`); ignore additional metadata keys and unknown series. Count targets by project and target, consistent with the other timeline sources.

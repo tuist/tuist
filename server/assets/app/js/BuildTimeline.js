@@ -5,6 +5,8 @@ import { bindInspectorResize } from "./BuildTimelineResize.mjs";
 import { bindScrollIndicator } from "noora";
 import {
   normalizeEvents,
+  matchesEvent,
+  timelineDuration,
   timeLabel,
   clampRange,
   zoomRange,
@@ -12,6 +14,7 @@ import {
   cursorTimeLabel,
   scrollGeometry,
   scrollStart,
+  neighborEvent,
 } from "./BuildTimelineModel.mjs";
 import { bindPinchZoom } from "./BuildTimelineZoom.mjs";
 import { bindDragFocus } from "./BuildTimelineFocus.mjs";
@@ -66,7 +69,9 @@ export default {
   },
 
   receiveSteps(timeline) {
-    this.allEvents = normalizeEvents(timeline.events || []);
+    if (timeline.local_navigation != null) this.localNavigation = timeline.local_navigation;
+    if (timeline.logs_available != null) this.logsAvailable = timeline.logs_available;
+    this.allEvents = normalizeEvents(timeline.events || [], this.source);
     const wasFullBuild = this.range.start === 0 && this.range.span === this.duration;
     this.duration = Math.max(this.duration, timeline.duration);
     this.maxSpan = this.duration;
@@ -77,7 +82,7 @@ export default {
     this.part("workspace").hidden = !timeline.total_count && !this.metrics.samples.length;
     this.part("empty").hidden = !!timeline.total_count || !!this.metrics.samples.length;
     this.part("step-count").hidden = false;
-    this.part("target-count").hidden = false;
+    this.part("target-count").hidden = timeline.target_count == null;
     this.el.querySelector('[data-stat="duration"]').textContent = timeLabel(this.duration);
     this.el.querySelector('[data-stat="tasks"]').textContent = timeline.total_count.toLocaleString();
     this.el.querySelector('[data-stat="targets"]').textContent = timeline.target_count;
@@ -85,20 +90,30 @@ export default {
   },
 
   initialize(timeline) {
+    this.source = this.el.dataset.source || "xcode";
+    this.category = null;
+    this.groupLabels = Object.fromEntries(
+      Array.from(this.part("legend").querySelectorAll("[data-kind]"), (el) => [el.dataset.kind, el.textContent.trim()]),
+    );
+    this.localNavigation = timeline.local_navigation === true;
+    this.logsAvailable = timeline.logs_available !== false;
     this.metrics = new TimelineMetrics(timeline.machine_metrics || [], {
+      cores: this.el.dataset.metricCores,
       in: this.el.dataset.metricIn,
       out: this.el.dataset.metricOut,
       read: this.el.dataset.metricRead,
       write: this.el.dataset.metricWrite,
     });
     this.part("machine-metrics").hidden = !this.metrics.samples.length;
-    this.events = normalizeEvents(timeline.events || []);
+    for (const track of this.metrics.tracks) {
+      this.el.querySelector(`[data-metric="${track.key}"]`).hidden = !this.metrics.samples.some((sample) =>
+        track.fields.some((field) => Number.isFinite(sample[field])),
+      );
+    }
+    this.events = normalizeEvents(timeline.events || [], this.source);
     this.search = "";
     this.allEvents = this.events;
-    this.duration = this.events.reduce(
-      (end, event) => Math.max(end, event.end),
-      Math.max(timeline.duration || 0, Number(this.el.dataset.duration) || 1),
-    );
+    this.duration = timelineDuration(timeline, this.events, this.el.dataset.duration);
     this.maxSpan = this.duration;
     this.range = { start: 0, span: this.duration };
     this.initialRange = { ...this.range };
@@ -111,7 +126,7 @@ export default {
     this.navigationRequest = ++nextNavigationRequest;
     this.stepHandler = this.handleEvent("timeline-step", ({ request_id, step }) => {
       if (request_id !== this.navigationRequest || !step || this.abort.signal.aborted) return;
-      const event = normalizeEvents([step])[0];
+      const event = normalizeEvents([step], this.source)[0];
       this.select(event);
       this.setRange(event.start_ms - event.duration_ms * 0.1, Math.max(1, event.duration_ms * 1.2));
     });
@@ -169,12 +184,17 @@ export default {
     this.el.querySelector('[data-stat="tasks"]').textContent = (
       timeline.total_count ?? this.events.length
     ).toLocaleString();
-    this.el.querySelector('[data-stat="targets"]').textContent = timeline.target_count ?? 0;
+    const targets = this.el.querySelector('[data-stat="targets"]');
+    targets.textContent = timeline.target_count ?? 0;
+    targets.parentElement.hidden = timeline.target_count == null;
     on(
       this.control("search"),
       "input",
       debounce(() => this.filter(), 150, this.abort.signal),
     );
+    for (const button of this.part("legend").querySelectorAll("button[data-kind]")) {
+      on(button, "click", () => this.filterCategory(button.dataset.kind));
+    }
     for (const surface of this.surfaces) {
       bindPinchZoom(
         surface.element,
@@ -285,14 +305,19 @@ export default {
   filter() {
     this.search = this.control("search").value;
     this.select(null);
-    const search = this.search.toLowerCase().slice(0, 512);
-    this.events = search
-      ? this.allEvents.filter((event) =>
-          `${event.title} ${event.target} ${event.project}`.toLowerCase().includes(search),
-        )
-      : this.allEvents;
+    this.events = this.allEvents.filter((event) =>
+      matchesEvent(event, this.search, this.category, this.groupLabels, this.localNavigation),
+    );
     this.filtered = this.events;
     this.relayout();
+  },
+
+  filterCategory(category) {
+    this.category = this.category === category ? null : category;
+    for (const button of this.part("legend").querySelectorAll("button[data-kind]")) {
+      button.setAttribute("aria-pressed", String(button.dataset.kind === this.category));
+    }
+    this.filter();
   },
 
   relayout() {
@@ -410,7 +435,10 @@ export default {
         this.part("no-recorded-steps").hidden =
           !this.stepsReady || !this.metrics.samples.length || this.allEvents.length > 0;
         this.part("no-matches").hidden =
-          !this.stepsReady || !this.search || !this.allEvents.length || this.layout.events.length > 0;
+          !this.stepsReady ||
+          !(this.search || this.category) ||
+          !this.allEvents.length ||
+          this.layout.events.length > 0;
       }
       this.draw();
     });
@@ -449,11 +477,25 @@ export default {
       resource: color("--timeline-fill-resource"),
       other: color("--timeline-fill-other"),
       failure: color("--timeline-fill-failure"),
+      fetch: color("--timeline-fill-fetch"),
+      setup: color("--timeline-fill-setup"),
+      transform: color("--timeline-fill-transform"),
+      test: color("--timeline-fill-test"),
+      package: color("--timeline-fill-package"),
       labels: Object.fromEntries(
-        ["compile", "link", "script", "resource", "other", "failure"].map((kind) => [
-          kind,
-          color(`--timeline-label-${kind}`),
-        ]),
+        [
+          "compile",
+          "link",
+          "script",
+          "resource",
+          "other",
+          "failure",
+          "fetch",
+          "setup",
+          "transform",
+          "test",
+          "package",
+        ].map((kind) => [kind, color(`--timeline-label-${kind}`)]),
       ),
       accent: color("--noora-chart-primary"),
       metricPrimary: color("--noora-chart-primary"),
@@ -624,13 +666,22 @@ export default {
         start: timeLabel(event.start_ms),
         duration: timeLabel(event.duration_ms),
       };
-      this.part("category-badge").querySelector("span").textContent = this.part("legend").querySelector(
-        `[data-kind="${event.kind}"]`,
-      ).textContent;
-      this.part("outcome-success").hidden = event.status === "failure";
+      this.part("category-badge").querySelector("span").textContent = this.localNavigation
+        ? event.category
+        : this.part("legend").querySelector(`[data-kind="${event.kind}"]`).textContent;
+      this.part("outcome-success").hidden = event.status !== "success";
       this.part("outcome-failure").hidden = event.status !== "failure";
-      this.showLogLoading();
-      this.requestLog(event, logRequest);
+      const otherOutcome = this.part("outcome-other");
+      otherOutcome.hidden = ["success", "failure"].includes(event.status);
+      if (!otherOutcome.hidden) {
+        const labels = JSON.parse(this.el.dataset.outcomeLabels || "{}");
+        otherOutcome.querySelector("span").textContent = labels[event.status] || labels.unknown;
+      }
+      this.part("step-log").hidden = !this.logsAvailable;
+      if (this.logsAvailable) {
+        this.showLogLoading();
+        this.requestLog(event, logRequest);
+      }
       for (const [key, value] of Object.entries(details))
         this.el.querySelector(`[data-detail="${key}"]`).textContent = value;
     }
@@ -690,6 +741,15 @@ export default {
     }
     if (!["ArrowLeft", "ArrowRight", "End"].includes(event.key)) return;
     event.preventDefault();
+    if (this.localNavigation) {
+      const direction = event.key === "End" ? "last" : event.key === "ArrowLeft" ? "previous" : "next";
+      const step = neighborEvent(this.filtered, this.selected?.event_id, direction);
+      if (step) {
+        this.select(step);
+        this.setRange(step.start_ms - step.duration_ms * 0.1, Math.max(1, step.duration_ms * 1.2));
+      }
+      return;
+    }
     const request = (this.navigationRequest = ++nextNavigationRequest);
     this.pushEvent("load-timeline-step", {
       request_id: request,

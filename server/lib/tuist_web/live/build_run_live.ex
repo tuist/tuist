@@ -8,7 +8,6 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
-  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
@@ -20,6 +19,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
+  alias Tuist.Gradle.Build
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Runners.Jobs
@@ -78,7 +78,6 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:run, run)
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
-      |> assign(:timeline_run_id, nil)
       |> assign(:machine_metrics, run.machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
@@ -445,48 +444,16 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp assign_timeline(socket, tab, force \\ false)
-
-  defp assign_timeline(socket, "timeline", force) do
-    run_id = socket.assigns.run.id
-    run_duration = socket.assigns.run.duration
-
-    metrics =
-      Enum.map(
-        socket.assigns.machine_metrics,
-        &Map.take(&1, [
-          :offset_ms,
-          :cpu_usage_percent,
-          :memory_used_bytes,
-          :memory_total_bytes,
-          :network_bytes_in,
-          :network_bytes_out,
-          :disk_bytes_read,
-          :disk_bytes_written
-        ])
-      )
-
-    if force or socket.assigns.timeline_run_id != run_id do
-      socket
-      |> assign(:timeline_run_id, run_id)
-      |> assign(:timeline_version, socket.assigns.timeline_version + 1)
-      |> assign(:timeline, AsyncResult.ok(%{duration: run_duration, machine_metrics: metrics}))
-    else
-      socket
-    end
+  defp assign_timeline(socket, tab, force \\ false) do
+    TuistWeb.BuildTimelineLoader.assign_timeline(socket, tab, socket.assigns.run, force)
   end
 
-  defp assign_timeline(socket, _tab, _force), do: assign(socket, :timeline_run_id, nil)
-
   @impl true
-  def handle_event("load-timeline", %{"version" => version}, socket) do
-    case socket.assigns do
-      %{timeline_version: ^version, timeline: %{ok?: true, result: timeline}} ->
-        {:reply, %{timeline: timeline}, socket}
+  def handle_event(event, _params, %{assigns: %{build: %Build{}}} = socket)
+      when event in ["load-timeline-log", "load-timeline-step"], do: {:reply, %{error: true}, socket}
 
-      _ ->
-        {:reply, %{error: true}, socket}
-    end
+  def handle_event("load-timeline", params, socket) do
+    TuistWeb.BuildTimelineLoader.handle_event("load-timeline", params, socket)
   end
 
   def handle_event(

@@ -59,7 +59,12 @@ defmodule TuistWeb.BuildRunLiveTest do
     bootstrap = %{duration: build.duration, machine_metrics: []}
 
     socket = %Phoenix.LiveView.Socket{
-      assigns: %{__changed__: %{}, timeline_version: version, timeline: AsyncResult.ok(bootstrap)}
+      assigns: %{
+        __changed__: %{},
+        selected_tab: "timeline",
+        timeline_version: version,
+        timeline: AsyncResult.ok(bootstrap)
+      }
     }
 
     assert {:reply, %{timeline: ^bootstrap}, ^socket} =

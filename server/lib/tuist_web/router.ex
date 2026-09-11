@@ -771,11 +771,15 @@ defmodule TuistWeb.Router do
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
+          get "/builds/:build_id/steps", GradleBuildStepsController, :index
+          get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
+          get "/invocations/:invocation_id/steps", BazelBuildStepsController, :index
+          get "/invocations/:invocation_id/steps/:step_id", BazelBuildStepsController, :show
           get "/invocations/:invocation_id/logs", BazelController, :list_invocation_logs
           get "/invocations/:invocation_id/logs/:invocation_log_id", BazelController, :get_invocation_log
           get "/cache-events", BazelController, :list_cache_events
@@ -1303,6 +1307,7 @@ defmodule TuistWeb.Router do
       get "/runs/:run_id/download_session", RunsController, :download_session
       get "/builds/build-runs/:build_run_id/download", BuildController, :download
       get "/builds/build-runs/:build_run_id/timeline.json", BuildController, :timeline
+      get "/builds/invocations/:invocation_id/timeline.json", BuildController, :timeline
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
