@@ -11,6 +11,10 @@ If there's one build system that's ahead of the rest in helping teams with the c
 
 I went back and forth a few times on how to approach this blog post. An agent could look at Bazel's documentation and our implementation, give it some structure, and call it done. But that felt wrong. Not just because of the writing style, but because it's tiring to read blog posts that are a sequence of facts, one after another. So I took a step back and asked myself: what would I want to read if I had been following Tuist and, all of a sudden, saw these folks talking about Bazel? That's what I want this post to be, and I hope you like it (and that Codex doesn't leave any typos anywhere).
 
+If you'd rather watch than read, here's the video version:
+
+<iframe title="Bazel remote caching and insights in Tuist" width="560" height="315" src="https://videos.tuist.dev/videos/embed/3Nkg6AjttaDqdFrJEHBwHZ" allow="fullscreen" sandbox="allow-same-origin allow-scripts allow-popups allow-forms" style="border: 0px;"></iframe>
+
 ## See it for yourself
 
 Before I tell you how we got here, let me show you where we landed. We wired up the build and test pipelines of [Kura](https://github.com/tuist/tuist/tree/main/kura), a project I'll tell you more about in a moment, and data started flowing. I could paste a few screenshots here, but they'd likely be outdated a few years from now, and that sucks. So I thought, why not tap into the amazing capabilities of the technology that makes Tuist possible, Elixir and the Erlang VM, and render a live view of how the Bazel data shows up in the dashboard? We care a lot about the infrastructure being fast and reliable, but just as much about the presentation layer: the dashboard, and the APIs agents consume, carefully designed so that agents are effective and humans have a great time navigating the data. The [Kura dashboard](https://tuist.dev/tuist/kura) is public, so you can poke around yourself, but here's what its builds look like right now:
