@@ -186,7 +186,7 @@ public struct AppleArchiver: AppleArchiving {
         to archivePath: AbsolutePath,
         filter: @escaping ArchiveHeader.EntryFilter
     ) throws {
-        Logger.current.info("Compressing archive at \(archivePath.pathString) using LZFSE")
+        Logger.current.debug("Compressing archive at \(archivePath.pathString) using LZFSE")
         let start = ContinuousClock.now
         let inputSize = Mutex((bytes: UInt64(0), complete: true))
         let measuringFilter: ArchiveHeader.EntryFilter = { message, path, data in
@@ -239,8 +239,8 @@ public struct AppleArchiver: AppleArchiving {
         let input = inputSize.withLock { $0.complete ? "\($0.bytes) bytes" : "unavailable" }
         let archiveSize = (try? FileManager.default.attributesOfItem(atPath: archivePath.pathString)[.size]) as? NSNumber
         let output = archiveSize.map { "\($0.uint64Value) bytes" } ?? "unavailable"
-        Logger.current.info(
-            "Compressed archive at \(archivePath.pathString) in \(String(format: "%.2fs", seconds)) (input: \(input), archive: \(output), compression: LZFSE)"
+        Logger.current.debug(
+            "Compressed archive at \(archivePath.pathString) in \(String(format: "%.2fs", seconds)) wall time (input: \(input), archive: \(output), compression: LZFSE)"
         )
     }
 
