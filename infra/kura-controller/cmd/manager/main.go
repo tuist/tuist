@@ -17,7 +17,6 @@ import (
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/kura-controller/controllers"
-	"github.com/tuist/tuist/infra/kura-controller/internal/connectivity"
 )
 
 var (
@@ -40,8 +39,7 @@ func main() {
 	var publicTLSDNSNames string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
-	var connectivityProbeImage string
-	var connectivityProbeInstances string
+	var connectivityDiagnosticsInstances string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -52,23 +50,22 @@ func main() {
 	flag.StringVar(&publicTLSDNSNames, "public-tls-dns-names", "", "Comma-separated names for the shared wildcard Certificate the controller maintains (e.g. *.kura.tuist.dev); leave empty to manage that Certificate elsewhere")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
-	flag.StringVar(&connectivityProbeImage, "connectivity-probe-image", "", "Controller image containing the fixed connectivity probe; disabled when empty")
-	flag.StringVar(&connectivityProbeInstances, "connectivity-probe-instances", "", "Comma-separated exact KuraInstance names receiving the log-only connectivity sidecar in watch-namespace")
+	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	probeInstances := splitNames(connectivityProbeInstances)
-	if len(probeInstances) != 0 && (watchNamespace == "" || connectivityProbeImage == "") {
-		setupLog.Error(errors.New("connectivity probes require watch-namespace and connectivity-probe-image"), "invalid probe configuration")
+	probeInstances := splitNames(connectivityDiagnosticsInstances)
+	if len(probeInstances) != 0 && watchNamespace == "" {
+		setupLog.Error(errors.New("connectivity diagnostics require watch-namespace"), "invalid probe configuration")
 		os.Exit(1)
 	}
 
 	if len(probeInstances) != 0 {
-		if _, err := connectivity.ProfileHost(deploymentEnvironment); err != nil {
-			setupLog.Error(err, "invalid probe environment")
+		if !controllers.ValidConnectivityProfile(deploymentEnvironment) {
+			setupLog.Error(errors.New("unsupported connectivity profile"), "invalid probe environment")
 			os.Exit(1)
 		}
 	}
@@ -99,16 +96,15 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:                     mgr.GetClient(),
-		APIReader:                  mgr.GetAPIReader(),
-		Scheme:                     mgr.GetScheme(),
-		GRPCClusterIssuer:          grpcClusterIssuer,
-		PublicTLSSecretName:        publicTLSSecretName,
-		OTLPTracesEndpoint:         otlpTracesEndpoint,
-		Environment:                deploymentEnvironment,
-		MetricsClient:              metricsClient,
-		ConnectivityProbeImage:     connectivityProbeImage,
-		ConnectivityProbeInstances: probeInstances,
+		Client:                           mgr.GetClient(),
+		APIReader:                        mgr.GetAPIReader(),
+		Scheme:                           mgr.GetScheme(),
+		GRPCClusterIssuer:                grpcClusterIssuer,
+		PublicTLSSecretName:              publicTLSSecretName,
+		OTLPTracesEndpoint:               otlpTracesEndpoint,
+		Environment:                      deploymentEnvironment,
+		MetricsClient:                    metricsClient,
+		ConnectivityDiagnosticsInstances: probeInstances,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)

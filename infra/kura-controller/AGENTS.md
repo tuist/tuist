@@ -7,13 +7,12 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 - Pod CPU usage for autosizing includes only the `kura` container. Missing runtime
   metrics are omitted rather than recorded as zero; auxiliary-container usage
   must never influence the runtime request bands.
-- Optional fixed connectivity diagnostics: [`internal/connectivity/AGENTS.md`](internal/connectivity/AGENTS.md).
-  A credential-free sidecar on exact deployment-configured instance names emits
-  resolver settings and bounded internal `/ready` timings to ordinary pod logs.
-  Disabled by default; no RBAC or JIT policy changes. **Blocked from rollout:**
-  regular sidecar failures affect Pod Ready; lifecycle isolation is unresolved. See
-  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) before opting in:
-  the pod template changes and rolls selected instances.
+- Optional fixed connectivity diagnostics: [`../../kura/src/connectivity/AGENTS.md`](../../kura/src/connectivity/AGENTS.md).
+  Exact deployment-configured instance names receive `KURA_CONNECTIVITY_PROFILE`
+  on the existing runtime container. No sidecar or readiness dependency is added.
+  Disabled by default; no RBAC, token-mount, or JIT policy changes. See
+  [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
+  the environment change rolls selected instances under their existing strategy.
 
 - API group: `kura.tuist.dev`
 - Primary resource: `KuraInstance`

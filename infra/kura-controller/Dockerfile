@@ -7,11 +7,9 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN test -n "${TARGETOS}" && \
     test -n "${TARGETARCH}" && \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/manager ./cmd/manager && \
-    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/connectivity-probe ./cmd/connectivity-probe
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/manager ./cmd/manager
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=builder /out/manager /manager
-COPY --from=builder /out/connectivity-probe /connectivity-probe
 USER 65532:65532
 ENTRYPOINT ["/manager"]

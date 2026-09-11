@@ -175,8 +175,8 @@ kuraController:
   enabled: false
   # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
   # changes the pod template and rolls these instances. No RBAC grant needed.
-  # Uses the controller image, which includes the probe binary.
-  connectivityProbe:
+  # Requires a Kura runtime image with built-in connectivity telemetry.
+  connectivityDiagnostics:
     instances: []
   # Enable managed gateway readiness reads and its Cilium backend policy.
   privateGateway:
