@@ -1046,3 +1046,44 @@ delay the entire reconciliation tick for minutes during a regional control
 plane incident. Independent role observations now run with eight workers and a
 four-second task ceiling before the existing ordered server projection. Ring
 A: A-37.
+
+## 5. Push removal (2026-09-11)
+
+The flip reached every account, so the push path came out: `src/replication/`
+keeps only the membership loop and the peer body streaming every pass uses,
+`src/backfill/lifecycle.rs` is gone (the links schedule their own passes and
+own the bootstrap failure budget; `ClaimSet` moved to `AppState.backfill_claims`),
+the store no longer reserves outbox slots on the write path or threads
+replication targets through its persist calls, the write gates lost their
+outbox arm, and `KURA_REPLICATION_PULL`, `KURA_OUTBOX_MAX_DEPTH*` and
+`KURA_REPLICATION_UPLOAD_STALL_MS` are ignored. `derive_roles` no longer
+takes `pulling` or `knows_me`: every present peer is a sibling or a gateway
+candidate.
+
+Decisions:
+
+- **D-29** A peer that answers 404 or 405 to `/_internal/sync/forward` or the
+  ascending listing predates pull. Its link settles at once as `unsupported`
+  (frontier `Abandoned`, so it does not hold the serving listing), retries on
+  the longest pass backoff, logs once per transition, and charges no
+  bootstrap failure. `/status/rollout` reports it under
+  `backfill_budget_exhausted_capability_peers` and keeps
+  `backfill_initial_cycle: complete`, so the server rollout gate — which
+  pauses on `degraded` — does not hold an account hostage to a self-hosted
+  node it does not control.
+- **D-30** The `/_internal/replicate/*` receivers stay, and `/_internal/status`
+  keeps `pulling: true` and `peers`, for exactly one reader: a self-hosted
+  node on a pre-removal release. Removing the receivers would fill that
+  node's outbox and refuse its clients' writes. Nothing sends on them.
+- **D-31** The server keeps rendering `KURA_REPLICATION_PULL=true` and the
+  `+pull` revision suffix for every mesh region, and publishing
+  `replication_pull: true` in both mesh views, derived from the region rather
+  than the retired `kura_replication_pull` flag: flipped accounts stay
+  byte-identical (nothing rolls), a pod still on a previous image boots into
+  pull, and an enrolled self-hosted node on a previous release keeps pulling.
+- **D-32** The rollout gates lost their outbox arm — `ops/rollout/gate.sh`,
+  the server's `Tuist.Kura.Rollouts` (with its three `kura_rollout_servers`
+  columns dropped) and the controller's `outboxMessages` status field.
+  `backfill_initial_cycle`, `backfill_backfilling_peers` and the two budget
+  counters keep their names and meaning, now derived from the pull links.
+

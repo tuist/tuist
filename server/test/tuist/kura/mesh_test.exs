@@ -380,14 +380,9 @@ defmodule Tuist.Kura.MeshTest do
   end
 
   describe "replication_pull?/1" do
-    test "reads the account's kura_replication_pull flag" do
+    test "is true for every account now that the push path is gone" do
       account = AccountsFixtures.organization_fixture().account
-      other = AccountsFixtures.organization_fixture().account
-
-      stub(FunWithFlags, :enabled?, fn :kura_replication_pull, [for: actor] -> actor.id == account.id end)
-
       assert Mesh.replication_pull?(account)
-      refute Mesh.replication_pull?(other)
     end
   end
 

@@ -33,7 +33,6 @@ struct PeerIdentity {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PeerClientTimeouts {
     Download,
-    Upload,
 }
 
 /// Builds outbound peer HTTP clients with the current peer mTLS identity. The
@@ -103,21 +102,6 @@ impl PeerClientFactory {
         self.builder(PeerClientTimeouts::Download)?
             .build()
             .map_err(|error| format!("failed to build peer HTTP client: {error}"))
-    }
-
-    /// A client for streaming request BODIES to a peer (outbox artifact
-    /// replication). It carries no `read_timeout`: while a request body
-    /// uploads, the response read side is silent by design — the receiver
-    /// sends nothing until the whole body has been consumed — so the
-    /// download client's 30s read timeout acts as a hard ceiling on total
-    /// upload time and permanently fails any artifact that streams longer
-    /// (observed in production as an outbox message retrying for hours).
-    /// Stall protection is the caller's byte-progress watchdog, which keys
-    /// on the upload actually moving instead of on response silence.
-    pub fn build_upload(&self) -> Result<Client, String> {
-        self.builder(PeerClientTimeouts::Upload)?
-            .build()
-            .map_err(|error| format!("failed to build peer upload HTTP client: {error}"))
     }
 
     pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
@@ -362,29 +346,6 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(&path, pem).expect("write PEM");
         path
-    }
-
-    // A read timeout on the upload client is a hard ceiling on total upload
-    // time, because the response side stays silent until the receiver has
-    // consumed the whole body: it strands every artifact that streams for
-    // longer than the timeout, permanently. Proving that functionally would
-    // cost a >30s transfer per run, so this asserts the property directly.
-    // reqwest's Debug prints `read_timeout` only when one is configured.
-    #[test]
-    fn upload_client_has_no_read_timeout_and_download_client_keeps_one() {
-        let factory = PeerClientFactory::plain();
-
-        let upload = format!("{:?}", factory.build_upload().expect("build upload client"));
-        assert!(
-            !upload.contains("read_timeout"),
-            "the upload client must carry no read timeout; got {upload}"
-        );
-
-        let download = format!("{:?}", factory.build().expect("build download client"));
-        assert!(
-            download.contains("read_timeout"),
-            "the download client's read timeout is load-bearing for backfill; got {download}"
-        );
     }
 
     // End-to-end proof that the internal mTLS listener surfaces the verified

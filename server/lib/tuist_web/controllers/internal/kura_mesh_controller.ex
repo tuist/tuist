@@ -60,8 +60,9 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # membership from being swept as stale and returns the current peer list, so
   # peers refresh at heartbeat cadence rather than at certificate renewal. A
   # withheld node is answered `mesh_member: false` and recovers by
-  # re-enrolling. The account's pull flag rides beside the peer list as an
-  # additive field an older node ignores.
+  # re-enrolling. `replication_pull` rides beside the peer list for
+  # self-hosted nodes on a pre-removal release, which still negotiate the
+  # mode per peer; it is always true now.
   #
   # Deliberately without `peer_roles`. The published roles key each managed pod
   # by its internal `KURA_NODE_URL`, while a self-hosted node's peer list names
@@ -101,7 +102,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # the membership/reactivation state machine — but they consume the same
   # dynamic peer view so a self-hosted peer joining or leaving propagates at
   # heartbeat cadence instead of through a fleet roll, and read their
-  # replication role and the account's pull flag from it. Accepts the
+  # replication role from it. Accepts the
   # deployment-level control-plane credential (with a tenant) or a self-hosted
   # client credential, like registration.
   #

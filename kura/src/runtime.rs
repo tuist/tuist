@@ -73,7 +73,6 @@ pub struct RuntimeState {
     grpc_inflight: AtomicUsize,
     public_request_latency_ewma_micros: AtomicU64,
     public_request_latency_sampled_at_ms: AtomicU64,
-    outbox_depth: AtomicUsize,
     inflight_changed: Notify,
 }
 
@@ -89,13 +88,8 @@ impl RuntimeState {
             grpc_inflight: AtomicUsize::new(0),
             public_request_latency_ewma_micros: AtomicU64::new(0),
             public_request_latency_sampled_at_ms: AtomicU64::new(0),
-            outbox_depth: AtomicUsize::new(0),
             inflight_changed: Notify::new(),
         })
-    }
-
-    pub fn update_outbox_depth(&self, depth: usize) {
-        self.outbox_depth.store(depth, Ordering::Relaxed);
     }
 
     pub fn request_drain(&self) -> bool {

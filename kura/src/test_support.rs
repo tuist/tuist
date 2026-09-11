@@ -4,7 +4,6 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use reqwest::Client;
 use tempfile::TempDir;
-use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use crate::{
@@ -86,11 +85,8 @@ where
         rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
-        outbox_max_depth: None,
-        outbox_max_depth_per_peer: 50_000,
         replication_bandwidth_limit_bytes_per_second: 0,
         replication_public_latency_target_ms: 100,
-        replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         multipart_max_active_uploads: None,
@@ -98,7 +94,6 @@ where
         backfill_margin_percent: 40,
         backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
         backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
-        replication_pull: false,
         sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
         sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
         sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
@@ -171,14 +166,6 @@ where
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
-    // Production builds this without any total timeout — the stall watchdog is
-    // the deadline there. Tests keep the same 5s cap as `client` so a test
-    // driving the upload path against a server that never answers fails at 5s
-    // instead of hanging for the whole watchdog window.
-    let upload_client = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .expect("failed to build test upload client");
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -191,9 +178,6 @@ where
             .tmp_dir_max_bytes
             .min(memory.peer_staging_budget_bytes()),
     );
-    let replication_target_cache =
-        arc_swap::ArcSwap::from_pointee(crate::state::static_replication_targets(&config));
-    let replication_pull = config.replication_pull;
     let backfill_bodies_peer_slots = Arc::new(crate::state::BackfillBodiesPeerSlots::new(
         config.sync_peer_bodies_slots_per_peer,
         config.sync_peer_serving_max_inflight,
@@ -212,23 +196,16 @@ where
         bazel_test_artifacts,
         usage,
         client: arc_swap::ArcSwap::from_pointee(client),
-        upload_client: arc_swap::ArcSwap::from_pointee(upload_client),
         peer_client_factory,
         internal_tls: None,
         dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        replication_target_cache,
         replication_bandwidth_limiter,
-        notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         tmp_staging_budget,
         peer_staging_budget,
-        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
-        replication_batch_unsupported: tokio::sync::Mutex::new(std::collections::BTreeSet::new()),
         backfill_bodies_peer_slots,
-        replication_pull: std::sync::atomic::AtomicBool::new(replication_pull),
-        backfill: crate::backfill::lifecycle::BackfillLifecycle::new(),
+        backfill_claims: crate::backfill::claims::ClaimSet::new(),
         peer_views: arc_swap::ArcSwap::from_pointee(Vec::new()),
-        pulling_peers: arc_swap::ArcSwap::from_pointee(std::collections::BTreeSet::new()),
         published_roles: arc_swap::ArcSwap::from_pointee(Vec::new()),
         sync: Arc::new(crate::sync::coordinator::SyncCoordinator::new()),
     });
@@ -238,24 +215,6 @@ where
         _temp_dir: temp_dir,
         state,
     }
-}
-
-/// Drives the backfill lifecycle through one settled membership view with no
-/// peers — the state a node with nothing to catch up from reaches on its first
-/// membership tick, and what readiness gates on. Production reaches it from
-/// the membership loop; tests that assert readiness without exercising a peer
-/// pass need it explicitly.
-pub(crate) fn settle_empty_backfill_cycle(state: &Arc<AppState>) {
-    state.backfill.test_evaluate(
-        &crate::backfill::lifecycle::MembershipTick {
-            discovered: &[],
-            lost: &[],
-            view_settled: true,
-            control_plane_peers: &[],
-            admission: true,
-        },
-        Instant::now(),
-    );
 }
 
 pub(crate) async fn response_text(response: Response) -> String {

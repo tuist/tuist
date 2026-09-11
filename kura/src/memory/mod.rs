@@ -368,13 +368,9 @@ impl MemoryController {
         self.pressure() != MemoryPressure::Critical
     }
 
-    /// Gates the *usage* (metering) outbox only. Replication delivery is
-    /// deliberately never paused: its durable backlog is bounded by the outbox
-    /// capacity (`KURA_OUTBOX_MAX_DEPTH_PER_PEER` per replication peer, or a
-    /// fixed `KURA_OUTBOX_MAX_DEPTH`), and a full replication outbox rejects cache
-    /// writes, so pausing it converts a memory problem into a correctness and
-    /// availability one. Metering has no such feedback — a delayed usage batch
-    /// costs nothing but freshness — so it stays sheddable.
+    /// Gates the *usage* (metering) outbox. Metering has no feedback into the
+    /// write path — a delayed usage batch costs nothing but freshness — so it
+    /// stays sheddable.
     pub fn pause_usage_outbox(&self) -> bool {
         self.pressure() == MemoryPressure::Critical
     }

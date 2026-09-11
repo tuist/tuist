@@ -209,7 +209,7 @@ type KuraInstanceSpec struct {
 //     (each pod increments its own and resets on restart), so absolute
 //     values are never comparable across pods; the ring size the pods have
 //     converged on is,
-//   - BackfillingPeers and OutboxMessages are sums,
+//   - BackfillingPeers is a sum,
 //   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
 //     clamping, so a pod restart never makes the published counter go
 //     backwards,
@@ -228,7 +228,6 @@ type KuraInstanceRolloutHealth struct {
 	// what says catch-up is failing to progress.
 	BackfillDegraded             bool         `json:"backfillDegraded"`
 	BackfillBudgetExhaustedPeers int64        `json:"backfillBudgetExhaustedPeers"`
-	OutboxMessages               int64        `json:"outboxMessages"`
 	FDTimeoutCount               int64        `json:"fdTimeoutCount"`
 	PeerConnectionFailures       int64        `json:"peerConnectionFailures"`
 	MemoryPressureState          int64        `json:"memoryPressureState"`

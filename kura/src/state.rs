@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -7,7 +7,7 @@ use arc_swap::ArcSwap;
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use tokio::{
-    sync::{Mutex, Notify},
+    sync::Mutex,
     time::{Duration, Instant},
 };
 
@@ -16,11 +16,10 @@ use tracing::info;
 use crate::{
     analytics::Analytics,
     auth::SharedAuth,
-    backfill::lifecycle::{BackfillInitialCycleMode, BackfillLifecycle},
+    backfill::claims::ClaimSet,
     bandwidth::BandwidthLimiter,
     bazel_test_artifacts::BazelTestArtifactDelivery,
     config::Config,
-    constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -53,25 +52,15 @@ pub struct AppState {
     // Outbound peer client, behind an atomic swap so cert rotation can replace
     // it in place. Read it with `state.client()`.
     pub client: ArcSwap<Client>,
-    /// Peer client for streaming request bodies (outbox artifact PUTs): no
-    /// read timeout, paired with the caller's byte-progress stall watchdog.
-    pub upload_client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
     // The inbound internal mTLS server config, retained so cert rotation can
     // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
     pub internal_tls: Option<RustlsConfig>,
     // The control-plane-authoritative volatile peer view, refreshed at mesh
-    // heartbeat / peers-sync cadence and merged into discovery/replication
-    // targets on top of the static (platform-stable) `config.peers`.
+    // heartbeat / peers-sync cadence and merged into the discovery targets
+    // on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
-    /// The replication target list, shared immutable and replaced whole by
-    /// `rebuild_replication_targets` whenever one of its inputs changes
-    /// (static seeds, the heartbeat peer list, the discovered view). Every
-    /// write reads it, so it is a pointer load rather than a walk of the
-    /// readiness state under its lock.
-    pub(crate) replication_target_cache: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     /// Process-wide byte budget shared by every transient disk writer.
     pub tmp_staging_budget: Arc<TmpBudget>,
@@ -80,32 +69,15 @@ pub struct AppState {
     /// response against. Separate from `tmp_staging_budget` so catch-up traffic
     /// cannot starve in-flight client uploads (or the reverse).
     pub peer_staging_budget: Arc<TmpBudget>,
-    pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
-    /// Targets known not to serve the batched replication route, learned from a
-    /// 404 or 405 on the first attempt. A peer that predates the route must not
-    /// cost a wasted round trip per batch for the life of a backlog, so the
-    /// answer is remembered; it is process-scoped, so an upgraded peer is
-    /// retried after the next restart rather than staying downgraded forever.
-    pub replication_batch_unsupported: Mutex<BTreeSet<String>>,
     /// Serving-side per-peer-identity concurrency gate for the backfill bodies
     /// endpoint (see [`BackfillBodiesPeerSlots`]).
     pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
-    /// The backfill walker's node-side state machine, driven by the
-    /// membership loop.
-    pub backfill: Arc<BackfillLifecycle>,
-    /// The flip (design §5.2): whether this node pulls. Seeded from
-    /// `KURA_REPLICATION_PULL` and switchable at runtime by the control
-    /// plane's account flag.
-    pub replication_pull: std::sync::atomic::AtomicBool,
+    /// The node-wide single-flight set every catch-up pass registers with,
+    /// so the replica and region links never fetch one record twice.
+    pub backfill_claims: Arc<ClaimSet>,
     /// What every reachable peer's `/_internal/status` last said, refreshed
     /// each membership tick; the role rule's input.
     pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
-    /// Peers whose last status said they pull *and* named this node in their
-    /// own membership view (D-20, D-21), kept across their absence from the
-    /// view: an unreachable pulling peer must not be pushed to again just
-    /// because it stopped answering. In memory, like the discovered-only
-    /// history.
-    pub pulling_peers: ArcSwap<BTreeSet<String>>,
     /// Roles the control plane published beside the peer list.
     pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
     /// The pull links (design §3, §4), driven by the membership loop.
@@ -218,33 +190,10 @@ impl Drop for BackfillBodiesPeerSlot {
     }
 }
 
-pub struct ReplicationBackoff {
-    next_attempt: Instant,
-    failures: u32,
-}
-
-/// The replication targets known before any membership pass: the static
-/// seeds minus the node itself.
-pub fn static_replication_targets(config: &Config) -> Vec<String> {
-    config
-        .peers
-        .iter()
-        .filter(|peer| **peer != config.node_url)
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
 impl AppState {
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
-    }
-
-    /// The current outbound peer upload client (picks up rotated certs).
-    pub fn upload_client(&self) -> arc_swap::Guard<Arc<Client>> {
-        self.upload_client.load()
     }
 }
 
@@ -274,8 +223,6 @@ pub struct RolloutStatusReport {
     pub writer_lock_owned: bool,
     pub http_inflight: usize,
     pub grpc_inflight: usize,
-    pub outbox_messages: u64,
-    pub outbox_capacity: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
@@ -283,11 +230,37 @@ pub struct RolloutStatusReport {
     pub backfill: BackfillRolloutStatus,
 }
 
+/// The catch-up gate contract `/status/rollout` consumers (gate.sh, the
+/// kura-controller's evacuation check) read: pending | complete | degraded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CatchUpMode {
+    /// A link readiness waits on is still bootstrapping.
+    Pending,
+    /// Every gating link settled with its bootstrap done.
+    Complete,
+    /// Every gating link settled, but at least one spent its bootstrap
+    /// budget and is serving cold while it retries.
+    Degraded,
+}
+
+impl CatchUpMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Complete => "complete",
+            Self::Degraded => "degraded",
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct BackfillRolloutStatus {
-    pub initial_cycle: BackfillInitialCycleMode,
+    pub initial_cycle: CatchUpMode,
+    /// Links still bootstrapping.
     pub backfilling_peers: usize,
+    /// Links that spent their bootstrap budget on real failures.
     pub budget_exhausted_real: usize,
+    /// Links whose peer predates pull: settled cold, never degraded.
     pub budget_exhausted_capability: usize,
     pub ring_fullness_percent: u64,
 }
@@ -321,7 +294,6 @@ pub(crate) struct ReadinessState {
     // only to the backfill window, so dropping would be silent
     // under-replication for anything older. Monotone and in-memory:
     // bounded by the peers a process ever meets, reset by restart.
-    ever_discovered_only_peers: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,7 +313,6 @@ impl ReadinessState {
             settle_until: now,
             members: BTreeSet::new(),
             known_peers: BTreeSet::new(),
-            ever_discovered_only_peers: BTreeSet::new(),
         }
     }
 
@@ -423,47 +394,6 @@ impl AppState {
         entered
     }
 
-    pub async fn replication_target_backed_off(&self, target: &str, now: Instant) -> bool {
-        self.replication_backoff
-            .lock()
-            .await
-            .get(target)
-            .is_some_and(|backoff| backoff.next_attempt > now)
-    }
-
-    pub async fn note_replication_success(&self, target: &str) {
-        self.replication_backoff.lock().await.remove(target);
-    }
-
-    pub async fn replication_batch_unsupported(&self, target: &str) -> bool {
-        self.replication_batch_unsupported
-            .lock()
-            .await
-            .contains(target)
-    }
-
-    pub async fn note_replication_batch_unsupported(&self, target: &str) {
-        self.replication_batch_unsupported
-            .lock()
-            .await
-            .insert(target.to_owned());
-    }
-
-    pub async fn note_replication_failure(&self, target: &str, now: Instant) {
-        let mut backoffs = self.replication_backoff.lock().await;
-        let backoff = backoffs
-            .entry(target.to_string())
-            .or_insert(ReplicationBackoff {
-                next_attempt: now,
-                failures: 0,
-            });
-        backoff.failures = backoff.failures.saturating_add(1);
-        let delay_secs = REPLICATION_BACKOFF_BASE_SECS
-            .saturating_mul(2u64.saturating_pow(backoff.failures - 1))
-            .min(REPLICATION_BACKOFF_MAX_SECS);
-        backoff.next_attempt = now + Duration::from_secs(delay_secs);
-    }
-
     #[cfg(test)]
     pub async fn expire_readiness_settle_window(&self) {
         self.readiness.lock().await.settle_until = Instant::now();
@@ -500,56 +430,7 @@ impl AppState {
             .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
         self.metrics
             .record_membership_peer_changes("lost", membership_update.lost_peers.len());
-        self.refresh_outbox_capacity(discovery_observed).await;
         membership_update
-    }
-
-    /// Re-derives the outbox cap from every peer whose messages may occupy
-    /// the queue: the current replication targets (what a write enqueues for)
-    /// plus the discovered-only history, whose messages `process_outbox`
-    /// never prunes within a process lifetime. Counting that history keeps a
-    /// departed sibling's share — and a sibling's share through a status-probe
-    /// blip, which empties the discovered set the same way — for as long as
-    /// its messages can sit in the queue, so the cap only shrinks behind a
-    /// departure whose messages are actually dropped.
-    ///
-    /// `observed` says whether the view behind an empty set was actually
-    /// seen: every discovery target answered, or there were none to ask. An
-    /// unobserved empty set means the node has no peer view (control plane or
-    /// discovery unreachable), not that every peer left — the same reading
-    /// `process_outbox` gives it when it declines to prune — so the last
-    /// derived total holds rather than collapsing to one share under a
-    /// backlog that is not going anywhere. An observed empty set is a mesh
-    /// that really has no peers, and the total returns to one share.
-    pub async fn refresh_outbox_capacity(&self, observed: bool) {
-        let targets = self.rebuild_replication_targets().await;
-        let mut peers: BTreeSet<String> = targets.iter().cloned().collect();
-        peers.extend(self.discovered_only_peer_history().await);
-        if peers.is_empty() && !observed {
-            return;
-        }
-        self.store.set_replication_peer_count(peers.len());
-        self.store.retain_outbox_targets(&peers);
-    }
-
-    pub async fn initial_discovery_completed(&self) -> bool {
-        self.readiness.lock().await.initial_discovery_completed
-    }
-
-    pub async fn note_discovered_only_peers(&self, peers: Vec<String>) {
-        if peers.is_empty() {
-            return;
-        }
-        let mut readiness = self.readiness.lock().await;
-        readiness.ever_discovered_only_peers.extend(peers);
-    }
-
-    pub async fn discovered_only_peer_history(&self) -> BTreeSet<String> {
-        self.readiness
-            .lock()
-            .await
-            .ever_discovered_only_peers
-            .clone()
     }
 
     async fn readiness_snapshot(&self) -> ReadinessSnapshot {
@@ -565,65 +446,11 @@ impl AppState {
         }
     }
 
-    /// The peers a write enqueues one outbox message for. A shared snapshot:
-    /// exact as of the last input change, which every input mutation
-    /// follows with `rebuild_replication_targets`.
-    /// Stores what the membership loop saw and folds each peer's pull flag
-    /// into the sticky set: a peer that answered decides its own entry, a
-    /// peer that did not answer keeps its last one. A peer that pulls but
-    /// does not name this node in its own view never enters the set, so the
-    /// stickiness of D-20 cannot outlive the condition that earned it.
+    /// Stores what the membership loop saw: the role rule's input.
     pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
         self.backfill_bodies_peer_slots
             .observe_peer_count(views.len());
-        let mut pulling: BTreeSet<String> = (**self.pulling_peers.load()).clone();
-        for view in &views {
-            if view.pulling && view.knows_me {
-                pulling.insert(view.url.clone());
-            } else {
-                pulling.remove(&view.url);
-            }
-        }
-        self.pulling_peers.store(Arc::new(pulling));
         self.peer_views.store(Arc::new(views));
-    }
-
-    pub fn replication_pull(&self) -> bool {
-        self.replication_pull
-            .load(std::sync::atomic::Ordering::Acquire)
-    }
-
-    /// Returns whether the value changed.
-    pub fn set_replication_pull(&self, pull: bool) -> bool {
-        self.replication_pull
-            .swap(pull, std::sync::atomic::Ordering::AcqRel)
-            != pull
-    }
-
-    pub fn replication_targets(&self) -> Arc<Vec<String>> {
-        self.replication_target_cache.load_full()
-    }
-
-    /// Re-derives the replication targets from the static seeds, the
-    /// heartbeat peer list and the discovered view, and publishes them.
-    pub async fn rebuild_replication_targets(&self) -> Arc<Vec<String>> {
-        let snapshot = self.readiness_snapshot().await;
-        let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
-        targets.extend(self.dynamic_peers.load().iter().cloned());
-        targets.extend(snapshot.known_peers);
-        targets.remove(&self.config.node_url);
-        // The per-peer rule of the flip (design §5.2), with the exception of
-        // §11.2: a peer that pulls is no longer pushed to, unless it cannot
-        // dial this node back, in which case pull reaches it in neither
-        // direction and push is the only leg it has.
-        if self.replication_pull() {
-            for peer in self.pulling_peers.load().iter() {
-                targets.remove(peer);
-            }
-        }
-        let targets = Arc::new(targets.into_iter().collect::<Vec<_>>());
-        self.replication_target_cache.store(targets.clone());
-        targets
     }
 
     /// Segment count as a percentage of the ring's desired total, the ring
@@ -649,21 +476,16 @@ impl AppState {
         }
 
         // R8: past the discovery gates above, the node is ready when its ring
-        // is at least the configured percent full OR it is no longer
-        // backfilling — where "backfilling" covers only the initial join
-        // cycle, whose membership is fixed at (initial discovery ∪ first
-        // control-plane view); later discoveries never gate. An empty cycle
-        // settles immediately (zero peers ⇒ ready here), and a cycle whose
-        // peers all exhausted their budgets settles too (ready-but-cold is
-        // intended; background retries continue, metered). Serving then
-        // LATCHES for the process lifetime: this function only runs while not
-        // serving, and no backfill path clears the flag — only the orthogonal
-        // /ready inputs (writer lock, draining) can take the node out of
-        // rotation.
-        // Pull links have their own settle term (design §3.6): the sibling
-        // bootstrap, or for a region of one the initial region passes.
-        let settled = !self.backfill.cycle_snapshot().is_backfilling()
-            && self.sync.bootstrap_settled(self.replication_pull());
+        // is at least the configured percent full OR its pull links settled
+        // (design §3.6): the sibling bootstrap, or for a region of one the
+        // initial region passes. No links (zero peers) settles immediately,
+        // and a link that spent its bootstrap budget settles too
+        // (ready-but-cold is intended; background retries continue,
+        // metered). Serving then LATCHES for the process lifetime: this
+        // function only runs while not serving, and no catch-up path clears
+        // the flag — only the orthogonal /ready inputs (writer lock,
+        // draining) can take the node out of rotation.
+        let settled = self.sync.bootstrap_settled();
         if settled || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent {
             self.runtime.mark_serving();
         }
@@ -695,15 +517,12 @@ impl AppState {
         {
             reasons.push("discovery settling".to_string());
         }
-        if !self.runtime.is_serving() && self.backfill.cycle_snapshot().is_backfilling() {
+        if !self.runtime.is_serving() && !self.sync.bootstrap_settled() {
             let fullness = self.ring_fullness_percent();
             reasons.push(format!(
-                "initial backfill cycle in progress (ring {fullness}% < {}%)",
+                "replica bootstrap in progress (ring {fullness}% < {}%)",
                 self.config.backfill_ready_ring_percent
             ));
-        }
-        if !self.runtime.is_serving() && !self.sync.bootstrap_settled(self.replication_pull()) {
-            reasons.push("replica bootstrap in progress".to_string());
         }
 
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
@@ -733,14 +552,7 @@ impl AppState {
         let mut ring: Vec<String> = snapshot.known_peers.clone();
         ring.push(self.config.node_url.clone());
         ring.sort();
-        let cycle = self.backfill.cycle_snapshot();
-        let backfill = BackfillRolloutStatus {
-            initial_cycle: cycle.initial_cycle_mode(),
-            backfilling_peers: cycle.backfilling_peers,
-            budget_exhausted_real: cycle.budget_exhausted_real,
-            budget_exhausted_capability: cycle.budget_exhausted_capability,
-            ring_fullness_percent: self.ring_fullness_percent(),
-        };
+        let backfill = self.catch_up_status();
 
         RolloutStatusReport {
             generation: snapshot.generation,
@@ -752,12 +564,29 @@ impl AppState {
             writer_lock_owned,
             http_inflight: self.runtime.http_inflight(),
             grpc_inflight: self.runtime.grpc_inflight(),
-            outbox_messages: metrics.outbox_messages,
-            outbox_capacity: self.store.outbox_max_depth() as u64,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
             peer_connection_failure_count: metrics.peer_connection_failure_count,
             backfill,
+        }
+    }
+
+    /// The pull links' bootstrap state in the shape the rollout gate reads.
+    pub fn catch_up_status(&self) -> BackfillRolloutStatus {
+        let catch_up = self.sync.catch_up();
+        let initial_cycle = if !catch_up.settled() {
+            CatchUpMode::Pending
+        } else if catch_up.abandoned > 0 {
+            CatchUpMode::Degraded
+        } else {
+            CatchUpMode::Complete
+        };
+        BackfillRolloutStatus {
+            initial_cycle,
+            backfilling_peers: catch_up.in_progress,
+            budget_exhausted_real: catch_up.abandoned,
+            budget_exhausted_capability: catch_up.unsupported,
+            ring_fullness_percent: self.ring_fullness_percent(),
         }
     }
 
@@ -773,9 +602,6 @@ impl AppState {
         self.metrics.update_membership_generation(report.generation);
         self.metrics
             .set_backfill_ring_fullness_percent(self.ring_fullness_percent());
-        self.metrics.set_backfill_initial_cycle_mode(
-            self.backfill.cycle_snapshot().initial_cycle_mode().as_i64(),
-        );
         self.metrics.update_replication_bandwidth_limits(
             self.config.replication_bandwidth_limit_bytes_per_second,
             self.replication_bandwidth_limiter
@@ -803,53 +629,9 @@ pub fn ring_fingerprint(sorted_members: &[String]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        artifact::producer::ArtifactProducer,
-        backfill::lifecycle::{BudgetChargeKind, MembershipTick, PassResolution},
-        constants::{
-            BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET, BACKFILL_PASS_RETRY_BACKOFF_MAX_MS,
-            BACKFILL_SEAM_FOLLOWUP_DELAY_MS,
-        },
-        test_support::test_context,
-    };
+    use crate::test_support::test_context;
 
     use super::*;
-
-    fn backfill_tick<'a>(discovered: &'a [String], lost: &'a [String]) -> MembershipTick<'a> {
-        MembershipTick {
-            discovered,
-            lost,
-            view_settled: true,
-            control_plane_peers: &[],
-            admission: true,
-        }
-    }
-
-    /// Charges the peer's whole initial-cycle failure budget with the given
-    /// kind, leaving the peer budget-exhausted (it stops gating readiness).
-    fn exhaust_backfill_budget_over(
-        state: &AppState,
-        peer: &str,
-        kind: BudgetChargeKind,
-        mut now: Instant,
-    ) -> Instant {
-        let discovered = vec![peer.to_string()];
-        state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        for _ in 0..BACKFILL_INITIAL_CYCLE_FAILURE_BUDGET {
-            state.backfill.test_finish_pass(
-                peer,
-                PassResolution::Cancelled {
-                    budget_charge: Some(kind),
-                },
-                now,
-            );
-            now += Duration::from_millis(BACKFILL_PASS_RETRY_BACKOFF_MAX_MS + 1);
-            state.backfill.test_evaluate(&backfill_tick(&[], &[]), now);
-        }
-        now
-    }
 
     #[test]
     fn ring_fingerprint_distinguishes_equal_sized_rings() {
@@ -933,117 +715,6 @@ mod tests {
     /// would enqueue for, so it is read from `replication_targets` rather
     /// than from the discovered set alone.
     #[tokio::test]
-    async fn membership_view_rederives_the_outbox_capacity() {
-        let context = test_context(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 10;
-            // Only the node itself is a static seed: one share to start.
-            config.peers = vec![config.node_url.clone()];
-        })
-        .await;
-        assert_eq!(context.state.store.outbox_max_depth(), 10);
-
-        context
-            .state
-            .dynamic_peers
-            .store(std::sync::Arc::new(vec!["http://peer-c:7443".to_string()]));
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([
-                    ("http://peer-a:7443".to_string(), "remote".to_string()),
-                    ("http://peer-b:7443".to_string(), "remote".to_string()),
-                ]),
-                true,
-            )
-            .await;
-        assert_eq!(
-            context.state.store.outbox_max_depth(),
-            30,
-            "two discovered peers plus one dynamic peer"
-        );
-
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([("http://peer-a:7443".to_string(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        assert_eq!(
-            context.state.store.outbox_max_depth(),
-            20,
-            "a lost peer gives its share back"
-        );
-
-        // A discovered-only peer's messages are never pruned, so its share
-        // survives its absence from the view — whether it left or its status
-        // probe merely failed this pass.
-        context
-            .state
-            .note_discovered_only_peers(vec!["http://peer-a:7443".to_string()])
-            .await;
-        context
-            .state
-            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
-            .await;
-        assert_eq!(
-            context.state.store.outbox_max_depth(),
-            20,
-            "an empty view keeps the discovered-only share and the dynamic peer"
-        );
-    }
-
-    /// An empty derived set is "no peer view", the reading the prune path
-    /// gives it, so the capacity holds instead of collapsing to one share.
-    #[tokio::test]
-    async fn an_empty_peer_view_holds_the_outbox_capacity() {
-        let context = test_context(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 10;
-            config.peers = vec![config.node_url.clone()];
-        })
-        .await;
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([
-                    ("http://peer-a:7443".to_string(), "remote".to_string()),
-                    ("http://peer-b:7443".to_string(), "remote".to_string()),
-                ]),
-                true,
-            )
-            .await;
-        assert_eq!(context.state.store.outbox_max_depth(), 20);
-
-        context
-            .state
-            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), false)
-            .await;
-        assert_eq!(
-            context.state.store.outbox_max_depth(),
-            20,
-            "a lost view keeps the last derived capacity"
-        );
-
-        // F6: an OBSERVED empty view (every discovery target answered, or
-        // there are none) is a mesh that really has no peers, and the
-        // capacity returns to one share instead of freezing.
-        context
-            .state
-            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
-            .await;
-        assert_eq!(
-            context.state.store.outbox_max_depth(),
-            10,
-            "an observed empty mesh drops to the single-share floor"
-        );
-    }
-
-    #[tokio::test]
     async fn app_state_keeps_serving_when_membership_generation_advances() {
         let context = test_context(|_| {}).await;
         let peer_a = "http://peer-a.kura.internal:7443".to_string();
@@ -1056,10 +727,6 @@ mod tests {
                 true,
             )
             .await;
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -1089,152 +756,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn backfill_readiness_latches_at_ring_fullness_while_still_backfilling() {
-        let context = test_context(|config| {
-            // Clamp the ring to the 5-segment legacy floor so one persisted
-            // segment reads as 20% full.
-            config.cas_capacity_bytes = Some(1);
-            config.backfill_ready_ring_percent = 20;
-        })
-        .await;
-        context
-            .state
-            .store
-            .persist_artifact_from_bytes(
-                ArtifactProducer::Xcode,
-                "ios",
-                "artifact",
-                "application/octet-stream",
-                b"payload",
-            )
-            .await
-            .expect("local artifact should persist");
-        assert_eq!(context.state.ring_fullness_percent(), 20);
-
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        // The peer's pass is in flight: the node is still backfilling.
-        let discovered = vec![peer.clone()];
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), Instant::now());
-        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
-
-        context.state.expire_readiness_settle_window().await;
-        context.state.maybe_mark_serving().await;
-
-        let report = context.state.readiness_report().await;
-        assert!(report.ready, "ring at threshold latches ready mid-backfill");
-        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
-
-        context.state.sync_runtime_metrics().await;
-        let rendered = context.state.metrics.render();
-        assert_eq!(
-            rendered_metric_value(&rendered, "kura_backfill_ring_fullness_percent"),
-            Some(20)
-        );
-        assert_eq!(
-            rendered_metric_value(&rendered, "kura_backfill_initial_cycle_mode"),
-            Some(0),
-            "the cycle is still pending"
-        );
-    }
-
-    #[tokio::test]
-    async fn backfill_readiness_latches_when_no_longer_backfilling_below_ring_threshold() {
-        let context = test_context(|_| {}).await;
-        assert_eq!(context.state.ring_fullness_percent(), 0);
-
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        context.state.expire_readiness_settle_window().await;
-
-        // Mid-cycle (pass in flight) the small-dataset node is not ready.
-        let discovered = vec![peer.clone()];
-        let now = Instant::now();
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        context.state.maybe_mark_serving().await;
-        let report = context.state.readiness_report().await;
-        assert!(!report.ready);
-        assert!(
-            report
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("initial backfill cycle in progress"))
-        );
-
-        // The cycle settles (first pass + seam follow-up complete): ready
-        // latches even though the ring never reached the threshold.
-        context
-            .state
-            .backfill
-            .test_finish_pass(&peer, PassResolution::Completed, now);
-        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), seam);
-        context
-            .state
-            .backfill
-            .test_finish_pass(&peer, PassResolution::Completed, seam);
-        context.state.maybe_mark_serving().await;
-        assert!(context.state.readiness_report().await.ready);
-    }
-
-    #[tokio::test]
-    async fn backfill_readiness_latches_when_all_in_cycle_budgets_exhaust_below_threshold() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        exhaust_backfill_budget_over(
-            &context.state,
-            &peer,
-            BudgetChargeKind::Real,
-            Instant::now(),
-        );
-
-        let cycle = context.state.backfill.cycle_snapshot();
-        assert!(!cycle.is_backfilling());
-        assert_eq!(cycle.budget_exhausted_real, 1);
-
-        context.state.expire_readiness_settle_window().await;
-        context.state.maybe_mark_serving().await;
-        assert!(
-            context.state.readiness_report().await.ready,
-            "ready-but-cold is intended when every in-cycle budget exhausts"
-        );
-        let report = context.state.rollout_status_report().await;
-        let backfill = report.backfill;
-        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Degraded);
-    }
-
-    #[tokio::test]
     async fn backfill_readiness_with_zero_peers_requires_only_the_discovery_gates() {
         let context = test_context(|_| {}).await;
         context.state.runtime.require_peer_view();
@@ -1242,10 +763,6 @@ mod tests {
             .state
             .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
             .await;
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
         context.state.expire_readiness_settle_window().await;
 
         // Gate two (first control-plane peer view) still withholds serving.
@@ -1258,136 +775,6 @@ mod tests {
             context.state.runtime.is_serving(),
             "an empty cycle settles immediately: zero peers ⇒ ready"
         );
-    }
-
-    #[tokio::test]
-    async fn backfill_peer_discovered_after_cycle_fixed_does_not_gate_readiness() {
-        let context = test_context(|_| {}).await;
-        context
-            .state
-            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
-            .await;
-        // The first settled tick fixes an empty cycle.
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), Instant::now());
-
-        // A peer discovered after the fix runs an ordinary re-join backfill.
-        let late_peer = vec!["http://late-peer.kura.internal:7443".to_string()];
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&late_peer, &[]), Instant::now());
-        assert!(!context.state.backfill.cycle_snapshot().is_backfilling());
-
-        context.state.expire_readiness_settle_window().await;
-        context.state.maybe_mark_serving().await;
-        assert!(
-            context.state.runtime.is_serving(),
-            "a post-fix discovery must not gate first readiness"
-        );
-    }
-
-    #[tokio::test]
-    async fn rollout_status_report_advances_backfill_mode_from_pending_through_degraded_to_complete()
-     {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-
-        // Pending: the peer's pass is in flight and gates the cycle.
-        let discovered = vec![peer.clone()];
-        let now = Instant::now();
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        let report = context.state.rollout_status_report().await;
-        let backfill = report.backfill;
-        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Pending);
-        assert_eq!(backfill.backfilling_peers, 1);
-
-        // Degraded: the budget exhausts on real failures and the cycle settles.
-        let now = exhaust_backfill_budget_over(&context.state, &peer, BudgetChargeKind::Real, {
-            // The pending pass above must terminate before the budget
-            // loop restarts passes over the same slot.
-            context
-                .state
-                .backfill
-                .test_finish_pass(&peer, PassResolution::Failed, now);
-            now + Duration::from_millis(BACKFILL_PASS_RETRY_BACKOFF_MAX_MS + 1)
-        });
-        let report = context.state.rollout_status_report().await;
-        let backfill = report.backfill;
-        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Degraded);
-        assert_eq!(backfill.backfilling_peers, 0);
-        assert_eq!(backfill.budget_exhausted_real, 1);
-        context.state.sync_runtime_metrics().await;
-        assert_eq!(
-            rendered_metric_value(
-                &context.state.metrics.render(),
-                "kura_backfill_initial_cycle_mode"
-            ),
-            Some(2)
-        );
-
-        // Degraded is not terminal: the background retry (and its seam
-        // follow-up) completing advances the mode to complete.
-        context
-            .state
-            .backfill
-            .test_finish_pass(&peer, PassResolution::Completed, now);
-        let seam = now + Duration::from_millis(BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), seam);
-        context
-            .state
-            .backfill
-            .test_finish_pass(&peer, PassResolution::Completed, seam);
-        let report = context.state.rollout_status_report().await;
-        let backfill = report.backfill;
-        assert_eq!(backfill.initial_cycle, BackfillInitialCycleMode::Complete);
-        assert_eq!(backfill.budget_exhausted_real, 0);
-    }
-
-    #[tokio::test]
-    async fn rollout_status_report_counts_capability_excluded_peers_as_complete() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://pre-ab-peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                BTreeSet::from(["remote".to_string()]),
-                BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        exhaust_backfill_budget_over(
-            &context.state,
-            &peer,
-            BudgetChargeKind::Capability,
-            Instant::now(),
-        );
-
-        let report = context.state.rollout_status_report().await;
-        let backfill = report.backfill;
-        assert_eq!(
-            backfill.initial_cycle,
-            BackfillInitialCycleMode::Complete,
-            "a capability-excluded bystander must not degrade the cycle"
-        );
-        assert_eq!(backfill.budget_exhausted_capability, 1);
-        assert_eq!(backfill.budget_exhausted_real, 0);
     }
 
     fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {

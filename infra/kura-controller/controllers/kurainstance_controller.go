@@ -218,7 +218,6 @@ type runtimeStatus struct {
 	WriterLockOwned            bool   `json:"writer_lock_owned"`
 	Generation                 uint64 `json:"generation"`
 	BackfillingPeers           int64  `json:"backfill_backfilling_peers"`
-	OutboxMessages             int64  `json:"outbox_messages"`
 	MemoryPressureState        int64  `json:"memory_pressure_state"`
 	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
 	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
@@ -2324,7 +2323,6 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		if sample.status.BackfillInitialCycle == backfillCycleDegraded {
 			backfillDegraded = true
 		}
-		health.OutboxMessages += sample.status.OutboxMessages
 		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
 		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
 		if sample.status.MemoryPressureState > health.MemoryPressureState {

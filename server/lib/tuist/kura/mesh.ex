@@ -19,7 +19,6 @@ defmodule Tuist.Kura.Mesh do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Regions
@@ -248,11 +247,13 @@ defmodule Tuist.Kura.Mesh do
   defp published_role(_role, _region_id), do: []
 
   @doc """
-  Whether the account's nodes replicate by pulling (design §5.2). Published in
-  the mesh view so enrolled self-hosted nodes flip with the account's managed
-  pods, which get the same flag rendered into their spec.
+  Every account's nodes replicate by pulling (kura/docs/replication-design.md
+  §5.2): the per-account flip is over and the push path is gone from the
+  runtime. Still published in the mesh view because a self-hosted node on a
+  pre-removal release reads it to decide whether to keep pushing, and the
+  answer for one that can pull is always yes.
   """
-  def replication_pull?(%Account{} = account), do: FeatureFlags.kura_replication_pull_enabled?(account)
+  def replication_pull?(%Account{}), do: true
 
   @doc """
   Records a mesh heartbeat from an enrolled self-hosted node: refreshes the
