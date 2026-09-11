@@ -1,5 +1,6 @@
 defmodule Tuist.Automations.BaselineTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import Ecto.Query
 
@@ -216,5 +217,227 @@ defmodule Tuist.Automations.BaselineTest do
                  select: count()
                )
              )
+  end
+
+  test "applies existing matches once and resumes after the last completed action" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+    attempt = publishing_attempt(alert, [first, second])
+    test_process = self()
+
+    assert_raise RuntimeError, "simulated interruption", fn ->
+      Automations.establish_alert_baseline(alert, & &1, fn _alert, id ->
+        if id == first do
+          send(test_process, {:applied, id})
+          :ok
+        else
+          raise "simulated interruption"
+        end
+      end)
+    end
+
+    assert_receive {:applied, ^first}
+    assert Repo.reload!(attempt).last_published_test_case_id == first
+    assert Repo.reload!(alert).baseline_established_at == nil
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, & &1, fn _alert, id ->
+               send(test_process, {:applied, id})
+               :ok
+             end)
+
+    assert_receive {:applied, ^second}
+    refute_receive {:applied, ^first}
+    assert Repo.reload!(attempt).state == "committed"
+    assert Enum.sort(Enum.map(Automations.list_active_alert_events(alert.id), & &1.test_case_id)) == [first, second]
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, fn _ -> flunk("already evaluated") end, fn _, _ ->
+               flunk("already applied")
+             end)
+  end
+
+  test "a returned action error does not block other matches or baseline completion" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+    attempt = publishing_attempt(alert, [first, second])
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, & &1, fn _, id ->
+               if id == first, do: {:error, :channel_not_found}, else: :ok
+             end)
+
+    assert Repo.reload!(attempt).state == "committed"
+    assert Repo.reload!(alert).baseline_established_at
+    assert [%{test_case_id: ^second}] = Automations.list_active_alert_events(alert.id)
+  end
+
+  test "new requests and cancellations preserve recovery events and invalidate stale attempts" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    recovering = Ecto.UUID.generate()
+    publishing_attempt(alert, [recovering])
+    assert :ok = Automations.establish_alert_baseline(alert, & &1)
+    assert [original_event] = Automations.list_active_alert_events(alert.id)
+    alert = Repo.reload!(alert)
+
+    config = Map.put(alert.trigger_config, "apply_actions_to_existing_matches", true)
+    assert {:ok, requested} = Automations.update_alert(alert, %{trigger_config: config})
+    pending = publishing_attempt(requested, [Ecto.UUID.generate()])
+    assert [^original_event] = Automations.list_active_alert_events(requested)
+
+    assert {:ok, cancelled} =
+             Automations.update_alert(requested, %{
+               trigger_config: Map.put(config, "apply_actions_to_existing_matches", false)
+             })
+
+    refute cancelled.trigger_config["apply_actions_to_existing_matches"]
+    assert cancelled.baseline_generation > pending.baseline_generation
+    assert [^original_event] = Automations.list_active_alert_events(cancelled.id)
+    assert :ok = Automations.establish_alert_baseline(requested, & &1, fn _, _ -> flunk("cancelled action") end)
+
+    # A silent replacement must not restart an existing recovery dwell window.
+    publishing_attempt(cancelled, [recovering])
+    assert :ok = Automations.establish_alert_baseline(cancelled, & &1)
+    assert [^original_event] = Automations.list_active_alert_events(cancelled.id)
+
+    assert {:ok, changed} =
+             Automations.update_alert(Repo.reload!(cancelled), %{
+               trigger_config: Map.put(alert.trigger_config, "threshold", 20)
+             })
+
+    assert Automations.list_active_alert_events(changed) == []
+    assert changed.event_generation == changed.baseline_generation
+  end
+
+  test "silent retries deduplicate identical payloads but accept a changed active event set" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [first, second] = Enum.sort([Ecto.UUID.generate(), Ecto.UUID.generate()])
+    attempt = publishing_attempt(alert, [first, second])
+    test_pid = self()
+
+    for _ <- 1..2 do
+      expect(ClickHouseRepo, :all, fn _query, _opts -> [%{test_case_id: first}] end)
+
+      expect(IngestRepo, :insert_all, fn AlertEvent, records, opts ->
+        send(test_pid, {:publication, Enum.map(records, & &1.test_case_id), opts[:settings][:insert_deduplication_token]})
+        raise "unknown insert outcome"
+      end)
+
+      assert_raise RuntimeError, "unknown insert outcome", fn ->
+        Automations.establish_alert_baseline(alert, & &1)
+      end
+    end
+
+    assert_receive {:publication, [^second], first_token}
+    assert_receive {:publication, [^second], ^first_token}
+    assert Repo.reload!(attempt).last_published_test_case_id == nil
+
+    expect(ClickHouseRepo, :all, fn _query, _opts -> [] end)
+
+    expect(IngestRepo, :insert_all, fn AlertEvent, records, opts ->
+      assert Enum.map(records, & &1.test_case_id) == [first, second]
+      refute opts[:settings][:insert_deduplication_token] == first_token
+      {length(records), nil}
+    end)
+
+    assert :ok = Automations.establish_alert_baseline(alert, & &1)
+    assert Repo.reload!(attempt).state == "committed"
+  end
+
+  test "actioned baseline events start recovery dwell when actions run" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    id = Ecto.UUID.generate()
+    attempt = publishing_attempt(alert, [id])
+    old_cursor = DateTime.add(DateTime.utc_now(:second), -3600, :second)
+    attempt |> BaselineAttempt.changeset(%{cursor: old_cursor}) |> Repo.update!()
+    before_actions = NaiveDateTime.utc_now()
+
+    assert :ok = Automations.establish_alert_baseline(alert, & &1, fn _, ^id -> :ok end)
+    assert [%{triggered_at: triggered_at}] = Automations.list_active_alert_events(alert.id)
+    assert NaiveDateTime.compare(triggered_at, before_actions) in [:eq, :gt]
+  end
+
+  test "rechecks saved matches before publication and leaves changed tests untriggered" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    [matching, changed] = [Ecto.UUID.generate(), Ecto.UUID.generate()]
+    publishing_attempt(alert, [matching, changed])
+    test_process = self()
+
+    assert :ok =
+             Automations.establish_alert_baseline(
+               alert,
+               fn ids ->
+                 assert Enum.sort(ids) == Enum.sort([matching, changed])
+                 [matching]
+               end,
+               fn _alert, id ->
+                 send(test_process, {:applied, id})
+                 :ok
+               end
+             )
+
+    assert_receive {:applied, ^matching}
+    refute_receive {:applied, ^changed}
+    assert [%{test_case_id: ^matching}] = Automations.list_active_alert_events(alert.id)
+  end
+
+  test "a stale worker cannot start the current generation using its old condition" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    {:ok, updated} = Automations.update_alert(alert, %{trigger_config: Map.put(alert.trigger_config, "threshold", 20)})
+
+    assert :ok =
+             Automations.establish_alert_baseline(alert, fn _ -> flunk("stale condition") end, fn _, _ ->
+               flunk("stale actions")
+             end)
+
+    assert Repo.get_by(BaselineAttempt, alert_id: alert.id, baseline_generation: updated.baseline_generation) == nil
+    assert Repo.reload!(updated).baseline_established_at == nil
+  end
+
+  test "an edit during publication prevents the old baseline from applying actions" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    id = Ecto.UUID.generate()
+    publishing_attempt(alert, [id])
+
+    assert :ok =
+             Automations.establish_alert_baseline(
+               alert,
+               fn ids ->
+                 {:ok, _} =
+                   Automations.update_alert(alert, %{trigger_config: Map.put(alert.trigger_config, "threshold", 20)})
+
+                 ids
+               end,
+               fn _, _ -> flunk("stale baseline must not apply actions") end
+             )
+
+    assert Repo.reload!(alert).baseline_generation == 1
+    assert Automations.list_active_alert_events(alert.id) == []
+  end
+
+  test "a disabled alert pauses publication until it is enabled again" do
+    alert = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+    id = Ecto.UUID.generate()
+    attempt = publishing_attempt(alert, [id])
+    {:ok, _} = Automations.update_alert(alert, %{enabled: false})
+    assert :ok = Automations.establish_alert_baseline(alert, & &1, fn _, _ -> flunk("disabled alert") end)
+    assert Repo.reload!(attempt).last_published_test_case_id == nil
+
+    {:ok, enabled} = Automations.update_alert(alert, %{enabled: true})
+    assert :ok = Automations.establish_alert_baseline(enabled, & &1, fn _, ^id -> :ok end)
+    assert Repo.reload!(attempt).state == "committed"
+  end
+
+  defp publishing_attempt(alert, test_case_ids) do
+    {:ok, attempt} = Automations.begin_alert_baseline(alert)
+
+    Repo.insert_all(
+      BaselineResult,
+      Enum.map(test_case_ids, fn id ->
+        %{attempt_id: attempt.id, test_case_id: id, inserted_at: DateTime.utc_now(:second)}
+      end)
+    )
+
+    attempt |> BaselineAttempt.changeset(%{state: "publishing"}) |> Repo.update!()
   end
 end

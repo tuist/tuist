@@ -9,10 +9,12 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.Alerts.BaselineResult
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
   alias Tuist.Automations.Alerts.Revision
+  alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
@@ -185,13 +187,19 @@ defmodule Tuist.Automations do
           )
         )
 
-      monitor_definition_changed? = monitor_definition_changed?(alert, attrs)
-      attrs = maybe_reset_baseline(attrs, monitor_definition_changed?)
+      {attrs, reset_baseline?} = prepare_baseline_update(alert, attrs)
+      condition_changed? = condition_changed?(alert, attrs)
+      attrs = maybe_reset_baseline(attrs, reset_baseline?)
       changeset = Alert.changeset(alert, attrs)
 
       changeset =
-        if monitor_definition_changed? do
-          Ecto.Changeset.put_change(changeset, :baseline_generation, alert.baseline_generation + 1)
+        if reset_baseline? do
+          generation = alert.baseline_generation + 1
+          event_generation = if condition_changed?, do: generation, else: Alert.event_generation(alert)
+
+          changeset
+          |> Ecto.Changeset.put_change(:baseline_generation, generation)
+          |> Ecto.Changeset.put_change(:event_generation, event_generation)
         else
           changeset
         end
@@ -297,8 +305,49 @@ defmodule Tuist.Automations do
     end
   end
 
-  defp monitor_definition_changed?(alert, attrs) do
-    changed_attr?(alert, attrs, :monitor_type) or changed_attr?(alert, attrs, :trigger_config)
+  defp prepare_baseline_update(alert, attrs) do
+    config =
+      case fetch_attr(attrs, :trigger_config) do
+        {:ok, config} -> config
+        :error -> Map.delete(alert.trigger_config, "apply_actions_to_existing_matches")
+      end
+
+    if is_map(config) do
+      reset? = reset_baseline_for_save?(alert, attrs, config)
+
+      # Preserve a pending request through unrelated saves. A new definition
+      # replaces it and requires a fresh opt-in before applying any actions.
+      config =
+        if not reset? and Alert.apply_actions_to_existing_matches?(alert) and
+             not Map.has_key?(config, "apply_actions_to_existing_matches") do
+          Map.put(config, "apply_actions_to_existing_matches", true)
+        else
+          config
+        end
+
+      key = if Enum.any?(Map.keys(attrs), &is_binary/1), do: "trigger_config", else: :trigger_config
+      {Map.put(attrs, key, config), reset?}
+    else
+      {attrs, false}
+    end
+  end
+
+  defp reset_baseline_for_save?(alert, attrs, config) do
+    config["apply_actions_to_existing_matches"] == true or condition_changed?(alert, attrs) or
+      (Alert.apply_actions_to_existing_matches?(alert) and
+         (config["apply_actions_to_existing_matches"] == false or changed_attr?(alert, attrs, :trigger_actions)))
+  end
+
+  defp condition_changed?(alert, attrs) do
+    changed_attr?(alert, attrs, :monitor_type) or
+      case fetch_attr(attrs, :trigger_config) do
+        {:ok, config} when is_map(config) ->
+          Map.delete(config, "apply_actions_to_existing_matches") !=
+            Map.delete(alert.trigger_config, "apply_actions_to_existing_matches")
+
+        _ ->
+          false
+      end
   end
 
   defp changed_attr?(alert, attrs, key) do
@@ -334,13 +383,18 @@ defmodule Tuist.Automations do
   # Callers holding the alert already carry the generation the events are
   # scoped to, so taking it off the struct skips a lookup that the evaluation
   # worker would otherwise repeat for every range it evaluates.
-  def list_active_alert_events(%Alert{id: alert_id, baseline_generation: baseline_generation}, test_case_ids) do
-    active_alert_events(alert_id, baseline_generation, test_case_ids)
+  def list_active_alert_events(%Alert{} = alert, test_case_ids) do
+    active_alert_events(alert.id, Alert.event_generation(alert), test_case_ids)
   end
 
   def list_active_alert_events(alert_id, test_case_ids) do
     baseline_generation =
-      Repo.one(from(alert in Alert, where: alert.id == ^alert_id, select: alert.baseline_generation))
+      Repo.one(
+        from(alert in Alert,
+          where: alert.id == ^alert_id,
+          select: coalesce(alert.event_generation, alert.baseline_generation)
+        )
+      )
 
     active_alert_events(alert_id, baseline_generation, test_case_ids)
   end
@@ -482,19 +536,26 @@ defmodule Tuist.Automations do
     }
   end
 
-  def establish_alert_baseline(%Alert{} = alert, evaluate_batch) when is_function(evaluate_batch, 1) do
+  def establish_alert_baseline(%Alert{} = alert, evaluate_batch, apply_match \\ nil)
+      when is_function(evaluate_batch, 1) do
     case begin_alert_baseline(alert) do
       {:established, _alert} ->
         :ok
 
+      {:error, :stale} ->
+        :ok
+
       {:ok, %BaselineAttempt{state: "evaluating"} = attempt} ->
         case evaluate_alert_baseline(attempt, alert.project_id, evaluate_batch) do
-          {:ok, publishing_attempt} -> publish_and_commit_alert_baseline(publishing_attempt)
-          {:error, :stale} -> :ok
+          {:ok, publishing_attempt} ->
+            publish_and_commit_alert_baseline(publishing_attempt, evaluate_batch, apply_match)
+
+          {:error, :stale} ->
+            :ok
         end
 
       {:ok, %BaselineAttempt{state: "publishing"} = attempt} ->
-        publish_and_commit_alert_baseline(attempt)
+        publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match)
 
       {:ok, %BaselineAttempt{state: "committed"}} ->
         :ok
@@ -502,7 +563,7 @@ defmodule Tuist.Automations do
   end
 
   @doc false
-  def begin_alert_baseline(%Alert{id: alert_id}) do
+  def begin_alert_baseline(%Alert{id: alert_id, baseline_generation: generation}) do
     {:ok, result} =
       Repo.transaction(fn ->
         alert =
@@ -513,28 +574,110 @@ defmodule Tuist.Automations do
             )
           )
 
-        if alert.baseline_established_at do
-          {:established, alert}
-        else
-          attempt =
-            Repo.get_by(BaselineAttempt,
-              alert_id: alert.id,
-              baseline_generation: alert.baseline_generation
-            ) ||
-              Repo.insert!(
-                BaselineAttempt.changeset(%BaselineAttempt{}, %{
-                  alert_id: alert.id,
-                  baseline_generation: alert.baseline_generation,
-                  cursor: DateTime.utc_now(:second)
-                })
-              )
+        cond do
+          alert.baseline_generation != generation ->
+            {:error, :stale}
 
-          {:ok, attempt}
+          alert.baseline_established_at != nil ->
+            {:established, alert}
+
+          true ->
+            attempt =
+              Repo.get_by(BaselineAttempt,
+                alert_id: alert.id,
+                baseline_generation: alert.baseline_generation
+              ) ||
+                Repo.insert!(
+                  BaselineAttempt.changeset(%BaselineAttempt{}, %{
+                    alert_id: alert.id,
+                    baseline_generation: alert.baseline_generation,
+                    cursor: DateTime.utc_now(:second)
+                  })
+                )
+
+            {:ok, attempt}
         end
       end)
 
     result
   end
+
+  def count_existing_matches(%Alert{} = alert) do
+    if Alert.recovery_ledger?(alert) and Alert.trigger_window_supported?(alert) do
+      default_branch = Projects.get_project_by_id(alert.project_id).default_branch
+      count_existing_matches(alert, default_branch, nil, 0)
+    else
+      raise ArgumentError, "Match previews require a supported metric condition"
+    end
+  end
+
+  defp count_existing_matches(alert, default_branch, cursor, count) do
+    case list_alert_baseline_test_case_page(alert.project_id, cursor) do
+      [] ->
+        count
+
+      test_cases ->
+        ids = Enum.map(test_cases, & &1.id)
+        count = count + length(matching_test_case_ids(alert, ids, default_branch))
+        count_existing_matches(alert, default_branch, baseline_evaluation_cursor(List.last(test_cases)), count)
+    end
+  end
+
+  # Shared by the read-only preview and baseline publication so both apply the
+  # same metric, trusted-branch validation, and current-state scope.
+  def matching_test_case_ids(alert, test_case_ids) do
+    matching_test_case_ids(alert, test_case_ids, Projects.get_project_by_id(alert.project_id).default_branch)
+  end
+
+  def matching_test_case_ids(alert, test_case_ids, default_branch) do
+    %{triggered: triggered_ids} =
+      case alert.monitor_type do
+        "flakiness_rate" ->
+          FlakyTestsMonitor.evaluate(alert, test_case_ids)
+
+        "flaky_run_count" ->
+          FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
+
+        "reliability_rate" ->
+          FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+
+        "test_updated" ->
+          %{triggered: []}
+
+        unknown ->
+          Logger.warning("Unknown monitor type: #{unknown}")
+          %{triggered: []}
+      end
+
+    triggered_ids
+    |> validated_test_case_ids(alert.project_id, default_branch)
+    |> filter_test_case_states(alert.project_id, alert.trigger_config)
+  end
+
+  def validated_test_case_ids([], _project_id, _default_branch), do: []
+
+  def validated_test_case_ids(ids, project_id, default_branch) do
+    ids = Enum.uniq(ids)
+    validated = MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(project_id, ids, default_branch))
+    Enum.filter(ids, &MapSet.member?(validated, &1))
+  end
+
+  def filter_test_case_states([], _project_id, _config), do: []
+  def filter_test_case_states(items, _project_id, config) when not is_map(config), do: items
+
+  def filter_test_case_states(items, project_id, config) do
+    case config["states"] do
+      states when is_list(states) and states != [] ->
+        resolved = Tests.get_test_case_states(project_id, Enum.map(items, &test_case_id/1))
+        Enum.filter(items, &(Map.get(resolved, test_case_id(&1), %{state: "enabled"}).state in states))
+
+      _ ->
+        items
+    end
+  end
+
+  defp test_case_id(%{test_case_id: id}), do: id
+  defp test_case_id(id), do: id
 
   @doc false
   def list_alert_baseline_test_case_page(project_id, cursor) do
@@ -706,54 +849,179 @@ defmodule Tuist.Automations do
       alert.baseline_generation != attempt.baseline_generation
   end
 
-  defp publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt) do
-    test_case_ids =
-      BaselineResult
-      |> where(attempt_id: ^attempt.id)
-      |> maybe_filter_published_baseline_results(attempt.last_published_test_case_id)
-      |> order_by(asc: :test_case_id)
-      |> limit(@baseline_event_batch_size)
-      |> select([result], result.test_case_id)
-      |> Repo.all()
+  defp publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) do
+    # Pin the session lock across external calls, but keep row-lock transactions
+    # short so edits and cancellation do not wait on Slack. A competing publisher
+    # leaves the pending attempt for the next scheduled evaluation.
+    lock_name = "automation-baseline:#{attempt.alert_id}"
+
+    Repo.checkout(
+      fn ->
+        case Repo.query!("SELECT pg_try_advisory_lock(hashtextextended($1, 0))", [lock_name]) do
+          %{rows: [[true]]} ->
+            try do
+              do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match)
+            after
+              Repo.query!("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lock_name])
+            end
+
+          %{rows: [[false]]} ->
+            :ok
+        end
+      end,
+      timeout: :infinity
+    )
+  end
+
+  defp do_publish_and_commit_alert_baseline(attempt, evaluate_batch, apply_match) when is_function(apply_match, 2) do
+    test_case_ids = list_unpublished_baseline_results(attempt)
 
     case test_case_ids do
       [] ->
         commit_alert_baseline(attempt)
 
       test_case_ids ->
-        now =
-          attempt.cursor
-          |> DateTime.to_naive()
-          |> Map.put(:microsecond, {0, 6})
+        # A baseline may span multiple jobs. Recheck the metric and state in
+        # bounded batches before applying actions to the saved matching set.
+        matching_ids = MapSet.new(evaluate_batch.(test_case_ids))
 
-        records =
-          Enum.map(test_case_ids, fn test_case_id ->
-            %{
-              id: deterministic_baseline_event_id(attempt.id, test_case_id),
-              alert_id: attempt.alert_id,
-              baseline_generation: attempt.baseline_generation,
-              test_case_id: test_case_id,
-              status: "triggered",
-              triggered_at: now,
-              inserted_at: now
-            }
+        result =
+          Enum.reduce_while(test_case_ids, {:ok, attempt}, fn test_case_id, {:ok, attempt} ->
+            case apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
+              {:ok, next_attempt} -> {:cont, {:ok, next_attempt}}
+              {:error, :stale} -> {:halt, {:error, :stale}}
+            end
           end)
 
-        IngestRepo.insert_all(AlertEvent, records,
-          settings: [
-            insert_deduplication_token:
-              baseline_event_deduplication_token(
-                attempt.id,
-                attempt.last_published_test_case_id
-              )
-          ]
-        )
-
-        case advance_alert_baseline_publication(attempt, List.last(test_case_ids)) do
-          {:ok, next_attempt} -> publish_and_commit_alert_baseline(next_attempt)
+        case result do
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, evaluate_batch, apply_match)
           {:error, :stale} -> :ok
         end
     end
+  end
+
+  defp do_publish_and_commit_alert_baseline(%BaselineAttempt{} = attempt, _evaluate_batch, nil) do
+    test_case_ids = list_unpublished_baseline_results(attempt)
+
+    case test_case_ids do
+      [] ->
+        commit_alert_baseline(attempt)
+
+      test_case_ids ->
+        result = publish_silent_baseline_batch(attempt, test_case_ids)
+
+        case result do
+          {:ok, next_attempt} -> do_publish_and_commit_alert_baseline(next_attempt, nil, nil)
+          {:error, :stale} -> :ok
+        end
+    end
+  end
+
+  defp publish_silent_baseline_batch(attempt, test_case_ids) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) or not alert.enabled ->
+          Repo.rollback(:stale)
+
+        current_attempt.last_published_test_case_id != attempt.last_published_test_case_id ->
+          current_attempt
+
+        true ->
+          active_ids = MapSet.new(list_active_alert_events(alert, test_case_ids), & &1.test_case_id)
+          new_ids = Enum.reject(test_case_ids, &MapSet.member?(active_ids, &1))
+          publish_alert_baseline_events(attempt, new_ids, Alert.event_generation(alert))
+
+          current_attempt
+          |> BaselineAttempt.changeset(%{last_published_test_case_id: List.last(test_case_ids)})
+          |> Repo.update!()
+      end
+    end)
+  end
+
+  defp apply_and_publish_baseline_match(attempt, test_case_id, matching_ids, apply_match) do
+    case prepare_baseline_match(attempt, test_case_id) do
+      {:ok, {:ready, alert, current_attempt}} ->
+        maybe_apply_baseline_match(alert, current_attempt, test_case_id, matching_ids, apply_match)
+        checkpoint_baseline_match(current_attempt, test_case_id)
+
+      {:ok, {:already_published, current_attempt}} ->
+        {:ok, current_attempt}
+
+      {:error, :stale} ->
+        {:error, :stale}
+    end
+  end
+
+  defp prepare_baseline_match(attempt, test_case_id) do
+    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
+      cond do
+        stale_alert_baseline_attempt?(alert, current_attempt) or not alert.enabled ->
+          Repo.rollback(:stale)
+
+        current_attempt.last_published_test_case_id != nil and
+            current_attempt.last_published_test_case_id >= test_case_id ->
+          {:already_published, current_attempt}
+
+        true ->
+          {:ready, alert, current_attempt}
+      end
+    end)
+  end
+
+  defp checkpoint_baseline_match(attempt, test_case_id) do
+    # An edit may have cancelled this generation while its action was in flight.
+    # Record the completed action; the next preflight stops any remaining work.
+    with_locked_alert_baseline_attempt(attempt, fn _alert, current_attempt ->
+      current_attempt
+      |> BaselineAttempt.changeset(%{last_published_test_case_id: test_case_id})
+      |> Repo.update!()
+    end)
+  end
+
+  defp maybe_apply_baseline_match(alert, attempt, test_case_id, matching_ids, apply_match) do
+    if MapSet.member?(matching_ids, test_case_id) do
+      case apply_match.(alert, test_case_id) do
+        :ok ->
+          publish_alert_baseline_events(attempt, [test_case_id], Alert.event_generation(alert), NaiveDateTime.utc_now())
+
+        {:error, reason} ->
+          Logger.error("Automation #{alert.id} baseline actions failed for #{test_case_id}: #{inspect(reason)}")
+      end
+    end
+  end
+
+  defp list_unpublished_baseline_results(attempt) do
+    BaselineResult
+    |> where(attempt_id: ^attempt.id)
+    |> maybe_filter_published_baseline_results(attempt.last_published_test_case_id)
+    |> order_by(asc: :test_case_id)
+    |> limit(@baseline_event_batch_size)
+    |> select([result], result.test_case_id)
+    |> Repo.all()
+  end
+
+  defp publish_alert_baseline_events(attempt, test_case_ids, event_generation, triggered_at \\ nil) do
+    now = triggered_at || attempt.cursor |> DateTime.to_naive() |> Map.put(:microsecond, {0, 6})
+
+    records =
+      Enum.map(test_case_ids, fn test_case_id ->
+        %{
+          id: deterministic_baseline_event_id(attempt.id, test_case_id),
+          alert_id: attempt.alert_id,
+          baseline_generation: event_generation,
+          test_case_id: test_case_id,
+          status: "triggered",
+          triggered_at: now,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(AlertEvent, records,
+      settings: [
+        insert_deduplication_token:
+          baseline_event_deduplication_token(attempt.id, attempt.last_published_test_case_id, test_case_ids)
+      ]
+    )
   end
 
   defp maybe_filter_published_baseline_results(query, nil), do: query
@@ -762,29 +1030,15 @@ defmodule Tuist.Automations do
     where(query, [result], result.test_case_id > ^test_case_id)
   end
 
-  defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id) do
-    "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}"
-  end
+  defp baseline_event_deduplication_token(attempt_id, last_published_test_case_id, test_case_ids) do
+    digest =
+      test_case_ids
+      |> Enum.sort()
+      |> :erlang.term_to_binary()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
 
-  defp advance_alert_baseline_publication(attempt, last_published_test_case_id) do
-    with_locked_alert_baseline_attempt(attempt, fn alert, current_attempt ->
-      cond do
-        stale_alert_baseline_attempt?(alert, current_attempt) ->
-          Repo.rollback(:stale)
-
-        current_attempt.state != "publishing" or
-            current_attempt.last_published_test_case_id !=
-              attempt.last_published_test_case_id ->
-          current_attempt
-
-        true ->
-          current_attempt
-          |> BaselineAttempt.changeset(%{
-            last_published_test_case_id: last_published_test_case_id
-          })
-          |> Repo.update!()
-      end
-    end)
+    "automation-alert-baseline:#{attempt_id}:#{last_published_test_case_id || "start"}:#{digest}"
   end
 
   @doc false
@@ -824,6 +1078,7 @@ defmodule Tuist.Automations do
                alert
                |> Ecto.Changeset.change(
                  baseline_established_at: current_attempt.cursor,
+                 trigger_config: Map.delete(alert.trigger_config, "apply_actions_to_existing_matches"),
                  last_scoped_evaluation_inserted_at: current_attempt.cursor
                )
                |> Repo.update!()

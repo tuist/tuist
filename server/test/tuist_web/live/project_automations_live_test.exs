@@ -11,6 +11,139 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
+  setup do
+    stub(Automations, :count_existing_matches, fn _alert -> 0 end)
+    :ok
+  end
+
+  describe "existing match preview" do
+    test "loads asynchronously, refreshes the condition, and never shows an obsolete result", context do
+      test_pid = self()
+
+      stub(Automations, :count_existing_matches, fn alert ->
+        send(test_pid, {:counting, self(), alert.trigger_config})
+
+        receive do
+          {:count, count} -> count
+        end
+      end)
+
+      {:ok, lv, _html} = open(context.conn, context.organization, context.project)
+      html = render_hook(lv, "open_create_automation_modal", %{})
+      assert html =~ "Counting matching tests"
+      assert_receive {:counting, first_task, %{"threshold" => 10.0}}
+
+      monitor = Process.monitor(first_task)
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "25"})
+      assert_receive {:DOWN, ^monitor, :process, ^first_task, _}
+      assert_receive {:counting, second_task, %{"threshold" => 25.0}}, 1000
+      send(second_task, {:count, 24})
+      assert render_async(lv) =~ "24 tests that currently match"
+
+      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      assert_receive {:counting, third_task, %{"states" => ["muted"]}}, 1000
+      send(third_task, {:count, 1})
+      assert render_async(lv) =~ "1 test that currently matches"
+
+      html = render_hook(lv, "update_create_automation_form_threshold", %{"value" => ""})
+      refute html =~ "1 test that currently matches"
+      assert render(lv) =~ "Complete a valid condition"
+      refute_receive {:counting, _, _}
+
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      refute has_element?(lv, "#apply-existing-matches-count")
+      refute_receive {:counting, _, _}
+    end
+
+    test "debounces edits and bounds async state while cancelling in-flight counts", context do
+      test_pid = self()
+
+      stub(Automations, :count_existing_matches, fn alert ->
+        send(test_pid, {:counting, self(), alert.trigger_config["threshold"]})
+
+        receive do
+          :finish -> 1
+        end
+      end)
+
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      assert_receive {:counting, first, 10.0}
+
+      for value <- ["1", "12", "12.", "12.5"] do
+        render_hook(lv, "update_create_automation_form_threshold", %{"value" => value})
+      end
+
+      refute_receive {:counting, _, _}, 200
+      assert_receive {:counting, second, 12.5}, 1000
+      refute Process.alive?(first)
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "20"})
+      assert_receive {:counting, third, 20.0}, 1000
+      refute Process.alive?(second)
+      state = :sys.get_state(lv.pid)
+      assert map_size(state.socket.private.live_async) == 1
+      send(third, :finish)
+      assert render_async(lv) =~ "1 test that currently matches"
+    end
+
+    test "invalid conditions cannot be saved and unknown sections preserve the form", context do
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Valid name"})
+
+      for value <- ["", "oops", "101"] do
+        render_hook(lv, "update_create_automation_form_threshold", %{"value" => value})
+        assert render(lv) =~ "Complete a valid condition."
+        assert render(lv) =~ ~s(disabled="" type="button" phx-click="save_automation")
+        render_hook(lv, "save_automation", %{})
+        assert Automations.list_alerts(context.project.id) == []
+      end
+
+      assert render_hook(lv, "toggle_create_automation_form_section", %{"section" => "unexpected"}) =~ "Valid name"
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "25"})
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.trigger_config["threshold"] == 25.0
+    end
+
+    test "editing shows pending actions and an unchecked save cancels them", context do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: context.project,
+          baseline_established_at: nil,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "apply_actions_to_existing_matches" => true
+          }
+        )
+
+      {:ok, lv, _} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      assert render(lv) =~ "cancel any remaining actions"
+      render_hook(lv, "save_automation", %{})
+      updated = Repo.reload!(automation)
+      refute updated.trigger_config["apply_actions_to_existing_matches"]
+      assert updated.baseline_generation == automation.baseline_generation + 1
+    end
+
+    test "shows failure without blocking save and refreshes when reopened for editing", context do
+      stub(Automations, :count_existing_matches, fn _alert -> exit(:unavailable) end)
+      {:ok, lv, _html} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      assert render_async(lv) =~ "Match count unavailable. You can still save."
+
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Preview unavailable"})
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+
+      stub(Automations, :count_existing_matches, fn _alert -> 0 end)
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      assert render_async(lv) =~ "0 tests that currently match"
+    end
+  end
+
   defp open(conn, organization, project) do
     live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
   end
@@ -73,6 +206,107 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
   end
 
   describe "creating an automation" do
+    test "expands condition and actions for creation, but collapses every section when editing", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+      html = render_hook(lv, "open_create_automation_modal", %{})
+      document = Floki.parse_document!(html)
+      assert Floki.attribute(document, "#automation-condition-toggle", "aria-expanded") == ["true"]
+      assert Floki.attribute(document, "#automation-actions-toggle", "aria-expanded") == ["true"]
+      assert Floki.attribute(document, "#automation-recovery-toggle", "aria-expanded") == ["false"]
+
+      render_hook(lv, "toggle_create_automation_form_section", %{"section" => "condition"})
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "25"})
+      html = render(lv)
+      document = Floki.parse_document!(html)
+      assert Floki.attribute(document, "#automation-condition-toggle", "aria-expanded") == ["false"]
+      assert Floki.attribute(document, "#automation-actions-toggle", "aria-expanded") == ["true"]
+      assert document |> Floki.find("#automation-condition-toggle") |> Floki.text() =~ "25%"
+
+      render_hook(lv, "toggle_create_automation_form_section", %{"section" => "recovery"})
+      render_hook(lv, "toggle_create_automation_form_recovery", %{})
+      html = render_hook(lv, "toggle_create_automation_form_section", %{"section" => "actions"})
+
+      assert html |> Floki.parse_document!() |> Floki.find("#automation-recovery-toggle") |> Floki.text() =~
+               "After 14d without a trigger: Unmark test as flaky."
+
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Folded automation"})
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["threshold"] == 25
+      assert automation.recovery_enabled
+
+      html = render_hook(lv, "edit_automation", %{"id" => automation.id})
+
+      document = Floki.parse_document!(html)
+
+      for section <- ["condition", "actions", "recovery"] do
+        assert Floki.attribute(document, "#automation-#{section}-toggle", "aria-expanded") == ["false"]
+      end
+
+      assert document |> Floki.find("#automation-condition-toggle") |> Floki.text() =~ "25%"
+
+      assert document |> Floki.find("#automation-actions-toggle") |> Floki.text() =~
+               "For each matching test: Mark test as flaky."
+
+      assert document |> Floki.find("#automation-recovery-toggle") |> Floki.text() =~ "After 14d without a trigger"
+    end
+
+    test "applies once on creation and resets the checkbox when editing", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Recover healthy tests"})
+      html = render_hook(lv, "toggle_create_automation_form_apply_existing_matches", %{})
+      assert html =~ "Create and apply actions"
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["apply_actions_to_existing_matches"]
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      html = render(lv)
+      assert html =~ "create-automation-apply-existing-matches-checkbox-#{automation.id}"
+      assert html =~ ~s(aria-checked="false")
+      refute html =~ "Save and apply actions"
+      render_hook(lv, "save_automation", %{})
+      assert Repo.reload!(automation).baseline_generation == automation.baseline_generation + 1
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      html = render_hook(lv, "toggle_create_automation_form_apply_existing_matches", %{})
+      assert html =~ "Save and apply actions"
+      render_hook(lv, "save_automation", %{})
+      assert Repo.reload!(automation).baseline_generation == automation.baseline_generation + 2
+
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "update_create_automation_form_threshold", %{"value" => "20"})
+      render_hook(lv, "save_automation", %{})
+      refute Repo.reload!(automation).trigger_config["apply_actions_to_existing_matches"]
+    end
+
+    test "enabling existing-match actions from the form resets a silent baseline", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "edit_automation", %{"id" => automation.id})
+      render_hook(lv, "toggle_create_automation_form_apply_existing_matches", %{})
+      render_hook(lv, "save_automation", %{})
+
+      updated = Repo.reload!(automation)
+      assert updated.trigger_config["apply_actions_to_existing_matches"]
+      assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
+    end
+
     test "creates an automation through the modal form", %{conn: conn, organization: organization, project: project} do
       {:ok, lv, _html} = open(conn, organization, project)
 
@@ -81,6 +315,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
+      refute automation.trigger_config["apply_actions_to_existing_matches"]
       assert automation.name == "Auto-quarantine"
       assert automation.monitor_type == "flakiness_rate"
       # Non-destructive default: label-only, no quarantine. Users can add
@@ -413,6 +648,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute html =~ ~s(id="create-automation-rolling-window-size")
       refute html =~ "create-automation-recovery-days"
       refute html =~ "create-automation-recovery-toggle"
+      refute html =~ "create-automation-apply-existing-matches-checkbox"
       # The inline events multi-select renders instead.
       assert html =~ "create-automation-events"
       assert html =~ "create-automation-event-marked_flaky"
@@ -430,6 +666,25 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert [automation] = Automations.list_alerts(project.id)
       refute automation.recovery_enabled
+    end
+
+    test "requires an event selection before saving a test_updated automation", context do
+      {:ok, lv, _html} = open(context.conn, context.organization, context.project)
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "test_updated"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "State change"})
+      render_hook(lv, "add_create_automation_form_trigger_action", %{"data" => "change_state"})
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
+      assert render(lv) =~ ~s(disabled="" type="button" phx-click="save_automation")
+      assert render(lv) =~ "Complete a valid condition."
+      render_hook(lv, "save_automation", %{})
+      assert Automations.list_alerts(context.project.id) == []
+
+      render_hook(lv, "toggle_create_automation_form_event", %{"data" => "marked_flaky"})
+      refute render(lv) =~ ~s(disabled="" type="button" phx-click="save_automation")
+      render_hook(lv, "save_automation", %{})
+      assert [automation] = Automations.list_alerts(context.project.id)
+      assert automation.trigger_config["events"] == ["marked_flaky"]
     end
 
     test "Save is disabled when switching to test_updated strips the only action", %{

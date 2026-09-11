@@ -39,8 +39,127 @@ defmodule TuistWeb.ProjectAutomationsLive do
       )
       |> assign_automations(selected_project)
       |> assign_create_automation_form_defaults()
+      |> assign(match_count: :idle, match_count_ref: nil, match_count_timer: nil, match_count_running_ref: nil)
+      |> attach_hook(:match_count, :handle_event, &refresh_match_count_on_event/3)
 
     {:ok, socket}
+  end
+
+  @match_count_events ~w(
+    open_create_automation_modal edit_automation
+    update_create_automation_form_metric update_create_automation_form_comparison
+    update_create_automation_form_threshold toggle_create_automation_form_trigger_state
+    update_create_automation_form_window update_create_automation_form_window_type
+    update_create_automation_form_rolling_window_size
+  )
+
+  defp refresh_match_count_on_event(event, _params, socket) when event in @match_count_events do
+    if socket.assigns.can_manage_automations do
+      socket = cancel_match_count(socket)
+      ref = make_ref()
+      delay = if event in ["open_create_automation_modal", "edit_automation"], do: 0, else: 500
+
+      timer =
+        if delay == 0 do
+          send(self(), {:refresh_match_count, ref})
+          nil
+        else
+          Process.send_after(self(), {:refresh_match_count, ref}, delay)
+        end
+
+      {:cont, assign(socket, match_count: :loading, match_count_ref: ref, match_count_timer: timer)}
+    else
+      {:cont, socket}
+    end
+  end
+
+  defp refresh_match_count_on_event("close_create_automation_modal", _params, socket) do
+    {:cont, socket |> cancel_match_count() |> assign(match_count: :idle, match_count_ref: nil)}
+  end
+
+  defp refresh_match_count_on_event(_event, _params, socket), do: {:cont, socket}
+
+  defp cancel_match_count(socket) do
+    if socket.assigns.match_count_timer, do: Process.cancel_timer(socket.assigns.match_count_timer)
+
+    socket
+    |> cancel_async(:match_count)
+    |> assign(match_count_timer: nil, match_count_running_ref: nil)
+  end
+
+  @impl true
+  def handle_info({:refresh_match_count, ref}, %{assigns: %{match_count_ref: ref}} = socket) do
+    socket = assign(socket, match_count_timer: nil)
+
+    case match_count_alert(socket.assigns) do
+      {:ok, alert} ->
+        {:noreply,
+         socket
+         |> assign(match_count_running_ref: ref)
+         |> start_async(:match_count, fn -> {ref, Automations.count_existing_matches(alert)} end)}
+
+      :invalid ->
+        {:noreply, assign(socket, match_count: :invalid)}
+    end
+  end
+
+  def handle_info({:refresh_match_count, _ref}, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_async(:match_count, {:ok, {ref, count}}, %{assigns: %{match_count_ref: ref}} = socket) do
+    {:noreply, assign(socket, match_count: {:ok, count}, match_count_running_ref: nil)}
+  end
+
+  def handle_async(
+        :match_count,
+        {:exit, _reason},
+        %{assigns: %{match_count_ref: ref, match_count_running_ref: ref}} = socket
+      )
+      when not is_nil(ref) do
+    {:noreply, assign(socket, match_count: :failed, match_count_running_ref: nil)}
+  end
+
+  def handle_async(:match_count, _result, socket), do: {:noreply, socket}
+
+  defp condition_inputs_valid?(assigns) do
+    condition_alert(assigns) != :invalid
+  end
+
+  defp match_count_alert(assigns) do
+    if event_driven_monitor_type?(assigns.create_automation_form_metric), do: :invalid, else: condition_alert(assigns)
+  end
+
+  defp condition_alert(assigns) do
+    metric = assigns.create_automation_form_metric
+    integer_threshold? = metric == "flaky_run_count"
+
+    valid_numbers? =
+      event_driven_monitor_type?(metric) or
+        (valid_preview_number?(assigns.create_automation_form_threshold, integer_threshold?) and
+           (assigns.create_automation_form_window_type != "rolling" or
+              valid_preview_number?(assigns.create_automation_form_rolling_window_size, true)))
+
+    changeset =
+      Alert.changeset(%Alert{}, %{
+        project_id: assigns.selected_project.id,
+        name: "Condition validation",
+        monitor_type: metric,
+        trigger_config: trigger_config_for(metric, assigns),
+        trigger_actions: [default_change_state_action("muted")]
+      })
+
+    if valid_numbers? and changeset.valid? do
+      {:ok, Ecto.Changeset.apply_changes(changeset)}
+    else
+      :invalid
+    end
+  end
+
+  defp valid_preview_number?(value, integer?) do
+    case if(integer?, do: Integer.parse(value), else: Float.parse(value)) do
+      {_number, ""} -> true
+      _ -> false
+    end
   end
 
   defp assign_automations(socket, project) do
@@ -58,6 +177,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     # project creation. Quarantining is an explicit opt-in via "Add action".
     socket
     |> assign(editing_automation_id: nil)
+    |> assign(create_automation_form_sections: ["condition", "actions"])
     |> assign(create_automation_form_name: "")
     |> assign(create_automation_form_metric: "flakiness_rate")
     |> assign(create_automation_form_comparison: "gte")
@@ -67,6 +187,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
     |> assign(create_automation_form_trigger_states: [])
+    |> assign(create_automation_form_apply_existing_matches: false)
+    |> assign(create_automation_form_existing_matches_pending: false)
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
@@ -125,6 +247,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
       trigger_states: parse_states(automation.trigger_config["states"]),
+      apply_existing_matches: false,
+      existing_matches_pending: Alert.apply_actions_to_existing_matches?(automation),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
@@ -175,6 +299,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       socket =
         socket
         |> assign(editing_automation_id: automation.id)
+        |> assign(create_automation_form_sections: [])
         |> assign(create_automation_form_name: form.name)
         |> assign(create_automation_form_metric: form.metric)
         |> assign(create_automation_form_comparison: form.comparison)
@@ -184,6 +309,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
         |> assign(create_automation_form_trigger_states: form.trigger_states)
+        |> assign(create_automation_form_apply_existing_matches: form.apply_existing_matches)
+        |> assign(create_automation_form_existing_matches_pending: form.existing_matches_pending)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
@@ -202,6 +329,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def handle_event("close_create_automation_modal", _params, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: "create-automation-modal"})}
   end
+
+  def handle_event("toggle_create_automation_form_section", %{"section" => section}, socket)
+      when section in ["condition", "actions", "recovery"] do
+    sections = socket.assigns.create_automation_form_sections
+    sections = if section in sections, do: List.delete(sections, section), else: [section | sections]
+    {:noreply, assign(socket, create_automation_form_sections: sections)}
+  end
+
+  def handle_event("toggle_create_automation_form_section", _params, socket), do: {:noreply, socket}
 
   def handle_event("update_create_automation_form_name", %{"value" => name}, socket) do
     {:noreply, assign(socket, create_automation_form_name: name)}
@@ -343,6 +479,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
      assign(socket, create_automation_form_recovery_enabled: not socket.assigns.create_automation_form_recovery_enabled)}
   end
 
+  def handle_event("toggle_create_automation_form_apply_existing_matches", _params, socket) do
+    {:noreply,
+     assign(socket,
+       create_automation_form_apply_existing_matches: not socket.assigns.create_automation_form_apply_existing_matches
+     )}
+  end
+
   def handle_event("update_create_automation_form_recovery_window", %{"value" => value}, socket) do
     {:noreply, assign(socket, create_automation_form_recovery_window: value)}
   end
@@ -430,45 +573,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
-    attrs = build_automation_attrs(assigns.selected_project.id, assigns)
-
-    result =
-      case assigns.editing_automation_id do
-        nil ->
-          with :ok <-
-                 Authorization.authorize(
-                   :automation_alert_create,
-                   assigns.current_user,
-                   assigns.selected_project
-                 ) do
-            Automations.create_alert(attrs, actor: assigns.current_user, source: "dashboard")
-          end
-
-        id ->
-          with :ok <-
-                 Authorization.authorize(
-                   :automation_alert_update,
-                   assigns.current_user,
-                   assigns.selected_project
-                 ),
-               {:ok, automation} <- Automations.get_alert(id),
-               true <- automation.project_id == assigns.selected_project.id do
-            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
-          end
-      end
-
-    case result do
-      {:ok, _automation} ->
-        socket =
-          socket
-          |> assign_automations(assigns.selected_project)
-          |> assign_create_automation_form_defaults()
-          |> push_event("close-modal", %{id: "create-automation-modal"})
-
-        {:noreply, socket}
-
-      _ ->
-        {:noreply, socket}
+    if condition_inputs_valid?(assigns) and rolling_window_inputs_valid?(assigns) do
+      save_automation(socket)
+    else
+      {:noreply, socket}
     end
   end
 
@@ -527,12 +635,109 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp new_action(_, :recovery), do: default_change_state_action("enabled")
   defp new_action(_, _), do: default_change_state_action("muted")
 
+  defp save_automation(%{assigns: assigns} = socket) do
+    attrs = build_automation_attrs(assigns.selected_project.id, assigns)
+
+    result =
+      case assigns.editing_automation_id do
+        nil ->
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_create,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ) do
+            Automations.create_alert(attrs, actor: assigns.current_user, source: "dashboard")
+          end
+
+        id ->
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_update,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ),
+               {:ok, automation} <- Automations.get_alert(id),
+               true <- automation.project_id == assigns.selected_project.id do
+            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
+          end
+      end
+
+    case result do
+      {:ok, _automation} ->
+        socket =
+          socket
+          |> cancel_match_count()
+          |> assign(match_count: :idle, match_count_ref: nil)
+          |> assign_automations(assigns.selected_project)
+          |> assign_create_automation_form_defaults()
+          |> push_event("close-modal", %{id: "create-automation-modal"})
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   defp update_action_at(actions, index, fun) do
     case Enum.at(actions, index) do
       nil -> actions
       action -> List.replace_at(actions, index, fun.(action))
     end
   end
+
+  defp form_condition_summary(assigns) do
+    if condition_inputs_valid?(assigns) do
+      valid_form_condition_summary(assigns)
+    else
+      dgettext("dashboard_projects", "Complete a valid condition.")
+    end
+  end
+
+  defp valid_form_condition_summary(assigns) do
+    summary =
+      automation_summary(%{
+        monitor_type: assigns.create_automation_form_metric,
+        trigger_config: trigger_config_for(assigns.create_automation_form_metric, assigns)
+      })
+
+    case assigns.create_automation_form_trigger_states do
+      [] -> summary
+      states -> summary <> " · " <> Enum.map_join(states, ", ", &trigger_action_label/1)
+    end
+  end
+
+  defp form_actions_summary(assigns) do
+    case assigns.create_automation_form_trigger_actions do
+      [] ->
+        dgettext("dashboard_projects", "No actions selected.")
+
+      actions ->
+        dgettext("dashboard_projects", "For each matching test: %{actions}.",
+          actions: Enum.map_join(actions, ", ", &form_action_summary/1)
+        )
+    end
+  end
+
+  defp form_recovery_summary(assigns) do
+    if assigns.create_automation_form_recovery_enabled do
+      dgettext("dashboard_projects", "After %{window} without a trigger: %{actions}.",
+        window: window_summary(recovery_config_for(assigns.create_automation_form_metric, assigns)),
+        actions: Enum.map_join(assigns.create_automation_form_recovery_actions, ", ", &form_action_summary/1)
+      )
+    else
+      dgettext("dashboard_projects", "Recovery is disabled.")
+    end
+  end
+
+  defp form_action_summary(%{"type" => "add_label", "label" => "flaky"}),
+    do: dgettext("dashboard_projects", "Mark test as flaky")
+
+  defp form_action_summary(%{"type" => "remove_label", "label" => "flaky"}),
+    do: dgettext("dashboard_projects", "Unmark test as flaky")
+
+  defp form_action_summary(action), do: action_row_summary(action)
 
   defp build_automation_attrs(project_id, assigns) do
     metric = assigns.create_automation_form_metric
@@ -572,7 +777,11 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_rolling_window_size
     )
     |> maybe_put_states(assigns.create_automation_form_trigger_states)
+    |> maybe_put_apply_existing_matches(assigns.create_automation_form_apply_existing_matches)
   end
+
+  defp maybe_put_apply_existing_matches(config, true), do: Map.put(config, "apply_actions_to_existing_matches", true)
+  defp maybe_put_apply_existing_matches(config, false), do: Map.put(config, "apply_actions_to_existing_matches", false)
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
 

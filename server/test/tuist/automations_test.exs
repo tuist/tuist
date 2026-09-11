@@ -94,6 +94,58 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "update_alert/2" do
+    test "opting in resets an existing baseline and records the option in history" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      config = Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+
+      assert {:ok, updated} = Automations.update_alert(automation, %{trigger_config: config})
+      assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
+
+      assert hd(Automations.list_alert_revisions(automation.id)).snapshot["trigger_config"][
+               "apply_actions_to_existing_matches"
+             ]
+    end
+
+    test "action changes do not inherit an earlier request and unrelated saves preserve pending work" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "apply_actions_to_existing_matches" => true
+          }
+        )
+
+      assert {:ok, renamed} = Automations.update_alert(automation, %{name: "Renamed"})
+      assert renamed.baseline_established_at == automation.baseline_established_at
+      assert renamed.trigger_config["apply_actions_to_existing_matches"]
+
+      assert {:ok, unchanged} =
+               Automations.update_alert(renamed, %{
+                 trigger_config: Map.delete(renamed.trigger_config, "apply_actions_to_existing_matches"),
+                 trigger_actions: renamed.trigger_actions
+               })
+
+      assert unchanged.baseline_generation == automation.baseline_generation
+
+      assert {:ok, updated} =
+               Automations.update_alert(unchanged, %{trigger_actions: [%{"type" => "change_state", "state" => "enabled"}]})
+
+      assert updated.baseline_established_at == nil
+      assert updated.baseline_generation == automation.baseline_generation + 1
+      refute updated.trigger_config["apply_actions_to_existing_matches"]
+    end
+
+    test "each explicit request starts a fresh generation even with unchanged settings" do
+      automation = AutomationsFixtures.automation_alert_fixture()
+      config = Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+      assert {:ok, first} = Automations.update_alert(automation, %{trigger_config: config})
+      assert {:ok, second} = Automations.update_alert(first, %{trigger_config: config})
+      assert second.baseline_generation == first.baseline_generation + 1
+    end
+
     test "updates the given automation" do
       automation = AutomationsFixtures.automation_alert_fixture()
       assert {:ok, updated} = Automations.update_alert(automation, %{"enabled" => false})

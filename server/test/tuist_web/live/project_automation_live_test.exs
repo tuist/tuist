@@ -91,6 +91,23 @@ defmodule TuistWeb.ProjectAutomationLiveTest do
     refute has_element?(live_view, "#show-more-history")
   end
 
+  test "shows the one-time request in history without making it part of the condition", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    automation = AutomationsFixtures.automation_alert_fixture(project: project)
+
+    {:ok, automation} =
+      Automations.update_alert(automation, %{
+        trigger_config: Map.put(automation.trigger_config, "apply_actions_to_existing_matches", true)
+      })
+
+    {:ok, live_view, _html} = open(conn, organization, project, automation)
+    refute has_element?(live_view, "[data-part='configuration-card']", "Requested actions for existing matches")
+    assert has_element?(live_view, "[data-part='history-card']", "Requested actions for existing matches")
+  end
+
   test "raises not found when the automation does not belong to the project", %{
     conn: conn,
     organization: organization,
