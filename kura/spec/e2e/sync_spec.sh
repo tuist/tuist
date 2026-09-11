@@ -74,11 +74,6 @@ sync_start_nodes() {
   resolve_sync_nodes "$@"
 }
 
-wait_for_node_ready() {
-  wait_for_http "$1/up" 60 1 || return 1
-  wait_for_status "$1/ready" 200 90 1 >/dev/null || return 1
-}
-
 wait_for_ring_members() {
   wait_for_contains "$1/status/cluster" "\"ring_members\":$2" 45 2 >/dev/null
 }
