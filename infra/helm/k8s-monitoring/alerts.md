@@ -963,20 +963,17 @@ the old rule never looked at.
 
 #### Upload-body failures and misleading 500s
 
-On 2026-09-11, `kura-kaioelfke-eu-east-1-1` running `0.41.2` recorded
-691 CAS-upload 500s between 09:30 and 09:38 UTC, alongside 9,400 successful
-uploads. All five sampled Kura failures matched ingress HTTP 400s by request ID;
-ingress received no upstream response on those requests. The pod stayed ready
-without restarts, and auth-unavailable and capacity-shed counters did not move.
-The alert returned to normal by 09:46 UTC, after upload traffic had stopped.
-That was evidence of a quiet workload, not a successful recovery under load.
-
-In that version, `read_request_to_temp` classified errors from the incoming
+In Kura `0.41.2`, `read_request_to_temp` classified errors from the incoming
 body stream as storage I/O, and the upload handler converted them to 500.
 The handler completion log also discarded the error cause. Thus the alert's
-"client aborts are 499" description did not cover uploads. The ingress's exact
-reason for rejecting the bodies was not established; do not infer it from a
-400 alone or treat every recorded 500 as a response delivered to the client.
+"client aborts are 499" description did not cover uploads.
+
+Correlate Kura and ingress logs by request ID before attributing these failures.
+An ingress 400 with no upstream response does not establish why the request
+body was rejected or mean the uploader received Kura's recorded 500. Check pod
+readiness, restarts, auth-unavailable and capacity-shed counters, and successful
+upload traffic. An alert clearing after traffic stops does not demonstrate
+recovery under load.
 
 The corrected staging path distinguishes typed premature EOF/reset/cancellation
 (499, `client_aborted`), invalid bodies (400, `invalid_request_body`), and
