@@ -7,6 +7,8 @@ import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { mountStaticHooks } from "./js/lib/static-hooks.js";
 import Noora from "noora";
+// The dashboard's build timeline, embedded in the Bazel announcement post.
+import BuildTimeline from "../app/js/BuildTimeline.js";
 import "katex/dist/katex.min.css";
 import "./marketing.css";
 
@@ -15,7 +17,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 // Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
 const liveSocketFallbackMs = 10000;
 
-const hooks = { ...Noora.Hooks, ...Hooks, ...colocatedHooks };
+const hooks = { ...Noora.Hooks, ...Hooks, BuildTimeline, ...colocatedHooks };
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,
