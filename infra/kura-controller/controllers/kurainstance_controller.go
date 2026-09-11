@@ -538,6 +538,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.replacePendingPodsForStorageDecrease(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
