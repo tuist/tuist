@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
   alias Tuist.Runners.Buildkite.Job
   alias Tuist.Runners.Buildkite.ReportToken
   alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobReportToken
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.WorkflowJob
 
@@ -28,6 +29,59 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
     token = ReportToken.mint(%{workflow_job_id: job.workflow_job_id, account_id: account.id})
 
     %{account: account, workflow_job_id: job.workflow_job_id, token: token}
+  end
+
+  test "GitLab reports use the assigned job and parse section markers", %{conn: conn, account: account} do
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 90
+      })
+
+    token = JobReportToken.mint(mapping)
+
+    expect(JobLogs, :append, fn [line] ->
+      assert line.workflow_job_id == mapping.workflow_job_id
+      assert line.account_id == account.id
+      assert line.message == "Running tests"
+      assert DateTime.to_unix(line.ts) == 1_756_900_000
+      :ok
+    end)
+
+    conn =
+      conn
+      |> authed(token)
+      |> post("/api/internal/runners/jobs/logs", %{lines: ["section_start:1756900000:script\rRunning tests"]})
+
+    assert response(conn, 204)
+  end
+
+  test "GitLab outcomes route to its context with server-observed billing", %{conn: conn, account: account} do
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 90
+      })
+
+    session(account, mapping.workflow_job_id, "gitlab-runner")
+    token = JobReportToken.mint(mapping)
+
+    expect(Tuist.Runners.GitLab, :record_job_finished, fn "gitlab-runner", account_id, report ->
+      assert account_id == account.id
+      assert report == %{workflow_job_id: mapping.workflow_job_id, conclusion: "failure"}
+      :ok
+    end)
+
+    conn =
+      conn |> authed(token) |> post("/api/internal/runners/jobs/finish", %{exit_status: 7, started_at: 0, finished_at: 1})
+
+    assert response(conn, 204)
   end
 
   # Buildkite dispatch opens the session with the execution binding already
