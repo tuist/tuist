@@ -284,6 +284,14 @@
         max-height: 64px;
         color: var(--noora-surface-label-tertiary);
 
+        /* The Korean site's colour variants keep their brand colours and
+           draw their black ink as currentColor: primary label ink, so the
+           black wordmarks (adidas, Qonto, Asana, ...) stay visible in dark
+           mode instead of vanishing into the background. */
+        &[data-variant="color"] {
+          color: var(--noora-surface-label-primary);
+        }
+
         & > svg {
           width: 100%;
           height: 100%;

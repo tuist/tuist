@@ -83,7 +83,17 @@ defmodule TuistWeb.Marketing.MarketingController do
   # are staggered against each other to keep cross-row coincidences rare.
   @home_new_testimonial_rows [
     [:junyoung, "Alon Zilbershtein", "Shahzad Majeed", "Kai Oelfke", :hyojun, :openai, :yusuf, :wojtek],
-    ["Garnik Harutyunyan", :fetch, :jinkyu, "Yousef Moahmed", :gustavo, "Cedric Gatay", :wanbok, "Alberto Salas"]
+    [
+      "Garnik Harutyunyan",
+      :fetch,
+      :jinkyu,
+      "Yousef Moahmed",
+      :gustavo,
+      "Cedric Gatay",
+      :wanbok,
+      "Alberto Salas",
+      :youngjun
+    ]
   ]
 
   defp get_home_new_testimonials do
@@ -100,6 +110,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         :hyojun -> get_hyojun_testimonial()
         :jinkyu -> get_jinkyu_testimonial()
         :wanbok -> get_wanbok_testimonial()
+        :youngjun -> get_youngjun_testimonial()
         name -> Enum.find(testimonials, &(&1.name == name))
       end)
     end)
@@ -235,6 +246,22 @@ defmodule TuistWeb.Marketing.MarketingController do
       name: "Wanbok Choi",
       role: dgettext("marketing", "iOS Developer at Toss"),
       avatar_src: "/marketing/images/home/testimonials/wanbok.jpeg",
+      highlighted: false,
+      logo_svg: nil
+    }
+  end
+
+  # English counterpart of the Korean quote in get_testimonial_columns("ko").
+  defp get_youngjun_testimonial do
+    %{
+      quote:
+        dgettext(
+          "marketing",
+          "Tuist is an amazing tool for iOS developers. Since adopting this tool, I haven't had to face conflicts in Xcode projects. Overall, Tuist has reduced build time, so I can use more time on meaningful tasks. Thankfully, Tuist is receiving feedback from Korean users in local social communities. They are always there for you."
+        ),
+      name: "Lee Young-jun",
+      role: dgettext("marketing", "Game Assistant"),
+      avatar_src: "/marketing/images/home/testimonials/youngjun-lee.jpeg",
       highlighted: false,
       logo_svg: nil
     }
