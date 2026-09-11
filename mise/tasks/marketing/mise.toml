@@ -1,0 +1,6 @@
+# CI uses the upstream binary to avoid refreshing Ubuntu's package indexes.
+[tools."github:ImageMagick/ImageMagick"]
+version = "7.1.2-31"
+asset_pattern = "ImageMagick-{{ version }}-gcc-x86_64.AppImage"
+bin = "magick"
+os = ["linux"]
