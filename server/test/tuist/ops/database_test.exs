@@ -137,6 +137,61 @@ defmodule Tuist.Ops.DatabaseTest do
       {:ok, result} = Database.execute(~s|SELECT 'a, "b"' AS v|)
       assert Database.to_csv(result) == ~s|v\n"a, ""b"""|
     end
+
+    # `Repo.query/1` has no schema-level casting, so a Postgres `uuid` comes
+    # back as a raw 16-byte binary. Rendering it as-is would produce non-UTF-8
+    # bytes and crash Jason with `invalid byte 0xBE` — the Hive incident that
+    # motivated this fix routed through `Phoenix.Controller.json/2`, which is
+    # backed by Jason, so pin the regression against Jason (not `JSON`).
+    test "to_json_map/1 renders postgres uuid values as canonical UUID strings" do
+      {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
+      %{rows: [row]} = Database.to_json_map(result)
+      assert row["id"] == "be426704-1c61-4e38-a7b5-e8bb42042a81"
+      assert result |> Database.to_json_map() |> Jason.encode!() =~ "be426704-1c61-4e38-a7b5-e8bb42042a81"
+    end
+
+    test "to_json/1 renders postgres uuid values as canonical UUID strings" do
+      {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
+      json = Database.to_json(result)
+      assert [%{"id" => "be426704-1c61-4e38-a7b5-e8bb42042a81"}] = Jason.decode!(json)
+    end
+
+    test "to_json_map/1 renders non-utf8 bytea values as postgres-style hex" do
+      {:ok, result} = Database.execute(~s|SELECT '\\xdeadbe'::bytea AS b|)
+      %{rows: [row]} = Database.to_json_map(result)
+      assert row["b"] == "\\xdeadbe"
+      assert result |> Database.to_json_map() |> Jason.encode!() =~ "\\\\xdeadbe"
+    end
+
+    # A `uuid[]` column would previously fall through to `inspect/1` (safe UTF-8
+    # but rendered as an Elixir bitstring literal); the shared renderer now
+    # recurses into lists so each element gets the same UUID / hex treatment.
+    test "to_json_map/1 renders postgres uuid[] arrays element-by-element" do
+      {:ok, result} =
+        Database.execute(
+          "SELECT ARRAY['be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid, '00000000-0000-0000-0000-000000000000'::uuid] AS ids"
+        )
+
+      %{rows: [row]} = Database.to_json_map(result)
+
+      assert row["ids"] == [
+               "be426704-1c61-4e38-a7b5-e8bb42042a81",
+               "00000000-0000-0000-0000-000000000000"
+             ]
+
+      assert result |> Database.to_json_map() |> Jason.encode!() =~
+               "be426704-1c61-4e38-a7b5-e8bb42042a81"
+    end
+
+    test "to_csv/1 does not crash on non-utf8 binary values" do
+      {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
+      assert Database.to_csv(result) == "id\nbe426704-1c61-4e38-a7b5-e8bb42042a81"
+    end
+
+    test "to_markdown/1 does not crash on non-utf8 binary values" do
+      {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
+      assert Database.to_markdown(result) =~ "be426704-1c61-4e38-a7b5-e8bb42042a81"
+    end
   end
 
   describe "list_base_backups/0" do
