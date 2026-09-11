@@ -41,19 +41,6 @@ defmodule TuistWeb.Components.BuildTimeline do
           )
         }
       />
-      <.alert
-        :if={@source == "gradle" and timeline.time_origin == "first_recorded_timestamp"}
-        status="information"
-        type="secondary"
-        size="small"
-        data-part="timeline-coverage"
-        title={
-          dgettext(
-            "dashboard_builds",
-            "This report has no build start timestamp. Timings are relative to the earliest recorded operation or machine sample."
-          )
-        }
-      />
       <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
     </.async_result>
     """

@@ -30,4 +30,4 @@ This area owns shared UI components for LiveView and templates.
 
 - `build_timeline_section` shares the initial loading/error states and source-specific coverage notices for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
 
-- Coverage notices use Noora alerts. Describe only observed coverage (retained build-summary steps or a legacy Gradle clock), without guessing whether missing profiles are still processing. Pages gate Timeline on actual recorded data.
+- Coverage notices use Noora alerts. Describe only observed Bazel coverage, without guessing whether missing profiles are still processing. Do not surface the legacy Gradle clock fallback as a dashboard banner; preserve its origin metadata in the API. Pages gate Timeline on actual recorded data.
