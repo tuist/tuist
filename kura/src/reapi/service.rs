@@ -212,6 +212,56 @@ fn ref_metadata<T>(request: &Request<T>, header: &str, binary_header: &str) -> O
         .filter(|value| !value.is_empty())
 }
 
+/// A compressed ByteStream write is expected to weigh at most this much per
+/// declared-size byte: the largest valid zstd encoding of `declared`
+/// uncompressed bytes plus a small slack for framing overhead. Skippable
+/// frames decode to zero bytes and would otherwise let a client hold a
+/// compressed write open indefinitely — bounding `wire_received` here is what
+/// gates that.
+fn compressed_wire_ceiling(declared_uncompressed: u64) -> u64 {
+    // 64 KiB slack absorbs skippable-frame headers and multi-frame framing
+    // overhead legitimate encoders may add, without giving an attacker useful
+    // room. Falls back to a large but finite ceiling when the declared size
+    // saturates zstd's usize input bound so the check remains meaningful.
+    const WIRE_CEILING_SLACK_BYTES: u64 = 64 * 1024;
+    let compressed_bound = usize::try_from(declared_uncompressed)
+        .map(zstd::zstd_safe::compress_bound)
+        .map(|bound| bound as u64)
+        .unwrap_or(u64::MAX);
+    compressed_bound.saturating_add(WIRE_CEILING_SLACK_BYTES)
+}
+
+/// Sink handed to the streaming zstd `write::Decoder` on the ByteStream upload
+/// path. `remaining` is the largest number of additional decoded bytes the
+/// sink will accept in the current chunk; the write loop refreshes it before
+/// every `write_all` to `expected_size - stored_written`. That bounds the
+/// decoder's inner buffer at exactly what the declared size still allows, so
+/// a compression bomb cannot materialize a full chunk of expansion before the
+/// per-chunk size check runs — the pattern `SnapshotWireWriter` already uses.
+#[derive(Default)]
+struct BoundedZstdDecoderSink {
+    bytes: Vec<u8>,
+    remaining: u64,
+}
+
+impl std::io::Write for BoundedZstdDecoderSink {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        if buffer.len() as u64 > self.remaining {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "compressed write decompressed past the declared blob size (possible bomb)",
+            ));
+        }
+        self.remaining -= buffer.len() as u64;
+        self.bytes.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 impl ReapiService {
     async fn authorize_request<T>(
         &self,
@@ -418,10 +468,12 @@ impl ReapiService {
         let mut hasher = Sha256::new();
         let mut finished = false;
         // Set after the first chunk once the resource is parsed; a compressed
-        // stream owns a streaming decoder whose scratch Vec is drained per
-        // chunk. Bomb protection is the declared-size cap enforced when we
-        // update `stored_written` below.
-        let mut zstd_decoder: Option<zstd::stream::write::Decoder<'_, Vec<u8>>> = None;
+        // stream owns a streaming decoder whose scratch buffer is bounded to
+        // what the declared uncompressed size still allows and drained per
+        // chunk. Bomb protection is enforced by the sink itself, one write
+        // ahead of the per-chunk size check below.
+        let mut zstd_decoder: Option<zstd::stream::write::Decoder<'_, BoundedZstdDecoderSink>> =
+            None;
 
         // Stall deadline keyed on byte *progress*, not message arrival: it only
         // advances when a chunk delivers data. An upload that keeps making
@@ -502,13 +554,14 @@ impl ReapiService {
                     );
                 }
                 if parsed_resource.compressor == BlobCompressor::Zstd {
-                    zstd_decoder = Some(zstd::stream::write::Decoder::new(Vec::new()).map_err(
-                        |error| {
-                            Status::internal(format!(
-                                "failed to build zstd decoder for compressed write: {error}"
-                            ))
-                        },
-                    )?);
+                    zstd_decoder = Some(
+                        zstd::stream::write::Decoder::new(BoundedZstdDecoderSink::default())
+                            .map_err(|error| {
+                                Status::internal(format!(
+                                    "failed to build zstd decoder for compressed write: {error}"
+                                ))
+                            })?,
+                    );
                 }
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk.resource_name);
@@ -531,11 +584,14 @@ impl ReapiService {
             if !chunk.data.is_empty() {
                 // Feed the chunk into the decoder (identity is a straight
                 // borrow) and get a `&[u8]` view of the decoded bytes for the
-                // downstream copy loop. Decoder output is bounded by the
-                // declared uncompressed size at the copy step below, so a
-                // compression bomb is refused at the first overflowing byte.
+                // downstream copy loop. For zstd, refresh the sink's per-chunk
+                // budget to whatever the declared size still allows so a
+                // compression bomb aborts inside `write_all` at the first
+                // overflowing byte, without materializing a full chunk of
+                // expansion into the sink first.
                 let decoded_owned;
                 let decoded: &[u8] = if let Some(decoder) = zstd_decoder.as_mut() {
+                    decoder.get_mut().remaining = expected_size.saturating_sub(stored_written);
                     std::io::Write::write_all(decoder, &chunk.data).map_err(|error| {
                         Status::invalid_argument(format!(
                             "failed to decode zstd upload chunk: {error}"
@@ -548,10 +604,11 @@ impl ReapiService {
                     std::io::Write::flush(decoder).map_err(|error| {
                         Status::invalid_argument(format!("failed to flush zstd decoder: {error}"))
                     })?;
-                    // Take the decoder's scratch buffer so we can process it
-                    // without holding a mutable borrow across the write path,
-                    // then hand a fresh empty Vec back for the next round.
-                    decoded_owned = std::mem::take(decoder.get_mut());
+                    // Take the sink's bytes buffer so we can process it
+                    // without holding a mutable borrow across the write path;
+                    // the sink stays in place with its `remaining` budget
+                    // refreshed on the next round.
+                    decoded_owned = std::mem::take(&mut decoder.get_mut().bytes);
                     &decoded_owned[..]
                 } else {
                     &chunk.data[..]
@@ -607,6 +664,16 @@ impl ReapiService {
                     }
                 }
                 wire_received = wire_received.saturating_add(chunk.data.len() as u64);
+                if is_compressed && wire_received > compressed_wire_ceiling(expected_size) {
+                    // zstd skippable frames decode to zero bytes, so a client
+                    // could otherwise keep a compressed write open with
+                    // unbounded wire bytes while `stored_written` sits under
+                    // the declared cap. Refuse anything past the largest
+                    // valid compressed form of the declared size.
+                    return Err(Status::invalid_argument(
+                        "compressed write exceeds the largest valid zstd-encoded form of the declared blob size",
+                    ));
+                }
                 // Only real byte progress extends the deadline, so a client
                 // cannot keep a stalled upload alive with empty frames.
                 stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
@@ -627,14 +694,17 @@ impl ReapiService {
         // Flush any bytes the decoder was still holding onto (final zstd
         // frame bytes) into the running hasher / staged output. Every
         // in-loop write already flushed the scratch through mem::take, so
-        // this is a belt-and-braces path for the last partial chunk.
+        // this is a belt-and-braces path for the last partial chunk. Refresh
+        // the sink budget for the trailing bytes with the same rule the
+        // in-loop step uses.
         if let Some(mut decoder) = zstd_decoder.take() {
+            decoder.get_mut().remaining = resource.size_bytes.saturating_sub(stored_written);
             std::io::Write::flush(&mut decoder).map_err(|error| {
                 Status::invalid_argument(format!(
                     "failed to flush zstd decoder at end of stream: {error}"
                 ))
             })?;
-            let mut trailing = decoder.into_inner();
+            let mut trailing = decoder.into_inner().bytes;
             if !trailing.is_empty() {
                 if stored_written.saturating_add(trailing.len() as u64) > resource.size_bytes {
                     return Err(Status::invalid_argument(
@@ -2380,17 +2450,18 @@ impl ByteStream for ReapiService {
         if request.get_ref().read_limit < 0 {
             return Err(Status::invalid_argument("read_limit must be non-negative"));
         }
-        // Partial reads over a `compressed-blobs/` resource would need the
-        // server to seek by *compressed* byte offset, which is impossible
-        // without storing the compressed frame ahead of time. Bazel's default
-        // client always issues (0, 0) for compressed reads, so refusing the
-        // rare partial-compressed request keeps the store uncompressed while
-        // still serving every real workload.
-        if resource.compressor == BlobCompressor::Zstd
-            && (request.get_ref().read_offset != 0 || request.get_ref().read_limit != 0)
-        {
-            return Err(Status::unimplemented(
-                "partial reads (read_offset/read_limit) are not supported on compressed-blobs; request the full blob",
+        // REAPI mandates INVALID_ARGUMENT (not UNIMPLEMENTED) for a non-zero
+        // `read_limit` on a compressed-blobs read: the byte count the limit
+        // would name has no defined meaning against a compressed stream, and
+        // the client is expected to pass 0 and consume the response.
+        // `read_offset` on a compressed-blobs read is defined as the offset
+        // in the *uncompressed* form, so it is served by seeking the
+        // uncompressed reader (`open_artifact_reader_range_tolerating_promotion_reader_only`
+        // below) and starting the encoder at that point — no compressed
+        // byte-offset index is needed.
+        if resource.compressor == BlobCompressor::Zstd && request.get_ref().read_limit != 0 {
+            return Err(Status::invalid_argument(
+                "read_limit is not supported on compressed-blobs; leave it at 0 and consume the response stream",
             ));
         }
         let manifest = match self
@@ -2409,17 +2480,6 @@ impl ByteStream for ReapiService {
                     hash: resource.hash().to_owned(),
                     size_bytes: resource.size_bytes as i64,
                 };
-                // Compressed reads of Kura's internal chunked (SplitBlob) recipes
-                // are not currently supported: composite reads assemble
-                // decoded bytes from many manifests and the encoder wrapper
-                // above assumes a single reader. Bazel does not use split
-                // blobs, so this codepath is unreachable in production;
-                // failing closed is safer than silently corrupting a serve.
-                if resource.compressor == BlobCompressor::Zstd {
-                    return Err(Status::unimplemented(
-                        "compressed reads of chunked blobs are not supported",
-                    ));
-                }
                 let Some((_recipe_manifest, recipe)) =
                     fetch_recipe(&self.state, &resource.namespace_id, &digest)
                         .await
@@ -2445,6 +2505,22 @@ impl ByteStream for ReapiService {
                     );
                     return Err(Status::not_found("blob not found"));
                 };
+                // Compressed reads of Kura's internal chunked (SplitBlob) recipes
+                // are not currently supported: composite reads assemble
+                // decoded bytes from many manifests and the encoder wrapper
+                // above assumes a single reader. Bazel does not use split
+                // blobs, so this codepath is unreachable in production;
+                // failing closed is safer than silently corrupting a serve.
+                // The guard runs after the recipe lookup so a plain miss on a
+                // compressed read still answers NOT_FOUND (which Bazel maps
+                // to CacheNotFoundException and treats as a normal miss)
+                // rather than UNIMPLEMENTED (which becomes an IOException and
+                // breaks the AC-hit-then-CAS-evicted graceful fallback).
+                if resource.compressor == BlobCompressor::Zstd {
+                    return Err(Status::unimplemented(
+                        "compressed reads of chunked blobs are not supported",
+                    ));
+                }
                 let manifests =
                     match fetch_chunk_manifests(&self.state, &resource.namespace_id, &recipe)
                         .await
@@ -2579,6 +2655,14 @@ impl ByteStream for ReapiService {
         let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
             Status::resource_exhausted("blob stream memory requirement is too large")
         })?;
+        // The compressed serve path holds a level-3 zstd encoder alongside
+        // the chunk buffers; account for its resident bytes so it counts
+        // against the same admission pool that gates concurrent reads.
+        let requested_bytes = if resource.compressor == BlobCompressor::Zstd {
+            requested_bytes.saturating_add(BYTESTREAM_ZSTD_ENCODER_FOOTPRINT_BYTES)
+        } else {
+            requested_bytes
+        };
         let permit = self
             .state
             .memory
@@ -2778,6 +2862,13 @@ fn bytestream_read_response_stream(
 /// stays CPU-cheap while the wire shrinks meaningfully.
 const BYTESTREAM_ZSTD_LEVEL: i32 = 3;
 
+/// Resident footprint of a level-3 `zstd::stream::write::Encoder` per live
+/// compressed ByteStream read (measured at ~0.82 MiB; a bit of slack absorbs
+/// per-allocator variance). Added to the response-stream memory reservation
+/// so concurrent compressed reads are actually gated by the same controller
+/// that gates identity reads, rather than accumulating outside its view.
+const BYTESTREAM_ZSTD_ENCODER_FOOTPRINT_BYTES: usize = 900 * 1024;
+
 /// Wraps an ArtifactReader chunk stream with a streaming zstd encoder. Each
 /// input chunk of decoded bytes is pushed into the encoder; the encoder's
 /// scratch Vec is drained per input chunk and split into `chunk_bytes`-sized
@@ -2794,7 +2885,7 @@ fn compressed_bytestream_read_response_stream(
         reader: Option<ArtifactReader>,
         // None once `finish()` was called; the encoder cannot be reused after.
         encoder: Option<zstd::stream::write::Encoder<'static, Vec<u8>>>,
-        pending: VecDeque<u8>,
+        pending: Vec<u8>,
         chunk_bytes: usize,
     }
 
@@ -2803,19 +2894,26 @@ fn compressed_bytestream_read_response_stream(
     let state = ReadState {
         reader: Some(reader),
         encoder: Some(encoder),
-        pending: VecDeque::new(),
+        pending: Vec::new(),
         chunk_bytes,
     };
+
+    // Splits the first `take` bytes off the front of `pending` into an owned
+    // Vec, leaving the tail in `pending`. Cheaper than draining byte-by-byte
+    // out of a VecDeque: one memcpy of the tail into a fresh allocation
+    // instead of `take` per-byte pops, which dominated compressed serve CPU
+    // on incompressible content.
+    fn take_front(pending: &mut Vec<u8>, take: usize) -> Vec<u8> {
+        let tail = pending.split_off(take);
+        std::mem::replace(pending, tail)
+    }
 
     futures_util::stream::try_unfold(state, move |mut state| async move {
         loop {
             // Emit a wire-sized chunk of compressed output as soon as one is
             // ready, so a slow decode-loop client still receives frames.
             if state.pending.len() >= state.chunk_bytes {
-                let mut data = Vec::with_capacity(state.chunk_bytes);
-                for _ in 0..state.chunk_bytes {
-                    data.push(state.pending.pop_front().expect("length was checked"));
-                }
+                let data = take_front(&mut state.pending, state.chunk_bytes);
                 return Ok(Some((bytestream::ReadResponse { data }, state)));
             }
 
@@ -2841,8 +2939,8 @@ fn compressed_bytestream_read_response_stream(
                             "failed to compress ByteStream chunk with zstd: {error}"
                         ))
                     })?;
-                    let scratch = std::mem::take(encoder.get_mut());
-                    state.pending.extend(scratch);
+                    let mut scratch = std::mem::take(encoder.get_mut());
+                    state.pending.append(&mut scratch);
                     continue;
                 }
             }
@@ -2850,20 +2948,17 @@ fn compressed_bytestream_read_response_stream(
             // Reader is drained: finalize the encoder (once), then emit any
             // remaining bytes and end the stream.
             if let Some(encoder) = state.encoder.take() {
-                let scratch = encoder.finish().map_err(|error| {
+                let mut scratch = encoder.finish().map_err(|error| {
                     Status::internal(format!("failed to finish zstd stream: {error}"))
                 })?;
-                state.pending.extend(scratch);
+                state.pending.append(&mut scratch);
             }
 
             if state.pending.is_empty() {
                 return Ok(None);
             }
             let take = state.chunk_bytes.min(state.pending.len());
-            let mut data = Vec::with_capacity(take);
-            for _ in 0..take {
-                data.push(state.pending.pop_front().expect("length was checked"));
-            }
+            let data = take_front(&mut state.pending, take);
             return Ok(Some((bytestream::ReadResponse { data }, state)));
         }
     })
@@ -3441,32 +3536,30 @@ fn chunk_presence_status(state: &SharedState, route: &str, context: &str, error:
 /// Streaming-decode a zstd-compressed BatchUpdate item into a Vec bounded by
 /// the declared uncompressed size.
 ///
-/// Bomb protection: the destination Vec is preallocated to exactly the
-/// declared size (already capped by `MAX_MODULE_TOTAL_BYTES` since the
-/// declared size is the digest's `size_bytes`, admitted through the batch
-/// admission ceiling), and the decoder is asked to fill it. If the compressed
-/// stream would yield even one more byte than declared, the extra-byte probe
-/// after the fill trips `InvalidArgument`.
+/// Memory grows with actually-decoded bytes, not the declared size, so a
+/// small compressed payload that declares a large uncompressed size never
+/// commits heap it will not fill. The loop stops feeding the decoder once the
+/// declared cap is reached, and a final one-byte probe rejects any stream
+/// that would still yield more — the two together enforce the bomb bound at
+/// the first byte past the cap.
 fn decompress_zstd_batch_item(
     compressed: &[u8],
     declared_uncompressed_size: i64,
 ) -> Result<Vec<u8>, Status> {
     let declared = i64_to_usize_bounded(declared_uncompressed_size)?;
-    let mut decoded = try_allocate_exact_vec(declared).ok_or_else(|| {
-        Status::resource_exhausted(
-            "server could not allocate memory to decompress a zstd batch item",
-        )
-    })?;
-    // resize with a fill byte so reading into `&mut [u8]` is defined; the
-    // trailing suffix past the actual read count is truncated below.
-    decoded.resize(declared, 0);
     let mut decoder = zstd::stream::read::Decoder::with_buffer(compressed)
         .map_err(|error| Status::internal(format!("failed to build zstd decoder: {error}")))?;
-    let mut written = 0_usize;
-    while written < decoded.len() {
-        match std::io::Read::read(&mut decoder, &mut decoded[written..]) {
-            Ok(0) => break,
-            Ok(count) => written += count,
+    // 64 KiB per read keeps syscall overhead low while capping the largest
+    // single allocation the growing Vec can request; the total footprint is
+    // bounded by `declared`, which the batch admission has already accepted.
+    const READ_CHUNK_BYTES: usize = 64 * 1024;
+    let mut decoded: Vec<u8> = Vec::new();
+    let mut buffer = [0_u8; READ_CHUNK_BYTES];
+    while decoded.len() < declared {
+        let take = buffer.len().min(declared - decoded.len());
+        match std::io::Read::read(&mut decoder, &mut buffer[..take]) {
+            Ok(0) => return Ok(decoded),
+            Ok(count) => decoded.extend_from_slice(&buffer[..count]),
             Err(error) => {
                 return Err(Status::invalid_argument(format!(
                     "failed to decode zstd payload: {error}"
@@ -3474,24 +3567,19 @@ fn decompress_zstd_batch_item(
             }
         }
     }
-    // A single additional byte from the decoder means the payload's
-    // uncompressed length exceeded what the digest declared.
+    // We stopped exactly at `declared`; if the decoder can still produce a
+    // byte, the payload's uncompressed length exceeded what the digest
+    // declared.
     let mut probe = [0_u8; 1];
     match std::io::Read::read(&mut decoder, &mut probe) {
-        Ok(0) => {}
-        Ok(_) => {
-            return Err(Status::invalid_argument(
-                "zstd payload decompressed past the declared blob size (possible bomb)",
-            ));
-        }
-        Err(error) => {
-            return Err(Status::invalid_argument(format!(
-                "failed to decode zstd payload: {error}"
-            )));
-        }
+        Ok(0) => Ok(decoded),
+        Ok(_) => Err(Status::invalid_argument(
+            "zstd payload decompressed past the declared blob size (possible bomb)",
+        )),
+        Err(error) => Err(Status::invalid_argument(format!(
+            "failed to decode zstd payload: {error}"
+        ))),
     }
-    decoded.truncate(written);
-    Ok(decoded)
 }
 
 /// Best-effort zstd compression of a BatchRead response's data. Returns
@@ -10248,6 +10336,59 @@ mod tests {
     }
 
     #[test]
+    fn bounded_zstd_decoder_sink_rejects_bytes_past_its_budget() {
+        let mut sink = BoundedZstdDecoderSink {
+            remaining: 4,
+            ..Default::default()
+        };
+        std::io::Write::write_all(&mut sink, &[1, 2, 3, 4])
+            .expect("bytes inside the budget should be accepted");
+        assert_eq!(sink.bytes, vec![1, 2, 3, 4]);
+        assert_eq!(sink.remaining, 0);
+        let overflow = std::io::Write::write_all(&mut sink, &[5]);
+        assert!(overflow.is_err(), "a byte past the budget must be refused");
+    }
+
+    #[test]
+    fn compressed_wire_ceiling_grows_with_declared_size() {
+        // A large legitimate compressed encoding of `declared` uncompressed
+        // bytes is always shorter than or close to the source size — the
+        // ceiling should sit comfortably above it and grow with `declared`.
+        let small = compressed_wire_ceiling(1);
+        let large = compressed_wire_ceiling(1024 * 1024);
+        assert!(small < large, "ceiling must scale with declared size");
+        assert!(
+            compressed_wire_ceiling(0) >= 64 * 1024,
+            "even a zero-byte blob keeps the slack for framing overhead",
+        );
+    }
+
+    #[test]
+    fn zstd_batch_item_decoder_does_not_preallocate_to_the_declared_size() {
+        // A small compressed payload that declares a huge uncompressed size
+        // used to allocate the full declaration up front and then zero-fill
+        // it, so a 17-byte item declaring 2 GiB would move RSS by 2 GiB
+        // regardless of how many bytes actually decoded. The streaming
+        // version grows the decoded Vec with actually-decoded bytes and
+        // stops feeding the decoder once the declared cap is reached: the
+        // returned Vec's capacity must be within a small factor of the
+        // decoded length, not the declaration.
+        let source = b"actual eight bytes: 42".to_vec();
+        let compressed = zstd::stream::encode_all(source.as_slice(), 3).unwrap();
+        let declared_gib: i64 = 2 * 1024 * 1024 * 1024;
+        let decoded = decompress_zstd_batch_item(&compressed, declared_gib)
+            .expect("a small payload with a huge declared size must decode without OOM");
+        assert_eq!(decoded, source);
+        assert!(
+            decoded.capacity() < 16 * 1024 * 1024,
+            "capacity must track decoded length ({} bytes), not the declaration ({}); got capacity {}",
+            decoded.len(),
+            declared_gib,
+            decoded.capacity(),
+        );
+    }
+
+    #[test]
     fn zstd_batch_read_compression_falls_back_to_identity_when_it_would_grow() {
         // A short payload never shrinks below the ~10-byte zstd frame overhead,
         // so the helper must hand back identity.
@@ -10458,7 +10599,11 @@ mod tests {
         let decoded = zstd::stream::decode_all(received.as_slice()).expect("decode stream");
         assert_eq!(decoded, blob, "the compressed read must round-trip");
 
-        let partial_error = client
+        // REAPI defines read_offset on a compressed-blobs resource as the
+        // offset in the *uncompressed* form; Kura seeks the uncompressed
+        // reader and starts the encoder there, so a partial compressed read
+        // decodes to the tail of the original blob.
+        let mut tail_stream = client
             .read(Request::new(bytestream::ReadRequest {
                 resource_name: format!(
                     "ios/compressed-blobs/zstd/{}/{}",
@@ -10468,8 +10613,35 @@ mod tests {
                 read_limit: 0,
             }))
             .await
-            .expect_err("partial compressed reads must be refused");
-        assert_eq!(partial_error.code(), tonic::Code::Unimplemented);
+            .expect("a compressed read with a non-zero offset must succeed")
+            .into_inner();
+        let mut tail_bytes = Vec::new();
+        while let Some(response) = tail_stream.next().await {
+            tail_bytes.extend(response.expect("tail stream response").data);
+        }
+        let tail_decoded = zstd::stream::decode_all(tail_bytes.as_slice()).expect("tail decode");
+        assert_eq!(
+            tail_decoded,
+            blob[1..],
+            "a compressed read with read_offset=1 must decode to the blob's tail",
+        );
+
+        // The spec requires INVALID_ARGUMENT for a non-zero read_limit on a
+        // compressed-blobs resource; UNIMPLEMENTED would turn into a hard
+        // IOException on Bazel instead of the retryable client error the
+        // spec expects.
+        let limit_error = client
+            .read(Request::new(bytestream::ReadRequest {
+                resource_name: format!(
+                    "ios/compressed-blobs/zstd/{}/{}",
+                    digest_hash, uncompressed_size
+                ),
+                read_offset: 0,
+                read_limit: 1,
+            }))
+            .await
+            .expect_err("read_limit is not supported on compressed-blobs");
+        assert_eq!(limit_error.code(), tonic::Code::InvalidArgument);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;

@@ -833,14 +833,14 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#prepaid-balance-table", "10,000")
+      assert has_element?(lv, "#prepaid-balance-table", "10K")
 
       html =
         lv
         |> form("#prepaid-minutes-form", %{"minutes" => "100"})
         |> render_submit()
 
-      assert html =~ "10,100"
+      assert html =~ "10.1K"
     end
 
     test "sets the balance to the figure typed rather than adding to it", %{conn: conn, user: user} do
@@ -963,7 +963,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#prepaid-balance-table", "10,000")
+      assert has_element?(lv, "#prepaid-balance-table", "10K")
       assert has_element?(lv, "#prepaid-balance-table", "January 1, 2027")
       refute render(lv) =~ "750.00$"
     end
