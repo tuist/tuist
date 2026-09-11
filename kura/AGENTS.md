@@ -50,6 +50,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
+- Wait for `/ready` before seeding an E2E source node: the bootstrap listener answers `/up` successfully during store recovery while cache routes still return 503. Keep mid-backfill observations on joining nodes independent of readiness.
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes

@@ -267,7 +267,8 @@ Describe 'backfill throughput sanity'
     fi
     dc up -d kura-us >/dev/null 2>&1
     resolve_http_node KURA_US kura-us
-    wait_for_http "${KURA_US_URL}/up" || return 1
+    # /up also succeeds during store recovery, before cache writes are accepted.
+    wait_for_http "${KURA_US_URL}/ready" || return 1
 
     entry_block="${SUITE_TMP_DIR}/entry.bin"
     dd if=/dev/urandom of="${entry_block}" bs="${THROUGHPUT_ENTRY_BYTES}" count=1 2>/dev/null
@@ -277,7 +278,10 @@ Describe 'backfill throughput sanity'
         "${KURA_US_URL}/api/cache/cas/tp-${index}?tenant_id=acme&namespace_id=ios" \
         -H "content-type: application/octet-stream" \
         --data-binary "@${entry_block}")"
-      [ "$status" = 204 ] || return 1
+      if [ "$status" != 204 ]; then
+        printf 'Failed to seed tp-%s: expected HTTP 204, got %s\n' "$index" "$status" >&2
+        return 1
+      fi
     done
     local kv_status
     for index in $(seq 1 16); do
@@ -285,7 +289,10 @@ Describe 'backfill throughput sanity'
         "${KURA_US_URL}/api/cache/keyvalue?tenant_id=acme&namespace_id=ios" \
         -H "content-type: application/json" \
         -d "{\"cas_id\":\"tp-kv-${index}\",\"entries\":[{\"value\":\"throughput-${index}\"}]}")"
-      [ "$kv_status" = 204 ] || return 1
+      if [ "$kv_status" != 204 ]; then
+        printf 'Failed to seed tp-kv-%s: expected HTTP 204, got %s\n' "$index" "$kv_status" >&2
+        return 1
+      fi
     done
   }
 
