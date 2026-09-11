@@ -199,6 +199,10 @@ config :tuist, TuistWeb.Endpoint,
   watchers: if(code_reloader_enabled, do: base_watchers, else: []),
   live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 
+# The Bazel announcement post embeds a live dashboard. Production reads
+# tuist/kura; locally it reads the seeded Bazel project instead.
+config :tuist, :marketing_bazel_showcase_project, "tuist/bazel-comparison"
+
 # Enable dev routes for dashboard and mailbox
 config :tuist, dev_routes: true
 

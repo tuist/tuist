@@ -625,6 +625,7 @@ seed_account_token.(organization_account, "organization-projects-ci",
 )
 
 Code.eval_file(Path.join(__DIR__, "automation_history_seeds.exs"))
+Code.eval_file(Path.join(__DIR__, "bazel_insights_seeds.exs"))
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
