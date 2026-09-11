@@ -512,6 +512,36 @@ kubectl -n tuist-<env> logs job/tuist-tuist-server-migrate-<revision>
 ```
 Usually database connectivity — confirm `DATABASE_URL` decrypts cleanly and the Postgres host is reachable.
 
+**Helm waits after the application deployments are ready**
+
+Helm 4's watcher also waits for custom-resource readiness. Check the chart's
+`MachineDeployment` conditions: a newly added cache fleet can hold the entire
+server release open. On 2026-09-10, the US Central Vultr host was stuck in
+`Bootstrapping` with exit status 100 while all five server replicas were healthy.
+
+The host's configured Vultr DNS resolver (`108.61.10.10`) did not answer, leaving
+an `apt-get update` process holding `/var/lib/apt/lists/lock` after its bootstrap
+SSH session expired. Subsequent attempts failed on that lock. Diagnose with
+the human-approved production elevation described in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents):
+
+1. Inspect the host's APT lock holder, command line, parent process, DNS settings,
+   and repository connectivity. Exit status 100 alone does not identify DNS.
+2. Compare the configured resolver with a reachable replacement using `dig`.
+   For this host, `1.1.1.1` and `1.0.0.1` answered immediately. Back up and repair
+   `/etc/resolv.conf` and the corresponding Netplan DNS settings, then validate
+   with `getent`, `dig`, and `netplan generate`.
+3. Terminate only a confirmed stuck **index refresh** and its abandoned bootstrap
+   shell. Do not remove lock files or interrupt `dpkg` or an active installation.
+   On this IPv4-only host, APT was also configured with `Acquire::ForceIPv4`,
+   one retry, and 15-second HTTP/HTTPS timeouts to bound individual network
+   waits and reduce the risk of outliving the controller's five-minute SSH timeout.
+4. Confirm `apt-get update` succeeds, then let the controller retry. Verify the
+   infrastructure machine becomes Provisioned, the Node and MachineDeployment
+   become Ready, and the original Helm job and smoke tests finish.
+
+This recovers the already-running release without rebuilding the server image
+or replacing the host. Preserve the backed-up network configuration for rollback.
+
 ---
 
 ## Workload-cluster incident recovery

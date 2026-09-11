@@ -199,6 +199,9 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - **Swift Registry** (managed) is deployed as the `registry` component of the main `infra/helm/tuist` chart via `.github/workflows/server-deployment.yml`, so the read frontend and server-owned `swift-registry-sync` writer roll in the same Helm release.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
+- Helm 4 can wait on a new fleet's custom-resource readiness after application
+  pods are healthy. Bare-metal bootstrap DNS and APT-lock recovery is documented
+  in [`k8s/onboarding.md`](k8s/onboarding.md#troubleshooting-crib).
 
 ## Conventions
 
