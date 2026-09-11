@@ -49,6 +49,11 @@ impl FailpointName {
 #[derive(Clone, Debug)]
 pub(crate) enum FailpointAction {
     Sleep(Duration),
+    #[cfg(test)]
+    Pause {
+        reached: std::sync::Arc<tokio::sync::Notify>,
+        resume: std::sync::Arc<tokio::sync::Notify>,
+    },
     Error(String),
     Panic(String),
 }
@@ -92,6 +97,12 @@ impl FailpointSet {
                 tokio::time::sleep(duration).await;
                 Ok(())
             }
+            #[cfg(test)]
+            FailpointAction::Pause { reached, resume } => {
+                reached.notify_one();
+                resume.notified().await;
+                Ok(())
+            }
             FailpointAction::Error(message) => {
                 Err(format!("failpoint {}: {message}", name.as_str()))
             }
@@ -129,6 +140,10 @@ impl FailpointSet {
             FailpointAction::Sleep(duration) => {
                 std::thread::sleep(duration);
                 Ok(())
+            }
+            #[cfg(test)]
+            FailpointAction::Pause { .. } => {
+                panic!("Pause is only supported by async failpoints");
             }
             FailpointAction::Error(message) => {
                 Err(format!("failpoint {}: {message}", name.as_str()))

@@ -262,9 +262,16 @@ export default {
     // lands without animating. Double rAF clears the first paint reliably.
     this.readyRaf = requestAnimationFrame(() => {
       this.readyRaf = requestAnimationFrame(() => {
+        this.ready = true;
         this.el.setAttribute("data-ready", "");
       });
     });
+  },
+
+  updated() {
+    // LiveView patches data attributes even on phx-update="ignore" elements.
+    if (this.ready) this.el.setAttribute("data-ready", "");
+    this.sync();
   },
 
   setupMorph() {
@@ -289,11 +296,11 @@ export default {
 
   sync() {
     const active = this.isActive();
-    if (active === this.lastActive) return;
-    this.lastActive = active;
-
     if (active) this.el.setAttribute("data-active", "");
     else this.el.removeAttribute("data-active");
+
+    if (active === this.lastActive) return;
+    this.lastActive = active;
 
     if (this.transition === "morph") {
       this.morphTo(active ? this.toRings : this.fromRings);

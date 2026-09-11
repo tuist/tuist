@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 describe("formatHours", () => {
   describe("basic formatting", () => {
@@ -118,5 +118,39 @@ describe("formatHours", () => {
       expect(formatHours(1.5)).toBe("2h");
       expect(formatHours(2.25)).toBe("2h");
     });
+  });
+});
+
+describe("formatNumber", () => {
+  it.each([
+    [0, "0"],
+    [836, "836"],
+    [9999, "9,999"],
+    [10000, "10K"],
+    [18672, "18.7K"],
+    [24420, "24.4K"],
+    [121755, "121.8K"],
+    [950000, "950K"],
+    [999949, "999.9K"],
+    [999950, "1M"],
+    [2901412, "2.9M"],
+    [3799196, "3.8M"],
+    [1e9, "1B"],
+    [1e12, "1T"],
+    [-18672, "-18.7K"],
+    [-999950, "-1M"],
+    [12.5, "12.5"],
+  ])("formats %s as %s", (value, expected) => {
+    expect(formatNumber(value, "en")).toBe(expected);
+  });
+
+  it("localizes decimal separators", () => {
+    expect(formatNumber(18672, "es")).toBe("18,7K");
+    expect(formatNumber(18672, "zh_Hant")).toBe("18.7K");
+  });
+
+  it("preserves missing and preformatted values", () => {
+    expect(formatNumber(null, "en")).toBeNull();
+    expect(formatNumber("125ms", "en")).toBe("125ms");
   });
 });

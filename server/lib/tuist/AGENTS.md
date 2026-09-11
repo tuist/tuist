@@ -4,17 +4,26 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Responsibilities
 - Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and checkpoint each applied test under the alert/attempt lock, then clear the request on completion. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Definition edits require a fresh opt-in; unrelated saves preserve pending work without replaying it.
+- Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
 - `Tuist.Builds.Steps` serves paginated, filtered metadata and individual logs to the HTTP API and MCP. Both transports authorize build-read access first. IDs are decimal strings scoped to a build, and list queries never select log text. Availability distinguishes absent step data from a search with no matches.
 
 - Ecto schemas, contexts, and domain services.
 - `Kura.Origins` discards counts for deleted accounts when persisting a batch. It locks surviving account keys within the write transaction so concurrent deletion cannot invalidate the batch or discard other accounts' counts.
 - External test ingestion uses `Tests.get_test_case_states_at/3` for historical quarantine attribution; current test controls continue using the current-state projection.
+- Internal Slack delivery succeeds only when Slack returns `ok: true`; API errors must propagate to reporting workers even when the HTTP status is 200.
 - Business rules for accounts, projects, bundles, previews, and analytics.
+- Module-cache daily hits, misses, miss reasons and distinct module counts can be derived from the full invalidation breakdown with `module_timeseries_from_breakdown/2`. Derive these before filtering out hit-only modules or applying a list limit; count a module name once across products within the selected cohort. The old raw `module_invalidation_timeseries/1` and `modules_timeseries/1` queries are retained solely as independent test oracles.
+- Module-cache miss reasons use `changed`, `upstream`, `cold`, and `evicted` consistently in SQL, result maps, and filters. Module-cache invalidation reads discover names with grouped aggregation, then batch independent module histories without splitting their date ranges. Window reads dictionary-encode repeated names and branches to bound memory. Dependency-graph reads identify the latest eligible commit before fetching its targets, preserve branch/environment filters and delayed uploads, and skip graph reads when no dependency edges exist. Blast radius is resolved after the module list is cut to its limit, so the graph is walked only for the modules a page shows and is not read at all for a page that shows none; the dependents time series reverses the graph once per distinct daily graph rather than once per day.
 - Xcode build steps (`Tuist.Builds.Step`, `build_steps`) are collected by default for every processed Xcode build, for reuse across build analytics, retain only current-invocation leaf intervals for 90 days, are streamed from the parser sidecar through per-worker ClickHouse writes bounded by 8 MiB of encoded rows or 1,000 rows (an oversized individual row is written alone), and are read with retry deduplication. Each log has an independent 64 KiB allowance and preserves its beginning and end when truncated. `Tuist.Builds.Timeline` opens with the full build visible and permits zooming back out to the entire duration, loading all individual interval metadata once. Zoom, pan and search run locally; there is no range-loading endpoint. The metadata response derives its distinct project/target count from the fetched intervals without a second query. Keyboard navigation queries all steps; browser search reuses the initial full-build metadata. Parser telemetry ends before the consumer starts; ingestion has its own span. Logs share that retention and are fetched separately by build and event ID.
 - Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
+
+- Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
+  `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
+  migrate-time processor grants and CNPG fallback SQL in sync; profile upload
+  creation and expiration remain web-runtime responsibilities.
 
 - Build ingestion no longer reads `feature_flags`. Its processor read grant in
   `Release` and `infra/cnpg/tuist-processor-grants.sql` remains for compatibility
@@ -81,3 +90,17 @@ This directory contains the core business logic and domain modules for the serve
 - Data export requirements: `server/data-export.md`
 
 - Gradle ingestion, task rankings and execution details: [Gradle server context](gradle/AGENTS.md).
+
+- `Builds.RecordedSteps` exposes Gradle and Bazel timeline metadata through authorized API/MCP callers. These adapters reuse source records rather than copying them into Xcode `build_steps`. Opaque IDs remain scoped to the authorized parent; unavailable logs are null.
+
+- Module-cache miss classification compares reported direct inputs, including optional cache-key strings, effective destinations and other reported key inputs through a fingerprint map, before dependency hashes. Compare only optional map entries present on both observations: missing telemetry must not count as a direct change. Availability reads use the same bounded module-name batch as classification and shared ingestion margins.
+
+- Module-cache Unavailable misses require an earlier reported remote hit for the exact artifact key in the same project and recorded cache endpoint. Local hits, partial-input matches, and later reports are not evidence of prior remote availability.
+
+- `scw-fr-par-runners` uses two standard managed replicas and a stable private gateway hostname. `Regions.observed_private_endpoint?/1` identifies private gateway regions: activation, convergence and dispatch freshness must all use this predicate. The provisioner waits for `privateURL`, the current spec generation and fresh `endpointLastCheckedAt`; it never replaces that check with a rendered hostname. Keep the legacy NodePort service enabled during migration. Private replica and endpoint configuration changes must move the manifest revision so existing instances converge.
+
+- `Provisioner.external_endpoint/1` returns `%{url: ..., observed_at: ...}`. Private activation/refresh must persist that controller observation in `last_ready_at`, not replace it with the server clock. Both validation and dispatch use `Regions.private_endpoint_staleness_seconds/0`; storage maintenance must not freeze this clock. Private gateway URLs must not override public URL helpers. Retained NodePorts serve already-dispatched jobs only.
+- GitLab runner acquisition and credential boundary: `server/lib/tuist/runners/gitlab/AGENTS.md`. Shared runner-reported logs and billing live in `Runners.JobReports`.
+
+
+- Runner Kura participates in account disk sizing and plan memory/CPU profiles. New and returning instances pin the account claim; the enrollment migration immediately pins unpinned live runner instances to their account-sized claim (or plan default), capped at the historical 50Gi to avoid bypassing growth admission. The runner pool does not advertise `tuist.dev/memory-ceiling-mib`, so keep `memory_ceiling_bin_packed` disabled there. The region retains a conservative 50Gi accounting fallback for legacy rows without a pin or loaded account; governed creation and cold return pin the sized account budget before rendering. Disk sizing remains account-scoped across public and runner regions, including their telemetry and resize history.

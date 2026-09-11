@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 /**
  * Formats elapsed time into a human readable string
@@ -66,6 +66,7 @@ function formatMbps(bytesPerSecond) {
 }
 
 const formatters = {
+  formatNumber: () => (value) => formatNumber(value),
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(navigator.language, {
@@ -112,6 +113,7 @@ const formatters = {
 };
 
 const tooltipFormatters = {
+  formatNumber,
   formatBytes,
   formatCurrency,
   formatMbps,
@@ -282,6 +284,22 @@ export function prepareChartOptions(input, element) {
 
     if (largestSeriesCount > 0) {
       element?.setAttribute("data-largest-series-count", largestSeriesCount);
+    }
+  }
+
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axes = [option[axisName]].flat().filter(Boolean);
+    for (const axis of axes) {
+      const isValueAxis = axis.type === "value" || (!axis.type && !axis.data);
+      if (
+        isValueAxis &&
+        (!axis.axisLabel?.formatter || axis.axisLabel.formatter === "{value}")
+      ) {
+        axis.axisLabel = {
+          ...axis.axisLabel,
+          formatter: (value) => formatNumber(value),
+        };
+      }
     }
   }
 
@@ -687,10 +705,13 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace("{value}", value);
+      formattedValue = options.valueFormat.replace(
+        "{value}",
+        options.valueFormat === "{value}" ? formatNumber(value) : value,
+      );
     }
   } else {
-    formattedValue = value;
+    formattedValue = formatNumber(value);
   }
 
   const hasExtra = data && typeof data === "object" && data.tooltipExtra;

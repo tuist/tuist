@@ -88,11 +88,6 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    # The offline-certificate license config is now the shared default in
-    # values-managed-common.yaml, so production no longer overrides it here.
-    license:
-      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
-      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
@@ -192,7 +187,7 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,sa-west,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -372,6 +367,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -821,15 +818,15 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
 # (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
 # adoptable box hangs helm --wait.
 #
-# eu-central is a shared public region, so its capacity is the sum of its boxes
+# eu-west is a shared public region, so its capacity is the sum of its boxes
 # and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
 # ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
@@ -854,7 +851,7 @@ dediboxFleet:
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
     # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
@@ -877,11 +874,19 @@ vultrFleets:
   # kind, the disk conversion and the fleet wiring are the ones already proven
   # there.
   #
-  # Disabled until the box is ordered and converted. The self-join refuses a box
-  # whose /data cannot enforce project quotas, and an enabled fleet with no
-  # adoptable box wedges `helm --wait` for every production deploy.
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
   us-central:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-us-central
     machine:
@@ -959,11 +964,17 @@ ovhFleets:
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.
   #
-  # Disabled until a box is ordered, prepped and marked. An enabled fleet with no
-  # adoptable box sits at MD 0/1 and wedges `helm --wait` for every production
-  # deploy, not just this region.
+  # Every box counted by replicas must already be prepped (`mise run
+  # baremetal:prep-ovh`) and carry the adoptDisplayNamePrefix, or the fleet sits
+  # at MD 0/1 and wedges `helm --wait` for every production deploy rather than
+  # just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # eu-east's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
   eu-east:
-    enabled: false
+    enabled: true
     replicas: 1
     nodePool: kura-eu-east
     machine:
@@ -977,7 +988,11 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    replicas: 2
+    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
+    # an admission line of 1303 (85% of allocatable), so Admission refused every
+    # storage claim growth here — and a claim is account-scoped, so that refusal
+    # also blocked the regions the same accounts run in that did have room.
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:

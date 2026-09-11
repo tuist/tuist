@@ -5,14 +5,14 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "candidates/1" do
     test "puts the nearest region first for each continent" do
-      assert ["eu-central" | _rest] = OriginMap.candidates("FR")
-      assert ["eu-central" | _rest] = OriginMap.candidates("DE")
+      assert ["eu-west" | _rest] = OriginMap.candidates("FR")
+      assert ["eu-west" | _rest] = OriginMap.candidates("DE")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("SG")
       assert ["ap-southeast" | _rest] = OriginMap.candidates("AU")
       assert ["sa-west" | _rest] = OriginMap.candidates("BR")
       assert ["sa-west" | _rest] = OriginMap.candidates("CL")
       assert ["sa-west" | _rest] = OriginMap.candidates("AR")
-      assert ["eu-central" | _rest] = OriginMap.candidates("ZA")
+      assert ["eu-west" | _rest] = OriginMap.candidates("ZA")
     end
 
     test "splits the countries that hold more than one region" do
@@ -24,11 +24,44 @@ defmodule Tuist.Kura.OriginMapTest do
       assert ["us-west" | _rest] = OriginMap.candidates("CA-BC")
     end
 
+    test "reads the east of Europe from Warsaw rather than Paris" do
+      for origin <- ~w[FI SE NO DK EE LT LV PL CZ] do
+        assert ["eu-east" | _rest] = OriginMap.candidates(origin)
+      end
+
+      for origin <- ~w[AL BA CY GR HR ME MK RS XK] do
+        assert ["eu-east" | _rest] = OriginMap.candidates(origin)
+      end
+
+      # Ljubljana is 833km from Warsaw against 964 from Paris, which is not the
+      # margin the rest of the boundary is drawn on.
+      assert ["eu-west" | _rest] = OriginMap.candidates("SI")
+      assert ["eu-west" | _rest] = OriginMap.candidates("AT")
+      assert ["eu-west" | _rest] = OriginMap.candidates("IT")
+    end
+
     test "falls back to the country when the subdivision is unmapped" do
       # An unrecognised subdivision still knows which continent it is on, which
       # is the coarser answer rather than a wrong one.
       assert OriginMap.candidates("FR-XYZ") == OriginMap.candidates("FR")
       assert OriginMap.candidates("US-ZZ") == OriginMap.candidates("US")
+    end
+
+    test "places every outlying territory rather than defaulting it" do
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("IO")
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("CX")
+      assert ["ap-southeast" | _rest] = OriginMap.candidates("MP")
+      assert ["sa-west" | _rest] = OriginMap.candidates("FK")
+      assert ["sa-west" | _rest] = OriginMap.candidates("GS")
+      assert ["sa-west" | _rest] = OriginMap.candidates("PN")
+      assert ["eu-west" | _rest] = OriginMap.candidates("RE")
+      assert ["eu-west" | _rest] = OriginMap.candidates("SH")
+      assert ["us-west" | _rest] = OriginMap.candidates("UM")
+
+      # ca-east is in the catalog but unserved. candidates/1 answers before
+      # availability narrows the list, so it still leads here.
+      assert ["ca-east" | _rest] = OriginMap.candidates("GL")
+      assert ["ca-east" | _rest] = OriginMap.candidates("PM")
     end
 
     test "answers for an unmapped origin and for none at all" do
@@ -54,7 +87,7 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "preferred/2" do
     test "picks the nearest permitted region" do
-      assert OriginMap.preferred("FR", ["us-east", "eu-central"]) == "eu-central"
+      assert OriginMap.preferred("FR", ["us-east", "eu-west"]) == "eu-west"
       assert OriginMap.preferred("US-OR", ["us-east", "us-west"]) == "us-west"
       assert OriginMap.preferred("US-VA", ["us-east", "us-west"]) == "us-east"
     end
@@ -74,7 +107,7 @@ defmodule Tuist.Kura.OriginMapTest do
 
   describe "distance/2" do
     test "orders regions by how near they are to the origin" do
-      assert OriginMap.distance("FR", "eu-central") < OriginMap.distance("FR", "us-east")
+      assert OriginMap.distance("FR", "eu-west") < OriginMap.distance("FR", "us-east")
       assert OriginMap.distance("US-OR", "us-west") < OriginMap.distance("US-OR", "us-east")
     end
 

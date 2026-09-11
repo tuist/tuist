@@ -269,4 +269,38 @@ defmodule TuistWeb.TestCasesLiveTest do
       assert has_element?(lv, "#widget-test-cases-count")
     end
   end
+
+  describe "bazel_target_collapse?/1" do
+    test "flags a case that matches Bazel's synthesized target-only report" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "kura_lib_test"
+             })
+    end
+
+    test "flags a target under a package" do
+      assert TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//pkg/foo:bar_test",
+               suite_name: "bar_test",
+               name: "bar_test"
+             })
+    end
+
+    test "leaves a real per-case row alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "//:kura_lib_test",
+               suite_name: "kura_lib_test",
+               name: "tests::routes::rejects_missing_auth"
+             })
+    end
+
+    test "leaves non-Bazel cases alone" do
+      refute TuistWeb.TestCasesLive.bazel_target_collapse?(%{
+               module_name: "AppTests",
+               suite_name: "AppTests",
+               name: "AppTests"
+             })
+    end
+  end
 end

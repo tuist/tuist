@@ -359,6 +359,122 @@ struct ResolveTests {
     }
 
     @Test
+    func resolveDropsAnOrphanPinInsteadOfFetchingIt() async throws {
+        // Reported on Slack: after removing a dependency from Package.swift, a
+        // subsequent `tuist install` (SwifterPM.resolve) failed with SwiftPM's
+        // "exhausted attempts to resolve the dependencies graph" error, still
+        // asking for the removed pin. Root cause: `swift package resolve` tries
+        // to fetch every pin it sees in Package.resolved — orphans included —
+        // and if the orphan's location is broken (moved repo, private mirror
+        // gone, revoked network access), the fetch aborts the entire resolve.
+        //
+        // The fix: when the resolved-file's originHash disagrees with the
+        // current manifest, prune pins whose identity is not a declared
+        // dependency of the root manifest (or any local package under it)
+        // before handing the file to SwiftPM. Direct-dep versions stay locked;
+        // the seed only loses pins whose identity is definitely no longer
+        // referenced.
+        //
+        // Reproducing the failure exactly: after an initial resolve pins the
+        // dependency, we splice an orphan pin whose remote does not exist into
+        // Package.resolved, and stale the originHash so the read-if-current
+        // fast path falls through. Without the prune, `swift package resolve`
+        // tries to clone the orphan and errors out; with the prune, the orphan
+        // never reaches SwiftPM and the resolve completes.
+        try await withTemporaryDirectory { root in
+            let kept = root.appendingPathComponent("Kept")
+            try await writeLibraryPackageManifest(at: kept, name: "Kept")
+            try await initGitDependency(at: kept, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencies: [(url: kept.path, product: "Kept")]
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+
+            _ = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+
+            var pinned = try await ResolvedFile.read(packageDir: package)
+            pinned.pins.append(
+                ResolvedPin(
+                    identity: "snapkit",
+                    kind: "remoteSourceControl",
+                    location:
+                        "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
+                    state: ResolvedState(
+                        branch: nil,
+                        revision: "0000000000000000000000000000000000000000",
+                        version: "99.99.99"
+                    )
+                )
+            )
+            pinned.originHash = "0000000000000000000000000000000000000000000000000000000000000000"
+            try await ResolvedFile.write(packageDir: package, resolved: pinned)
+
+            // A previous install would have written the orphan into
+            // workspace-state.json alongside Package.resolved. Native SwiftPM
+            // reads both, and only tries to fetch the orphan when its
+            // workspace state agrees the checkout should exist. Reproduce that
+            // pairing here or the resolve short-circuits and hides the bug.
+            let workspaceStatePath = scratch.appendingPathComponent("workspace-state.json")
+            var workspaceState = try JSONSerialization.jsonObject(
+                with: await fileSystem.readFile(at: workspaceStatePath.absolutePath)
+            ) as? [String: Any] ?? [:]
+            var object = workspaceState["object"] as? [String: Any] ?? [:]
+            var workspaceDependencies = object["dependencies"] as? [[String: Any]] ?? []
+            workspaceDependencies.append([
+                "basedOn": NSNull(),
+                "packageRef": [
+                    "identity": "snapkit",
+                    "kind": "remoteSourceControl",
+                    "location":
+                        "https://github.com/tuist/nonexistent-orphan-repository-do-not-create.git",
+                    "name": "SnapKit",
+                ],
+                "state": [
+                    "checkoutState": [
+                        "revision": "0000000000000000000000000000000000000000",
+                        "version": "99.99.99",
+                    ],
+                    "name": "sourceControlCheckout",
+                ],
+                "subpath": "SnapKit",
+            ])
+            object["dependencies"] = workspaceDependencies
+            workspaceState["object"] = object
+            try await fileSystem.atomicWrite(
+                JSONSerialization.data(withJSONObject: workspaceState, options: [.prettyPrinted]),
+                to: workspaceStatePath
+            )
+
+            let reresolved = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(reresolved.pins.map(\.identity) == ["kept"])
+
+            let onDisk = try await ResolvedFile.read(packageDir: package)
+            #expect(onDisk.pins.map(\.identity) == ["kept"])
+        }
+    }
+
+    @Test
     func nativeColdPathIsUsedWhenTheSharedCacheOnlyContainsOtherPackages() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("App")
@@ -493,6 +609,51 @@ struct ResolveTests {
         )
         try await fileSystem.atomicWrite(
             "import Dependency\npublic struct App {}\n",
+            to: packageDir.appendingPathComponent("Sources/App/App.swift")
+        )
+    }
+
+    private func writeAppPackageManifest(
+        at packageDir: URL,
+        dependencies: [(url: String, product: String)]
+    ) async throws {
+        try await fileSystem.makeDirectory(
+            at: packageDir.appendingPathComponent("Sources/App").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        let dependencyLines = dependencies
+            .map { #".package(url: "\#($0.url)", exact: "1.0.0"),"# }
+            .joined(separator: "\n        ")
+        let productLines = dependencies
+            .map { #".product(name: "\#($0.product)", package: "\#($0.product)"),"# }
+            .joined(separator: "\n            ")
+        let importLines = dependencies
+            .map { "import \($0.product)" }
+            .joined(separator: "\n")
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "App",
+                products: [
+                    .library(name: "App", targets: ["App"]),
+                ],
+                dependencies: [
+                    \(dependencyLines)
+                ],
+                targets: [
+                    .target(name: "App", dependencies: [
+                        \(productLines)
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "\(importLines)\npublic struct App {}\n",
             to: packageDir.appendingPathComponent("Sources/App/App.swift")
         )
     }

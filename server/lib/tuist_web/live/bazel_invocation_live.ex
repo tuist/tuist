@@ -6,16 +6,19 @@ defmodule TuistWeb.BazelInvocationLive do
   import TuistWeb.BazelAnalyticsHelpers,
     only: [parse_page: 1, requested_command: 1, sort_direction: 1, target_patterns_label: 1]
 
+  import TuistWeb.Components.BuildTimeline
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Bazel
+  alias Tuist.Builds.RecordedSteps
   alias Tuist.ReapiCache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
+  alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -90,8 +93,25 @@ defmodule TuistWeb.BazelInvocationLive do
      |> assign(:active_cache_filters, active_cache_filters)
      |> assign(:available_filters, available_filters)
      |> assign(:cache_sort_by, cache_sort_by)
-     |> assign(:cache_sort_order, cache_sort_order)}
+     |> assign(:cache_sort_order, cache_sort_order)
+     |> BuildTimelineLoader.assign_timeline(selected_tab, invocation)}
   end
+
+  def handle_event("load-timeline", params, socket), do: BuildTimelineLoader.handle_event("load-timeline", params, socket)
+
+  def handle_event("load-timeline-log", %{"event_id" => id, "request_id" => request}, socket)
+      when is_binary(id) and byte_size(id) <= 128 and is_integer(request) and request >= 0 do
+    case RecordedSteps.get(socket.assigns.invocation, id) do
+      {:ok, step} ->
+        {:noreply,
+         push_event(socket, "timeline-log", %{request_id: request, log: Map.take(step, [:log, :log_truncated])})}
+
+      _ ->
+        {:reply, %{error: true}, socket}
+    end
+  end
+
+  def handle_event("load-timeline-log", _, socket), do: {:reply, %{error: true}, socket}
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
@@ -160,11 +180,27 @@ defmodule TuistWeb.BazelInvocationLive do
           selected={@selected_tab == "overview"}
         />
         <.tab_menu_horizontal_item
+          label={dgettext("dashboard_builds", "Timeline")}
+          patch={tab_path(assigns, "timeline")}
+          selected={@selected_tab == "timeline"}
+        />
+        <.tab_menu_horizontal_item
           label={dgettext("dashboard_projects", "Bazel Cache")}
           patch={tab_path(assigns, "cache")}
           selected={@selected_tab == "cache"}
         />
       </.tab_menu_horizontal>
+      <section :if={@selected_tab == "timeline"}>
+        <.build_timeline_section
+          timeline={@timeline}
+          duration={@invocation.duration_ms}
+          version={@timeline_version}
+          source="bazel"
+          url={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
+          }
+        />
+      </section>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">
         <.card title={@bazel_details_title} icon="chart_arcs" data-part="build-details">
           <.card_section data-part="build-details-section">
@@ -191,7 +227,7 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
-                  <.run_ran_by_badge_cell run={@invocation} />
+                  <.run_ran_by_badge_cell run={@invocation} ran_by_name={@invocation.account_handle} />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">
@@ -355,6 +391,7 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={@cache.hits}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-action-misses"}
@@ -366,6 +403,7 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={@cache.misses}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-hit-rate"}
@@ -377,23 +415,31 @@ defmodule TuistWeb.BazelInvocationLive do
             )
           }
           value={cache_hit_rate(@cache)}
-          empty={@cache.hits + @cache.misses == 0}
+          empty={cache_summary_empty?(@cache) or @cache.hits + @cache.misses == 0}
         />
         <.widget
           id={@widget_id_prefix <> "-downloads"}
-          title={dgettext("dashboard_projects", "Cache downloads")}
+          title={dgettext("dashboard_projects", "Content downloaded")}
           description={
-            dgettext("dashboard_projects", "Total size of data downloaded from the remote cache.")
+            dgettext(
+              "dashboard_projects",
+              "Total size of build outputs downloaded from the remote cache. Excludes action cache lookups, which return metadata rather than outputs."
+            )
           }
-          value={ByteFormatter.format_bytes(@cache.download_bytes)}
+          value={ByteFormatter.format_bytes(@cache.content_download_bytes)}
+          empty={cache_summary_empty?(@cache)}
         />
         <.widget
           id={@widget_id_prefix <> "-uploads"}
-          title={dgettext("dashboard_projects", "Cache uploads")}
+          title={dgettext("dashboard_projects", "Content uploaded")}
           description={
-            dgettext("dashboard_projects", "Total size of data uploaded to the remote cache.")
+            dgettext(
+              "dashboard_projects",
+              "Total size of build outputs uploaded to the remote cache. Excludes action cache writes, which store metadata rather than outputs."
+            )
           }
-          value={ByteFormatter.format_bytes(@cache.upload_bytes)}
+          value={ByteFormatter.format_bytes(@cache.content_upload_bytes)}
+          empty={cache_summary_empty?(@cache)}
         />
       </.card_section>
     </.card>
@@ -445,7 +491,7 @@ defmodule TuistWeb.BazelInvocationLive do
           >
             <div data-part="title">
               <span data-part="label">{dgettext("dashboard_projects", "Action cache lookups:")}</span>
-              <span data-part="value">{@cache.hits + @cache.misses}</span>
+              <span data-part="value">{format_number(@cache.hits + @cache.misses)}</span>
             </div>
             <.chart
               id={@widget_id_prefix <> "-actions-breakdown"}
@@ -745,6 +791,15 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_requests_empty_state_title(true, _selected_cache_view),
     do: dgettext("dashboard_projects", "No action cache requests were observed for this invocation.")
 
+  # One decision for the whole card. Previously only the hit-rate tile opted
+  # into an empty state, so an invocation with no cache activity rendered
+  # "0 / 0 / No data yet / 0 B / 0 B" - the inconsistency read as a broken
+  # widget rather than an absence of data.
+  defp cache_summary_empty?(cache) do
+    cache.hits + cache.misses == 0 and cache.content_download_bytes == 0 and
+      cache.content_upload_bytes == 0
+  end
+
   defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
   defp cache_hit_rate(cache), do: "#{cache.hit_rate}%"
 
@@ -969,7 +1024,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp invocation_title(%{target_patterns: []}), do: dgettext("dashboard_projects", "Bazel invocation")
   defp invocation_title(invocation), do: target_patterns_label(invocation.target_patterns)
 
-  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache"], do: tab
+  defp selected_tab(%{"tab" => tab}) when tab in ["overview", "cache", "timeline"], do: tab
   defp selected_tab(_params), do: "overview"
 
   defp remote_cache_used?(invocation) do

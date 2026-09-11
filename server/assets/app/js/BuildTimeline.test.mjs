@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
-// scheduling and transport without mounting Noora's DOM controls.
+// scheduling and transport without mounting Noora's DOM controls. Keep the
+// real number formatter so summary values exercise the production behavior.
 const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "noora")
       return {
-        url: "data:text/javascript,export function bindScrollIndicator() {}",
+        url: `data:text/javascript,export function bindScrollIndicator() {} export { formatNumber } from "${new URL("../../../../noora/js/formatters.js", import.meta.url).href}";`,
         shortCircuit: true,
       };
     return nextResolve(specifier, context);
@@ -209,6 +210,68 @@ test("search reuses initial metadata without network requests and preserves the 
   }
 });
 
+test("category buttons toggle a local filter without changing zoom, and keyboard navigation follows it", () => {
+  const view = fixture();
+  const buttons = ["compile", "link", "failure"].map((kind) => ({
+    dataset: { kind },
+    setAttribute(_, value) {
+      this.pressed = value;
+    },
+  }));
+  view.part("legend").querySelectorAll = () => buttons;
+  view.localNavigation = true;
+  view.groupLabels = { link: "Linking" };
+  view.allEvents = [
+    {
+      event_id: "1",
+      title: "Compile",
+      target: "App",
+      project: "App",
+      category: "Rustc",
+      kind: "compile",
+      status: "success",
+      start_ms: 0,
+      duration_ms: 100,
+      end: 100,
+    },
+    {
+      event_id: "2",
+      title: "Link App",
+      target: "App",
+      project: "App",
+      category: "CppLink",
+      kind: "link",
+      status: "success",
+      start_ms: 100,
+      duration_ms: 100,
+      end: 200,
+    },
+  ];
+  view.control = () => ({ value: "App" });
+  view.select = (step) => (view.selected = step);
+  view.scheduleDraw = () => {};
+  view.pushEvent = () => assert.fail("Category filtering must not fetch steps");
+  const range = { ...view.range };
+  view.filterCategory("link");
+  assert.deepEqual(
+    view.filtered.map((event) => event.event_id),
+    ["2"],
+  );
+  assert.deepEqual(
+    buttons.map((button) => button.pressed),
+    ["false", "true", "false"],
+  );
+  assert.deepEqual(view.range, range);
+  view.setRange = () => {};
+  view.keydown({ key: "ArrowRight", preventDefault() {} });
+  assert.equal(view.selected.event_id, "2");
+  view.filterCategory("link");
+  assert.equal(view.category, null);
+  assert.equal(view.filtered.length, 2);
+  view.filterCategory("failure");
+  assert.equal(view.filtered.length, 0);
+});
+
 test("initialization failure cleans up and hides partially mounted content", async (t) => {
   t.mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ events: [] }) }));
   const parts = new Map(
@@ -277,6 +340,48 @@ test("empty messages distinguish absent records, searches and unfiltered gaps", 
     assert.equal(!view.part("no-recorded-steps").hidden, noRecords);
     assert.equal(!view.part("no-matches").hidden, noMatches);
   }
+});
+
+test("Gradle and Bazel keyboard inspection stays local and respects search results", () => {
+  const view = fixture();
+  const step = { event_id: "task:one", start_ms: 500, duration_ms: 100 };
+  view.localNavigation = true;
+  view.filtered = [step];
+  view.pushEvent = () => assert.fail("Local navigation must not request Xcode steps");
+  view.select = (event) => (view.selected = event);
+  view.setRange = () => {};
+  view.keydown({ key: "ArrowRight", preventDefault() {}, target: { tagName: "CANVAS" } });
+  assert.equal(view.selected, step);
+});
+
+test("recorded source outcomes are preserved and unavailable logs are never requested", () => {
+  const view = fixture();
+  view.localNavigation = true;
+  view.logsAvailable = false;
+  view.scheduleDraw = () => {};
+  const category = {};
+  const outcome = {};
+  view.part("category-badge").querySelector = () => category;
+  view.part("outcome-other").querySelector = () => outcome;
+  view.el = {
+    dataset: { outcomeLabels: JSON.stringify({ remote_hit: "Remote cache hit", unknown: "Unknown" }) },
+    querySelector: () => ({}),
+  };
+  view.requestLog = () => assert.fail("This source has no per-step logs");
+  view.select({
+    event_id: "task:one",
+    category: "KotlinCompile",
+    start_ms: 100,
+    duration_ms: 20,
+    status: "remote_hit",
+  });
+  assert.equal(category.textContent, "KotlinCompile");
+  assert.equal(outcome.textContent, "Remote cache hit");
+  assert.equal(view.part("outcome-success").hidden, true);
+  assert.equal(view.part("step-log").hidden, true);
+  view.select({ event_id: "1", category: "execution", start_ms: 100, duration_ms: 20, status: "unknown" });
+  assert.equal(outcome.textContent, "Unknown");
+  assert.equal(view.part("outcome-success").hidden, true);
 });
 
 function loadingFixture() {
@@ -375,4 +480,60 @@ test("receiving steps preserves a range selected on metrics while loading", () =
   view.receiveSteps({ events: [], duration: view.duration, total_count: 0, target_count: 0 });
   assert.equal(view.part("workspace").hidden, true);
   assert.equal(view.part("empty").hidden, false);
+});
+
+for (const source of ["xcode", "gradle", "bazel"]) {
+  test(`${source} downloads steps independently of the metric bootstrap`, async (t) => {
+    const metadata = { events: [{ event_id: "task:1" }], duration: 100 };
+    const view = loadingFixture();
+    view.el.dataset.source = source;
+    t.mock.method(globalThis, "fetch", async (url, options) => {
+      assert.equal(url, view.el.dataset.url);
+      assert.equal(options.credentials, "same-origin");
+      assert.equal(options.signal, view.abort.signal);
+      return { ok: true, json: async () => metadata };
+    });
+    await view.mounted();
+    assert.equal(view.metricPayload.events, undefined);
+    assert.equal(view.receivedSteps, metadata);
+  });
+}
+
+test("receiving recorded steps retains source categories and hides unknown target counts", () => {
+  const view = fixture();
+  view.source = "gradle";
+  view.el = { querySelector: () => ({}) };
+  view.filter = () => {};
+  view.receiveSteps({
+    events: [{ event_id: "task:1", category: "org.gradle.api.tasks.bundling.Jar", start_ms: 0, duration_ms: 10 }],
+    duration: 100,
+    total_count: 1,
+    target_count: null,
+    local_navigation: true,
+    logs_available: true,
+  });
+  assert.equal(view.localNavigation, true);
+  assert.equal(view.logsAvailable, true);
+  assert.equal(view.allEvents[0].kind, "package");
+  assert.equal(view.part("target-count").hidden, true);
+});
+
+test("receiving steps humanizes large summary counts and preserves small counts", () => {
+  const view = fixture();
+  const stats = new Map();
+  view.el = {
+    querySelector(selector) {
+      if (!stats.has(selector)) stats.set(selector, {});
+      return stats.get(selector);
+    },
+  };
+  view.filter = () => {};
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 121755, target_count: 24420 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "121.8K");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "24.4K");
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 836, target_count: 466 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "836");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "466");
 });

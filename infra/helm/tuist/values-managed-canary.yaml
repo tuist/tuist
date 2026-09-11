@@ -205,7 +205,7 @@ server:
       # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
-      value: eu-central,scw-fr-par-runners,ca-east
+      value: eu-west,scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -308,6 +308,22 @@ clickhouse:
     # Rollback: turn it off. Nothing has read from that server.
     shadowWrites:
       enabled: true
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it. It wrote the whole test family to Cloud and mirrored
+    # none of it, which parity reported as six tables holding zero rows on the
+    # destination.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
@@ -341,29 +357,35 @@ clickhouse:
     # the deploy that turns dual writes on above has finished rolling out: the
     # backfill covers everything before it, the mirror covers everything after,
     # and naming the boundary is what stops the two from leaving a gap.
-    # Off. Arming this failed three canary releases in a row and rolled each
-    # one back, because helm 4 waits on ordinary Jobs:
+    # Step 6a: the full parity gate, before reads move anywhere.
     #
-    #   Error: UPGRADE FAILED: release tuist failed, and has been rolled back
-    #   due to rollback-on-failure being set: resource
-    #   Job/tuist-canary/tuist-tuist-clickhouse-backfill-r894 not ready.
-    #   status: Failed, message: Job Failed. failed: 1/1
+    # Step 5 is done here. The backfill copied 260 chunks across 50 tables with
+    # 101 skipped and none failed, in 58 seconds, and a second run finished in
+    # 7 with everything skipped, which is the ledger doing its job.
     #
-    # `background: true` was written for helm 3, where `--wait` covered pods
-    # and workloads but not Jobs, so an ordinary Job really did run beside the
-    # release. Under helm 4 it does not: the release waits for the Job, and a
-    # Job that fails fails the release. That inverts the whole reason the
-    # setting exists, and on a production-sized copy it would hold the release
-    # for hours and then roll it back on the deadline, which is exactly the
-    # outcome it was meant to prevent.
+    # This is a different check from the hourly worker, and that distinction is
+    # the point. The worker compares a two-hour window, so it says recent
+    # writes agree. `check_clickhouse_parity` compares every copied table over
+    # the whole dataset, schemas included, which is what the backfill's
+    # coverage of history has never been measured against. The worker reporting
+    # "all 62 copied table(s) agree" is not evidence for this.
     #
-    # So the backfill needs a way to run that helm does not wait on before it
-    # can be armed again, here or anywhere. Until then this stays off, and
-    # `name` and `task` keep naming the step it would run.
+    # It raises rather than reports, and that is deliberate: it is the gate for
+    # the cutover, and schema drift in particular is fatal here because from
+    # the flip onward a missing column breaks the ingest path rather than
+    # costing one mirrored write.
+    #
+    # Consequence worth stating: a post-upgrade hook that raises fails the
+    # release, and the deploy runs with `--atomic`, so a parity failure rolls
+    # canary back. That is correct for a gate and it is also how three canary
+    # releases were lost last week. If it fails, read the Job, then disarm this
+    # rather than redeploying into the same wall.
+    #
+    # `cutoff` is gone with the backfill it belonged to.
     migration:
-      enabled: false
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
+      enabled: true
+      name: parity
+      task: Tuist.Release.check_clickhouse_parity
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -411,6 +433,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"
@@ -605,10 +629,10 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
 # DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
 # in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
@@ -620,7 +644,7 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:

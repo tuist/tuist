@@ -4,6 +4,7 @@ This area owns helper functions for views, forms, and UI utilities.
 
 ## Responsibilities
 - Provide helpers for formatting, rendering, and UI convenience.
+- `ModuleCache.analytics_period_assigns/2` reuses the relative period already displayed by the picker across presentation-only patches. Passing empty assigns explicitly refreshes the snapshot, including reapplying the same preset; custom bounds always come from DatePicker. `with_hit_rates/1` shares daily percentage formatting between both module-cache pages.
 - Build deterministic signed Open Graph image URLs from template variables supplied by controllers and LiveViews.
 
 ## Boundaries
@@ -15,3 +16,6 @@ This area owns helper functions for views, forms, and UI utilities.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - `GradleTask` shares task outcome labels and colors between build tables, task overviews, and individual execution details.
+- `ModuleCache` shares miss-reason definitions and comparison limitations between module overview widgets and per-module history, including the evidence-based Evicted state (use `evicted` consistently for reason identifiers and URL parameters). Keep tooltips brief and specific to the selected reason; the module-cache analytics guide owns detailed comparison limits and optimization advice.
+
+- `CldrHelpers.format_number/2` compacts display counts from 10,000 upward with K/M/B/T suffixes and up to one decimal, preserving locale separators. Keep money, percentages, identifiers, and underlying numeric data in their dedicated formats.

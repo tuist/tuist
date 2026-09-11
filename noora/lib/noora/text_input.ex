@@ -75,7 +75,7 @@ defmodule Noora.TextInput do
 
   attr(:disabled, :boolean, default: false, doc: "Whether the input is disabled.")
 
-  attr(:rest, :global)
+  attr(:rest, :global, include: ~w(autocomplete))
 
   slot(:prefix,
     required: false,

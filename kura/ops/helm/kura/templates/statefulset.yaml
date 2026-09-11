@@ -252,6 +252,8 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 5
+          # Bootstrap /up is available during exclusive store recovery; its
+          # progress watchdog bounds stalls while /ready remains unavailable.
           startupProbe:
             httpGet:
               path: /up

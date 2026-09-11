@@ -430,6 +430,12 @@
             width: 12%;
           }
 
+          & [data-part="task-cas-actions"] {
+            display: flex;
+            justify-content: flex-start;
+            padding: var(--noora-spacing-5);
+          }
+
           & [data-part="cas-outputs-list"] {
             display: flex;
             flex-direction: column;

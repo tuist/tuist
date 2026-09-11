@@ -7,15 +7,74 @@ import TuistREAPI
 struct BazelrcFileTests {
     private let moved = GRPCEndpoint(host: "acme-ca-east-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
 
-    private func rendered() -> String {
+    private func rendered(cpuCount: Int = 12) -> String {
         BazelrcFile.render(
-            endpoint: GRPCEndpoint(host: "acme-eu-central-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
+            endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),
             accountHandle: "acme",
             projectHandle: "app",
             credentialHelperPath: try! AbsolutePath(
                 validating: "/Users/dev/.config/tuist/credentials/tuist-bazel-credential-helper"
-            )
+            ),
+            cpuCount: cpuCount
         )
+    }
+
+    @Test func upgrades_cpu_capacity_for_existing_insights_and_cache_only_files() throws {
+        for contents in [
+            rendered().split(separator: "\n").filter { !$0.contains("TUIST_CPU_COUNT") }.joined(separator: "\n"),
+            "build --remote_cache=grpcs://old.example.com\nbuild --remote_header=x-tuist-account-handle=tuist\nbuild --remote_instance_name=app\n",
+        ] {
+            let endpoint = GRPCEndpoint(host: "new.example.com", explicitPort: nil, isTLS: true)
+            let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: endpoint, cpuCount: 6))
+            #expect(rewritten.contains("build --build_metadata=TUIST_CPU_COUNT=6"))
+            #expect(BazelrcFile.replacingRemoteCache(in: rewritten, with: endpoint, cpuCount: 8) == nil)
+        }
+    }
+
+    @Test func preserves_explicit_cpu_capacity_when_enabling_build_insights() throws {
+        let existing = """
+        build --remote_cache=grpcs://old.example.com
+        build --remote_header=x-tuist-account-handle=acme
+        build --remote_instance_name=app
+        common --build_metadata=TUIST_CPU_COUNT=4
+        """
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: moved, cpuCount: 6))
+        #expect(rewritten.contains("common --build_metadata=TUIST_CPU_COUNT=4"))
+        #expect(!rewritten.contains("TUIST_CPU_COUNT=6"))
+    }
+
+    @Test func records_machine_cpu_capacity_without_using_the_job_limit() throws {
+        let contents = rendered(cpuCount: 12) + "build --jobs=4\n"
+        #expect(contents.contains("build --build_metadata=TUIST_CPU_COUNT=12"))
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: moved))
+        #expect(rewritten.contains("build --build_metadata=TUIST_CPU_COUNT=12"))
+        #expect(rewritten.contains("build --jobs=4"))
+        #expect(rendered(cpuCount: 8).contains("build --build_metadata=TUIST_CPU_COUNT=8"))
+    }
+
+    @Test func enables_complete_profile_uploads_and_preserves_explicit_preferences() throws {
+        let contents = rendered()
+        #expect(contents.contains("build --generate_json_trace_profile=yes"))
+        #expect(contents.contains("build --noslim_profile"))
+        #expect(contents.contains("build --experimental_build_event_upload_strategy=remote"))
+        #expect(contents.contains("build --experimental_profile_include_target_label"))
+        let optedOut = contents.replacingOccurrences(
+            of: "build --experimental_build_event_upload_strategy=remote",
+            with: "common --experimental_build_event_upload_strategy=local"
+        )
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: optedOut, with: moved))
+        #expect(rewritten.contains("common --experimental_build_event_upload_strategy=local"))
+        #expect(!rewritten.contains("build --experimental_build_event_upload_strategy=remote"))
+    }
+
+    @Test func upgrades_existing_build_insights_to_upload_profiles() throws {
+        let legacy = rendered().split(separator: "\n")
+            .filter { !$0.contains("profile") && !$0.contains("build_event_upload_strategy") }
+            .joined(separator: "\n") + "\n"
+        let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: moved))
+        #expect(rewritten.contains("build --generate_json_trace_profile=yes"))
+        #expect(rewritten.contains("build --experimental_build_event_upload_strategy=remote"))
+        #expect(BazelrcFile.replacingRemoteCache(in: rewritten, with: moved) == nil)
     }
 
     @Test func points_all_host_bearing_flags_at_the_new_region() throws {
@@ -35,7 +94,7 @@ struct BazelrcFileTests {
         #expect(rewritten.contains("build --bes_timeout=10m"))
         #expect(!rewritten.contains("build --bes_timeout=30s"))
         #expect(rewritten.contains("build --build_event_publish_all_actions"))
-        #expect(!rewritten.contains("eu-central"))
+        #expect(!rewritten.contains("eu-west"))
     }
 
     @Test func leaves_everything_else_alone() throws {
@@ -50,16 +109,16 @@ struct BazelrcFileTests {
     }
 
     @Test func is_nothing_to_do_when_the_endpoint_has_not_moved() throws {
-        let unchanged = GRPCEndpoint(host: "acme-eu-central-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
+        let unchanged = GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
 
         #expect(BazelrcFile.replacingRemoteCache(in: rendered(), with: unchanged) == nil)
     }
 
     @Test func adds_build_event_service_settings_to_an_existing_remote_cache_file() throws {
         let legacy = """
-        build --remote_cache=grpcs://acme-eu-central-1.kura.tuist.dev
+        build --remote_cache=grpcs://acme-eu-west-1.kura.tuist.dev
         build --remote_header=x-tuist-account-handle=acme
-        build --credential_helper=acme-eu-central-1.kura.tuist.dev=/opt/tuist
+        build --credential_helper=acme-eu-west-1.kura.tuist.dev=/opt/tuist
         build --remote_instance_name=app
 
         """
@@ -78,7 +137,7 @@ struct BazelrcFileTests {
             .replacingOccurrences(of: "build --build_event_max_named_set_of_file_entries=500\n", with: "")
             .replacingOccurrences(of: "build --build_event_publish_all_actions\n", with: "")
         let unchangedEndpoint = GRPCEndpoint(
-            host: "acme-eu-central-1.kura.tuist.dev",
+            host: "acme-eu-west-1.kura.tuist.dev",
             explicitPort: nil,
             isTLS: true
         )
@@ -115,6 +174,7 @@ struct BazelrcFileTests {
 
         #expect(!contents.contains("--bes_"))
         #expect(!contents.contains("--build_event_publish_all_actions"))
+        #expect(!contents.contains("TUIST_CPU_COUNT"))
     }
 
     @Test func is_nothing_to_do_when_the_file_names_no_endpoint() throws {
@@ -125,8 +185,8 @@ struct BazelrcFileTests {
         // `<host>=<path>` splits on the first `=` only; a path with one of its
         // own would otherwise be truncated and Bazel would fail to run it.
         let odd = """
-        build --remote_cache=grpcs://acme-eu-central-1.kura.tuist.dev
-        build --credential_helper=acme-eu-central-1.kura.tuist.dev=/opt/a=b/helper
+        build --remote_cache=grpcs://acme-eu-west-1.kura.tuist.dev
+        build --credential_helper=acme-eu-west-1.kura.tuist.dev=/opt/a=b/helper
 
         """
         let rewritten = try #require(BazelrcFile.replacingRemoteCache(in: odd, with: moved))

@@ -419,7 +419,7 @@ defmodule Tuist.Environment do
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from
   `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
-  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
+  `eu-west=1.2.3.4,ca-east=5.6.7.8`).
   """
   def kura_peer_failover_ip(region_id) when is_binary(region_id) do
     "TUIST_KURA_PEER_FAILOVER_IPS"

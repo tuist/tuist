@@ -103,6 +103,9 @@ mise x shellspec@0.28.1 -- shellspec
 
 Runtime configuration is summarized in the table under [Runtime Model And Limits](#-runtime-model-and-limits). Kura now derives sensible defaults for the main FD, memory, and metadata-store budgets at startup when you do not set them explicitly.
 
+During startup, `/up` and `/metrics` are available while the store recovers, but `/ready` and cache requests return 503 until recovery completes. Cleanup can exceed five minutes as long as bounded scan pages or deletion batches keep completing. Five minutes without recovery progress makes `/up` fail; opaque RocksDB opening has a separate 15-minute limit. `kura_startup_recovery_*` metrics expose the phase and completed work. Store cleanup failures stop startup, and shutdown signals are handled before recovery begins. A requested shutdown during recovery logs `kura.startup.interrupted` at INFO and exits successfully (code 0), without marking the recovery phase as failed.
+
+
 ## 🗺️ Project Areas
 
 Kura is easier to read by subsystem than by tutorial step. The sections below group the project by the main areas you operate or extend.
@@ -360,12 +363,12 @@ A minimal direct-binary deployment still looks like:
 KURA_PORT=4000 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
-KURA_REGION=eu-central \
+KURA_REGION=eu-west \
 KURA_TMP_DIR=/var/cache/kura/tmp \
 KURA_DATA_DIR=/var/cache/kura \
 KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \
-KURA_OTEL_SERVICE_NAME=kura-eu-central \
+KURA_OTEL_SERVICE_NAME=kura-eu-west \
 KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
@@ -374,6 +377,15 @@ Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sen
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
 ## 📊 Observability
+
+Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
+observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
+`production`, `staging`, or `canary` and is disabled when unset or invalid. The
+controller sets it only for deployment-selected instances. A dedicated thread
+and async runtime keep network waits and diagnostic failures out of startup and
+readiness decisions; this remains telemetry inside Kura's process resource budget.
+See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
+for fixed targets, sample interpretation, access boundaries, and rollout.
 
 Kura ships with a fairly complete local observability story:
 
@@ -423,7 +435,7 @@ Both values come from deployment configuration alone: resolution is a pure funct
 
 1. `KURA_NODE_COUNTRY` env var (2-letter ISO 3166-1 code), set from the datacenter the node runs in.
 2. The country prefix of `KURA_NODE_SUBDIVISION`, when only the subdivision is configured (`US-CA` -> `US`).
-3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-central` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
+3. A real country prefix already present in `KURA_REGION` (`fr-par` -> `FR`, `nl-ams` -> `NL`). Continent-style prefixes such as `eu-west` are deliberately not mapped: they name a Tuist region, not a country, and the region they name has changed datacenter before.
 
 Subdivision resolution is `KURA_NODE_SUBDIVISION` (ISO 3166-2 code such as `US-CA`) and nothing else. Neither attribute has a runtime discovery path, so an unconfigured node simply does not stamp it — `geo.region.iso_code` whenever the subdivision is unset, and `geo.country.iso_code` when all three country steps come up empty.
 
@@ -475,6 +487,9 @@ When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL
 ```text
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
+
+Usage delivery allows up to 3 seconds for connection setup, including DNS, within
+a 5-second total request deadline covering setup, upload, and response.
 
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
@@ -720,3 +735,7 @@ serve is refused before anything else happens.
 
 When the node cannot reach an answer it denies the request; there is no
 configuration that makes it do otherwise.
+
+### Bazel build timelines
+
+With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.

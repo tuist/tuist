@@ -34,7 +34,7 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
         patch={sort_patch(assigns, "invalidations")}
         sort_order={@sort_by == "invalidations" && @sort_order}
       >
-        <.text_cell label={Integer.to_string(module.invalidations)} />
+        <.text_cell label={TuistWeb.CldrHelpers.format_number(module.invalidations)} />
       </:col>
       <:col
         :let={module}
@@ -50,7 +50,7 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
         patch={sort_patch(assigns, "blast_radius")}
         sort_order={@sort_by == "blast_radius" && @sort_order}
       >
-        <.text_cell label={Integer.to_string(module.blast_radius || 0)} />
+        <.text_cell label={TuistWeb.CldrHelpers.format_number(module.blast_radius || 0)} />
       </:col>
     </.table>
     """

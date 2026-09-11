@@ -27,7 +27,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
     stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-central"] end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "us-west", "eu-west"] end)
 
     :ok
   end
@@ -40,7 +40,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
-      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-central", status: :open} =
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-west", status: :open} =
                PlacementProposals.open_proposal_for(account)
     end
 
@@ -54,7 +54,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
-      assert %PlacementProposal{kind: :correct, from_region: "us-east", to_region: "eu-central", status: :open} =
+      assert %PlacementProposal{kind: :correct, from_region: "us-east", to_region: "eu-west", status: :open} =
                PlacementProposals.open_proposal_for(account)
     end
 
@@ -68,7 +68,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       assert {:ok, %{evaluated: 1, open: 1}} = PlacementProposals.sweep(@today)
 
-      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-central", status: :open} =
+      assert %PlacementProposal{kind: :relocate, from_region: "us-east", to_region: "eu-west", status: :open} =
                PlacementProposals.open_proposal_for(account)
     end
 
@@ -82,7 +82,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       proposal = PlacementProposals.open_proposal_for(account)
       assert {:ok, %{kind: :correct}} = Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
-      assert PlacerRegions.primary_region(account) == "eu-central"
+      assert PlacerRegions.primary_region(account) == "eu-west"
       assert PlacerRegions.retiring_regions(account) == ["us-east"]
 
       # Traffic swings back; the guess has already been replaced by a decision,
@@ -290,10 +290,10 @@ defmodule Tuist.Kura.PlacementProposalsTest do
 
       proposal = PlacementProposals.open_proposal_for(account)
 
-      assert {:ok, %{kind: :relocate, to_region: "eu-central"}} =
+      assert {:ok, %{kind: :relocate, to_region: "eu-west"}} =
                Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
 
-      assert PlacerRegions.primary_region(account) == "eu-central"
+      assert PlacerRegions.primary_region(account) == "eu-west"
       assert PlacerRegions.retiring_regions(account) == ["us-east"]
       assert Repo.get(PlacementProposal, proposal.id).status == :applied
       assert Repo.get(PlacementProposal, proposal.id).resolved_by == "operator@tuist.dev"
@@ -308,7 +308,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert {:ok, %{service_region: "eu-central"}} = AccountPolicies.resolve(account)
+      assert {:ok, %{service_region: "eu-west"}} = AccountPolicies.resolve(account)
     end
 
     test "a retiring region is not one the account should be running in" do
@@ -323,8 +323,8 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert AccountPolicies.serving_regions(account) == ["eu-central"]
-      assert account |> PlacerRegions.claimed_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert AccountPolicies.serving_regions(account) == ["eu-west"]
+      assert account |> PlacerRegions.claimed_regions() |> Enum.sort() == ["eu-west", "us-east"]
     end
 
     test "expanding adds a secondary and keeps the primary" do
@@ -337,11 +337,11 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       proposal = PlacementProposals.open_proposal_for(account)
       assert proposal.kind == :expand
 
-      assert {:ok, %{kind: :expand, to_region: "eu-central"}} =
+      assert {:ok, %{kind: :expand, to_region: "eu-west"}} =
                Kura.apply_placement_proposal(proposal, "operator@tuist.dev")
 
       assert PlacerRegions.primary_region(account) == "us-east"
-      assert account |> AccountPolicies.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert account |> AccountPolicies.serving_regions() |> Enum.sort() == ["eu-west", "us-east"]
     end
 
     test "does not propose giving up the region it just expanded into" do
@@ -357,7 +357,7 @@ defmodule Tuist.Kura.PlacementProposalsTest do
       {:ok, _outcome} =
         account |> PlacementProposals.open_proposal_for() |> Kura.apply_placement_proposal("operator@tuist.dev")
 
-      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-central", "us-east"]
+      assert account |> PlacerRegions.serving_regions() |> Enum.sort() == ["eu-west", "us-east"]
 
       {:ok, _second} = PlacementProposals.sweep(@today)
 

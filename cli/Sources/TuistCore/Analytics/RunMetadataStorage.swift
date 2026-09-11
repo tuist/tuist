@@ -49,7 +49,8 @@ public actor RunMetadataStorage {
         self.graphBinaryBuildDuration = graphBinaryBuildDuration
     }
 
-    /// Binar cache-specific cache items
+    /// Binary cache lookups performed by the current command. Results from an earlier
+    /// build must not be restored here, since each test shard would report them again.
     public private(set) var binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(binaryCacheItems: [AbsolutePath: [String: CacheItem]]) {
         self.binaryCacheItems = binaryCacheItems
@@ -146,7 +147,7 @@ public actor RunMetadataStorage {
     /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`
     /// bundle at `testProductsPath`. Used by the build phase of the split build/test
     /// topology (`tuist test --build-only`) so the test phase can restore the same
-    /// analytics state when it runs as a separate process.
+    /// graph, selective-testing state, and build link when it runs as a separate process.
     ///
     /// Failures are logged as warnings; persistence is best-effort and never blocks the
     /// caller's run.
@@ -169,6 +170,8 @@ public actor RunMetadataStorage {
     /// Restores run metadata from a `RunMetadata` JSON file previously written to the
     /// `.xctestproducts` bundle at `testProductsPath`. Used by the test phase of the split
     /// build/test topology (`tuist test --without-building -testProductsPath …`).
+    /// Binary cache results belong to the original build and are not restored as lookups
+    /// for this command. Any fresh lookups already recorded by this command are preserved.
     ///
     /// No-op when the file is absent (bundles produced by older Tuist versions). Failures
     /// are logged as warnings and never block the caller's run.
@@ -179,9 +182,6 @@ public actor RunMetadataStorage {
             let runMetadata: RunMetadata = try await fileSystem.readJSONFile(at: runMetadataPath)
             if let graph = runMetadata.graph {
                 update(graph: graph)
-            }
-            if !runMetadata.binaryCacheItems.isEmpty {
-                update(binaryCacheItems: runMetadata.binaryCacheItems)
             }
             if !runMetadata.selectiveTestingCacheItems.isEmpty {
                 update(selectiveTestingCacheItems: runMetadata.selectiveTestingCacheItems)

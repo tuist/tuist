@@ -36,6 +36,18 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
+WORKDIR /src
+COPY gitlab-runner/go.mod gitlab-runner/go.sum ./
+RUN go mod download
+COPY gitlab-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
+
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
 # workflow steps bring their own JDK via mise, so the runner image
@@ -358,6 +370,7 @@ RUN set -eux; \
 # job's log and window back, authenticating with the job-scoped report
 # token the poller staged — never the SA token, which this container
 # does not hold.
+COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
 COPY buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
 RUN chmod +x /usr/local/share/tuist/buildkite-hooks/*
 
@@ -376,7 +389,11 @@ COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/ru
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
 RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
+# Ubuntu's logout script clears a console that GitLab's login shell does not have.
+RUN rm -f /home/runner/.bash_logout
+
 USER runner
+RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
 # Default CMD is the poll loop, used by the poller init container.
 # The runner main container overrides this with run-job.sh via the

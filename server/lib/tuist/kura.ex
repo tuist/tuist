@@ -117,6 +117,16 @@ defmodule Tuist.Kura do
   @doc "Seconds a provisioning attempt may run without a routable endpoint before it counts as stalled."
   def provisioning_stall_seconds, do: @provisioning_stall_seconds
 
+  # Resolving a name before its record exists caches the negative answer at the
+  # DNS provider for the zone's SOA minimum, 1800 s on tuist.dev. So a host the
+  # region template has just started rendering is left unresolved for one
+  # external-dns poll interval (60 s), plus the same again for the controller's
+  # reconcile and the publication itself, before the endpoint probe first runs.
+  @public_host_publication_seconds 120
+
+  @doc "Seconds a newly rendered public host is left unresolved before the first probe."
+  def public_host_publication_seconds, do: @public_host_publication_seconds
+
   # How long a client may hold an endpoint answer before it has to ask again.
   # Lives here rather than on the controller that sets the header because the
   # drain below has to outlast it, and two numbers that must agree should not
@@ -1148,8 +1158,8 @@ defmodule Tuist.Kura do
   # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         {:ok, url} <- private_server_url(account, server),
-         {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
+         {:ok, %{url: url, observed_at: observed_at}} <- private_server_url(account, server),
+         {:ok, server} <- activate_private_server_transaction(server, url, image_tag, observed_at) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
@@ -1158,19 +1168,15 @@ defmodule Tuist.Kura do
     end
   end
 
-  # The URL dispatch hands runner builds. Cluster-DNS regions use the
-  # stable in-cluster Service form; node-port regions use the
-  # node-published endpoint observed from the KuraInstance status,
-  # which is only available once the controller has placed the primary
-  # pod and allocated ports — activation waits for it like it waits
-  # for a public endpoint to come up.
+  # Off-cluster runners use the endpoint observed by the controller. Gateway
+  # regions wait for DNS, TLS and serving readiness.
   defp private_server_url(account, %Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      if Regions.node_port_data_plane?(region) do
+      if Regions.observed_private_endpoint?(region) do
         Provisioner.external_endpoint(server)
       else
         case Provisioner.public_url(account, server) do
-          url when is_binary(url) -> {:ok, url}
+          url when is_binary(url) -> {:ok, %{url: url, observed_at: now_truncated()}}
           {:error, reason} -> {:error, reason}
           other -> {:error, other}
         end
@@ -1179,30 +1185,21 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Refreshes the dispatch URL of an active node-port private server from
-  the observed cluster state and heartbeats its readiness clock. Unlike
-  the cluster-DNS data plane, whose URL is stable for the server's
-  lifetime, the node-published endpoint moves whenever the primary pod
-  lands on a different node (reschedule, node loss) or the Service
-  re-allocates ports. The reconciler calls this every tick for converged
-  servers.
+  Refreshes an active private server's dispatch URL and readiness heartbeat.
 
-  The endpoint is observable only when the controller has a ready primary
-  pod to publish, so an observable endpoint doubles as the readiness
-  signal: each observation stamps `last_ready_at`, which
-  `runner_cache_endpoint_url/2` consults. While the endpoint is
-  unobservable the last known URL is kept — a transient gap must not flap
-  dispatch — but the heartbeat stops, so a sustained `/ready`-503 lets
-  the clock go stale and dispatch fails over to the public cache.
+  Gateway regions publish a stable hostname only after the controller observes
+  the entrance ready. The controller's observation time is persisted unchanged.
+  While the endpoint is unready, the last URL is retained; after the freshness window, new jobs
+  fall back to the public cache. Running jobs keep the URL they already received.
   """
   def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id),
-         true <- Regions.node_port_data_plane?(region) do
+         true <- Regions.observed_private_endpoint?(region) do
       case Provisioner.external_endpoint(server) do
-        {:ok, url} ->
-          mark_node_port_ready(server, url)
+        {:ok, %{url: url, observed_at: observed_at}} ->
+          mark_private_endpoint_ready(server, url, observed_at)
 
-        {:error, :node_port_endpoint_not_ready} ->
+        {:error, :private_endpoint_not_ready} ->
           :ok
 
         {:error, reason} ->
@@ -1219,15 +1216,15 @@ defmodule Tuist.Kura do
   # Endpoint observable: heartbeat the readiness clock. Rewrite the url +
   # broadcast only when it actually moved, so a steady-state node isn't
   # re-pushed to every open settings LiveView every tick.
-  defp mark_node_port_ready(%Server{url: url} = server, url) do
-    case server |> Server.observation_changeset(%{last_ready_at: now_truncated()}) |> Repo.update() do
+  defp mark_private_endpoint_ready(%Server{url: url} = server, url, observed_at) do
+    case server |> Server.observation_changeset(%{last_ready_at: observed_at}) |> Repo.update() do
       {:ok, _server} -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp mark_node_port_ready(%Server{} = server, url) do
-    case server |> Server.observation_changeset(%{url: url, last_ready_at: now_truncated()}) |> Repo.update() do
+  defp mark_private_endpoint_ready(%Server{} = server, url, observed_at) do
+    case server |> Server.observation_changeset(%{url: url, last_ready_at: observed_at}) |> Repo.update() do
       {:ok, server} ->
         broadcast_server(server, :updated)
         :ok
@@ -1237,7 +1234,7 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp activate_private_server_transaction(server, url, image_tag) do
+  defp activate_private_server_transaction(server, url, image_tag, observed_at) do
     Repo.transaction(fn ->
       case lock_server(server.id, server.account_id) do
         nil ->
@@ -1268,7 +1265,7 @@ defmodule Tuist.Kura do
               current_image_tag: image_tag,
               observed_image_tag: image_tag,
               last_observed_at: now_truncated(),
-              last_ready_at: now_truncated()
+              last_ready_at: observed_at
             })
             |> Repo.update()
 
@@ -1277,12 +1274,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  # Staleness window for a private node-port server's readiness heartbeat
+  # Staleness window for a private gateway's controller observation
   # (`last_ready_at`). Larger than the reconciler's 30s tick so one slow
   # tick can't flap dispatch; small enough that a `/ready`-503 node
   # degrades to the public cache within a couple of minutes instead of
   # timing out builds.
-  @runner_cache_ready_staleness_seconds 120
+  @runner_cache_ready_staleness_seconds Regions.private_endpoint_staleness_seconds()
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
@@ -1327,13 +1324,13 @@ defmodule Tuist.Kura do
     if private_region_ids == [] do
       nil
     else
-      # A node-port server only serves while its readiness heartbeat is
+      # An observed private endpoint serves only while its heartbeat is
       # fresh: a `/ready`-503 node lets `last_ready_at` go stale and we
       # fail over to the public cache instead of routing builds at a dead
       # endpoint. Cluster-DNS private servers carry no heartbeat (their
       # in-cluster Service drops a not-ready pod from its endpoints), so
       # they serve whenever active.
-      node_port_region_ids = node_port_region_ids(private_region_ids)
+      observed_endpoint_region_ids = observed_endpoint_region_ids(private_region_ids)
       ready_cutoff = DateTime.add(now_truncated(), -@runner_cache_ready_staleness_seconds, :second)
 
       # "At most one active private node per account" is a reconciler
@@ -1348,18 +1345,18 @@ defmodule Tuist.Kura do
       |> limit(2)
       |> select([s], %{url: s.url, region: s.region, last_ready_at: s.last_ready_at})
       |> Repo.all()
-      |> Enum.filter(&private_cache_serving?(&1, node_port_region_ids, ready_cutoff))
+      |> Enum.filter(&private_cache_serving?(&1, observed_endpoint_region_ids, ready_cutoff))
       |> Enum.map(& &1.url)
       |> route_private_cache_url(account_id)
     end
   end
 
   # Tier 2, interim until the Linux fleets get a node-local private
-  # region (tier 1). eu-central is hardcoded: every runner fleet is
+  # region (tier 1). eu-west is hardcoded: every runner fleet is
   # colocated with it today, so it's the instance the CLI's latency
   # race would pick from a runner — and both URL forms route through
   # the same pinned per-instance Service, so same pod. Without an
-  # eu-central instance the race is moot (every public form is
+  # eu-west instance the race is moot (every public form is
   # unreachable from a runner), so the first candidate wins: a
   # cross-region cache beats none. No readiness heartbeat needed — the
   # in-cluster Service already drops not-ready pods. Linux-only because
@@ -1368,7 +1365,7 @@ defmodule Tuist.Kura do
   defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
     servers = managed_cli_endpoint_servers(account)
 
-    server = Enum.find(servers, &(&1.region == "eu-central")) || List.first(servers)
+    server = Enum.find(servers, &(&1.region == "eu-west")) || List.first(servers)
 
     in_cluster_url(server, account)
   end
@@ -1398,17 +1395,17 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp node_port_region_ids(private_region_ids) do
+  defp observed_endpoint_region_ids(private_region_ids) do
     Enum.filter(private_region_ids, fn id ->
       case Regions.fetch(id) do
-        {:ok, region} -> Regions.node_port_data_plane?(region)
+        {:ok, region} -> Regions.observed_private_endpoint?(region)
         _ -> false
       end
     end)
   end
 
-  defp private_cache_serving?(%{region: region, last_ready_at: last_ready_at}, node_port_region_ids, ready_cutoff) do
-    if region in node_port_region_ids do
+  defp private_cache_serving?(%{region: region, last_ready_at: last_ready_at}, observed_endpoint_region_ids, ready_cutoff) do
+    if region in observed_endpoint_region_ids do
       not is_nil(last_ready_at) and DateTime.compare(last_ready_at, ready_cutoff) != :lt
     else
       true
@@ -1543,6 +1540,25 @@ defmodule Tuist.Kura do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc "Stamps when the reconciler first saw a server's rendered public host move away from its stored `url`."
+  def record_public_host_drift(%Server{} = server, %DateTime{} = observed_at) do
+    server
+    |> Server.public_host_drift_changeset(%{public_host_drift_observed_at: observed_at})
+    |> Repo.update()
+  end
+
+  @doc "Clears a server's public-host drift clock. A no-op when none is set."
+  def clear_public_host_drift(%Server{public_host_drift_observed_at: nil}), do: :ok
+
+  def clear_public_host_drift(%Server{} = server) do
+    case server
+         |> Server.public_host_drift_changeset(%{public_host_drift_observed_at: nil})
+         |> Repo.update() do
+      {:ok, _server} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
