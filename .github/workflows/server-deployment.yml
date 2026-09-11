@@ -688,7 +688,7 @@ jobs:
     # stuck deploy fails via helm's own clean path, not this ceiling.
     # Regional publication may first need a preparation upgrade and DNS/TLS
     # convergence. Keep room for that phase before the normal release budget.
-    timeout-minutes: 170
+    timeout-minutes: 190
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -980,7 +980,7 @@ jobs:
         # rollback + failure diagnostics) instead of the job ceiling
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
-        timeout-minutes: 160
+        timeout-minutes: 180
         run: |
           set -euo pipefail
 
@@ -1301,6 +1301,9 @@ jobs:
           # aliases stay serving during preparation and rollback.
           regional_prepare_needed="$(python3 infra/kura-controller/rollout/gate.py needed "$regional_plan")"
           if [ "$regional_prepare_needed" = "true" ]; then
+            regional_pending_plan="$(mktemp)"
+            python3 infra/kura-controller/rollout/gate.py pending "$regional_plan" > "$regional_pending_plan"
+            python3 infra/kura-controller/rollout/gate.py preflight "$regional_pending_plan"
             regional_prepare_values="$(mktemp)"
             python3 infra/kura-controller/rollout/gate.py prepare-values "$regional_plan" > "$regional_prepare_values"
             helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
@@ -1314,8 +1317,9 @@ jobs:
               "${image_sets[@]}" \
               --atomic --timeout 60m --wait
             rm -f "$regional_prepare_values"
+            python3 infra/kura-controller/rollout/gate.py wait "$regional_pending_plan" --timeout 2400
+            rm -f "$regional_pending_plan"
           fi
-          python3 infra/kura-controller/rollout/gate.py wait "$regional_plan" --timeout 600
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

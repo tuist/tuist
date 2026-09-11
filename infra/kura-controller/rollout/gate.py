@@ -4,6 +4,7 @@ import argparse
 import base64
 import concurrent.futures
 import http.client
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ import subprocess
 import tempfile
 import time
 
-from peer_probe_job import PeerProbeJob
+from peer_probe_job import PeerProbeJob, IPv6ProbeJobs
 
 
 def kube(namespace, kind, name=None, allow_missing=False):
@@ -27,7 +28,7 @@ def kube(namespace, kind, name=None, allow_missing=False):
         args.append("--ignore-not-found")
     result = subprocess.run(args + ["-o", "json"], capture_output=True, text=True, timeout=20)
     if result.returncode:
-        raise RuntimeError(f"cannot read {namespace}/{kind}/{name or '*'}")
+        raise RuntimeError(f"cannot read {namespace}/{kind}/{name or '*'}: {result.stderr.strip()[:2000]}")
     if allow_missing and not result.stdout.strip():
         return None
     return json.loads(result.stdout)
@@ -77,12 +78,50 @@ def plan(resources, namespace=None):
             "certificate": certificate_name}
 
 
-def needs_preparation(config):
+def pending_plan(config):
     if not config:
-        return False
+        return {}
     deployment = kube(config["serverNamespace"], "deployment", config["serverName"], allow_missing=True)
     live = published_domains(deployment) if deployment else {}
-    return any(live.get(r["region"]) != r["domain"] for r in config["regions"])
+    pending = [r for r in config["regions"] if live.get(r["region"]) != r["domain"]]
+    return {**config, "regions": pending} if pending else {}
+
+
+def needs_preparation(config):
+    return bool(pending_plan(config))
+
+
+def check_legacy_peer_services(config):
+    if not config:
+        return
+    namespace = config["namespace"]
+    regions = {r["region"] for r in config["regions"]}
+    instances = [i for i in kube(namespace, "kurainstances")["items"]
+                 if i["spec"].get("region") in regions and not i["spec"].get("private")]
+    accounts = {i["spec"]["accountHandle"] for i in instances}
+    names = {i["metadata"]["name"] for i in instances}
+    hosts = set()
+    for instance in instances:
+        hosts.add(instance["spec"].get("meshPublicPeerHost"))
+        aliases = json.loads(instance["metadata"].get("annotations", {}).get("kura.tuist.dev/legacy-peer-hosts", "[]"))
+        if not isinstance(aliases, list) or not all(isinstance(host, str) for host in aliases):
+            raise ValueError("legacy peer hosts must be a JSON array of DNS names")
+        hosts.update(aliases)
+    hosts.discard(None)
+    hosts.discard("")
+    for service in kube(namespace, "services")["items"]:
+        metadata = service["metadata"]
+        labels = metadata.get("labels", {})
+        annotations = metadata.get("annotations", {})
+        service_hosts = {annotations.get("external-dns.alpha.kubernetes.io/hostname"), annotations.get("kura.tuist.dev/legacy-peer-host")}
+        selects_instance = service.get("spec", {}).get("selector", {}).get("app.kubernetes.io/instance") in names
+        if (not metadata.get("ownerReferences") and
+                labels.get("app.kubernetes.io/managed-by") == "kura-controller" and
+                not labels.get("app.kubernetes.io/instance") and
+                labels.get("tuist.dev/account") in accounts and
+                (bool(service_hosts & hosts) or selects_instance) and
+                service.get("spec", {}).get("type") == "LoadBalancer"):
+            raise RuntimeError(f"finish legacy peer LoadBalancer retirement before regional publication: {namespace}/{metadata['name']}")
 
 
 def preparation_values(config):
@@ -148,14 +187,16 @@ def peer_probe(host, addresses, secret):
                 raise RuntimeError(f"{host} via {address}:7443: peer probe failed: {error}") from None
 
 
-def check(config, peer_transport=None):
+def check(config, peer_transport=None, public_transport=None):
     peer_transport = peer_transport or peer_probe
+    public_transport = public_transport or https_probe
     namespace = config["namespace"]
     certificate = kube(namespace, "certificate", config["certificate"])
     if not any(c["type"] == "Ready" and c["status"] == "True" and
                c.get("observedGeneration") == certificate["metadata"]["generation"]
                for c in certificate.get("status", {}).get("conditions", [])):
         raise RuntimeError("regional wildcard certificate is not Ready")
+    check_legacy_peer_services(config)
     instances = kube(namespace, "kurainstances")["items"]
     ingresses = {i["metadata"]["name"]: i for i in kube(namespace, "ingresses")["items"]}
     workloads = {s["metadata"]["name"]: s for s in kube(namespace, "statefulsets")["items"]}
@@ -201,7 +242,7 @@ def check(config, peer_transport=None):
                     raise RuntimeError(f"individual DNS publication still enabled for {ingress_name}")
             verify_dns(host, public)
             for address in public:
-                tasks.append((https_probe, (host, address)))
+                tasks.append((public_transport, (host, address)))
             if spec.get("meshPublicPeerHost"):
                 verify_dns(peer_host, peers)
                 secret = kube(namespace, "secret", spec.get("peerTLSSecretName") or name + "-peer-tls")
@@ -215,25 +256,40 @@ def check(config, peer_transport=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["plan", "needed", "prepare-values", "wait"])
+    parser.add_argument("action", choices=["plan", "pending", "needed", "preflight", "prepare-values", "wait"])
     parser.add_argument("file")
-    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--timeout", type=int, default=2400)
     parser.add_argument("--namespace", help="Helm server release namespace")
     args = parser.parse_args()
     config = json.loads(Path(args.file).read_text())
     if args.action == "plan":
         print(json.dumps(plan(config, args.namespace)))
+    elif args.action == "pending":
+        print(json.dumps(pending_plan(config)))
+    elif args.action == "preflight":
+        check_legacy_peer_services(config)
     elif args.action == "needed":
         print("true" if needs_preparation(config) else "false")
     elif args.action == "prepare-values":
         print(json.dumps(preparation_values(config)))
     elif config:
         deadline = time.monotonic() + args.timeout
-        with PeerProbeJob(config["namespace"]) as probe_job:
-            peer_transport = lambda host, addresses, secret: probe_job.probe(peer_probe, host, addresses, secret)
+        with PeerProbeJob(config["namespace"], lifetime=args.timeout + 180) as probe_job, IPv6ProbeJobs(config["namespace"], kube, args.timeout + 180) as ipv6_jobs:
+            def peer_transport(host, addresses, secret):
+                ipv4 = {address for address in addresses if ipaddress.ip_address(address).version == 4}
+                if ipv4:
+                    probe_job.probe(peer_probe, host, ipv4, secret)
+                for address in addresses - ipv4:
+                    ipv6_jobs.peer_probe(peer_probe, host, address, secret)
+            def public_transport(host, address):
+                if ipaddress.ip_address(address).version == 6:
+                    ipv6_jobs.probe(https_probe, host, address)
+                else:
+                    https_probe(host, address)
+
             while True:
                 try:
-                    count = check(config, peer_transport)
+                    count = check(config, peer_transport, public_transport)
                     print(f"Regional routing ready: {len(config['regions'])} regions, {count} serving-path probes")
                     return
                 except (RuntimeError, OSError, ValueError, KeyError, http.client.HTTPException, subprocess.TimeoutExpired) as error:

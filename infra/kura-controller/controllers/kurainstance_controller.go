@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -291,6 +292,7 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // host, makes ingress-nginx serve its self-signed default. Coverage is checked
 // rather than presence because an ACME wildcard matches exactly one label.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	ctx = withSharedPublicTLS(ctx, instance.Namespace)
 	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		return false
 	}
@@ -302,23 +304,47 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	return true
 }
 
+type sharedPublicTLSContextKey struct{}
+type sharedPublicTLSSnapshot struct {
+	namespace string
+	once      sync.Once
+	leaf      *x509.Certificate
+}
+
+func withSharedPublicTLS(ctx context.Context, namespace string) context.Context {
+	if snapshot, ok := ctx.Value(sharedPublicTLSContextKey{}).(*sharedPublicTLSSnapshot); ok && snapshot.namespace == namespace {
+		return ctx
+	}
+	return context.WithValue(ctx, sharedPublicTLSContextKey{}, &sharedPublicTLSSnapshot{namespace: namespace})
+}
+
 func (r *KuraInstanceReconciler) sharedPublicTLSCoversHost(ctx context.Context, namespace, host string) bool {
-	if r.PublicTLSSecretName == "" || host == "" {
+	if host == "" {
 		return false
+	}
+	ctx = withSharedPublicTLS(ctx, namespace)
+	snapshot := ctx.Value(sharedPublicTLSContextKey{}).(*sharedPublicTLSSnapshot)
+	snapshot.once.Do(func() { snapshot.leaf = r.readSharedPublicTLSLeaf(ctx, namespace) })
+	return snapshot.leaf != nil && snapshot.leaf.VerifyHostname(host) == nil
+}
+
+func (r *KuraInstanceReconciler) readSharedPublicTLSLeaf(ctx context.Context, namespace string) *x509.Certificate {
+	if r.PublicTLSSecretName == "" {
+		return nil
 	}
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Name: r.PublicTLSSecretName, Namespace: namespace}, secret); err != nil {
-		return false
+		return nil
 	}
 	block, _ := pem.Decode(secret.Data[corev1.TLSCertKey])
 	if block == nil {
-		return false
+		return nil
 	}
 	leaf, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return false
+		return nil
 	}
-	return leaf.VerifyHostname(host) == nil
+	return leaf
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
@@ -403,6 +429,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	ctx = withSharedPublicTLS(ctx, instance.Namespace)
 	if !instance.DeletionTimestamp.IsZero() {
 		// The pre-instance public peer Service has no owner reference. Remove it
 		// with the last matching account/region instance so its load balancer and
@@ -579,6 +606,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	if r.regionalPublicTLSMissing(ctx, instance) {
+		instance.Status.Message = strings.TrimSpace(rollout.message + " Regional public TLS is unavailable; preserving public routes while workloads continue reconciling.")
+	}
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
@@ -733,8 +763,19 @@ var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Versio
 // needs no DNSEndpoint cleanup here).
 func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if region := r.regionalRouting(instance); region != nil && instance.Spec.MeshPeerHostNetwork {
+		legacy, err := r.pendingLegacyPeerInstance(ctx, instance)
+		if err != nil {
+			return err
+		}
+		if legacy != nil {
+			return r.reconcileLegacyPeerDNSEndpoint(ctx, legacy)
+		}
 		return r.reconcileRegionalLegacyDNS(ctx, instance, region, true)
 	}
+	return r.reconcileLegacyPeerDNSEndpoint(ctx, instance)
+}
+
+func (r *KuraInstanceReconciler) reconcileLegacyPeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	// Only host-network regions ever get a peer DNSEndpoint (LB regions publish
 	// DNS off the public peer Service). Never touching the DNSEndpoint API for
 	// non-host-network regions keeps the common reconcile path free of it.
@@ -811,7 +852,14 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 	now time.Time,
 ) error {
 	if r.regionalRouting(instance) != nil {
-		return nil
+		legacy, err := r.pendingLegacyPeerInstance(ctx, instance)
+		if err != nil {
+			return err
+		}
+		if legacy == nil {
+			return nil
+		}
+		instance = legacy
 	}
 	if !meshManagedPeerTLS(instance) || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 		return nil
@@ -1399,6 +1447,15 @@ func (r *KuraInstanceReconciler) cleanupLegacyAccountPublicPeerService(
 	ctx context.Context,
 	instance *kurav1alpha1.KuraInstance,
 ) error {
+	if r.regionalRouting(instance) != nil {
+		legacy, err := r.pendingLegacyPeerInstance(ctx, instance)
+		if err != nil {
+			return err
+		}
+		if legacy != nil {
+			instance = legacy
+		}
+	}
 	legacyName := legacyAccountPublicPeerServiceName(instance)
 	service := &corev1.Service{}
 	if err := r.Get(ctx, types.NamespacedName{Name: legacyName, Namespace: instance.Namespace}, service); err != nil {
@@ -1419,7 +1476,7 @@ func (r *KuraInstanceReconciler) cleanupLegacyAccountPublicPeerService(
 		sibling := &instances.Items[i]
 		if sibling.Name != instance.Name && sibling.DeletionTimestamp.IsZero() &&
 			sibling.Spec.AccountHandle == instance.Spec.AccountHandle &&
-			sibling.Spec.MeshPublicPeerHost == instance.Spec.MeshPublicPeerHost {
+			slices.Contains(publicPeerHosts(sibling), instance.Spec.MeshPublicPeerHost) {
 			return nil
 		}
 	}
@@ -1715,6 +1772,11 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 }
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ctx = withSharedPublicTLS(ctx, instance.Namespace)
+	if r.regionalPublicTLSMissing(ctx, instance) {
+		log.FromContext(ctx).Info("preserving public routing while regional wildcard TLS is unavailable", "instance", instance.Name)
+		return nil
+	}
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	if clientHost(instance) == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
@@ -1723,6 +1785,7 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		return nil
 	}
 
+	hosts := r.publicHosts(ctx, instance)
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
 		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
 			return err
@@ -1734,11 +1797,10 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		}
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      r.publicHosts(ctx, instance),
+			Hosts:      hosts,
 			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
+		rule := networkingv1.IngressRule{
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{{
 					Path:     "/",
@@ -1746,13 +1808,12 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 					Backend:  ingressBackend(instance.Name, "http"),
 				}},
 			}},
-		}}
-		rule := ingress.Spec.Rules[0]
+		}
 		ingress.Spec.Rules = nil
-		for _, host := range r.publicHosts(ctx, instance) {
-			copy := *rule.DeepCopy()
-			copy.Host = host
-			ingress.Spec.Rules = append(ingress.Spec.Rules, copy)
+		for _, host := range hosts {
+			hostRule := *rule.DeepCopy()
+			hostRule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, hostRule)
 		}
 		return nil
 	})
@@ -1804,6 +1865,11 @@ var grpcPublicPathPrefixes = []string{
 // that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
 // single host as soon as this controller rolls out.
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ctx = withSharedPublicTLS(ctx, instance.Namespace)
+	if r.regionalPublicTLSMissing(ctx, instance) {
+		log.FromContext(ctx).Info("preserving public routing while regional wildcard TLS is unavailable", "instance", instance.Name)
+		return nil
+	}
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
 	// PrivateHost opts into the same gateway path. Without it, private
 	// instances have no ingress. For gateway instances, gRPC
@@ -1817,6 +1883,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		return nil
 	}
 
+	hosts := r.publicHosts(ctx, instance)
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
 		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
 			return err
@@ -1839,18 +1906,16 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, "http"),
 			})
 		}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
+		rule := networkingv1.IngressRule{
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: paths,
 			}},
-		}}
-		rule := ingress.Spec.Rules[0]
+		}
 		ingress.Spec.Rules = nil
-		for _, host := range r.publicHosts(ctx, instance) {
-			copy := *rule.DeepCopy()
-			copy.Host = host
-			ingress.Spec.Rules = append(ingress.Spec.Rules, copy)
+		for _, host := range hosts {
+			hostRule := *rule.DeepCopy()
+			hostRule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, hostRule)
 		}
 		return nil
 	})
@@ -2612,6 +2677,11 @@ func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Contex
 // adopts it rather than ordering again.
 // cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ctx = withSharedPublicTLS(ctx, instance.Namespace)
+	if r.regionalPublicTLSMissing(ctx, instance) {
+		log.FromContext(ctx).Info("preserving public routing while regional wildcard TLS is unavailable", "instance", instance.Name)
+		return nil
+	}
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))

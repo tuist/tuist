@@ -1,6 +1,8 @@
 """Run peer-network checks in the target cluster, outside runner egress policy."""
 
 import inspect
+import ipaddress
+import threading
 import json
 import os
 import subprocess
@@ -22,17 +24,19 @@ def command(args, payload=None, timeout=30):
 
 
 class PeerProbeJob:
-    def __init__(self, namespace):
+    def __init__(self, namespace, lifetime=900, node_name=None):
         self.namespace = namespace
+        self.lifetime = lifetime
+        self.node_name = node_name
         self.name = "kura-regional-probe-" + uuid.uuid4().hex[:12]
         self.pod = None
 
     def manifest(self):
-        return {
+        manifest = {
             "apiVersion": "batch/v1", "kind": "Job",
             "metadata": {"name": self.name, "namespace": self.namespace},
             "spec": {
-                "backoffLimit": 0, "activeDeadlineSeconds": 900, "ttlSecondsAfterFinished": 300,
+                "backoffLimit": 0, "activeDeadlineSeconds": self.lifetime, "ttlSecondsAfterFinished": 300,
                 "template": {
                     "metadata": {"labels": {"app.kubernetes.io/name": "kura-regional-probe"}},
                     "spec": {
@@ -43,7 +47,7 @@ class PeerProbeJob:
                                             "seccompProfile": {"type": "RuntimeDefault"}},
                         "containers": [{
                             "name": "probe", "image": IMAGE,
-                            "command": ["python3", "-c", "import time; time.sleep(900)"],
+                            "command": ["python3", "-c", f"import time; time.sleep({self.lifetime})"],
                             "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
                                                 "capabilities": {"drop": ["ALL"]}},
                             "resources": {"requests": {"cpu": "25m", "memory": "64Mi"},
@@ -55,6 +59,14 @@ class PeerProbeJob:
                 },
             },
         }
+
+        if self.node_name:
+            # IPv4-only Pod networks cannot test public IPv6. Use the selected
+            # IPv6 ingress node's network without privileged/root capabilities.
+            spec = manifest["spec"]["template"]["spec"]
+            spec.update(nodeName=self.node_name, hostNetwork=True, dnsPolicy="ClusterFirstWithHostNet",
+                        tolerations=[{"operator": "Exists"}])
+        return manifest
 
     def __enter__(self):
         command(["-n", self.namespace, "create", "-f", "-"], json.dumps(self.manifest()))
@@ -85,6 +97,12 @@ class PeerProbeJob:
         command(["-n", self.namespace, "exec", "-i", self.pod, "--", "python3", "-c", source],
                 json.dumps(payload), timeout=30 + 15 * len(addresses))
 
+    def public_probe(self, function, host, address):
+        source = "import http.client, json, socket, ssl, sys\n" + inspect.getsource(function)
+        source += "\npayload = json.load(sys.stdin)\nhttps_probe(payload['host'], payload['address'])\n"
+        command(["-n", self.namespace, "exec", "-i", self.pod, "--", "python3", "-c", source],
+                json.dumps({"host": host, "address": address}))
+
     def __exit__(self, exc_type, exc_value, traceback):
         try:
             command(["-n", self.namespace, "delete", "job", self.name, "--ignore-not-found", "--wait=false"])
@@ -92,3 +110,40 @@ class PeerProbeJob:
             # The Job deadline and TTL also clean up after runner loss.
             print("Peer validation job cleanup deferred to its deadline/TTL", flush=True)
 
+
+
+class IPv6ProbeJobs:
+    """Bounded, lazy host-network probes; never assume the CI runner has IPv6."""
+
+    def __init__(self, namespace, kube, lifetime):
+        self.namespace, self.kube, self.lifetime = namespace, kube, lifetime
+        self.jobs = {}
+        self.lock = threading.Lock()
+
+    def __enter__(self):
+        return self
+
+    def job_for_address(self, address):
+        with self.lock:
+            if address not in self.jobs:
+                nodes = self.kube(self.namespace, "nodes")["items"]
+                node_name = next((node["metadata"]["name"] for node in nodes
+                                  if any(a["type"] in ("ExternalIP", "InternalIP") and
+                                         ipaddress.ip_address(a["address"]) == ipaddress.ip_address(address) for a in node.get("status", {}).get("addresses", []))), None)
+                if not node_name:
+                    raise RuntimeError(f"no ingress node owns IPv6 target {address}")
+                job = PeerProbeJob(self.namespace, lifetime=self.lifetime, node_name=node_name)
+                job.__enter__()
+                self.jobs[address] = job
+            job = self.jobs[address]
+        return job
+
+    def probe(self, function, host, address):
+        self.job_for_address(address).public_probe(function, host, address)
+
+    def peer_probe(self, function, host, address, secret):
+        self.job_for_address(address).probe(function, host, {address}, secret)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for job in self.jobs.values():
+            job.__exit__(exc_type, exc_value, traceback)

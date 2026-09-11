@@ -31,6 +31,36 @@ class PeerProbeJobTest(unittest.TestCase):
         self.assertEqual(command.call_args.args[0], [
             "-n", "kura", "delete", "job", job.name, "--ignore-not-found", "--wait=false"])
 
+class IPv6ProbeJobsTest(unittest.TestCase):
+    def test_ipv6_uses_owner_node_network_and_cleans_up(self):
+        nodes = {"items": [{"metadata": {"name": "ipv6-ingress"}, "status": {"addresses": [
+            {"type": "ExternalIP", "address": "2001:db8:0:0::1"}]}}]}
+        jobs = peer_probe_job.IPv6ProbeJobs("kura", lambda ns, kind: nodes, 2580)
+        with patch.object(peer_probe_job.PeerProbeJob, "__enter__", return_value=None), \
+                patch.object(peer_probe_job.PeerProbeJob, "__exit__") as cleanup, \
+                patch.object(peer_probe_job.PeerProbeJob, "public_probe") as public, \
+                patch.object(peer_probe_job.PeerProbeJob, "probe") as peer:
+            with jobs:
+                jobs.probe(gate.https_probe, "acme.example", "2001:db8::1")
+                jobs.peer_probe(gate.peer_probe, "acme.peer.example", "2001:db8::1", {"data": {}})
+                manifest = jobs.jobs["2001:db8::1"].manifest()
+                spec = manifest["spec"]["template"]["spec"]
+                self.assertTrue(spec["hostNetwork"])
+                self.assertEqual(spec["nodeName"], "ipv6-ingress")
+                self.assertFalse(spec["automountServiceAccountToken"])
+                self.assertTrue(spec["securityContext"]["runAsNonRoot"])
+                self.assertEqual(manifest["spec"]["activeDeadlineSeconds"], 2580)
+            public.assert_called_once()
+            peer.assert_called_once()
+            cleanup.assert_called_once()
+
+    def test_unknown_ipv6_owner_fails_without_starting_job(self):
+        with patch.object(peer_probe_job.PeerProbeJob, "__enter__") as create:
+            with peer_probe_job.IPv6ProbeJobs("kura", lambda ns, kind: {"items": []}, 2580) as jobs:
+                with self.assertRaisesRegex(RuntimeError, "no ingress node owns"):
+                    jobs.probe(gate.https_probe, "acme.example", "2001:db8::1")
+            create.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

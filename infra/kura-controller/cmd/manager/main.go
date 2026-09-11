@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -59,9 +60,20 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	regions, err := controllers.ParseRegionalRouting(regionalRoutingConfig)
-	if err != nil || (len(regions) > 0 && (watchNamespace == "" || publicTLSSecretName == "" || publicTLSDNSNames == "" || grpcClusterIssuer == "")) {
-		setupLog.Error(err, "regional routing requires valid config, namespace, shared TLS secret, DNS names and issuer")
+	if err != nil {
+		setupLog.Error(err, "parse --regional-routing-config")
 		os.Exit(1)
+	}
+	if len(regions) > 0 {
+		for _, required := range []struct{ name, value string }{
+			{"watch-namespace", watchNamespace}, {"public-tls-secret-name", publicTLSSecretName},
+			{"public-tls-dns-names", publicTLSDNSNames}, {"grpc-cluster-issuer", grpcClusterIssuer},
+		} {
+			if strings.TrimSpace(required.value) == "" {
+				setupLog.Error(fmt.Errorf("--%s is required", required.name), "invalid regional routing configuration")
+				os.Exit(1)
+			}
+		}
 	}
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,

@@ -6,10 +6,17 @@ closed on API errors, missing DNS, invalid TLS or unavailable routes.
 
 - Use only Python's standard library and kubectl; no runtime package install.
 - Never print Secret data. Peer credentials use a private temporary directory.
-- Public probes run from CI. Peer probes use `peer_probe_job.py` in the target
+- Public IPv4 probes run from CI. IPv4 peer probes use `peer_probe_job.py` in the target
   cluster because runner egress excludes port 7443. Keep its image pinned,
   service-account token disabled, credentials on exec stdin/memory only, and
   both explicit cleanup and Job deadline/TTL. Never forward CA private keys.
+  IPv6 public and peer probes use bounded host-network Jobs on the node owning
+  the target address; do not assume the runner or Pod network supports IPv6.
+  These prove node-local public-address routing, not external IPv6 reachability.
+- Save the pending region subset before preparation, and gate only that subset.
+  Ordinary deployments with an unchanged publication map must bypass the gate.
+  Check legacy account-wide peer LoadBalancers are gone before preparation and
+  publication. Keep the gate/Job/deployment time budgets consistent.
 - Preparation preserves both old and new endpoints. When adding regions, retain
   the already-published subset instead of disabling publication globally and
   recreating legacy records. Publication rollback must

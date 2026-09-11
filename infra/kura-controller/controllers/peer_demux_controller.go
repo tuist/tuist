@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/validation"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,6 +77,14 @@ func (r *PeerDemuxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
+	for i := range instances.Items {
+		instance := &instances.Items[i]
+		if instance.Spec.Region == region && instance.Spec.MeshPeerHostNetwork {
+			if _, err := parseAnnotationHosts(instance, legacyPeerHostsAnnotation); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
 	routes, nodeSelector, tolerations, issues := peerDemuxDesiredState(region, namespace, instances.Items)
 	for _, issue := range issues {
 		logger.Error(errors.New(issue.reason), "ignored conflicting or invalid Kura peer route", "host", issue.host)
@@ -160,14 +167,16 @@ func peerDemuxDesiredState(
 		if instance.Spec.Region != region || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 			continue
 		}
+		eligible := false
 		for _, host := range publicPeerHosts(instance) {
-			if validationErrors := validation.IsDNS1123Subdomain(host); len(validationErrors) > 0 {
+			if validationErrors := dnsNameValidationErrors(host); len(validationErrors) > 0 {
 				issues = append(issues, peerDemuxRouteIssue{
 					host:   host,
 					reason: strings.Join(validationErrors, "; "),
 				})
 				continue
 			}
+			eligible = true
 			candidate := peerDemuxRouteCandidate{instance: instance, route: peerDemuxRoute{
 				host: host,
 				backend: fmt.Sprintf("%s.%s.svc.cluster.local:%d",
@@ -175,7 +184,9 @@ func peerDemuxDesiredState(
 			}}
 			candidatesByHost[candidate.route.host] = append(candidatesByHost[candidate.route.host], candidate)
 		}
-		eligibleInstances = append(eligibleInstances, instance)
+		if eligible {
+			eligibleInstances = append(eligibleInstances, instance)
+		}
 	}
 
 	sort.Slice(eligibleInstances, func(i, j int) bool {

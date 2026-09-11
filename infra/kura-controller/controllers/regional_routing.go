@@ -51,7 +51,7 @@ func ParseRegionalRouting(value string) ([]RegionalRouting, error) {
 	}
 	seenRegions, seenDomains := map[string]bool{}, map[string]bool{}
 	for _, region := range regions {
-		if len(validation.IsDNS1123Label(region.Region)) != 0 || len(validation.IsDNS1123Subdomain(region.Domain)) != 0 || len(region.Domain) > 184 || !strings.Contains(region.Domain, ".") ||
+		if len(validation.IsDNS1123Label(region.Region)) != 0 || len(dnsNameValidationErrors(region.Domain)) != 0 || len(region.Domain) > 184 || !strings.Contains(region.Domain, ".") ||
 			len(validation.IsDNS1123Label(region.IngressNamespace)) != 0 || len(validation.IsDNS1123Subdomain(region.IngressDaemonSet)) != 0 ||
 			len(validation.IsDNS1123Subdomain(region.IngressClass)) != 0 || seenRegions[region.Region] || seenDomains[region.Domain] {
 			return nil, fmt.Errorf("invalid or duplicate regional routing configuration: %q", region.Region)
@@ -127,10 +127,7 @@ func (r *RegionalDNS) Ensure(ctx context.Context, region RegionalRouting) error 
 func (r *RegionalDNS) readyDaemonSetAddresses(ctx context.Context, namespace, name string) ([]string, error) {
 	ds := &appsv1.DaemonSet{}
 	if err := r.APIReader.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, ds); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, err
+		return nil, fmt.Errorf("read ingress DaemonSet %s/%s: %w", namespace, name, err)
 	}
 	if !ds.Spec.Template.Spec.HostNetwork || ds.Spec.Selector == nil {
 		return nil, fmt.Errorf("%s/%s must be a host-network DaemonSet with a selector", namespace, name)
@@ -161,21 +158,31 @@ func (r *RegionalDNS) readyDaemonSetAddresses(ctx context.Context, namespace, na
 		}
 		// On these bare-metal pools InternalIP is public. Prefer an explicit
 		// ExternalIP when the provider publishes one; never publish private IPs.
+		families := map[bool]bool{}
 		for _, kind := range []corev1.NodeAddressType{corev1.NodeExternalIP, corev1.NodeInternalIP} {
-			found := false
+			found := map[bool]bool{}
 			for _, address := range node.Status.Addresses {
 				ip := net.ParseIP(address.Address)
-				if address.Type == kind && ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
+				if address.Type == kind && publicIngressIP(ip) && !families[ip.To4() != nil] {
 					addresses = append(addresses, ip.String())
-					found = true
+					found[ip.To4() != nil] = true
 				}
 			}
-			if found {
-				break
+			for family := range found {
+				families[family] = true
 			}
 		}
 	}
 	return uniqueHosts(addresses), nil
+}
+
+func publicIngressIP(ip net.IP) bool {
+	if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
+		return false
+	}
+	// net.IP.IsPrivate only includes RFC 1918 and ULA, not shared CGNAT space.
+	v4 := ip.To4()
+	return v4 == nil || !(v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127)
 }
 
 func addressRecords(host string, addresses []string) []interface{} {
@@ -218,6 +225,11 @@ func (r *KuraInstanceReconciler) prepareRegionalRouting(ctx context.Context, ins
 	}
 	if len(validation.IsDNS1123Label(instance.Spec.AccountHandle)) != 0 {
 		return fmt.Errorf("invalid regional account DNS label")
+	}
+	for _, key := range []string{legacyPublicHostsAnnotation, legacyPeerHostsAnnotation} {
+		if _, err := parseAnnotationHosts(instance, key); err != nil {
+			return err
+		}
 	}
 	before := instance.DeepCopy()
 	if instance.Annotations == nil {
@@ -281,16 +293,40 @@ func (r *KuraInstanceReconciler) prepareRegionalRouting(ctx context.Context, ins
 			return err
 		}
 	}
-	if instance.Spec.PublicHost == publicHost && !r.sharedPublicTLSCoversHost(ctx, instance.Namespace, publicHost) {
-		return fmt.Errorf("regional wildcard certificate does not yet cover %s", publicHost)
-	}
 	return nil
 }
 
-func annotationHosts(instance *kurav1alpha1.KuraInstance, key string) []string {
+func dnsNameValidationErrors(host string) []string {
+	errors := validation.IsDNS1123Subdomain(host)
+	for _, label := range strings.Split(host, ".") {
+		if len(label) > 63 {
+			return append(errors, "DNS labels must be at most 63 characters")
+		}
+	}
+	return errors
+}
+
+func parseAnnotationHosts(instance *kurav1alpha1.KuraInstance, key string) ([]string, error) {
+	value, present := instance.Annotations[key]
+	if !present {
+		return nil, nil
+	}
 	var hosts []string
-	_ = json.Unmarshal([]byte(instance.Annotations[key]), &hosts)
-	return uniqueHosts(hosts)
+	if err := json.Unmarshal([]byte(value), &hosts); err != nil || hosts == nil {
+		return nil, fmt.Errorf("%s/%s annotation %s must be a JSON array of DNS names; refusing to retire aliases", instance.Namespace, instance.Name, key)
+	}
+	for _, host := range hosts {
+		if len(dnsNameValidationErrors(host)) != 0 {
+			return nil, fmt.Errorf("%s/%s annotation %s contains an invalid DNS name", instance.Namespace, instance.Name, key)
+		}
+	}
+	return uniqueHosts(hosts), nil
+}
+
+// Mutating reconciliation paths validate annotations before consuming them.
+func annotationHosts(instance *kurav1alpha1.KuraInstance, key string) []string {
+	hosts, _ := parseAnnotationHosts(instance, key)
+	return hosts
 }
 
 func uniqueHosts(hosts []string) []string {
@@ -304,6 +340,14 @@ func uniqueHosts(hosts []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// Only public route/certificate mutations wait for coverage. Backend Services,
+// storage, pod templates, evacuation and status must continue reconciling.
+func (r *KuraInstanceReconciler) regionalPublicTLSMissing(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	region := r.regionalRouting(instance)
+	return region != nil && instance.Spec.PublicHost == instance.Spec.AccountHandle+"."+region.Domain &&
+		!r.sharedPublicTLSCoversHost(ctx, instance.Namespace, instance.Spec.PublicHost)
 }
 
 func (r *KuraInstanceReconciler) publicHosts(ctx context.Context, instance *kurav1alpha1.KuraInstance) []string {
@@ -324,6 +368,30 @@ func publicPeerHosts(instance *kurav1alpha1.KuraInstance) []string {
 	return uniqueHosts(append([]string{instance.Spec.MeshPublicPeerHost, instance.Annotations[regionalPeerHostAnnotation]}, annotationHosts(instance, legacyPeerHostsAnnotation)...))
 }
 
+// Continue any in-flight LoadBalancer retirement against the original host and
+// original per-instance DNS target. Regional targets take over only after that
+// state machine has observed cutover, drained caches and deleted the fallback.
+func (r *KuraInstanceReconciler) pendingLegacyPeerInstance(ctx context.Context, instance *kurav1alpha1.KuraInstance) (*kurav1alpha1.KuraInstance, error) {
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: legacyAccountPublicPeerServiceName(instance)}, service); err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+	if !legacyAccountPublicPeerService(instance, service) {
+		return nil, nil
+	}
+	if _, err := parseAnnotationHosts(instance, legacyPeerHostsAnnotation); err != nil {
+		return nil, err
+	}
+	for _, host := range publicPeerHosts(instance) {
+		if legacyPeerServiceMatchesHost(service, host) {
+			legacy := instance.DeepCopy()
+			legacy.Spec.MeshPublicPeerHost = host
+			return legacy, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *KuraInstanceReconciler) reconcileRegionalLegacyDNS(ctx context.Context, instance *kurav1alpha1.KuraInstance, region *RegionalRouting, peer bool) error {
 	suffix, annotation, wildcard := "public", legacyPublicHostsAnnotation, "*."+region.Domain
 	if peer {
@@ -333,7 +401,10 @@ func (r *KuraInstanceReconciler) reconcileRegionalLegacyDNS(ctx context.Context,
 	endpoint.SetGroupVersionKind(dnsEndpointGVK)
 	endpoint.SetNamespace(instance.Namespace)
 	endpoint.SetName(instance.Name + "-" + suffix + "-dns")
-	hosts := annotationHosts(instance, annotation)
+	hosts, err := parseAnnotationHosts(instance, annotation)
+	if err != nil {
+		return err
+	}
 	if instance.Spec.Private || (!peer && instance.Spec.PublicHost == "") || (peer && instance.Spec.MeshPublicPeerHost == "") {
 		hosts = nil
 	}
@@ -346,6 +417,9 @@ func (r *KuraInstanceReconciler) reconcileRegionalLegacyDNS(ctx context.Context,
 	regional := &unstructured.Unstructured{}
 	regional.SetGroupVersionKind(dnsEndpointGVK)
 	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: regionalDNSName(region.Region)}, regional); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	source, _, _ := unstructured.NestedSlice(regional.Object, "spec", "endpoints")
@@ -365,7 +439,7 @@ func (r *KuraInstanceReconciler) reconcileRegionalLegacyDNS(ctx context.Context,
 	if len(records) == 0 {
 		return nil
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
 		endpoint.SetLabels(labels(instance))
 		if err := controllerutil.SetControllerReference(instance, endpoint, r.Scheme); err != nil {
 			return err
