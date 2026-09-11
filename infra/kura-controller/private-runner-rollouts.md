@@ -44,8 +44,9 @@ prefers the selected primary's node, with a deterministic fallback. A healthy
 published gateway stays selected across primary handoffs and Pod List reordering;
 only losing that gateway requires a DNS-address change. Public peer DNS keeps
 its existing public address. The hostname is public DNS metadata pointing to a
-private address; DNS-01 issues the same managed TLS certificate as other Kura
-hosts. It is not a secret hostname or a floating private IP.
+private address, and it terminates on the same shared `*.kura.tuist.dev`
+wildcard as every other Kura client host, so onboarding a runner cache places no
+ACME order of its own. It is not a secret hostname or a floating private IP.
 
 The platform chart runs the same ingress-nginx chart and streaming settings on
 the runner-cache nodes. Host-network listeners bind host interfaces. Both HTTP
@@ -63,11 +64,16 @@ host-network traffic by node identity, so an ipBlock cannot replace this rule
 ([Cilium policy reference](https://docs.cilium.io/en/stable/security/policy/layer3/)).
 
 The controller publishes `status.privateURL` after observing a fresh Ready,
-serving primary with its writer lock, a Ready certificate covering the hostname,
-a Ready gateway and matching DNS. A missing sibling does not make the selected
-primary unavailable. An explicitly stale certificate generation is rejected;
-a Ready condition may omit that optional field. `endpointReason` and
-`endpointMessage` distinguish primary, certificate, gateway and DNS failures.
+serving primary with its writer lock, a TLS leaf covering the hostname, a Ready
+gateway and matching DNS. The TLS check reads whichever Secret the client
+Ingress terminates on: the shared wildcard when its leaf spans the host, and
+otherwise the per-instance `Certificate`, which must be Ready for the current
+hostname — an explicitly stale generation is rejected, though a Ready condition
+may omit that optional field. Reading the same Secret the Ingress does is what
+lets the per-instance `Certificate` be retired on cutover without the endpoint
+going unready behind it. A missing sibling does not make the selected primary
+unavailable. `endpointReason` and `endpointMessage` distinguish primary,
+certificate, gateway and DNS failures.
 
 Shared client routing and `endpointLastCheckedAt` update before storage
 maintenance can yield. They do not depend on `lastReconciledAt`, which describes
@@ -169,7 +175,13 @@ routing parity, primary handoff, preserved NodePorts, ordinary rollout strategy,
 preferred placement, disruption budgets, source restrictions, and publication
 readiness (including stale/public/mixed DNS answers), missing-sibling serving,
 resize early returns, orphan gateway pods, sticky DNS across hosts, bounded
-discovery caches and preservation of an operator rollout pause. The provisioner tests cover
+discovery caches and preservation of an operator rollout pause. They also cover
+the shared-wildcard cutover: a gateway host the wildcard spans terminates on it
+and places no order, one it cannot span keeps its own certificate, the
+per-instance `Certificate` is retired once the live Ingress serves the shared
+Secret, a gateway wedged on the ACME per-registered-domain limit recovers and
+withdraws that order, and a private instance that never opted into a gateway
+cannot reach the wildcard through a leftover `publicHost`. The provisioner tests cover
 environment-separated hostnames, replica/endpoint manifest revisions, legacy
 NodePort compatibility, stale generations and expired observations.
 
