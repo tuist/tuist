@@ -99,6 +99,7 @@ defmodule TuistWeb.CreateProjectLive do
                   <:item value="xcode" label="Xcode" />
                   <:item value="gradle" label="Gradle" />
                   <:item value="bazel" label="Bazel" />
+                  <:item value="once" label="Once" />
                 </.select>
               </div>
               <.button
