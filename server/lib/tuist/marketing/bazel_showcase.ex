@@ -7,7 +7,8 @@ defmodule Tuist.Marketing.BazelShowcase do
   cached briefly instead of querying ClickHouse on every visit, and only
   aggregates leave the dashboard path: no branches, commits, targets, or links
   into the project's dashboard. Production reads `tuist/kura`; development
-  points `:marketing_bazel_showcase_project` at a seeded project.
+  reads `tuist/bazel-comparison`, which `priv/repo/seeds.exs` fills with
+  Bazel insights.
   """
 
   alias Tuist.Bazel
@@ -17,7 +18,6 @@ defmodule Tuist.Marketing.BazelShowcase do
   alias Tuist.Projects.Project
   alias Tuist.ReapiCache
 
-  @default_project "tuist/kura"
   @period_days 30
   @recent_invocations_limit 30
   @timeline_lookback_days 7
@@ -25,7 +25,7 @@ defmodule Tuist.Marketing.BazelShowcase do
   @cache_ttl to_timeout(minute: 1)
 
   def project_handle do
-    Application.get_env(:tuist, :marketing_bazel_showcase_project, @default_project)
+    if Environment.dev?(), do: "tuist/bazel-comparison", else: "tuist/kura"
   end
 
   def period_days, do: @period_days
