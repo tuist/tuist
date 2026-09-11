@@ -47,9 +47,27 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
+- Consider a behavioural change incomplete until it has been stress tested against `main` on all four
+  resource axes — see [Resource Budgets](#resource-budgets)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
+
+## Resource Budgets
+Kura is bound by memory, disk, CPU, and egress, and each of those is a hard, shared bound on a mesh node. A change that buys latency by keeping more bytes resident, writing more segments, spending more CPU per request, or moving the same artifact across peers twice is a regression even when every test passes. Staying inside the four budgets is part of the change, not a follow-up.
+
+Once an implementation works, stress it under sustained load and compare all four axes against the merge base on `main`:
+- Run both builds through the same harness, on the same host, sequentially, with the same config and the same load shape. `docker-compose.yml` plus the scoped overrides under `spec/e2e/` (`docker-compose.memory-pressure.yml`, `docker-compose.backfill.yml`, `docker-compose.large-artifact.yml`, `docker-compose.test-pressure.yml`) are the usual substrate; `metric_sum` in `spec/e2e/support.sh` scrapes one Prometheus family off a node's `/metrics`. Counters scrape with a doubled `_total` suffix, so query the scraped name, not the registered one.
+- Hold the load long enough to reach steady state, then keep sampling after it stops. The peak under load and the level it settles back to are separate answers: a change that never gives memory back is a leak even when its peak is unchanged.
+
+What to compare, per axis:
+- Memory (heap): `kura_process_resident_anon_bytes` with `kura_jemalloc_allocated_bytes` and `kura_jemalloc_resident_bytes`. Do not judge by total RSS — `kura_process_resident_file_bytes` counts mmap'd segment pages the kernel can reclaim on demand, so rising total RSS with flat anon is page cache, not growth. `kura_jemalloc_retained_bytes` rising on its own is virtual memory the allocator has not handed back, not a regression by itself.
+- Memory (headroom): equal RSS reached by shedding more work is still a regression. Compare `kura_memory_pressure_state`, `kura_memory_pressure_transitions_total`, `kura_capacity_sheds_total`, `kura_memory_transient_reserved_bytes` against `kura_memory_transient_capacity_bytes`, and the multipart admission outcomes (`kura_multipart_upload_admissions_total`, `kura_multipart_upload_waiters`). At the same offered load the node should sit in the same pressure tier as `main`.
+- Disk: bytes on the data volume for the same corpus, segment count, and what retention that buys — `kura_segment_evicted_artifacts_total` and `kura_segment_shed_age_seconds`. Shed age falling at unchanged capacity means the change costs cache hit rate. Watch `kura_segment_fsyncs_total` and `kura_segment_refresh_bytes_total` for write amplification.
+- CPU: process CPU seconds per unit of work (bytes served, requests completed) across the whole run, not an instantaneous percentage — local load generators drift between runs. Higher CPU per byte surfaces as queueing under fleet load long before it is visible on one node.
+- Egress: `kura_artifact_egress_bytes_total` for client traffic and `kura_backfill_applied_bytes_total` plus the `kura_sync_*` forward-read counters for peer traffic, each normalized to the same offered work. Refetch loops, duplicated replication, and lost dedup all look like unchanged latency with more bytes on the wire. Peer egress is metered and shaped per tenant (`src/bandwidth.rs`, `infra/egress-tree-agent/`), so extra bytes are a real cost and not just spare bandwidth.
+
+Put the before/after numbers for all four axes in the pull request description, including the ones that did not move — "measured, unchanged" is a result, and the next person needs to know it was checked.
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
