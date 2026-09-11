@@ -184,6 +184,38 @@ defmodule Tuist.Ops.DatabaseTest do
                "be426704-1c61-4e38-a7b5-e8bb42042a81"
     end
 
+    # `numeric` arrives from Postgrex as `%Decimal{}`, and every SQL aggregate
+    # (`avg`, `sum(bigint)`, `count(*) * 1.0`, `round`) returns `numeric`, so
+    # the operator hits this on every summarising query — not a rare corner.
+    # Emit it as a string so the scale Postgres sent survives the JSON hop.
+    test "to_json_map/1 renders numeric/Decimal values as strings" do
+      {:ok, result} = Database.execute("SELECT (1.0 * 3 / 2)::numeric(10,2) AS ratio")
+      %{rows: [row]} = Database.to_json_map(result)
+      assert row["ratio"] == "1.50"
+    end
+
+    # `jsonb` comes back from Postgrex as a plain map. Without the map clause,
+    # the recursive `display_value/1` on `jsonb[]` would `inspect/1` each map
+    # into an Elixir source string, and the CSV/markdown layer would then wrap
+    # it in another layer of quoting. Keeping the map lets Jason emit a real
+    # JSON object, which is what the Atlas consumer expects.
+    test "to_json_map/1 keeps jsonb objects as maps" do
+      {:ok, result} = Database.execute(~s|SELECT '{"a": 1, "b": "x"}'::jsonb AS payload|)
+      %{rows: [row]} = Database.to_json_map(result)
+      assert row["payload"] == %{"a" => 1, "b" => "x"}
+
+      assert result |> Database.to_json_map() |> JSON.encode!() =~
+               ~s|"payload":{"a":1,"b":"x"}|
+    end
+
+    test "to_json_map/1 keeps jsonb[] elements as JSON objects" do
+      {:ok, result} =
+        Database.execute(~s|SELECT ARRAY['{"attempt": 1}'::jsonb, '{"attempt": 2}'::jsonb] AS errors|)
+
+      %{rows: [row]} = Database.to_json_map(result)
+      assert row["errors"] == [%{"attempt" => 1}, %{"attempt" => 2}]
+    end
+
     test "to_csv/1 does not crash on non-utf8 binary values" do
       {:ok, result} = Database.execute("SELECT 'be426704-1c61-4e38-a7b5-e8bb42042a81'::uuid AS id")
       assert Database.to_csv(result) == "id\nbe426704-1c61-4e38-a7b5-e8bb42042a81"

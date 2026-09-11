@@ -759,19 +759,28 @@ defmodule Tuist.Ops.Database do
       tell them apart from a `uuid` without column-type metadata).
     * any other non-UTF-8 binary → `\\x`-prefixed lowercase hex, matching how
       `psql` prints `bytea` payloads.
+    * a `%Decimal{}` → the number as a string (Postgres `numeric`, which is
+      what every aggregate returns, arrives as `%Decimal{}`; emitting it as
+      text preserves scale and keeps money-shaped values lossless in JSON).
+    * a plain map → itself; Postgrex returns `jsonb` as a map, and Jason
+      encodes maps natively. The `not is_struct(v)` guard prevents this
+      clause from swallowing structs like `%Postgrex.Interval{}`.
     * a list → each element rendered the same way (Postgres array columns
-      arrive as an Elixir list; without this, a `uuid[]` would crash Jason).
-    * anything else → `inspect/1`, so a `jsonb` map, a Postgrex range, or an
-      unknown driver struct still shows up somewhere.
+      arrive as an Elixir list; without this, a `uuid[]` would crash Jason
+      and a `jsonb[]` would render as strings-of-Elixir-source).
+    * anything else → `inspect/1`, so a Postgrex range or an unknown driver
+      struct still shows up somewhere.
   """
   def display_value(nil), do: nil
   def display_value(%NaiveDateTime{} = v), do: NaiveDateTime.to_iso8601(v)
   def display_value(%DateTime{} = v), do: DateTime.to_iso8601(v)
   def display_value(%Date{} = v), do: Date.to_iso8601(v)
   def display_value(%Time{} = v), do: Time.to_iso8601(v)
+  def display_value(%Decimal{} = v), do: Decimal.to_string(v)
   def display_value(v) when is_number(v) or is_boolean(v), do: v
   def display_value(v) when is_binary(v), do: binary_display(v)
   def display_value(v) when is_list(v), do: Enum.map(v, &display_value/1)
+  def display_value(v) when is_map(v) and not is_struct(v), do: v
   def display_value(v), do: inspect(v)
 
   defp binary_display(binary) do
