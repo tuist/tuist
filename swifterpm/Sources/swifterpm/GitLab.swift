@@ -189,44 +189,6 @@ private actor GitLabTokenCache {
 private let gitLabTokenCache = GitLabTokenCache()
 
 enum GitLabAPI {
-    static func remoteVersions(repo: GitLabRepo) async throws -> [RemoteVersion] {
-        struct TagsResponse: Decodable {
-            struct Commit: Decodable { let id: String }
-            let name: String
-            let commit: Commit
-        }
-
-        var versions: [RemoteVersion] = []
-        var page = 1
-        while true {
-            let url = repo.apiBaseURL
-                .appendingGitLabProjectAPIPath(repo.encodedProjectPath, ["repository", "tags"])
-                .appending(queryItems: [
-                    URLQueryItem(name: "per_page", value: "100"),
-                    URLQueryItem(name: "page", value: String(page)),
-                ])
-            let tags = try JSONDecoder().decode(
-                [TagsResponse].self,
-                from: try await HTTPClient.data(url: url, headers: try await headers(for: repo))
-            )
-            if tags.isEmpty {
-                break
-            }
-            for tag in tags {
-                if let version = RemoteMetadata.parseSwiftTagVersion(tag.name) {
-                    versions.append(
-                        RemoteVersion(version: version.description, revision: tag.commit.id)
-                    )
-                }
-            }
-            page += 1
-        }
-        return versions.sorted {
-            ($0.semver ?? SemVer(major: 0, minor: 0, patch: 0))
-                < ($1.semver ?? SemVer(major: 0, minor: 0, patch: 0))
-        }
-    }
-
     static func downloadArchive(repo: GitLabRepo, revision: String, destination: URL) async throws {
         let url = repo.apiBaseURL
             .appendingGitLabProjectAPIPath(

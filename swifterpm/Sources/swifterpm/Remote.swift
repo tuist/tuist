@@ -29,42 +29,32 @@ enum RemoteMetadata {
         return versions
     }
 
+    /// Tag discovery goes through git rather than a provider API.
+    ///
+    /// The provider APIs bought nothing here: `git ls-remote --tags` returns every tag with
+    /// its peeled annotation in one round trip, whereas GitHub's and GitLab's tag endpoints
+    /// page at 100 entries, so on a package with many tags the API path is the slower one.
+    /// What they cost is a second credential system — an API request authenticates only with
+    /// the ambient provider token, so on a machine whose working credential is a `~/.netrc`
+    /// entry or a credential helper it is a guaranteed-404 request per package before git
+    /// runs anyway. Delegating leaves one ladder instead of two.
     private static func fetchRemoteVersions(location: String) async throws -> [RemoteVersion] {
-        let repo = try? GitHubRepo(location: location)
-        if let repo, await GitHubAuth.hasSession() {
-            let apiVersions = (try? await githubRemoteVersions(repo: repo)) ?? []
-            if !apiVersions.isEmpty {
-                return apiVersions
-            }
-        }
-
-        let gitLabRepo = try? GitLabRepo(location: location)
-        if let gitLabRepo, await GitLabAuth.hasSession(host: gitLabRepo.host) {
-            let apiVersions = (try? await GitLabAPI.remoteVersions(repo: gitLabRepo)) ?? []
-            if !apiVersions.isEmpty {
-                return apiVersions
-            }
-        }
-
-        let gitVersions = (try? await gitRemoteVersions(location: location)) ?? []
-        if !gitVersions.isEmpty {
-            return gitVersions
-        }
-        return []
+        (try? await gitRemoteVersions(location: location)) ?? []
     }
 
     private static func gitRemoteVersions(location: String) async throws -> [RemoteVersion] {
-        var attempts: [(candidate: String, error: any Error)] = []
-        for candidate in SourceControlLocations.fetchCandidates(location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", "--tags", candidate],
+                    "/usr/bin/git",
+                    attempt.configArguments + ["ls-remote", "--tags", attempt.location],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
+                await ResolvedPackageCredentials.shared.record(attempt.credential, for: location)
                 return parseGitRemoteVersions(output)
             } catch {
-                attempts.append((candidate, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: location, attempts: attempts)
@@ -103,64 +93,24 @@ enum RemoteMetadata {
         }
     }
 
-    private static func githubRemoteVersions(repo: GitHubRepo) async throws -> [RemoteVersion] {
-        struct TagsResponse: Decodable {
-            struct Commit: Decodable { let sha: String }
-            let name: String
-            let commit: Commit
-        }
-
-        var versions: [RemoteVersion] = []
-        var page = 1
-        while true {
-            let url = URL(
-                string:
-                "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tags?per_page=100&page=\(page)"
-            )!
-            var headers = ["User-Agent": "swifterpm/0.1"]
-            if let token = await GitHubAuth.token() {
-                headers["Authorization"] = "Bearer \(token)"
-            }
-            let tags = try JSONDecoder().decode(
-                [TagsResponse].self, from: try await HTTPClient.data(url: url, headers: headers)
-            )
-            if tags.isEmpty {
-                break
-            }
-            for tag in tags {
-                if let version = RemoteMetadata.parseSwiftTagVersion(tag.name) {
-                    versions.append(
-                        RemoteVersion(version: version.description, revision: tag.commit.sha)
-                    )
-                }
-            }
-            page += 1
-        }
-        return versions.sorted {
-            SemVer.ascendingForSort(
-                (try? SemVer($0.version)) ?? SemVer(major: 0, minor: 0, patch: 0),
-                (try? SemVer($1.version)) ?? SemVer(major: 0, minor: 0, patch: 0)
-            )
-        }
-    }
-
     static func resolveNamedRef(location: String, name: String) async throws -> String {
-        var attempts: [(candidate: String, error: any Error)] = []
-        for candidate in SourceControlLocations.fetchCandidates(location) {
+        var attempts: [(attempt: GitFetchAttempt, error: any Error)] = []
+        for attempt in await SourceControlLocations.fetchAttempts(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", candidate, name],
+                    "/usr/bin/git",
+                    attempt.configArguments + ["ls-remote", attempt.location, name],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 guard let line = output.split(separator: "\n").first,
                       let revision = line.split(whereSeparator: \.isWhitespace).first
                 else {
-                    throw ToolError.message("\(name) was not found in \(candidate)")
+                    throw ToolError.message("\(name) was not found in \(attempt.location)")
                 }
+                await ResolvedPackageCredentials.shared.record(attempt.credential, for: location)
                 return String(revision)
             } catch {
-                attempts.append((candidate, error))
+                attempts.append((attempt, error))
             }
         }
         throw GitFetchFailure.error(location: location, attempts: attempts)
