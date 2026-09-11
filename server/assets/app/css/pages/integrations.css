@@ -136,11 +136,11 @@
 
   /* Title and subtitle on the left, the actions on the same line to the
      right; when connected, the fields run the full width underneath. */
-  & > [data-part="buildkite-card-section"] {
+  & > :is([data-part="buildkite-card-section"], [data-part="gitlab-card-section"]) {
     display: flex;
     flex-direction: column;
 
-    & > #buildkite-form {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"]) {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -199,7 +199,18 @@
     }
   }
 
-  & #connect-buildkite-modal [data-part="connect-buildkite"] {
+  & #connect-gitlab-modal > [data-part="positioner"] > [data-part="content"] {
+    width: min(520px, 90vw);
+  }
+
+  & #connect-gitlab-modal [data-part="connect-gitlab"] > [data-part="actions"] {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &
+    :is(#connect-buildkite-modal, #connect-gitlab-modal)
+    :is([data-part="connect-buildkite"], [data-part="connect-gitlab"]) {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);

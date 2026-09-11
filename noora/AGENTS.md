@@ -36,6 +36,8 @@ Do not bootstrap the npm package from a local machine. The first automated relea
 - Icon transition hooks restore their visual state after LiveView patches, including patches that leave the watched ancestor's state unchanged.
 - Phoenix table disclosure buttons support an optional `row_toggle` JS callback for server-managed lazy loading. Callers then own `expanded_rows`; tables without a callback retain client-side expansion.
 
+- Brand icons use monochrome `currentColor` SVGs in `lib/noora/icons/`; `brand-gitlab.svg` comes from Simple Icons and is exposed as `brand_gitlab/1`.
+
 - Use `noora` as the conventional commit scope for changes in this directory
 - The Tuist server depends on noora via a local path dependency (`{:noora, path: "../noora"}`)
 - Delegate date-picker month navigation from the hook root so LiveView can replace
