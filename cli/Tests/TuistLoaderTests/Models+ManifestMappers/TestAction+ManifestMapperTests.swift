@@ -221,11 +221,130 @@ struct TestActionManifestMapperTests {
         #expect(testAction.testPlans?[0].path == derivedDirectory.appending(component: "UnitTests.xctestplan"))
         #expect(testAction.testPlans?[0].name == "UnitTests")
         #expect(testAction.testPlans?[0].isDefault == true)
-        #expect(testAction.testPlans?[0].kind == .generated)
+        #expect(testAction.testPlans?[0].kind.isGenerated == true)
         #expect(testAction.testPlans?[0].testTargets.map(\.target.name) == ["AppTests"])
         #expect(testAction.testPlans?[1].path == derivedDirectory.appending(component: "SnapshotTests.xctestplan"))
         #expect(testAction.testPlans?[1].isDefault == false)
-        #expect(testAction.testPlans?[1].kind == .generated)
+        #expect(testAction.testPlans?[1].kind.isGenerated == true)
+    }
+
+    @Test(.inTemporaryDirectory) func action_with_generated_test_plan_maps_its_options() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let app = ProjectDescription.TargetReference.project(path: .path(projectPath.pathString), target: "App")
+        let manifest = ProjectDescription.TestAction.testPlans([
+            .generated(
+                name: "UnitTests",
+                testTargets: [
+                    .testableTarget(
+                        target: .project(path: .path(projectPath.pathString), target: "AppTests"),
+                        selectedTests: ["AppTests/testExample()"],
+                        skippedTests: ["AppTests/testSkippedExample()"]
+                    ),
+                ],
+                defaultOptions: .options(
+                    arguments: .arguments(
+                        environmentVariables: ["FEATURE": .environmentVariable(value: "enabled", isEnabled: true)],
+                        launchArguments: [.launchArgument(name: "-feature", isEnabled: true)]
+                    ),
+                    codeCoverage: .specificTargets([app]),
+                    expandVariableFromTarget: app,
+                    language: "en",
+                    region: "US",
+                    preferredScreenCaptureFormat: .screenRecording,
+                    testExecutionOrdering: .random,
+                    testRepetitionMode: .untilFailure,
+                    maximumTestRepetitions: 5,
+                    repeatInNewRunnerProcess: true,
+                    testTimeoutsEnabled: false,
+                    defaultTestExecutionTimeAllowance: 30,
+                    maximumTestExecutionTimeAllowance: 60,
+                    userAttachmentLifetime: .keepAlways,
+                    uiTestingScreenshotsLifetime: .keepNever,
+                    areLocalizationScreenshotsEnabled: true,
+                    diagnosticCollectionPolicy: .onFailure,
+                    distributor: .testFlight,
+                    locationScenario: .init(identifier: "Berlin, Germany"),
+                    testInteropMode: .complete,
+                    applicationCrashDetectionSeverity: .fatalFailure,
+                    addressSanitizer: .enabled(detectStackUseAfterReturn: true),
+                    threadSanitizerEnabled: true,
+                    mainThreadCheckerEnabled: true,
+                    performanceAntipatternCheckerEnabled: true,
+                    undefinedBehaviorSanitizerEnabled: true,
+                    zombieObjectsEnabled: true,
+                    guardMallocEnabled: true,
+                    mallocScribbleEnabled: true,
+                    mallocGuardEdgesEnabled: true,
+                    mallocStackLogging: .allAllocations,
+                    checkedAllocations: .always,
+                    runtimeIssueDetection: .enabled(.error),
+                    mainThreadCheckerDetectionPolicy: .enabled(.warning),
+                    threadPerformanceCheckerRuntimeIssueDetection: .enabled(.error),
+                    memoryTaggingAddressSanitizerEnabled: true
+                )
+            ),
+        ])
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryDirectory, rootDirectory: temporaryDirectory)
+        let expectedPlan = XcodeGraph.TestPlan(
+            path: temporaryDirectory.appending(components: "Derived", "TestPlans", "UnitTests.xctestplan"),
+            testTargets: [XcodeGraph.TestableTarget(
+                target: XcodeGraph.TargetReference(projectPath: projectPath, name: "AppTests"),
+                selectedTests: ["AppTests/testExample()"],
+                skippedTests: ["AppTests/testSkippedExample()"]
+            )],
+            isDefault: true,
+            kind: .generated(defaultOptions: XcodeGraph.TestPlanOptions(
+                arguments: XcodeGraph.Arguments(
+                    environmentVariables: ["FEATURE": XcodeGraph.EnvironmentVariable(value: "enabled", isEnabled: true)],
+                    launchArguments: [XcodeGraph.LaunchArgument(name: "-feature", isEnabled: true)]
+                ),
+                codeCoverage: .specificTargets([XcodeGraph.TargetReference(projectPath: projectPath, name: "App")]),
+                expandVariableFromTarget: XcodeGraph.TargetReference(projectPath: projectPath, name: "App"),
+                language: "en",
+                region: "US",
+                preferredScreenCaptureFormat: .screenRecording,
+                testExecutionOrdering: "random",
+                testRepetitionMode: "untilFailure",
+                maximumTestRepetitions: 5,
+                repeatInNewRunnerProcess: true,
+                testTimeoutsEnabled: false,
+                defaultTestExecutionTimeAllowance: 30,
+                maximumTestExecutionTimeAllowance: 60,
+                userAttachmentLifetime: "keepAlways",
+                uiTestingScreenshotsLifetime: "keepNever",
+                areLocalizationScreenshotsEnabled: true,
+                diagnosticCollectionPolicy: "OnFailure",
+                distributor: "com.apple.TestFlight",
+                locationScenarioIdentifier: "Berlin, Germany",
+                locationScenarioReferenceType: "built-in",
+                testInteropMode: "complete",
+                applicationCrashDetectionSeverity: "fatalFailure",
+                addressSanitizer: .enabled(detectStackUseAfterReturn: true),
+                threadSanitizerEnabled: true,
+                mainThreadCheckerEnabled: true,
+                performanceAntipatternCheckerEnabled: true,
+                undefinedBehaviorSanitizerEnabled: true,
+                zombieObjectsEnabled: true,
+                guardMallocEnabled: true,
+                mallocScribbleEnabled: true,
+                mallocGuardEdgesEnabled: true,
+                mallocStackLogging: "allAllocations",
+                checkedAllocations: .always,
+                runtimeIssueDetection: .enabled("error"),
+                mainThreadCheckerDetectionPolicy: .enabled("warning"),
+                threadPerformanceCheckerRuntimeIssueDetection: .enabled("error"),
+                memoryTaggingAddressSanitizerEnabled: true
+            ))
+        )
+
+        // When
+        let action = try await XcodeGraph.TestAction.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        let plan = try #require(action.testPlans?.first)
+        #expect(plan == expectedPlan)
     }
 
     @Test(.inTemporaryDirectory) func action_with_generated_test_plan_honors_explicit_path() async throws {
@@ -253,7 +372,7 @@ struct TestActionManifestMapperTests {
 
         // Then
         #expect(testAction.testPlans?.first?.path == explicitPath)
-        #expect(testAction.testPlans?.first?.kind == .generated)
+        #expect(testAction.testPlans?.first?.kind.isGenerated == true)
     }
 
     @Test(.inTemporaryDirectory) func action_mixes_generated_and_preconfigured_plans() async throws {
@@ -282,7 +401,7 @@ struct TestActionManifestMapperTests {
 
         // Then
         #expect(testAction.testPlans?.count == 2)
-        #expect(testAction.testPlans?[0].kind == .generated)
+        #expect(testAction.testPlans?[0].kind.isGenerated == true)
         #expect(testAction.testPlans?[0].isDefault == true)
         #expect(testAction.testPlans?[1].kind == .referenced)
         #expect(testAction.testPlans?[1].path == preConfiguredPath)

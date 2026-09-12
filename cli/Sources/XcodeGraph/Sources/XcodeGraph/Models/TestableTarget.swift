@@ -32,6 +32,10 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
     public let isRandomExecutionOrdering: Bool
     /// A simulated location used when testing this test target.
     public let simulatedLocation: SimulatedLocation?
+    /// Test identifiers to run for this target in a generated test plan.
+    public let selectedTests: [String]
+    /// Test identifiers to skip for this target in a generated test plan.
+    public let skippedTests: [String]
 
     @available(*, deprecated, renamed: "init(target:skipped:parallelization:randomExecutionOrdering:simulatedLocation:)")
     public init(
@@ -39,13 +43,17 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         skipped: Bool = false,
         parallelizable: Bool,
         randomExecutionOrdering: Bool = false,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        selectedTests: [String] = [],
+        skippedTests: [String] = []
     ) {
         self.target = target
         isSkipped = skipped
         parallelization = parallelizable ? .all : .none
         isRandomExecutionOrdering = randomExecutionOrdering
         self.simulatedLocation = simulatedLocation
+        self.selectedTests = selectedTests
+        self.skippedTests = skippedTests
     }
 
     public init(
@@ -53,13 +61,17 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         skipped: Bool = false,
         parallelization: Parallelization = .none,
         randomExecutionOrdering: Bool = false,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        selectedTests: [String] = [],
+        skippedTests: [String] = []
     ) {
         self.target = target
         isSkipped = skipped
         self.parallelization = parallelization
         isRandomExecutionOrdering = randomExecutionOrdering
         self.simulatedLocation = simulatedLocation
+        self.selectedTests = selectedTests
+        self.skippedTests = skippedTests
     }
 
     #if DEBUG
