@@ -79,6 +79,16 @@ func (p *gen1Plug) handler() http.Handler {
 		defer p.mu.Unlock()
 		p.seen = append(p.seen, r.URL.Path)
 
+		if channel := strings.TrimPrefix(r.URL.Path, "/meter/"); strings.HasPrefix(r.URL.Path, "/meter/") {
+			if _, known := p.on[channel]; !known {
+				http.NotFound(w, r)
+				return
+			}
+			// Gen1 reports `total` in watt-MINUTES: 684 of them is 11.4 Wh.
+			fmt.Fprint(w, `{"power":9.7,"voltage":231.2,"is_valid":true,"total":684}`)
+			return
+		}
+
 		channel := strings.TrimPrefix(r.URL.Path, "/relay/")
 		state, known := p.on[channel]
 		if !strings.HasPrefix(r.URL.Path, "/relay/") || !known {
@@ -432,3 +442,81 @@ func TestRegistryResolvesShellyAndDefaultsToIt(t *testing.T) {
 		t.Fatal("Get resolved a driver this build does not have")
 	}
 }
+
+// Metering rides the status call the driver already makes, so a Gen2 plug must
+// answer a reading without being probed for anything else.
+func TestShellyGen2MetersFromSwitchStatus(t *testing.T) {
+	plug := newGen2Plug(map[string]bool{"0": true})
+	s, outlet := shellyAgainst(t, plug.handler())
+
+	got, err := s.Meter(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("Meter: %v", err)
+	}
+	if got.Watts != 11.4 {
+		t.Fatalf("Watts = %v, want 11.4", got.Watts)
+	}
+	if len(plug.requests) != 1 {
+		t.Fatalf("a Gen2 reading cost %d requests: %v", len(plug.requests), plug.requests)
+	}
+}
+
+// A switch with no metering must fail loudly. Reporting 0 W would be
+// indistinguishable from a genuinely idle host, and the number this feeds is the
+// kW figure a colo contract is entered at.
+func TestShellyWithoutMeteringIsAnErrorNotZeroWatts(t *testing.T) {
+	s, outlet := shellyAgainst(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/rpc/Switch.GetStatus" {
+			fmt.Fprint(w, `{"id":0,"source":"HTTP","output":true}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+
+	got, err := s.Meter(context.Background(), outlet)
+	if err == nil {
+		t.Fatalf("Meter reported %v W from a switch that does not measure", got.Watts)
+	}
+	if !strings.Contains(err.Error(), "does not meter") {
+		t.Fatalf("error does not say the switch cannot measure: %v", err)
+	}
+}
+
+func TestShellyGen1MetersFromMeterEndpointInWattHours(t *testing.T) {
+	plug := &gen1Plug{on: map[string]bool{"0": true}}
+	s, outlet := shellyAgainst(t, plug.handler())
+
+	got, err := s.Meter(context.Background(), outlet)
+	if err != nil {
+		t.Fatalf("Meter: %v", err)
+	}
+	if got.Watts != 9.7 {
+		t.Fatalf("Watts = %v, want 9.7", got.Watts)
+	}
+	if got.Volts != 231.2 {
+		t.Fatalf("Volts = %v, want 231.2", got.Volts)
+	}
+	// 684 watt-minutes is 11.4 Wh; reporting the raw counter would overstate
+	// energy by 60x.
+	if got.EnergyWattHours != 11.4 {
+		t.Fatalf("EnergyWattHours = %v, want 11.4", got.EnergyWattHours)
+	}
+}
+
+// Metering is an optional capability, not part of Driver. This pins both halves
+// of that: Shelly satisfies it, and a caller discovers the capability by
+// asserting rather than by calling and handling an error.
+func TestMeterIsAnOptionalCapabilityOfADriver(t *testing.T) {
+	var d Driver = &Shelly{}
+	if _, ok := d.(Meter); !ok {
+		t.Fatal("Shelly does not satisfy Meter")
+	}
+	if _, ok := Driver(stubDriver{}).(Meter); ok {
+		t.Fatal("a switch-only driver must not satisfy Meter")
+	}
+}
+
+type stubDriver struct{}
+
+func (stubDriver) State(context.Context, Outlet) (State, error) { return StateUnknown, nil }
+func (stubDriver) Set(context.Context, Outlet, bool) error      { return nil }

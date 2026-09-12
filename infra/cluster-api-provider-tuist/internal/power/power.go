@@ -72,6 +72,35 @@ type Driver interface {
 	Set(ctx context.Context, o Outlet, on bool) error
 }
 
+// Reading is an outlet's electrical measurement at one instant.
+type Reading struct {
+	// Watts is the instantaneous active power drawn through the outlet.
+	Watts float64
+	// Volts is the supply voltage, zero when the device does not report it.
+	Volts float64
+	// EnergyWattHours is the outlet's cumulative energy counter, zero when the
+	// device does not report one. Only differences between two readings mean
+	// anything: the origin is whenever the device last reset it.
+	EnergyWattHours float64
+}
+
+// Meter is implemented by drivers whose hardware measures what it switches.
+//
+// Deliberately NOT part of Driver. Switching is what the machine controller
+// needs and every backend can do it; metering is a property of the particular
+// device someone bought, and the rack's switched PDUs are specified with
+// metering optional. Folding it into Driver would force every future backend to
+// carry a method it cannot implement. Callers that want a reading type-assert
+// for this and treat its absence as "this outlet does not measure", not as an
+// error.
+//
+// The consumer is capacity planning rather than reconciliation: a colo contract
+// is entered at a kW figure sized on measured average draw per host, so the
+// number has to come off real hardware under real load.
+type Meter interface {
+	Meter(ctx context.Context, o Outlet) (Reading, error)
+}
+
 // Registry resolves a driver name to its implementation.
 type Registry struct {
 	drivers map[string]Driver

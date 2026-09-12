@@ -294,7 +294,19 @@ mode behind it:
   that matters and no two devices agree on it. It verifies the outlet actually
   went off before powering back on: a cycle that silently failed to cut power
   would return success, and the caller would wait out a boot that never happened
-  and count the recovery as attempted.
+  and count the recovery as attempted. Metering is an optional `power.Meter`
+  capability rather than part of `Driver`, discovered by type assertion: every
+  backend can switch, but only some hardware measures, and the rack's PDUs are
+  specified with metering optional.
+- **`cmd/powerbench` is how the outlet-reboot claim gets evidence.** It runs N
+  unattended cycles through this same driver (not curl, so the bench exercises
+  the production path) and requires the host's `kern.boottime` to CHANGE on every
+  one. Reachability alone is not proof: a host fed by a different outlet than the
+  one being switched answers every probe, so "10/10 reachable" passes on a
+  miswired tray. It also refuses to cut power until it has confirmed
+  `pmset autorestart`, since without it the first cycle strands the box. Draw is
+  sampled at idle, under load, and across the boot ramp, which is where the
+  per-host average feeding a colo power commitment comes from.
 - **Giving up quarantines the host.** The Scaleway kind's bootstrap-exhaustion
   path releases the host so a *different* mini gets claimed, which works because
   the pool is a vendor's and refills itself. Hand our own pool the same box back
@@ -561,6 +573,8 @@ infra/cluster-api-provider-tuist/
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
+├── cmd/prep/       # one-shot: make a pre-ordered bare-metal box claimable
+├── cmd/powerbench/ # acceptance harness: N unattended outlet cycles + draw
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
 ├── Dockerfile      # cross-builds the darwin/arm64 host artifacts (tart-kubelet,

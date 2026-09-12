@@ -35,14 +35,30 @@ type Shelly struct {
 	HTTP *http.Client
 }
 
-// gen2Status is the subset of Switch.GetStatus we read.
+// gen2Status is the subset of Switch.GetStatus we read. A plug with metering
+// fills in apower/voltage/aenergy; a dry-contact relay omits them, which is why
+// the power fields are pointers: absent and zero are different answers.
 type gen2Status struct {
-	Output *bool `json:"output"`
+	Output  *bool    `json:"output"`
+	APower  *float64 `json:"apower"`
+	Voltage *float64 `json:"voltage"`
+	AEnergy *struct {
+		Total *float64 `json:"total"`
+	} `json:"aenergy"`
 }
 
 // gen1Relay is the subset of /relay/<id> we read.
 type gen1Relay struct {
 	IsOn *bool `json:"ison"`
+}
+
+// gen1Meter is the subset of /meter/<id> we read. Gen1 reports the cumulative
+// counter in WATT-MINUTES, not watt-hours, hence the conversion at the call
+// site; the instantaneous field is plain watts.
+type gen1Meter struct {
+	Power        *float64 `json:"power"`
+	Voltage      *float64 `json:"voltage"`
+	TotalWattMin *float64 `json:"total"`
 }
 
 // State implements Driver.
@@ -98,6 +114,55 @@ func (s *Shelly) Set(ctx context.Context, o Outlet, on bool) error {
 		return fmt.Errorf("shelly at %s has neither /rpc/Switch.Set nor /relay/%s; not a switch, or channel %s does not exist", o.Host, channel, channel)
 	}
 	return nil
+}
+
+// Meter implements Meter.
+//
+// Gen2 carries the measurement inside the same Switch.GetStatus this driver
+// already reads for state, so a metering plug costs one request. Gen1 keeps it
+// on a separate /meter/<id> endpoint. A switch that does not measure reports no
+// power field at all, which is an error rather than a zero: silently returning
+// 0 W would land in a capacity model as a real measurement.
+func (s *Shelly) Meter(ctx context.Context, o Outlet) (Reading, error) {
+	channel := o.channel()
+
+	var g2 gen2Status
+	found, err := s.call(ctx, o, "/rpc/Switch.GetStatus", url.Values{"id": {channel}}, &g2)
+	switch {
+	case err != nil:
+		return Reading{}, err
+	case found:
+		if g2.APower == nil {
+			return Reading{}, fmt.Errorf("shelly at %s channel %s reports no apower; this switch does not meter", o.Host, channel)
+		}
+		r := Reading{Watts: *g2.APower}
+		if g2.Voltage != nil {
+			r.Volts = *g2.Voltage
+		}
+		if g2.AEnergy != nil && g2.AEnergy.Total != nil {
+			r.EnergyWattHours = *g2.AEnergy.Total
+		}
+		return r, nil
+	}
+
+	var g1 gen1Meter
+	found, err = s.call(ctx, o, "/meter/"+channel, nil, &g1)
+	switch {
+	case err != nil:
+		return Reading{}, err
+	case !found:
+		return Reading{}, fmt.Errorf("shelly at %s has neither /rpc/Switch.GetStatus nor /meter/%s; this switch does not meter", o.Host, channel)
+	case g1.Power == nil:
+		return Reading{}, fmt.Errorf("shelly /meter/%s returned no power field", channel)
+	}
+	r := Reading{Watts: *g1.Power}
+	if g1.Voltage != nil {
+		r.Volts = *g1.Voltage
+	}
+	if g1.TotalWattMin != nil {
+		r.EnergyWattHours = *g1.TotalWattMin / 60
+	}
+	return r, nil
 }
 
 // call issues one GET and decodes the body into out (when non-nil).
