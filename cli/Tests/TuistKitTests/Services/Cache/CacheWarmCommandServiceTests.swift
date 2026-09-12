@@ -52,6 +52,111 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory) func run_handsTheHashesItComputedToTheWarmProjectGenerator() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+            try await run(noUpload: false)
+
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any,
+                    targetsToBinaryCache: .any,
+                    configuration: .any,
+                    cacheStorage: .any,
+                    targetHashes: .value([
+                        TargetReference(projectPath: temporaryDirectory, name: "Fixtures"):
+                            .test(hash: "fixtures-hash"),
+                    ])
+                )
+                .called(1)
+        }
+
+        /// Hashing a target runs its `additionalHashingInputs` scripts, and excluding one also makes its
+        /// dependents unhashable, which is what stops a warm from storing artifacts the same profile could
+        /// never read back. So a narrowing profile keeps its exclusions on the hashing call, and the
+        /// resulting map is too narrow to hand to binary replacement, which runs under `.allPossible`.
+        @Test(.inTemporaryDirectory) func run_keepsProfileExclusions_andHandsOverNoHashes() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let externalProjectPath = temporaryDirectory.appending(component: "external")
+            let localTarget = Target.test(name: "Local", product: .framework)
+            let externalTarget = Target.test(name: "External", product: .framework)
+            let localProject = Project.test(path: temporaryDirectory, targets: [localTarget])
+            let externalProject = Project.test(
+                path: externalProjectPath,
+                targets: [externalTarget],
+                type: .external(hash: nil)
+            )
+            let externalGraphTarget = GraphTarget(
+                path: externalProjectPath,
+                target: externalTarget,
+                project: externalProject
+            )
+            let graph = Graph.test(
+                path: temporaryDirectory,
+                workspace: .test(path: temporaryDirectory),
+                projects: [temporaryDirectory: localProject, externalProjectPath: externalProject]
+            )
+
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(config)
+            given(cacheStorageFactory).cacheStorage(config: .value(config)).willReturn(cacheStorage)
+            given(cacheStorageFactory).cacheLocalStorage().willReturn(localCacheStorage)
+            given(generatorFactory)
+                .binaryCacheWarmingPreload(config: .value(config), targetsToBinaryCache: .value([]))
+                .willReturn(preloadGenerator)
+            given(preloadGenerator)
+                .load(path: .value(temporaryDirectory), options: .value(config.project.generatedProject?.generationOptions))
+                .willReturn(graph)
+            given(defaultConfigurationFetcher)
+                .fetch(configuration: .any, defaultConfiguration: .any, graph: .value(graph))
+                .willReturn("Debug")
+            given(cacheGraphContentHasher)
+                .contentHashes(
+                    for: .value(graph),
+                    configuration: .any,
+                    defaultConfiguration: .any,
+                    excludedTargets: .value(["Local"]),
+                    destination: .value(nil)
+                )
+                .willReturn([externalGraphTarget: .test(hash: "external-hash")])
+            given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
+            given(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any,
+                    targetsToBinaryCache: .any,
+                    configuration: .any,
+                    cacheStorage: .any,
+                    targetHashes: .any
+                )
+                .willReturn(generator)
+            given(generator)
+                .generateWithGraph(path: .value(temporaryDirectory), options: .any)
+                .willReturn((temporaryDirectory, graph, MapperEnvironment()))
+            given(cacheStorage).store(.any, cacheCategory: .value(.binaries)).willReturn([])
+
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                configuration: nil,
+                targetsToBinaryCache: [],
+                externalOnly: true,
+                generateOnly: true,
+                noUpload: false,
+                cacheProfile: nil,
+                scratchDirectory: nil
+            )
+
+            verify(generatorFactory)
+                .binaryCacheWarming(
+                    config: .any,
+                    targetsToBinaryCache: .matching { targets in
+                        Set(targets.values.flatMap { $0 }) == [TargetQuery(stringLiteral: "External")]
+                    },
+                    configuration: .any,
+                    cacheStorage: .any,
+                    targetHashes: .value([:])
+                )
+                .called(1)
+        }
+
         @Test(.inTemporaryDirectory) func run_usesConfiguredCacheStorage_whenUploading() async throws {
             try await run(noUpload: false)
 
@@ -124,7 +229,8 @@
                     config: .any,
                     targetsToBinaryCache: .any,
                     configuration: .any,
-                    cacheStorage: .any
+                    cacheStorage: .any,
+                    targetHashes: .any
                 )
                 .called(0)
         }
@@ -332,7 +438,8 @@
                     config: .value(config),
                     targetsToBinaryCache: .any,
                     configuration: .value(resolvedConfiguration),
-                    cacheStorage: .any
+                    cacheStorage: .any,
+                    targetHashes: .any
                 )
                 .willReturn(generator)
             given(generator)

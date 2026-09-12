@@ -6,6 +6,7 @@ import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator
+import TuistHasher
 import TuistServer
 import XcodeGraph
 
@@ -327,7 +328,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             targets: [XcodeGraph.Platform: Set<TargetQuery>],
             cacheSources: Set<TargetQuery>,
             configuration: String,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            targetHashes: [TargetReference: TargetContentHash] = [:]
         ) -> [GraphMapping] {
             var mappers = self.default(
                 config: config,
@@ -346,7 +348,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     exceptions: cacheSources
                 ),
                 configuration: configuration,
-                cacheStorage: cacheStorage
+                cacheStorage: cacheStorage,
+                precomputedTargetHashes: targetHashes
             )
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())
