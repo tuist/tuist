@@ -2086,8 +2086,9 @@ timeouts.
   - max by (cluster, env, fleet) (tuist_runners_queue_withheld{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})
 ) > 0
 unless on (cluster, fleet) (
-  max by (cluster, fleet) (
-    label_replace(tuist_runners_pool_replicas_observed{env="production", pool=~"tuist-tuist-runner-pool-linux-.*"}, "fleet", "$1", "pool", "(.*)")
+  label_replace(
+    sum by (cluster, pool) (tuist_runners_pool_phase_replicas{env="production", pool=~"tuist-tuist-runner-pool-linux-.*"}),
+    "fleet", "$1", "pool", "(.*)"
   ) > 0
 )
 ```
@@ -2100,10 +2101,21 @@ unless on (cluster, fleet) (
 The queue side is the server's `tuist_runners_queue_length` minus
 `tuist_runners_queue_withheld` (labelled `fleet`), so an account parked
 at its concurrency limit does not count. The Pod side is the
-controller's `tuist_runners_pool_replicas_observed` (labelled `pool`,
-same value), which counts Pods of every phase, so a pool whose Pods are
-merely Pending does not fire this; only a pool that has been admitted
-nothing at all does.
+controller's `tuist_runners_pool_phase_replicas` (labelled `pool`),
+summed over phases, so a pool whose Pods are merely Pending does not
+fire this; only a pool that has been admitted nothing at all does.
+
+Two details in that leg are load-bearing, and both were arrived at the
+hard way. The aggregation happens **inside** the `label_replace`,
+because Adaptive Metrics has taken `instance` and `pod` off these
+series and a `label_replace` over the raw selector errors rather than
+returning nothing. And the metric is `..._phase_replicas` rather than
+`..._pool_replicas_observed`: the latter mirrors a status field that has
+read blank for pools that did have Pods, and it carries no `pool` label
+at all, so a selector on one matches nothing and the `unless` leg
+silently stops suppressing. This document described that older,
+broken form until 2026-09-08; the deployed rule has been on the working
+one, and the query above is now what is deployed.
 
 When it fires, find the hog:
 
@@ -2136,6 +2148,196 @@ a gap holds nothing. If a pool is still targeted far above its fleet's
 seats, suspect the cap rather than reaching for a values change:
 `tuist_runners_fleet_ready_nodes` going to zero, or a RuntimeClass the
 controller cannot read, both degrade it to the byte budget alone.
+
+### Linux fleet cannot seat a shape
+
+The two rules above catch work that is already stuck. This one catches
+the fleet losing the ability to start it, names which shape, and on the
+2026-09-07 timeline would have fired around 16:20 against the queue-age
+rule's 16:41.
+
+The question it answers is the one nothing else could: *can this fleet
+seat a 16 vCPU / 32 GB Pod right now?* Free memory summed across the
+fleet cannot answer it. On 2026-09-07 at 17:00 the four OVH RISE-L hosts
+in `gra` (117.135 GiB allocatable each, 31 vCPU) held roughly 38 GiB
+free between them, which by a fleet-wide byte budget affords one
+`16vcpu-32gb` Pod and its contiguous 34.5 GiB (32 plus the kata
+RuntimeClass's 2.5 GiB `podFixed`). The largest single-node hole was
+20 GiB and the real answer was zero. A customer's job sat queued from
+16:11 and was claimed at 17:10, the first moment two nodes could seat
+it. Sampling 12:00-20:00 that day, no node could seat that shape for
+15.2% of the window and only one node could for a further 6.1%.
+
+```promql
+(
+  max by (cluster, env, shape) (
+    label_replace(
+      max by (cluster, env, fleet) (tuist_runners_queue_length{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"})
+      - max by (cluster, env, fleet) (tuist_runners_queue_withheld{env="production", fleet=~"tuist-tuist-runner-pool-linux-.*"}),
+      "shape", "$1", "fleet", "tuist-tuist-runner-pool-linux-(.*)"
+    )
+  ) > 0
+)
+and on (cluster, env, shape) (
+  max by (cluster, env, shape) (
+    tuist_runners_fleet_shape_seats_free{env="production", operating_system="linux"}
+  ) == 0
+)
+```
+
+Created 2026-09-08 as rule uid `bfxmy59vtljpca`, group `Runners`.
+
+- Pending period: 10 minutes
+- Severity: warning, receiver `Slack #notifications 2`
+- No `affected_service`: see "Why this is a warning" below
+- `no_data_state`: `OK`; `execution_error_state`: `Error`, the folder's
+  convention. `Error` still raises a `DatasourceError` instance, so an
+  aggregated-away label surfaces rather than passing as healthy.
+- Summary: `Linux fleet in {{ $labels.cluster }} cannot seat a
+  {{ $labels.shape }} Pod on any host, with {{ $values.A.Value }}
+  dispatchable job(s) queued for it`
+
+The seat side is
+`tuist_runners_fleet_shape_seats_free{fleet_selector, operating_system, shape}`,
+published by the runners-controller every autoscaler reconcile. Per
+healthy node it takes allocatable minus what that node's Pods already
+reserve, divides by the shape's placement footprint, and **sums the
+per-node quotients**. It is never a fleet-wide total divided at the end,
+which is the whole point and the arithmetic that reads 1 where the truth
+is 0. The shape's footprint includes the RuntimeClass `podFixed`, and
+a running Pod is charged the same overhead from its own
+`spec.overhead`, so both sides of the division agree. Nodes that are
+cordoned, NotReady or under memory/disk/PID pressure contribute zero,
+the same exclusion `shapePlacementCaps` applies.
+
+**This cannot be built from kube-state-metrics.** The `tuist-runners`
+namespace is entirely absent from KSM in production
+(`kube_pod_info{cluster="tuist-production", namespace="tuist-runners"}`
+returns nothing while `namespace="tuist"` returns 35), so a per-node
+free-memory query over KSM reports ~116.8 GiB free on all four hosts
+while Postgres `runner_sessions` shows live runner Pods on them. Only
+the controller sees those Pods, and it already lists the fleet's nodes
+every reconcile, which is why the gauge is computed there.
+
+**Why this is not the shape cap the autoscaler already has.**
+`shapePlacementCaps` deliberately does not subtract occupancy: it sizes
+a steady-state target that the Pods already running are themselves part
+of. Both readings are wanted, and they diverge exactly when it
+matters: on a full fleet the cap still reads 24 seats for `4vcpu-16gb`
+while free seats reads 0.
+
+#### What this alert is not
+
+- **Not an account at its concurrency limit.** The queue side subtracts
+  `tuist_runners_queue_withheld`, so jobs the server is deliberately
+  declining to dispatch do not count. That is the same predicate the
+  queue-age rule uses and for the same reason: withholding is admission
+  control working, and the only response to it is commercial. See "Why
+  there is no alert on withheld runner queue depth" below.
+- **Not a phantom-inflated queue on its own.** `tuist_runners_queue_length`
+  currently counts jobs that are in fact running (a displaced job never
+  leaves `queued`), so the queue side can read high on a healthy fleet.
+  It cannot fire the rule by itself: the seat side has to independently
+  read zero, and it is computed from live node allocatable and live Pod
+  requests without touching the queue at all. Keeping those two
+  independent is the reason this gauge is not derived from queue
+  symptoms. What the inflation *can* do is make the rule fire on a fleet
+  that is fully committed and healthy, every Pod busy with real work and
+  nothing actually waiting. Until that bug is fixed, cross-check
+  `tuist_runners_autoscaler_queued_jobs` for the shape before treating a
+  firing as a capacity shortfall.
+- **Not the provisioning ceiling.** `tuist_runners_fleet_provisioning_ceiling`
+  is a concurrent-*start* budget: how many sandboxes may be booting at
+  once. A fleet can be well inside it and still have nowhere to put the
+  next Pod.
+- **Not nodes leaving the fleet.** That shows up on
+  `tuist_runners_fleet_ready_nodes` and `tuist_runners_fleet_filtered_nodes`
+  first, and it lowers seats as a consequence. Check those before
+  concluding the fleet is genuinely full.
+
+#### Why this is a warning
+
+A fleet with no room for its largest shape at peak is saturation, not a
+fault, and saturation clears on its own when a job finishes. Paging on
+it would page on ordinary busy afternoons, which is the argument this
+document already makes about withheld queue depth. The two critical
+rules above still cover the case where it does *not* clear: "Runner pool
+starved" at ten minutes with zero Pods, "Runner queue not draining" at
+thirty minutes of queue age. This rule exists to say *why* twenty
+minutes earlier, and its responses (cap an account, add a host, lower a
+warm floor) are not middle-of-the-night actions. For the same reason it
+carries no `affected_service`: a saturated fleet is not a status-page
+outage, and opening an incident component on every peak would make the
+public page meaningless.
+
+#### Before trusting this rule
+
+The rule is live, but its seat leg cannot report until the controller
+carrying `tuist_runners_fleet_shape_seats_free` is deployed. Until then
+the `and` yields nothing and `no_data_state: OK` keeps it quiet, which
+is the intended holding state rather than a fault.
+
+- **Confirm the query returns data.** `label_replace` on a **raw**
+  selector fails here, because Adaptive Metrics has aggregated
+  `instance` and `pod` away from `tuist_runners_queue_length`: the
+  expression *errors* with "Can't query aggregated metric ... without
+  aggregation" rather than returning nothing. That is why the queue side
+  above wraps `max by (cluster, env, fleet)` **inside** the
+  `label_replace` instead of around it. Verified working against
+  production on 2026-09-08.
+- **Check `shape` and `fleet_selector` survive.**
+  `tuist_runners_fleet_shape_seats_free` is a brand-new metric, and a
+  label with no query usage is exactly what the Adaptive Metrics
+  recommender aggregates away. With `auto_apply` on, deleting the
+  recommendation is not durable until a query touches the label. The
+  existing controller fleet gauges are the encouraging precedent:
+  `fleet_selector` and `operating_system` on
+  `tuist_runners_fleet_ready_nodes` are intact today, and only `instance`
+  and `pod` were taken. After the controller deploys, run the bare metric
+  in Explore, where the error names every aggregated label, and confirm
+  `shape` is present before saving the rule. If it has been aggregated,
+  add `shape` to the Adaptive Metrics `keep_labels` escape hatch rather
+  than deleting the recommendation.
+- **The rule is the usage.** Its own evaluation is what keeps the
+  recommender off these labels, which is why it was created unpaused
+  ahead of the deploy rather than staged. Do not pause it.
+
+#### When it fires
+
+First, is this fragmentation or exhaustion? Read the whole shape ladder,
+not just the alerting rung:
+
+```promql
+max by (cluster, shape) (tuist_runners_fleet_shape_seats_free{env="production", operating_system="linux"})
+```
+
+Smaller rungs still showing seats while the large ones read zero is
+fragmentation: the memory exists but not in one piece. Everything at
+zero is genuine exhaustion.
+
+Then find what is holding the fleet. In the 2026-09-07 case it was a
+single account running uncapped at 384-464 GB peak daily against a
+~467 GiB fleet; tightening its Linux limit to 64 vCPU / 128 GB at 17:19
+took the fleet to a ~62% peak. Nothing named that at the time, which is
+what this rule is for.
+
+```bash
+kubectl get pods -n tuist-runners -o wide --sort-by=.spec.nodeName
+```
+
+Three other things routinely eat the same room:
+
+- **Terminating Pods.** A kata sandbox whose shim never tore the microVM
+  down keeps its node's memory reserved. The gauge counts them on
+  purpose, because they really do hold the host, so they will show as
+  zero seats with the fleet apparently idle. `kubectl get pods -n
+  tuist-runners --no-headers | grep Terminating`.
+- **A warm floor.** `minWarmPoolFloor` on `linux-2vcpu-8gb` reserves
+  `floor * 10.5 GiB` whether or not those Pods ever take a job. At 30 it
+  held 315 GiB of a ~467 GiB fleet and left no 16 GiB hole; it is 4 now.
+- **Nodes out of the fleet.** `tuist_runners_fleet_ready_nodes` below the
+  MachineDeployment's replica count, with
+  `tuist_runners_fleet_filtered_nodes` naming the reason.
 
 ### Why there is no alert on withheld runner queue depth
 
