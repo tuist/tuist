@@ -236,37 +236,43 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 	if !ready || !runtimeStatusServing(status) {
 		return pending("PrimaryUnavailable", "Selected primary is not Ready and serving with its writer lock")
 	}
-	cert := &unstructured.Unstructured{}
-	cert.SetGroupVersionKind(certificateGVK())
-	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: publicTLSSecretName(instance)}, cert); err != nil {
-		if apierrors.IsNotFound(err) {
-			return pending("CertificatePending", "Gateway certificate has not been created")
+	// A host the shared wildcard spans has no certificate of its own to read,
+	// because none is minted for it. Coverage is established there against the
+	// issued leaf itself, which is the same guarantee this branch reaches by
+	// requiring Ready plus the host in dnsNames.
+	if !r.sharedPublicTLSCovers(ctx, instance) {
+		cert := &unstructured.Unstructured{}
+		cert.SetGroupVersionKind(certificateGVK())
+		if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: publicTLSSecretName(instance)}, cert); err != nil {
+			if apierrors.IsNotFound(err) {
+				return pending("CertificatePending", "Gateway certificate has not been created")
+			}
+			return privateEndpointObservation{}, err
 		}
-		return privateEndpointObservation{}, err
-	}
-	conditions, _, _ := unstructured.NestedSlice(cert.Object, "status", "conditions")
-	ready = false
-	for _, entry := range conditions {
-		condition, ok := entry.(map[string]interface{})
-		if !ok || condition["type"] != "Ready" || condition["status"] != "True" {
-			continue
+		conditions, _, _ := unstructured.NestedSlice(cert.Object, "status", "conditions")
+		ready = false
+		for _, entry := range conditions {
+			condition, ok := entry.(map[string]interface{})
+			if !ok || condition["type"] != "Ready" || condition["status"] != "True" {
+				continue
+			}
+			// cert-manager permits an absent observedGeneration. An explicit stale
+			// generation is never accepted; the certificate must name the current host.
+			generation, observed := condition["observedGeneration"]
+			if !observed || generation == cert.GetGeneration() {
+				ready = true
+			}
 		}
-		// cert-manager permits an absent observedGeneration. An explicit stale
-		// generation is never accepted; the certificate must name the current host.
-		generation, observed := condition["observedGeneration"]
-		if !observed || generation == cert.GetGeneration() {
-			ready = true
+		hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
+		hostCovered := false
+		for _, name := range hosts {
+			if name == host {
+				hostCovered = true
+			}
 		}
-	}
-	hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
-	hostCovered := false
-	for _, name := range hosts {
-		if name == host {
-			hostCovered = true
+		if !ready || !hostCovered {
+			return pending("CertificatePending", "Certificate is not Ready for the current hostname and generation")
 		}
-	}
-	if !ready || !hostCovered {
-		return pending("CertificatePending", "Certificate is not Ready for the current hostname and generation")
 	}
 	target, err := r.privateGatewayTarget(ctx, instance)
 	if err != nil {

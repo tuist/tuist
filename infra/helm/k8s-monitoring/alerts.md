@@ -1302,7 +1302,7 @@ label_replace(sum by (cluster, region) (
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
-  floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
+  floor((0.85 * max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}

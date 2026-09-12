@@ -18,6 +18,10 @@ defmodule Tuist.Kura.Telemetry do
       region nearest the traffic because it had no room for the instance.
     * `resolution_refused` counts the accounts that never reach any of the
       above, because their plan or storage region resolved to no pool.
+    * `claim_apply_refused` counts the storage-claim applies capacity admission
+      turned down. The proposal stays open and every later pass retries it, so
+      without this the only trace of a region refusing every claim is a resize
+      that never happens.
 
   That last one is the only signal a refusal produces. A refused account keeps
   being served by whatever lane it is already on, raises nothing, and appears
@@ -41,6 +45,17 @@ defmodule Tuist.Kura.Telemetry do
   def event_name_placement_preference_unmet, do: @prefix ++ [:placement_preference_unmet]
   def event_name_placement_capacity_spill, do: @prefix ++ [:placement_capacity_spill]
   def event_name_origin_attribution, do: @prefix ++ [:origin_attribution]
+  def event_name_claim_apply_refused, do: @prefix ++ [:claim_apply_refused]
+
+  # Every refusal the apply path produces is an atom (`:capacity_exhausted`,
+  # `:capacity_unknown`, `:stale_proposal`). Anything else is bucketed rather
+  # than tagged, so a surprise cannot unbound the label.
+  def claim_apply_refused(region, reason) do
+    :telemetry.execute(event_name_claim_apply_refused(), %{count: 1}, %{
+      region: region,
+      reason: if(is_atom(reason), do: to_string(reason), else: "unknown")
+    })
+  end
 
   def provisioned(plan, region, cold_return?) do
     :telemetry.execute(event_name_provisioned(), %{count: 1}, %{
