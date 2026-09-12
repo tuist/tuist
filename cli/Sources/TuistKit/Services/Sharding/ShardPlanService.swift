@@ -226,6 +226,10 @@
             // Each artifact (the shared bundle plus one per module) is an independent compress + upload;
             // run them concurrently, capped so a project with many modules doesn't oversubscribe the host.
             let artifacts: [SplitArtifact] = [.shared] + moduleArtifacts
+            Logger.current.debug(
+                "Archiving and uploading \(artifacts.count) test products artifacts concurrently; per-archive wall times may overlap."
+            )
+            let start = ContinuousClock.now
             _ = try await artifacts.concurrentMap(maxConcurrentTasks: Self.maxConcurrentArtifactUploads) { artifact in
                 switch artifact {
                 case .shared:
@@ -260,7 +264,11 @@
                 }
             }
 
-            Logger.current.debug("Upload complete. Shard matrix ready.")
+            let elapsed = start.duration(to: .now).components
+            let seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+            Logger.current.debug(
+                "Archived and uploaded \(artifacts.count) test products artifacts in \(String(format: "%.2fs", seconds)) total wall time. Shard matrix ready."
+            )
         }
 
         private func uploadArtifact(
