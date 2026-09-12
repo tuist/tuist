@@ -3,8 +3,9 @@
 # configuration is global, not per-env.
 
 image:
-  # Built from fff611d7d7d9, the commit that added crawler protection.
+  # Built from a8112699ff19, the #13096 merge that added the
+  # CloudflareBotManagement controller.
   # Keep the human-readable tag and immutable multi-platform digest
   # together so reviewers can trace both the source and deployed bytes.
-  tag: sha-fff611d7d7d9
-  digest: sha256:51298683de6c24666b4e2b1a6d788782a40cdfc9f2075a8cd1bbd4e1e5302b55
+  tag: sha-a8112699ff19
+  digest: sha256:6e9540ee3c3028d2d8f8d3c4ae71392e1cbbfd46534509b5885b1240a927aff3
