@@ -72,9 +72,9 @@
   ],
   "packageRules": [
     {
-      "description": "server/mix.exs pins three git deps to commits that are deliberately NOT their repo's default-branch head: ex_aws_s3 (tuist fork branch fix/presigned-url-config-defaults, makes presigned URLs honour the virtual_host/bucket_as_host config production sets), emcp (branch fix/streamable-http-inline-response-on-post, keeps JSON-RPC responses inline on the POST instead of the SSE stream), and boruta (a 3.0 pre-release snapshot; moving it means running its bundled migrations and a nebulex 2->3 major). Renovate's digest updates for git deps only ever propose the default-branch head, so every PR it opens here would silently revert a patch or start a migration. Those bumps are done by hand.",
+      "description": "Digest updates for git deps in server/mix.exs. Renovate only ever proposes the default-branch head, but the ref-pinned deps there are deliberately NOT on it: ex_aws_s3 (tuist fork branch fix/presigned-url-config-defaults, makes presigned URLs honour the virtual_host/bucket_as_host config production sets), emcp (branch fix/streamable-http-inline-response-on-post, keeps JSON-RPC responses inline on the POST instead of the SSE stream), cachex (TBK145/cachex@patch-1, the Elixir 1.19 record/0 type rename from whitfin/cachex#433), and boruta (a 3.0 pre-release snapshot; moving it means running its bundled migrations and a nebulex 2->3 major). Every digest PR here would silently revert a patch or start a migration, and Renovate cannot regenerate mix.lock anyway, so the rule matches by datasource rather than by name: a new ref-pinned git dep is covered without editing this list. Tag-pinned git deps (e.g. heroicons) are version updates, not digests, and stay tracked. Those bumps are done by hand.",
       "matchManagers": ["mix"],
-      "matchDepNames": ["boruta", "emcp", "ex_aws_s3"],
+      "matchDatasources": ["git-tags", "github-tags"],
       "matchUpdateTypes": ["digest"],
       "enabled": false
     },
