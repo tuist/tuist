@@ -2528,6 +2528,15 @@ defmodule Tuist.Accounts do
 
   def sso_automatic_enrollment_allowed?(%Organization{sso_automatic_enrollment: false}, _email), do: false
 
+  # Narrowing by an unverified domain is safe: it can only cost the organization its own access.
+  def sso_automatic_enrollment_allowed?(
+        %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true, sso_login_domain: domain},
+        email
+      )
+      when is_binary(domain) do
+    email_domain(email) == domain
+  end
+
   def sso_automatic_enrollment_allowed?(
         %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true},
         _email
