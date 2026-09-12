@@ -51,6 +51,7 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | --- | --- |
 | Process entry, server wiring | `src/main.rs`, `src/app.rs` |
 | Public HTTP + gRPC handlers, including the Remote Execution API cache and Bazel Build Event Service, readiness/rollout endpoints | `src/http.rs`, `src/reapi/` |
+| Remote Asset dependency fetching, verified CAS publication and durable lookup records | `src/reapi/asset/`, [protocol](remote-assets.md) |
 | Storage (metadata, outbox, segments) | `src/store.rs` |
 | Replication (membership, outbox processing) | `src/replication/` |
 | Peer catch-up walker (backfill) | `src/backfill/` |

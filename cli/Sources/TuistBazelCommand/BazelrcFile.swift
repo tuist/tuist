@@ -16,6 +16,10 @@ enum BazelrcFile {
     static let name = ".bazelrc.tuist"
 
     private static let remoteCacheFlag = "build --remote_cache="
+    private static let remoteDownloaderOption = "--experimental_remote_downloader"
+    private static let remoteDownloaderFlag = "build --experimental_remote_downloader="
+    private static let remoteDownloaderFallbackOption = "--experimental_remote_downloader_local_fallback"
+    private static let remoteDownloaderFallbackFlag = "build --experimental_remote_downloader_local_fallback=true"
     private static let remoteCacheCompressionFlag = "build --remote_cache_compression=true"
     private static let remoteCacheCompressionOption = "--remote_cache_compression"
     private static let credentialHelperFlag = "build --credential_helper="
@@ -63,6 +67,8 @@ enum BazelrcFile {
 
         return """
         \(remoteCacheFlag)\(endpoint.url)
+        \(remoteDownloaderFlag)\(endpoint.url)
+        \(remoteDownloaderFallbackFlag)
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
@@ -92,13 +98,16 @@ enum BazelrcFile {
         with endpoint: GRPCEndpoint,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String? {
-        guard remoteCache(in: contents) != nil else { return nil }
+        guard let previousEndpoint = remoteCache(in: contents) else { return nil }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line -> String in
                 if line.hasPrefix(remoteCacheFlag) {
                     return "\(remoteCacheFlag)\(endpoint.url)"
+                }
+                if line == Substring(remoteDownloaderFlag + previousEndpoint) {
+                    return "\(remoteDownloaderFlag)\(endpoint.url)"
                 }
                 if line.hasPrefix(credentialHelperFlag) {
                     // `<host>=<path>`: the path may itself contain `=`, so split once.
@@ -181,7 +190,27 @@ enum BazelrcFile {
         } else {
             updated = mid.trimmingCharacters(in: .newlines) + "\n" + remoteCacheCompressionFlag + "\n"
         }
-        return updated == contents ? nil : updated
+        let result = addingRemoteDownloader(in: updated, endpoint: endpoint)
+        return result == contents ? nil : result
+    }
+
+    private static func addingRemoteDownloader(in contents: String, endpoint: GRPCEndpoint) -> String {
+        let downloaderLines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+        var missingDownloaderFlags: [String] = []
+        let hasDownloader = downloaderLines.contains { hasOption(remoteDownloaderOption, in: $0) }
+        if !hasDownloader {
+            missingDownloaderFlags.append(remoteDownloaderFlag + endpoint.url)
+        }
+        let usesManagedDownloader = !hasDownloader || downloaderLines.contains(Substring(remoteDownloaderFlag + endpoint.url))
+        if usesManagedDownloader, !downloaderLines.contains(where: {
+            hasOption(remoteDownloaderFallbackOption, in: $0)
+                || hasOption("--noexperimental_remote_downloader_local_fallback", in: $0)
+        }) {
+            missingDownloaderFlags.append(remoteDownloaderFallbackFlag)
+        }
+        return missingDownloaderFlags.isEmpty
+            ? contents
+            : contents.trimmingCharacters(in: .newlines) + "\n" + missingDownloaderFlags.joined(separator: "\n") + "\n"
     }
 
     private static func hasActionPublicationPreference(_ line: Substring) -> Bool {

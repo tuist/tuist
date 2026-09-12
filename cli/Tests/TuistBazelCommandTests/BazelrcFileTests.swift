@@ -5,6 +5,41 @@ import TuistREAPI
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
+    @Test func enables_remote_asset_downloads_with_local_fallback() {
+        let contents = rendered()
+        #expect(contents.contains("build --experimental_remote_downloader=grpcs://acme-eu-west-1.kura.tuist.dev"))
+        #expect(contents.contains("build --experimental_remote_downloader_local_fallback=true"))
+    }
+
+    @Test func upgrades_remote_downloader_and_follows_cache_moves() throws {
+        let legacy = rendered().split(separator: "\n").filter { !$0.contains("remote_downloader") }.joined(separator: "\n") + "\n"
+        let upgraded = try #require(BazelrcFile.replacingRemoteCache(in: legacy, with: moved))
+        #expect(upgraded.contains("build --experimental_remote_downloader=\(moved.url)"))
+        #expect(upgraded.contains("build --experimental_remote_downloader_local_fallback=true"))
+        #expect(BazelrcFile.replacingRemoteCache(in: upgraded, with: moved) == nil)
+        let movedContents = try #require(BazelrcFile.replacingRemoteCache(in: rendered(), with: moved))
+        #expect(movedContents.contains("build --experimental_remote_downloader=\(moved.url)"))
+    }
+
+    @Test func preserves_custom_or_disabled_downloader_and_fallback_preferences() throws {
+        for downloader in ["", "grpcs://custom.example.com"] {
+            let contents = rendered()
+                .replacingOccurrences(
+                    of: "build --experimental_remote_downloader=grpcs://acme-eu-west-1.kura.tuist.dev",
+                    with: "common --experimental_remote_downloader=\(downloader)"
+                )
+                .replacingOccurrences(
+                    of: "build --experimental_remote_downloader_local_fallback=true",
+                    with: "common --noexperimental_remote_downloader_local_fallback"
+                )
+            let movedContents = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: moved))
+            #expect(movedContents.contains("common --experimental_remote_downloader=\(downloader)"))
+            #expect(movedContents.contains("common --noexperimental_remote_downloader_local_fallback"))
+            #expect(!movedContents.contains("build --experimental_remote_downloader="))
+            #expect(!movedContents.contains("build --experimental_remote_downloader_local_fallback=true"))
+        }
+    }
+
     private let moved = GRPCEndpoint(host: "acme-ca-east-1.kura.tuist.dev", explicitPort: nil, isTLS: true)
 
     private func rendered(cpuCount: Int = 12) -> String {
