@@ -1,7 +1,9 @@
 defmodule TuistWeb.RateLimit.Metrics do
   @moduledoc """
-  Rate limiting for the build/test duration metrics API, protecting ClickHouse
-  from request floods. The fixed-window limit is keyed per authenticated subject.
+  Rate limiting for the analytics APIs that read ClickHouse directly — build and
+  test duration metrics, and the module cache analytics — protecting it from
+  request floods. The fixed-window limit is keyed per authenticated subject, so
+  the endpoints share one budget per caller.
   """
 
   alias Tuist.Accounts.AuthenticatedAccount
