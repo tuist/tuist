@@ -4,6 +4,7 @@ defmodule Tuist.TasksTest do
   alias Tuist.Tasks
 
   defmodule Query do
+    @moduledoc false
     def explode, do: raise("pool exhausted")
   end
 
