@@ -1583,6 +1583,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns the bucket size for the anonymous per-scope dashboard rate limiter.
+
+  Applied on top of the per-subject dashboard limit and keyed by
+  `(method, account_handle[, project_handle])` for unauthenticated requests,
+  so a scraper distributed across many IPs is caught in aggregate.
+
+  The default values are:
+  - 600 requests per minute per scope for canary environments
+  - 120 requests per minute per scope for other environments
+  """
+  def public_project_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:public_project_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 600, else: 120
+    end
+  end
+
+  @doc """
   Returns the bucket size for the MCP rate limiter.
 
   The default values are:
