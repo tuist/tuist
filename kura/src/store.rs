@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use arc_swap::{ArcSwap, ArcSwapOption};
+use arc_swap::ArcSwapOption;
 use bytes::Bytes;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
@@ -36,10 +36,9 @@ use crate::{
         BACKFILL_INDEX_BUILD_CHUNK_ROWS, BACKFILL_SEQ_STAMP_SLACK_SEQS,
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, OUTBOX_MAX_DEPTH_CEILING,
-        REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
+        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -56,7 +55,6 @@ use crate::{
     mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     reapi::chunking::{canonical_blob_key, is_recipe_key, recipe_referenced_blob_keys},
-    replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
@@ -110,7 +108,6 @@ pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 pub(crate) const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 const SEGMENT_POSITIONED_WRITE_SLOTS: usize = 32;
-const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
 const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
 // The production backfill averaged thousands of reverse rows per action-cache
 // manifest. Checkpoint every manifest so a large historical cache cannot turn
@@ -132,10 +129,6 @@ pub struct ChunkRecipeRefsBackfillStep {
 const BACKFILL_META_BUILD_COMPLETE: &str = "build_complete";
 const BACKFILL_META_LAST_MAINTAINED_SEQ: &str = "last_maintained_seq";
 const BACKFILL_META_FORGIVEN_SEQS: &str = "forgiven_seqs";
-
-pub fn is_outbox_full_error(error: &str) -> bool {
-    error.starts_with(OUTBOX_FULL_ERROR)
-}
 
 pub fn is_multipart_capacity_error(error: &str) -> bool {
     error.starts_with(MULTIPART_CAPACITY_ERROR)
@@ -185,26 +178,6 @@ pub struct Store {
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
-    outbox_depth: AtomicUsize,
-    // Depth of the bulk lane alone. `outbox_depth` is what the cap and the
-    // write gate are enforced against; this splits it so a backlog can be
-    // attributed to the lane that is actually deep, which decides whether the
-    // lever is `OUTBOX_MAX_INFLIGHT` or `drain_metadata_batches`.
-    outbox_bulk_depth: AtomicUsize,
-    // Queued messages per replication target. `reserve_outbox_slots` refuses
-    // a write once any of its targets holds `outbox_max_depth_per_peer`, so
-    // one backed-off peer can fill its own share but not the others'. The
-    // map is rewritten only when a target is first seen or when membership
-    // retires one (`retain_outbox_targets`); the write path loads it and
-    // touches atomics, taking no lock.
-    outbox_target_depth: ArcSwap<HashMap<String, Arc<AtomicUsize>>>,
-    // The node-wide total `reserve_outbox_slots` also refuses at: the share
-    // times the replication target count under `OUTBOX_MAX_DEPTH_CEILING`,
-    // re-derived by `set_replication_peer_count` on every membership pass, or
-    // the fixed `outbox_max_depth_fixed`, which replaces the share entirely.
-    outbox_max_depth: AtomicUsize,
-    outbox_max_depth_fixed: Option<usize>,
-    outbox_max_depth_per_peer: usize,
     multipart_uploads: Arc<AtomicUsize>,
     multipart_admission_waiters: AtomicUsize,
     multipart_admission_turn: Mutex<()>,
@@ -430,13 +403,6 @@ const MAX_PENDING_PROMOTIONS: usize = 262_144;
 const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
 
 pub struct StoreSnapshot {
-    pub outbox_messages: usize,
-    /// How many of `outbox_messages` sit in the bulk lane. The rest are the
-    /// metadata lane, which `drain_metadata_batches` amortizes separately.
-    pub outbox_bulk_messages: usize,
-    /// `outbox_messages` split by target peer; the per-peer share is
-    /// enforced against these.
-    pub outbox_target_messages: Vec<(String, usize)>,
     pub multipart_uploads: usize,
     pub multipart_upload_capacity: usize,
     pub promotion_queue_depth: usize,
@@ -721,7 +687,6 @@ impl StagedBackfillSegmentApply {
             key: &self.key,
             content_type: &self.content_type,
             version_ms: self.version_ms,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: self.origin_region.as_deref(),
@@ -754,7 +719,6 @@ impl StagedBackfillInlineApply {
             key: &self.key,
             content_type: &self.content_type,
             version_ms: self.version_ms,
-            replication_targets: &[],
             branch: self.branch.as_deref(),
             trunk: None,
             origin_region: self.origin_region.as_deref(),
@@ -785,11 +749,9 @@ struct PersistArtifactSpec<'a> {
     key: &'a str,
     content_type: &'a str,
     version_ms: u64,
-    replication_targets: &'a [String],
     branch: Option<&'a str>,
-    /// Rides the replication messages this persist enqueues so a peer can
-    /// re-run the trunk-sticky rule against its own view. Not stored: the
-    /// trunk is a property of the publishing build, not of the artifact.
+    /// The publishing build's trunk, for the trunk-sticky rule. Not stored:
+    /// the trunk is a property of the publishing build, not of the artifact.
     trunk: Option<&'a str>,
     /// The region that first accepted this write: this node's own for a
     /// client write, the carried value for a replicated one, `None` when
@@ -845,12 +807,6 @@ impl ApplyProvenance<'static> {
         origin_region: None,
         sync_feed_row: true,
     };
-}
-
-struct OutboxReservation<'a> {
-    store: &'a Store,
-    targets: &'a [String],
-    committed: bool,
 }
 
 struct MultipartUploadReservation {
@@ -946,29 +902,6 @@ impl Drop for MultipartByteReservation<'_> {
     fn drop(&mut self) {
         if !self.committed {
             release_atomic_bytes(self.bytes, self.added);
-        }
-    }
-}
-
-impl OutboxReservation<'_> {
-    /// `bulk_slots` is how many of the reserved slots were written to the bulk
-    /// lane. It is taken here rather than at reservation time because the lane
-    /// is only known once the messages are built, and it is applied on success
-    /// so a dropped reservation leaves the split untouched.
-    fn commit(mut self, bulk_slots: usize) {
-        self.committed = true;
-        if bulk_slots > 0 {
-            self.store
-                .outbox_bulk_depth
-                .fetch_add(bulk_slots, Ordering::AcqRel);
-        }
-    }
-}
-
-impl Drop for OutboxReservation<'_> {
-    fn drop(&mut self) {
-        if !self.committed && !self.targets.is_empty() {
-            self.store.release_outbox_slots(self.targets);
         }
     }
 }
@@ -1362,20 +1295,6 @@ impl Store {
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
-            outbox_depth: AtomicUsize::new(0),
-            outbox_bulk_depth: AtomicUsize::new(0),
-            outbox_target_depth: ArcSwap::from_pointee(HashMap::new()),
-            outbox_max_depth: AtomicUsize::new(outbox_max_depth_for(
-                config.outbox_max_depth,
-                config.outbox_max_depth_per_peer,
-                config
-                    .peers
-                    .iter()
-                    .filter(|peer| **peer != config.node_url)
-                    .count(),
-            )),
-            outbox_max_depth_fixed: config.outbox_max_depth,
-            outbox_max_depth_per_peer: config.outbox_max_depth_per_peer,
             multipart_uploads: Arc::new(AtomicUsize::new(0)),
             multipart_admission_waiters: AtomicUsize::new(0),
             multipart_admission_turn: Mutex::new(()),
@@ -1440,26 +1359,7 @@ impl Store {
         store.replace_segment_state_snapshot(segment_state);
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
-        let (outbox_depth, outbox_bulk_depth, outbox_target_depth) =
-            store.count_outbox_entries_exact()?;
-        store.outbox_depth.store(outbox_depth, Ordering::Release);
-        store.outbox_target_depth.store(Arc::new(
-            outbox_target_depth
-                .into_iter()
-                .map(|(target, depth)| (target, Arc::new(AtomicUsize::new(depth))))
-                .collect(),
-        ));
-        store
-            .io
-            .metrics()
-            .update_outbox_capacity(store.outbox_max_depth());
-        store
-            .io
-            .metrics()
-            .update_outbox_peer_capacity(store.outbox_peer_capacity());
-        store
-            .outbox_bulk_depth
-            .store(outbox_bulk_depth, Ordering::Release);
+        store.sweep_legacy_outbox()?;
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
         store
             .multipart_uploads
@@ -1484,213 +1384,6 @@ impl Store {
 
     pub fn tmp_staging_budget(&self) -> Arc<TmpBudget> {
         self.tmp_staging_budget.clone()
-    }
-
-    pub fn outbox_depth(&self) -> usize {
-        self.outbox_depth.load(Ordering::Acquire)
-    }
-
-    /// Bulk-lane depth. Capped at the total, because the two counters are read
-    /// separately and a delete landing between them could otherwise show a
-    /// bulk depth above the total and a negative metadata lane.
-    pub fn outbox_bulk_depth(&self) -> usize {
-        self.outbox_bulk_depth
-            .load(Ordering::Acquire)
-            .min(self.outbox_depth())
-    }
-
-    /// The node-wide outbox total at which cache writes are shed; each target
-    /// is also bounded by `outbox_peer_capacity`.
-    pub fn outbox_max_depth(&self) -> usize {
-        self.outbox_max_depth.load(Ordering::Acquire)
-    }
-
-    /// Re-derives the outbox cap for a peer count. Every write enqueues one
-    /// message per target, so the cap tracks the mesh: a peer joining grows
-    /// the room by one per-peer share, a peer leaving shrinks it. The caller
-    /// (`AppState::refresh_outbox_capacity`) counts every peer whose messages
-    /// may still occupy the queue, so a shrink only follows a departure whose
-    /// messages are actually pruned; it sheds nothing itself, reservations
-    /// fail until the drain makes room. Zero peers keeps one share so a mesh
-    /// of one still enqueues.
-    pub fn set_replication_peer_count(&self, peers: usize) {
-        let max_depth = outbox_max_depth_for(
-            self.outbox_max_depth_fixed,
-            self.outbox_max_depth_per_peer,
-            peers,
-        );
-        let previous = self.outbox_max_depth.swap(max_depth, Ordering::AcqRel);
-        if previous != max_depth {
-            self.io.metrics().update_outbox_capacity(max_depth);
-            tracing::debug!(
-                "replication outbox capacity is now {max_depth} messages for {peers} peer(s) (was {previous})"
-            );
-        }
-    }
-
-    /// Messages queued per replication target.
-    pub fn outbox_target_depths(&self) -> Vec<(String, usize)> {
-        self.outbox_target_depth
-            .load()
-            .iter()
-            .map(|(target, depth)| (target.clone(), depth.load(Ordering::Relaxed)))
-            .collect()
-    }
-
-    /// The per-target share that sheds. A fixed `KURA_OUTBOX_MAX_DEPTH`
-    /// replaces the share with its node-wide total, so it is the bound a
-    /// target can reach under one.
-    pub fn outbox_peer_capacity(&self) -> usize {
-        self.outbox_max_depth_fixed
-            .unwrap_or(self.outbox_max_depth_per_peer)
-    }
-
-    /// Whether a write fanning out to `targets` would be refused for outbox
-    /// room: the node at its total, or one of *those* targets at its share.
-    /// Only the write's own targets count — a departed peer's queue is never
-    /// pruned within a process lifetime, and its full share must not gate
-    /// writes the live peers can take. The write gates read this ahead of the
-    /// body so a saturated pod spends nothing on bytes it will not keep;
-    /// `reserve_outbox_slots` is the admission decision.
-    pub fn outbox_saturated(&self, targets: &[String]) -> bool {
-        if self.outbox_depth() >= self.outbox_max_depth() {
-            return true;
-        }
-        if self.outbox_max_depth_fixed.is_some() {
-            return false;
-        }
-        let per_peer = self.outbox_max_depth_per_peer;
-        let depths = self.outbox_target_depth.load();
-        targets.iter().any(|target| {
-            depths
-                .get(target)
-                .is_some_and(|depth| depth.load(Ordering::Relaxed) >= per_peer)
-        })
-    }
-
-    /// Makes sure every target has a counter. Rewrites the map only for a
-    /// peer new to this process, so the write path almost never takes it.
-    fn ensure_outbox_targets(&self, targets: &[String]) {
-        self.outbox_target_depth.rcu(|depths| {
-            let mut depths = HashMap::clone(depths);
-            for target in targets {
-                depths
-                    .entry(target.clone())
-                    .or_insert_with(|| Arc::new(AtomicUsize::new(0)));
-            }
-            depths
-        });
-    }
-
-    /// Drops the counters of targets that are neither replication targets
-    /// nor holding queued messages. Called from the membership pass, so a
-    /// departed peer's counter lives exactly as long as its backlog.
-    pub fn retain_outbox_targets(&self, live: &BTreeSet<String>) {
-        let stale = self
-            .outbox_target_depth
-            .load()
-            .iter()
-            .any(|(target, depth)| !live.contains(target) && depth.load(Ordering::Relaxed) == 0);
-        if !stale {
-            return;
-        }
-        self.outbox_target_depth.rcu(|depths| {
-            depths
-                .iter()
-                .filter(|(target, depth)| {
-                    live.contains(*target) || depth.load(Ordering::Relaxed) > 0
-                })
-                .map(|(target, depth)| (target.clone(), depth.clone()))
-                .collect::<HashMap<_, _>>()
-        });
-    }
-
-    /// Reserves one outbox slot per target, all or nothing: the node-wide
-    /// total first, then each target's share (unless a fixed total replaces
-    /// it). A write refused for a share names the saturated target, so one
-    /// peer's backlog is refused at its own share and the room meant for the
-    /// other peers stays theirs. Lock-free: the total is a CAS, each share a
-    /// bounded fetch-update, and a refusal rolls back what it took.
-    fn reserve_outbox_slots<'a>(
-        &'a self,
-        targets: &'a [String],
-    ) -> Result<OutboxReservation<'a>, String> {
-        if targets.is_empty() {
-            return Ok(OutboxReservation {
-                store: self,
-                targets,
-                committed: false,
-            });
-        }
-
-        let slots = targets.len();
-        let max_depth = self.outbox_max_depth();
-        let mut current = self.outbox_depth.load(Ordering::Acquire);
-        loop {
-            let requested = current.saturating_add(slots);
-            if requested > max_depth {
-                return Err(format!(
-                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {max_depth} allowed"
-                ));
-            }
-            match self.outbox_depth.compare_exchange_weak(
-                current,
-                requested,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => break,
-                Err(observed) => current = observed,
-            }
-        }
-
-        if self.outbox_max_depth_fixed.is_none() {
-            let per_peer = self.outbox_max_depth_per_peer;
-            let mut depths = self.outbox_target_depth.load();
-            if targets.iter().any(|target| !depths.contains_key(target)) {
-                self.ensure_outbox_targets(targets);
-                depths = self.outbox_target_depth.load();
-            }
-            for (taken, target) in targets.iter().enumerate() {
-                let claimed =
-                    depths[target].fetch_update(Ordering::AcqRel, Ordering::Acquire, |depth| {
-                        (depth < per_peer).then_some(depth + 1)
-                    });
-                if let Err(depth) = claimed {
-                    self.release_outbox_slots(&targets[..taken]);
-                    release_atomic_slots(&self.outbox_depth, slots - taken);
-                    return Err(format!(
-                        "{OUTBOX_FULL_ERROR}: {depth} messages queued for {target}, {per_peer} allowed per peer"
-                    ));
-                }
-            }
-        }
-        Ok(OutboxReservation {
-            store: self,
-            targets,
-            committed: false,
-        })
-    }
-
-    fn release_outbox_slots(&self, targets: &[String]) {
-        if self.outbox_max_depth_fixed.is_none() {
-            let depths = self.outbox_target_depth.load();
-            for target in targets {
-                if let Some(depth) = depths.get(target) {
-                    release_atomic_slots(depth, 1);
-                }
-            }
-        }
-        release_atomic_slots(&self.outbox_depth, targets.len());
-    }
-
-    fn release_outbox_slot(&self, target: &str) {
-        if self.outbox_max_depth_fixed.is_none()
-            && let Some(depth) = self.outbox_target_depth.load().get(target)
-        {
-            release_atomic_slots(depth, 1);
-        }
-        release_atomic_slots(&self.outbox_depth, 1);
     }
 
     pub fn multipart_upload_capacity(&self) -> usize {
@@ -1947,14 +1640,13 @@ impl Store {
         Ok(bytes)
     }
 
-    pub async fn persist_artifact_from_path_and_enqueue(
+    pub async fn persist_artifact_from_path_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
         staged: StagedArtifactPath<'_>,
-        replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -1962,7 +1654,6 @@ impl Store {
             key,
             content_type,
             version_ms: 0,
-            replication_targets,
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
@@ -2017,7 +1708,6 @@ impl Store {
             key,
             content_type,
             version_ms,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: provenance.origin_region,
@@ -2087,8 +1777,6 @@ impl Store {
                     already_present,
                 } => (existing, already_present),
             };
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
-
         let (location, evicted_segments, _durability_seq) = match source {
             SegmentArtifactSource::Path(staged) => {
                 self.append_to_segment(
@@ -2117,14 +1805,7 @@ impl Store {
             .await?;
 
         let manifest = self
-            .commit_segment_manifest(
-                &spec,
-                &artifact_id,
-                existing.as_ref(),
-                &location,
-                size,
-                outbox_reservation,
-            )
+            .commit_segment_manifest(&spec, &artifact_id, existing.as_ref(), &location, size)
             .await?;
 
         self.evict_segments(evicted_segments).await?;
@@ -2180,10 +1861,8 @@ impl Store {
         existing: Option<&ArtifactManifest>,
         location: &SegmentLocation,
         size: u64,
-        outbox_reservation: OutboxReservation<'_>,
     ) -> Result<ArtifactManifest, String> {
         let mut batch = WriteBatch::default();
-        let mut bulk_outbox = 0;
         let mut feed = Vec::new();
         let manifest = self.stage_segment_manifest(
             &mut batch,
@@ -2192,7 +1871,6 @@ impl Store {
             existing,
             location,
             size,
-            &mut bulk_outbox,
             &mut feed,
         )?;
         self.write_batch_with_durability_off_runtime(
@@ -2202,7 +1880,6 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
-        outbox_reservation.commit(bulk_outbox);
         self.note_segment_manifest_committed(&manifest, &location.segment_id)
             .await?;
         Ok(manifest)
@@ -2224,7 +1901,6 @@ impl Store {
         existing: Option<&ArtifactManifest>,
         location: &SegmentLocation,
         size: u64,
-        bulk_outbox: &mut usize,
         feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<ArtifactManifest, String> {
         let artifact_id = artifact_id.to_owned();
@@ -2329,12 +2005,6 @@ impl Store {
             );
             feed.push(ticket);
         }
-        *bulk_outbox += self.append_artifact_replication_messages(
-            batch,
-            &manifest,
-            spec.replication_targets,
-            spec.trunk,
-        )?;
 
         Ok(manifest)
     }
@@ -2354,14 +2024,6 @@ impl Store {
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&manifest.artifact_id);
         Ok(())
-    }
-
-    pub async fn open_artifact_reader(
-        &self,
-        manifest: &ArtifactManifest,
-    ) -> Result<ArtifactReader, String> {
-        self.open_manifest_reader_with_range(manifest, 0, None)
-            .await
     }
 
     pub async fn open_accelerated_artifact_file(
@@ -2564,6 +2226,15 @@ impl Store {
     /// original error stands. Returns the manifest that was actually opened so
     /// callers derive response metadata (size, content type) from the copy the
     /// bytes come from.
+    #[cfg(test)]
+    pub async fn open_artifact_reader(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<ArtifactReader, String> {
+        self.open_manifest_reader_with_range(manifest, 0, None)
+            .await
+    }
+
     pub async fn open_artifact_reader_range_tolerating_promotion(
         &self,
         manifest: &ArtifactManifest,
@@ -3051,10 +2722,8 @@ impl Store {
         // the tag decision and the write it feeds cannot be split by a racing
         // peer.
         let branch = sticky_branch(existing.as_ref(), spec.branch, spec.trunk);
-        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets)?;
 
         let mut batch = WriteBatch::default();
-        let mut bulk_outbox = 0;
         let mut feed = Vec::new();
         let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
             &mut batch,
@@ -3063,7 +2732,6 @@ impl Store {
             existing.as_ref(),
             branch,
             bytes,
-            &mut bulk_outbox,
             &mut feed,
         )?;
 
@@ -3074,7 +2742,6 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
-        outbox_reservation.commit(bulk_outbox);
         self.note_inline_manifest_committed(&manifest, wrote_action_cache_index);
 
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
@@ -3132,7 +2799,6 @@ impl Store {
         existing: Option<&ArtifactManifest>,
         branch: Option<&str>,
         bytes: &[u8],
-        bulk_outbox: &mut usize,
         feed: &mut Vec<SyncFeedTicket>,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_id.to_owned();
@@ -3257,12 +2923,6 @@ impl Store {
             );
             feed.push(ticket);
         }
-        *bulk_outbox += self.append_artifact_replication_messages(
-            batch,
-            &manifest,
-            spec.replication_targets,
-            spec.trunk,
-        )?;
 
         Ok((manifest, wrote_action_cache_index))
     }
@@ -5093,7 +4753,6 @@ impl Store {
             key,
             content_type,
             version_ms: 0,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
@@ -5108,29 +4767,27 @@ impl Store {
             .map(|persisted| persisted.manifest)
     }
 
-    pub async fn persist_artifact_from_bytes_and_enqueue(
+    pub async fn persist_artifact_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
         bytes: &[u8],
-        replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
-        self.persist_admitted_artifact_from_bytes_and_enqueue(
+        self.persist_admitted_artifact_from_bytes_and_replicate(
             producer,
             namespace_id,
             key,
             content_type,
             bytes,
             FileCachePolicy::Adaptive,
-            replication_targets,
         )
         .await
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn persist_admitted_artifact_from_bytes_and_enqueue(
+    pub(crate) async fn persist_admitted_artifact_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
@@ -5138,7 +4795,6 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         file_cache_policy: FileCachePolicy,
-        replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -5146,7 +4802,6 @@ impl Store {
             key,
             content_type,
             version_ms: 0,
-            replication_targets,
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
@@ -5180,7 +4835,6 @@ impl Store {
             key,
             content_type,
             version_ms: 0,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
@@ -5209,14 +4863,13 @@ impl Store {
     /// the same entries' versions (and replicate the rewrites) on the same
     /// day.
     #[allow(clippy::too_many_arguments)]
-    pub async fn persist_inline_artifact_from_bytes_damped_and_enqueue(
+    pub async fn persist_inline_artifact_from_bytes_damped_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
         bytes: &[u8],
-        replication_targets: &[String],
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<(ArtifactManifest, bool), String> {
@@ -5253,13 +4906,12 @@ impl Store {
         // The tag is resolved by the persist below, under the per-artifact write
         // lock. Deciding it from `existing` here would race: this read is only
         // the damping probe, and a peer can commit between it and the write.
-        self.persist_inline_artifact_from_bytes_and_enqueue(
+        self.persist_inline_artifact_from_bytes_and_replicate(
             producer,
             namespace_id,
             key,
             content_type,
             bytes,
-            replication_targets,
             branch,
             trunk,
         )
@@ -5268,14 +4920,13 @@ impl Store {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn persist_inline_artifact_from_bytes_and_enqueue(
+    pub async fn persist_inline_artifact_from_bytes_and_replicate(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
         bytes: &[u8],
-        replication_targets: &[String],
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
@@ -5285,7 +4936,6 @@ impl Store {
             key,
             content_type,
             version_ms: 0,
-            replication_targets,
             branch,
             trunk,
             origin_region: Some(&self.region),
@@ -5321,7 +4971,6 @@ impl Store {
             key,
             content_type,
             version_ms,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region: None,
@@ -5394,7 +5043,6 @@ impl Store {
             key,
             content_type,
             version_ms,
-            replication_targets: &[],
             branch,
             trunk,
             origin_region: provenance.origin_region,
@@ -5435,7 +5083,6 @@ impl Store {
             key,
             content_type,
             version_ms,
-            replication_targets: &[],
             branch,
             trunk: None,
             origin_region,
@@ -5495,7 +5142,6 @@ impl Store {
             key,
             content_type,
             version_ms,
-            replication_targets: &[],
             branch: None,
             trunk: None,
             origin_region,
@@ -5668,10 +5314,6 @@ impl Store {
                     {
                         SegmentApplyPrecheck::Ignored { .. } => {}
                         SegmentApplyPrecheck::Proceed { existing, .. } => {
-                            // Backfill specs carry no replication targets, so
-                            // this stages no outbox messages and the tally is
-                            // always zero.
-                            let mut bulk_outbox = 0;
                             let manifest = self.stage_segment_manifest(
                                 &mut batch,
                                 &spec,
@@ -5679,7 +5321,6 @@ impl Store {
                                 existing.as_ref(),
                                 &staged.location,
                                 staged.size,
-                                &mut bulk_outbox,
                                 &mut feed,
                             )?;
                             committed.push(CommittedGroupRecord::Segmented {
@@ -5702,7 +5343,6 @@ impl Store {
                             // re-read (backfill never forwards a trunk).
                             let branch =
                                 sticky_branch(existing.as_ref(), staged.branch.as_deref(), None);
-                            let mut bulk_outbox = 0;
                             let (manifest, wrote_action_cache_index) = self.stage_inline_manifest(
                                 &mut batch,
                                 &spec,
@@ -5710,7 +5350,6 @@ impl Store {
                                 existing.as_ref(),
                                 branch,
                                 &staged.bytes,
-                                &mut bulk_outbox,
                                 &mut feed,
                             )?;
                             committed.push(CommittedGroupRecord::Inline {
@@ -5789,24 +5428,15 @@ impl Store {
 
     #[cfg(test)]
     pub async fn delete_namespace(&self, namespace_id: &str) -> Result<u64, String> {
-        self.delete_namespace_with_version(namespace_id, TombstoneVersion::Local, &[], true)
+        self.delete_namespace_with_version(namespace_id, TombstoneVersion::Local, true)
             .await
             .map(|outcome| outcome.1)
     }
 
-    pub async fn delete_namespace_and_enqueue(
-        &self,
-        namespace_id: &str,
-        replication_targets: &[String],
-    ) -> Result<u64, String> {
-        self.delete_namespace_with_version(
-            namespace_id,
-            TombstoneVersion::Local,
-            replication_targets,
-            true,
-        )
-        .await
-        .map(|outcome| outcome.1)
+    pub async fn delete_namespace_and_replicate(&self, namespace_id: &str) -> Result<u64, String> {
+        self.delete_namespace_with_version(namespace_id, TombstoneVersion::Local, true)
+            .await
+            .map(|outcome| outcome.1)
     }
 
     pub async fn apply_replicated_namespace_delete(
@@ -5830,7 +5460,6 @@ impl Store {
         self.delete_namespace_with_version(
             namespace_id,
             TombstoneVersion::At(version_ms),
-            &[],
             sync_feed_row,
         )
         .await
@@ -5846,7 +5475,6 @@ impl Store {
         &self,
         namespace_id: &str,
         version: TombstoneVersion,
-        replication_targets: &[String],
         sync_feed_row: bool,
     ) -> Result<(NamespaceDeleteOutcome, u64), String> {
         let mut ticket = match version {
@@ -5873,9 +5501,9 @@ impl Store {
         // previous version, both decide they are newer, and commit in the
         // wrong order — leaving the older version as the tombstone and
         // un-blocking every artifact the newer delete removed. Peer deliveries
-        // for one namespace arrive concurrently now that the outbox drain is
-        // pipelined, and a re-delete of the same namespace is the ordinary way
-        // to produce two of them.
+        // for one namespace arrive concurrently over the pull links, and a
+        // re-delete of the same namespace is the ordinary way to produce two
+        // of them.
         let _delete_guard = self.namespace_lock_for(namespace_id).write().await;
         let previous_tombstone = self.namespace_tombstone_version(namespace_id)?;
         if !delete_everything
@@ -5884,11 +5512,6 @@ impl Store {
         {
             return Ok((NamespaceDeleteOutcome::IgnoredOlder, version_ms));
         }
-        let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
-            &[]
-        } else {
-            replication_targets
-        })?;
         if !delete_everything {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
@@ -6006,15 +5629,8 @@ impl Store {
             Self::action_cache_index_marker_key(namespace_id).as_bytes(),
         );
 
-        let mut bulk_outbox = 0;
         let mut feed = Vec::new();
         if !delete_everything {
-            bulk_outbox += self.append_namespace_delete_messages(
-                &mut batch,
-                namespace_id,
-                version_ms,
-                replication_targets,
-            )?;
             // INV-8: `delete_everything` stays node-local and earns no row.
             if let Some(ticket) = ticket
                 .take()
@@ -6039,7 +5655,6 @@ impl Store {
         )
         .await?;
         commit_sync_feed_tickets(feed);
-        outbox_reservation.commit(bulk_outbox);
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
@@ -6454,15 +6069,14 @@ impl Store {
         upload_id: &str,
         expected_parts: &[u32],
     ) -> Result<ArtifactManifest, MultipartError> {
-        self.complete_multipart_upload_and_enqueue(upload_id, expected_parts, &[])
+        self.complete_multipart_upload_and_replicate(upload_id, expected_parts)
             .await
     }
 
-    pub async fn complete_multipart_upload_and_enqueue(
+    pub async fn complete_multipart_upload_and_replicate(
         &self,
         upload_id: &str,
         expected_parts: &[u32],
-        replication_targets: &[String],
     ) -> Result<ArtifactManifest, MultipartError> {
         if expected_parts.is_empty()
             || expected_parts.len() > MAX_MULTIPART_PARTS
@@ -6574,13 +6188,12 @@ impl Store {
 
         let key = module_key(&upload.category, &upload.hash, &upload.name);
         let manifest = self
-            .persist_artifact_from_path_and_enqueue(
+            .persist_artifact_from_path_and_replicate(
                 ArtifactProducer::Module,
                 &upload.namespace_id,
                 &key,
                 "application/octet-stream",
                 StagedArtifactPath::new(&assembled_path, file_cache_policy),
-                replication_targets,
             )
             .await
             .map_err(MultipartError::Other)?
@@ -6641,51 +6254,6 @@ impl Store {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
-        let outbox_reservation =
-            self.reserve_outbox_slots(std::slice::from_ref(&message.target))?;
-        let key = outbox_message_key(&message);
-        let value = serde_json::to_vec(&message)
-            .map_err(|error| format!("failed to encode outbox message: {error}"))?;
-        let mut batch = WriteBatch::default();
-        batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        self.write_batch_sync(batch, "outbox message")?;
-        outbox_reservation.commit(usize::from(is_bulk_outbox_key(key.as_bytes())));
-        Ok(())
-    }
-
-    pub fn next_outbox_message(
-        &self,
-        after: Option<&[u8]>,
-    ) -> Result<Option<(Vec<u8>, OutboxMessage)>, String> {
-        let iter = match after {
-            Some(after) => self.db.iterator_cf(
-                self.cf(ROCKSDB_CF_OUTBOX),
-                IteratorMode::From(after, rocksdb::Direction::Forward),
-            ),
-            None => self
-                .db
-                .iterator_cf(self.cf(ROCKSDB_CF_OUTBOX), IteratorMode::Start),
-        };
-
-        for item in iter {
-            let (key, value) =
-                item.map_err(|error| format!("failed to iterate outbox: {error}"))?;
-            if after.is_some_and(|cursor| key.as_ref() == cursor) {
-                continue;
-            }
-            let message = serde_json::from_slice::<OutboxMessage>(&value)
-                .map_err(|error| format!("failed to decode outbox message: {error}"))?;
-            return Ok(Some((key.to_vec(), message)));
-        }
-        Ok(None)
-    }
-
-    pub fn outbox_message_count(&self) -> Result<usize, String> {
-        Ok(self.outbox_depth())
-    }
-
     pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
         if rollups.is_empty() {
             return Ok(());
@@ -6740,21 +6308,7 @@ impl Store {
         self.write_batch_sync(batch, "usage rollup deletes")
     }
 
-    #[cfg(test)]
-    pub fn outbox_messages(&self) -> Result<Vec<(Vec<u8>, OutboxMessage)>, String> {
-        let mut messages = Vec::new();
-        let mut after = None::<Vec<u8>>;
-        while let Some((key, message)) = self.next_outbox_message(after.as_deref())? {
-            after = Some(key.clone());
-            messages.push((key, message));
-        }
-        Ok(messages)
-    }
-
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
-        let outbox_messages = self.outbox_message_count()?;
-        let outbox_bulk_messages = self.outbox_bulk_depth();
-        let outbox_target_messages = self.outbox_target_depths();
         let multipart_uploads = self.multipart_uploads.load(Ordering::Acquire);
         let promotion_queue_depth = self
             .promotion_queue
@@ -6768,9 +6322,6 @@ impl Store {
             ("new", segment_state.state.new.len()),
         ];
         Ok(StoreSnapshot {
-            outbox_messages,
-            outbox_bulk_messages,
-            outbox_target_messages,
             multipart_uploads,
             multipart_upload_capacity: self.multipart_upload_capacity(),
             promotion_queue_depth,
@@ -8336,29 +7887,6 @@ impl Store {
         }
     }
 
-    /// Persists a peer's watermark under a monotonic max guard: a stale write
-    /// (an older pass completing after a newer one, or a completion racing
-    /// peer removal) can never regress the row. `refreshed_at_ms` is the
-    /// local-clock completion stamp retention GC judges the row by — written
-    /// on completion only, never periodically touched.
-    pub fn write_backfill_watermark(
-        &self,
-        node_url: &str,
-        watermark_ms: u64,
-        refreshed_at_ms: u64,
-    ) -> Result<(), String> {
-        let watermark_ms = self
-            .backfill_watermark(node_url)?
-            .map_or(watermark_ms, |existing| existing.max(watermark_ms));
-        let mut batch = WriteBatch::default();
-        batch.put_cf(
-            self.cf(ROCKSDB_CF_KEY_VALUE),
-            backfill_wm_key(node_url).as_bytes(),
-            encode_backfill_watermark_value(watermark_ms, refreshed_at_ms),
-        );
-        self.write_batch_sync(batch, "backfill watermark")
-    }
-
     /// Removes watermark rows whose completion-time `refreshed_at` is older
     /// than the retention by the local clock, plus rows that no longer decode.
     /// Returns how many rows were removed. A GC'd row's only cost is one
@@ -8759,17 +8287,6 @@ impl Store {
         self.stamp_backfill_maintained_seq()
     }
 
-    pub fn delete_outbox_message(&self, key: &[u8], target: &str) -> Result<(), String> {
-        self.db
-            .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
-            .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
-        self.release_outbox_slot(target);
-        if is_bulk_outbox_key(key) {
-            release_atomic_slots(&self.outbox_bulk_depth, 1);
-        }
-        Ok(())
-    }
-
     #[cfg(test)]
     pub fn artifact_version_is_current(
         &self,
@@ -8826,78 +8343,23 @@ impl Store {
             .expect("missing RocksDB column family")
     }
 
-    /// Returns how many of the appended messages went to the bulk lane.
-    fn append_artifact_replication_messages(
-        &self,
-        batch: &mut WriteBatch,
-        manifest: &ArtifactManifest,
-        replication_targets: &[String],
-        trunk: Option<&str>,
-    ) -> Result<usize, String> {
-        let mut bulk = 0_usize;
-        for target in replication_targets {
-            bulk += usize::from(self.append_outbox_message(
-                batch,
-                OutboxMessage {
-                    target: target.clone(),
-                    operation: ReplicationOperation::UpsertArtifact {
-                        producer: manifest.producer,
-                        namespace_id: manifest.namespace_id.clone(),
-                        key: manifest.key.clone(),
-                        content_type: manifest.content_type.clone(),
-                        artifact_id: manifest.artifact_id.clone(),
-                        inline: manifest.inline,
-                        version_ms: manifest.version_ms,
-                        // The tag as resolved here, so the peer does not have to
-                        // infer it from a request header it never saw.
-                        branch: manifest.branch.clone(),
-                        trunk: trunk.map(str::to_owned),
-                        origin_region: manifest.origin_region.clone(),
-                    },
-                },
-            )?);
+    /// Drops whatever the push-era outbox left behind. The column family
+    /// itself stays declared (design §5.2): the store opens with an explicit
+    /// descriptor list, so a rollback to a binary that expects it must still
+    /// find it. Rows can only be present on a node upgraded straight from a
+    /// pushing release; nothing drains them any more, and the peers they
+    /// were for catch up through their own pull links instead.
+    fn sweep_legacy_outbox(&self) -> Result<(), String> {
+        let cf = self.cf(ROCKSDB_CF_OUTBOX);
+        let rows = self.db.iterator_cf(cf, IteratorMode::Start).take(1).count();
+        if rows == 0 {
+            return Ok(());
         }
-        Ok(bulk)
-    }
-
-    /// Returns how many of the appended messages went to the bulk lane. Namespace
-    /// deletes are metadata-lane by construction, so this is always zero; it is
-    /// reported anyway so the lane stays derived from the key rather than assumed.
-    fn append_namespace_delete_messages(
-        &self,
-        batch: &mut WriteBatch,
-        namespace_id: &str,
-        version_ms: u64,
-        replication_targets: &[String],
-    ) -> Result<usize, String> {
-        let mut bulk = 0_usize;
-        for target in replication_targets {
-            bulk += usize::from(self.append_outbox_message(
-                batch,
-                OutboxMessage {
-                    target: target.clone(),
-                    operation: ReplicationOperation::DeleteNamespace {
-                        namespace_id: namespace_id.to_owned(),
-                        version_ms,
-                    },
-                },
-            )?);
-        }
-        Ok(bulk)
-    }
-
-    /// Returns whether the message went to the bulk lane, so the caller can
-    /// tally it for `OutboxReservation::commit`.
-    fn append_outbox_message(
-        &self,
-        batch: &mut WriteBatch,
-        message: OutboxMessage,
-    ) -> Result<bool, String> {
-        let key = outbox_message_key(&message);
-        let value = serde_json::to_vec(&message)
-            .map_err(|error| format!("failed to encode outbox message: {error}"))?;
-        batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        Ok(is_bulk_outbox_key(key.as_bytes()))
+        let mut batch = WriteBatch::default();
+        batch.delete_range_cf(cf, [0_u8], [0xff_u8]);
+        self.write_batch_sync(batch, "legacy outbox sweep")?;
+        tracing::info!("dropped the push-era replication outbox left by a previous release");
+        Ok(())
     }
 
     fn write_batch_sync(&self, batch: WriteBatch, label: &str) -> Result<(), String> {
@@ -9228,43 +8690,6 @@ impl Store {
 
     fn note_artifact_exists(&self, artifact_id: &str) {
         self.existence_cache.insert(artifact_id);
-    }
-
-    /// Total and bulk-lane outbox depth in one pass, for seeding both counters
-    /// at open. Runs once per process, so it iterates rather than keeping a
-    /// second persisted tally that could disagree with the entries on disk.
-    fn count_outbox_entries_exact(&self) -> Result<(usize, usize, HashMap<String, usize>), String> {
-        let iter = self
-            .db
-            .iterator_cf(self.cf(ROCKSDB_CF_OUTBOX), IteratorMode::Start);
-        let mut total = 0_usize;
-        let mut bulk = 0_usize;
-        let mut per_target: HashMap<String, usize> = HashMap::new();
-        for item in iter {
-            let (key, value) =
-                item.map_err(|error| format!("failed to iterate {ROCKSDB_CF_OUTBOX}: {error}"))?;
-            total = total.saturating_add(1);
-            if is_bulk_outbox_key(&key) {
-                bulk = bulk.saturating_add(1);
-            }
-            // Only the target is read: the operation may carry a variant this
-            // binary does not know (a rollback across a wire addition), and
-            // that is a per-message drain failure, not a reason to keep the
-            // store from opening. The row still holds a slot in the total.
-            match serde_json::from_slice::<OutboxTarget<'_>>(&value) {
-                Ok(message) => match per_target.get_mut(message.target) {
-                    Some(depth) => *depth += 1,
-                    None => {
-                        per_target.insert(message.target.to_owned(), 1);
-                    }
-                },
-                Err(error) => tracing::warn!(
-                    key = %String::from_utf8_lossy(&key),
-                    "outbox row is not attributable to a target: {error}"
-                ),
-            }
-        }
-        Ok((total, bulk, per_target))
     }
 
     #[cfg(test)]
@@ -10430,45 +9855,6 @@ fn staged_version_ms(spec: &PersistArtifactSpec<'_>, ticket: Option<&SyncFeedTic
     ticket.map_or_else(now_ms, SyncFeedTicket::stamp_ms)
 }
 
-/// Every outbox key at or past this prefix belongs to the bulk lane. Keys are
-/// ordered `"0-…"` (metadata lane) < `"0000…"` (legacy unprefixed zero-padded
-/// timestamps, drained between the lanes across a rolling upgrade) < `"1-…"`
-/// (bulk lane), so a fresh action-cache entry replicates ahead of a blob
-/// backlog instead of waiting out gigabytes of it — measured as ~30 minutes
-/// of cross-pod snapshot staleness during a cache populate.
-pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
-
-fn outbox_max_depth_for(fixed: Option<usize>, per_peer: usize, peers: usize) -> usize {
-    fixed.unwrap_or_else(|| {
-        per_peer
-            .saturating_mul(peers.max(1))
-            .min(OUTBOX_MAX_DEPTH_CEILING)
-    })
-}
-
-/// The target half of a persisted `OutboxMessage`, for counting rows the
-/// current binary may not be able to decode in full.
-#[derive(Deserialize)]
-struct OutboxTarget<'a> {
-    #[serde(borrow)]
-    target: &'a str,
-}
-
-/// Whether an outbox key belongs to the bulk lane. The lane is the key's first
-/// byte, so this reads it without decoding the message.
-pub fn is_bulk_outbox_key(key: &[u8]) -> bool {
-    key.starts_with(OUTBOX_BULK_LANE_PREFIX.as_bytes())
-}
-
-fn outbox_message_key(message: &OutboxMessage) -> String {
-    let lane = if message.operation.is_bulk() {
-        "1"
-    } else {
-        "0"
-    };
-    format!("{lane}-{:020}-{}", now_ms(), Uuid::now_v7())
-}
-
 /// The branch tag a publish should land with, honoring trunk-stickiness: a key
 /// already in the trunk baseline (tagged with the trunk branch) keeps its tag. A
 /// feature build recomputing the same action republishes it, often with byte
@@ -10561,7 +9947,6 @@ mod tests {
         memory::MemoryController,
         metrics::Metrics,
         reapi::chunking::{ChunkedBlobRecipe, recipe_key},
-        replication::operation::ReplicationOperation,
         segment::{reference::SegmentReference, state::SegmentState},
     };
 
@@ -10989,7 +10374,6 @@ mod tests {
                         key: &key,
                         content_type: "application/octet-stream",
                         version_ms: 0,
-                        replication_targets: &[],
                         branch: None,
                         trunk: None,
                         origin_region: None,
@@ -11505,11 +10889,8 @@ mod tests {
             rocksdb_write_buffer_manager_bytes: 32 * 1024 * 1024,
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
-            outbox_max_depth: None,
-            outbox_max_depth_per_peer: 50_000,
             replication_bandwidth_limit_bytes_per_second: 0,
             replication_public_latency_target_ms: 100,
-            replication_upload_stall_ms: crate::constants::DEFAULT_REPLICATION_UPLOAD_STALL_MS,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             multipart_max_active_uploads: None,
@@ -11517,7 +10898,6 @@ mod tests {
             backfill_margin_percent: 40,
             backfill_ready_ring_percent: crate::constants::default_backfill_ready_ring_percent(40),
             backfill_batch_bytes: crate::constants::DEFAULT_BACKFILL_BATCH_BYTES,
-            replication_pull: false,
             sync_feed_max_rows: crate::constants::DEFAULT_SYNC_FEED_MAX_ROWS,
             sync_long_poll_secs: crate::constants::DEFAULT_SYNC_LONG_POLL_SECS,
             sync_pass_start_buffer_ms: crate::constants::DEFAULT_SYNC_PASS_START_BUFFER_MS,
@@ -11789,13 +11169,12 @@ mod tests {
             .expect("seed should persist");
 
         let (refreshed, applied) = store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "action_cache/aa/10",
                 "application/x-protobuf",
                 b"graph",
-                &[],
                 None,
                 None,
             )
@@ -11804,13 +11183,12 @@ mod tests {
         assert!(applied, "an aged identical re-publish applies");
 
         let (damped, applied) = store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "action_cache/aa/10",
                 "application/x-protobuf",
                 b"graph",
-                &[],
                 None,
                 None,
             )
@@ -11823,13 +11201,12 @@ mod tests {
         assert_eq!(damped.version_ms, refreshed.version_ms);
 
         let (changed, applied) = store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "action_cache/aa/10",
                 "application/x-protobuf",
                 b"graph-v2",
-                &[],
                 None,
                 None,
             )
@@ -11844,13 +11221,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         async fn publish(store: &Store, key: &str, branch: Option<&str>) {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     key,
                     "application/x-protobuf",
                     b"graph",
-                    &[],
                     branch,
                     None,
                 )
@@ -11946,13 +11322,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         async fn publish(store: &Store, key: &str, branch: Option<&str>) {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     key,
                     "application/x-protobuf",
                     b"graph",
-                    &[],
                     branch,
                     None,
                 )
@@ -11999,13 +11374,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         async fn publish(store: &Store, branch: Option<&str>) -> ArtifactManifest {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     "action_cache/aa/10",
                     "application/x-protobuf",
                     b"identical",
-                    &[],
                     branch,
                     Some("main"),
                 )
@@ -12039,13 +11413,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         async fn publish(store: &Store, bytes: &[u8], branch: Option<&str>) -> ArtifactManifest {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     "action_cache/aa/10",
                     "application/x-protobuf",
                     bytes,
-                    &[],
                     branch,
                     // No trunk either: an older client sends neither header.
                     None,
@@ -12070,13 +11443,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         async fn publish(store: &Store, key: &str, bytes: &[u8], branch: Option<&str>) {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     key,
                     "application/x-protobuf",
                     bytes,
-                    &[],
                     branch,
                     Some("main"),
                 )
@@ -12250,13 +11622,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
         for _ in 0..1 {
             store
-                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                .persist_inline_artifact_from_bytes_damped_and_replicate(
                     ArtifactProducer::Reapi,
                     "ios",
                     "action_cache/aa/10",
                     "application/x-protobuf",
                     b"graph",
-                    &[],
                     Some("main"),
                     Some("main"),
                 )
@@ -12264,13 +11635,12 @@ mod tests {
                 .expect("trunk entry should persist");
         }
         let (_manifest, applied) = store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "action_cache/aa/10",
                 "application/x-protobuf",
                 b"graph",
-                &[],
                 Some("main"),
                 Some("main"),
             )
@@ -12287,13 +11657,12 @@ mod tests {
         // `feature` and replicates that. This node holds the key in its trunk
         // baseline and must not hand it over.
         store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "action_cache/aa/10",
                 "application/x-protobuf",
                 b"graph",
-                &[],
                 Some("main"),
                 Some("main"),
             )
@@ -12673,13 +12042,12 @@ mod tests {
         let (_temp_dir, _config, store) = temp_store();
 
         let persisted = store
-            .persist_artifact_from_bytes_and_enqueue(
+            .persist_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "blob/abc",
                 "application/octet-stream",
                 b"payload",
-                &[],
             )
             .await
             .expect("first persist should succeed");
@@ -12689,13 +12057,12 @@ mod tests {
         );
 
         let re_persisted = store
-            .persist_artifact_from_bytes_and_enqueue(
+            .persist_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "blob/abc",
                 "application/octet-stream",
                 b"payload",
-                &[],
             )
             .await
             .expect("re-persist should succeed");
@@ -12719,13 +12086,12 @@ mod tests {
         );
 
         let persists = (0..4).map(|_| {
-            store.persist_artifact_from_bytes_and_enqueue(
+            store.persist_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Reapi,
                 "ios",
                 "blob/raced",
                 "application/octet-stream",
                 b"payload",
-                &[],
             )
         });
         let outcomes = futures_util::future::join_all(persists).await;
@@ -17399,8 +16765,7 @@ mod tests {
     async fn concurrent_namespace_deletes_keep_the_newest_tombstone() {
         // The tombstone decision reads the previous version, compares, and only
         // then writes, with the namespace scan in between. Deliveries for one
-        // namespace arrive concurrently now that the outbox drain is pipelined,
-        // so without a lock across that span both can read the same previous
+        // namespace arrive concurrently over the pull links, so without a lock across that span both can read the same previous
         // version, both conclude they are newer, and the older one can commit
         // last. The tombstone would then read 100 with artifacts up to 200
         // removed, and `namespace_tombstone_blocks` would stop rejecting the
@@ -19314,7 +18679,7 @@ mod tests {
                 .is_err()
         );
         store
-            .complete_multipart_upload_and_enqueue(&uploads[0], &[1], &[])
+            .complete_multipart_upload_and_replicate(&uploads[0], &[1])
             .await
             .expect("a session above the reduced cap should still complete");
         assert_eq!(store.snapshot().unwrap().multipart_uploads, 8);
@@ -19552,679 +18917,6 @@ mod tests {
         assert_eq!(validate_total_size(100, 100), Ok(()));
     }
 
-    #[test]
-    fn outbox_queue_round_trip() {
-        let (_temp_dir, _config, store) = temp_store();
-
-        store
-            .enqueue(OutboxMessage {
-                target: "http://peer".into(),
-                operation: ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 123,
-                },
-            })
-            .expect("failed to enqueue outbox message");
-
-        let messages = store
-            .outbox_messages()
-            .expect("failed to read outbox messages");
-        assert_eq!(messages.len(), 1);
-
-        let (key, message) = &messages[0];
-        assert_eq!(
-            *message,
-            OutboxMessage {
-                target: "http://peer".into(),
-                operation: ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 123,
-                },
-            }
-        );
-
-        store
-            .delete_outbox_message(key, &message.target)
-            .expect("failed to delete outbox message");
-        assert!(
-            store
-                .outbox_messages()
-                .expect("failed to read outbox messages")
-                .is_empty()
-        );
-    }
-
-    #[tokio::test]
-    async fn outbox_capacity_is_enforced_atomically_across_writers() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = Some(5);
-        });
-        let store = Arc::new(store);
-        let mut writers = Vec::new();
-        for index in 0..20 {
-            let store = store.clone();
-            writers.push(tokio::spawn(async move {
-                store
-                    .persist_inline_artifact_from_bytes_and_enqueue(
-                        ArtifactProducer::Reapi,
-                        "ios",
-                        &format!("action_cache/{index}"),
-                        "application/x-protobuf",
-                        b"value",
-                        &["http://peer".into()],
-                        None,
-                        None,
-                    )
-                    .await
-            }));
-        }
-
-        let mut accepted = 0;
-        let mut rejected = 0;
-        for writer in writers {
-            match writer.await.expect("writer task") {
-                Ok(_) => accepted += 1,
-                Err(error) if is_outbox_full_error(&error) => rejected += 1,
-                Err(error) => panic!("unexpected write failure: {error}"),
-            }
-        }
-
-        assert_eq!(accepted, 5);
-        assert_eq!(rejected, 15);
-        assert_eq!(store.outbox_depth(), 5);
-        assert_eq!(store.outbox_message_count().expect("outbox count"), 5);
-    }
-
-    #[tokio::test]
-    async fn deleting_an_outbox_message_releases_capacity() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = Some(1);
-        });
-        let message = OutboxMessage {
-            target: "http://peer".into(),
-            operation: ReplicationOperation::DeleteNamespace {
-                namespace_id: "ios".into(),
-                version_ms: 123,
-            },
-        };
-        store.enqueue(message.clone()).expect("first enqueue");
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(message.clone())
-                .expect_err("capacity rejection")
-        ));
-
-        let (key, _) = store
-            .next_outbox_message(None)
-            .expect("outbox read")
-            .expect("queued message");
-        store
-            .delete_outbox_message(&key, &message.target)
-            .expect("outbox deletion");
-        store.enqueue(message).expect("capacity should be reusable");
-        assert_eq!(store.outbox_depth(), 1);
-    }
-
-    #[test]
-    fn reopening_the_store_rebuilds_exact_outbox_depth() {
-        let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = Some(1);
-        });
-        let message = OutboxMessage {
-            target: "http://peer".into(),
-            operation: ReplicationOperation::DeleteNamespace {
-                namespace_id: "ios".into(),
-                version_ms: 123,
-            },
-        };
-        store.enqueue(message.clone()).expect("seed outbox");
-        drop(store);
-
-        let io = IoController::new(
-            Metrics::new(config.region.clone(), config.tenant_id.clone()),
-            config.file_descriptor_pool_size,
-            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-            vec![config.tmp_dir.clone(), config.data_dir.clone()],
-        )
-        .expect("failed to recreate io controller");
-        let memory = MemoryController::new(
-            io.metrics().clone(),
-            config.memory_soft_limit_bytes,
-            config.memory_hard_limit_bytes,
-        );
-        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
-
-        assert_eq!(reopened.outbox_depth(), 1);
-        assert_eq!(
-            reopened.outbox_target_depths(),
-            vec![("http://peer".to_string(), 1)],
-            "per-target depth is rebuilt from the persisted messages"
-        );
-        assert!(is_outbox_full_error(
-            &reopened
-                .enqueue(message)
-                .expect_err("reopened store must enforce persisted depth")
-        ));
-    }
-
-    fn outbox_delete(target: &str) -> OutboxMessage {
-        OutboxMessage {
-            target: target.into(),
-            operation: ReplicationOperation::DeleteNamespace {
-                namespace_id: "ios".into(),
-                version_ms: 123,
-            },
-        }
-    }
-
-    /// Every write enqueues one message per peer, and each peer's queue is
-    /// bounded on its own: a write is refused once any of its targets is at
-    /// the share, while a peer whose queue is short keeps accepting. The
-    /// node-wide capacity is the share times the peer count and only follows
-    /// membership; nothing is dropped when it shrinks.
-    #[test]
-    fn outbox_share_is_enforced_per_target() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 2;
-            // The only static seed is the node itself, so the store starts on
-            // the single-share floor.
-            config.peers = vec![config.node_url.clone()];
-        });
-        assert_eq!(store.outbox_max_depth(), 2);
-        store.set_replication_peer_count(3);
-        assert_eq!(store.outbox_max_depth(), 6);
-        store.set_replication_peer_count(1);
-        assert_eq!(store.outbox_max_depth(), 2);
-        store.set_replication_peer_count(0);
-        assert_eq!(store.outbox_max_depth(), 2, "zero peers keeps one share");
-        store.set_replication_peer_count(2);
-
-        for _ in 0..2 {
-            store
-                .enqueue(outbox_delete("http://slow"))
-                .expect("within the slow peer's share");
-        }
-        let slow = vec!["http://slow".to_string()];
-        assert!(
-            store.outbox_saturated(&slow),
-            "a peer at its share saturates the gate for writes to it"
-        );
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(outbox_delete("http://slow"))
-                .expect_err("the third message exceeds the slow peer's share")
-        ));
-        store
-            .enqueue(outbox_delete("http://fast"))
-            .expect("another peer's share is untouched by the slow one");
-        assert_eq!(store.outbox_depth(), 3);
-        let mut depths = store.outbox_target_depths();
-        depths.sort();
-        assert_eq!(
-            depths,
-            vec![
-                ("http://fast".to_string(), 1),
-                ("http://slow".to_string(), 2)
-            ]
-        );
-
-        // A write fans out to every target, so one saturated target refuses
-        // the whole write and leaves the other target's count untouched.
-        let store = Arc::new(store);
-        let outcome = tokio::runtime::Runtime::new().expect("runtime").block_on(
-            store.persist_inline_artifact_from_bytes_and_enqueue(
-                ArtifactProducer::Reapi,
-                "ios",
-                "action_cache/shared",
-                "application/x-protobuf",
-                b"value",
-                &["http://fast".into(), "http://slow".into()],
-                None,
-                None,
-            ),
-        );
-        assert!(is_outbox_full_error(&outcome.expect_err(
-            "a fan-out that cannot seat every target is refused"
-        )));
-        assert_eq!(
-            store.outbox_depth(),
-            3,
-            "a refused fan-out reserves nothing"
-        );
-
-        let (key, message) = store
-            .next_outbox_message(None)
-            .expect("outbox read")
-            .expect("queued message");
-        store
-            .delete_outbox_message(&key, &message.target)
-            .expect("outbox deletion");
-        assert!(
-            !store.outbox_saturated(&slow),
-            "draining one message frees the share"
-        );
-    }
-
-    /// F1: the write gate must only look at the targets a write would
-    /// enqueue for. A departed peer's queue is never pruned within a process
-    /// lifetime, so its full share must not shed writes to the live peers.
-    #[test]
-    fn a_departed_peers_full_share_does_not_saturate_live_targets() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 2;
-            config.peers = vec![config.node_url.clone()];
-        });
-        store.set_replication_peer_count(2);
-        for _ in 0..2 {
-            store
-                .enqueue(outbox_delete("http://departed"))
-                .expect("the departed peer's share");
-        }
-        assert!(store.outbox_saturated(&["http://departed".to_string()]));
-        let live = vec!["http://live".to_string()];
-        assert!(
-            !store.outbox_saturated(&live),
-            "a full share on a target no write enqueues for must not gate writes"
-        );
-        store
-            .enqueue(outbox_delete("http://live"))
-            .expect("the live peer's share is untouched");
-    }
-
-    /// F2: a persisted outbox value the current binary cannot decode (a
-    /// rollback across a new operation variant, a torn write) must not keep
-    /// the store from opening; it stays a per-message drain failure.
-    #[test]
-    fn reopening_the_store_tolerates_an_undecodable_outbox_value() {
-        let (_temp_dir, config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 4;
-        });
-        store
-            .enqueue(outbox_delete("http://peer"))
-            .expect("seed outbox");
-        // A row from a newer binary: the operation is unknown here but the
-        // target is not, so it still holds that peer's slot.
-        store
-            .db
-            .put_cf(
-                store.cf(ROCKSDB_CF_OUTBOX),
-                b"0-00000000000000000001-future",
-                br#"{"target":"http://peer","operation":{"type":"unknown_op"}}"#,
-            )
-            .expect("write a forward-incompatible outbox value");
-        // A torn row: counted in the total, attributable to no peer.
-        store
-            .db
-            .put_cf(
-                store.cf(ROCKSDB_CF_OUTBOX),
-                b"0-00000000000000000002-torn",
-                b"{\"target\":\"http://pe",
-            )
-            .expect("write a torn outbox value");
-        drop(store);
-
-        let io = IoController::new(
-            Metrics::new(config.region.clone(), config.tenant_id.clone()),
-            config.file_descriptor_pool_size,
-            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-            vec![config.tmp_dir.clone(), config.data_dir.clone()],
-        )
-        .expect("io controller");
-        let memory = MemoryController::new(
-            io.metrics().clone(),
-            config.memory_soft_limit_bytes,
-            config.memory_hard_limit_bytes,
-        );
-        let reopened = Store::open(&config, io, memory)
-            .expect("an undecodable outbox row must not block open");
-        assert_eq!(
-            reopened.outbox_depth(),
-            3,
-            "every row still occupies a slot"
-        );
-        assert_eq!(
-            reopened.outbox_target_depths(),
-            vec![("http://peer".to_string(), 2)],
-            "rows whose target decodes are attributed to it, torn rows to nobody"
-        );
-    }
-
-    /// F3: the per-peer share bounds each peer, and a node-wide total (the
-    /// share times the peer count, under a ceiling) bounds the outbox's disk
-    /// footprint whatever the mesh does.
-    #[test]
-    fn the_node_wide_total_bounds_the_outbox_alongside_the_share() {
-        assert_eq!(
-            outbox_max_depth_for(
-                None,
-                crate::constants::DEFAULT_OUTBOX_MAX_DEPTH_PER_PEER,
-                1_000
-            ),
-            OUTBOX_MAX_DEPTH_CEILING,
-            "the derived total never outgrows the ceiling"
-        );
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = None;
-            config.outbox_max_depth_per_peer = 2;
-            config.peers = vec![config.node_url.clone()];
-        });
-        store.set_replication_peer_count(1);
-        assert_eq!(store.outbox_max_depth(), 2);
-        for _ in 0..2 {
-            store
-                .enqueue(outbox_delete("http://a"))
-                .expect("within the total");
-        }
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(outbox_delete("http://b"))
-                .expect_err("a second target beyond the node-wide total is refused")
-        ));
-        store.set_replication_peer_count(2);
-        store
-            .enqueue(outbox_delete("http://b"))
-            .expect("a second share opens the room");
-    }
-
-    /// F4/F8: a fixed KURA_OUTBOX_MAX_DEPTH replaces the per-peer share, and
-    /// the exported per-peer capacity reports the bound that actually sheds.
-    #[test]
-    fn a_fixed_total_replaces_the_share_and_is_what_the_gauge_reports() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = Some(3);
-            config.outbox_max_depth_per_peer = 1;
-        });
-        for _ in 0..3 {
-            store
-                .enqueue(outbox_delete("http://peer"))
-                .expect("the per-peer share is not enforced under a fixed total");
-        }
-        assert!(is_outbox_full_error(
-            &store
-                .enqueue(outbox_delete("http://other"))
-                .expect_err("the fixed total is")
-        ));
-        let rendered = store.io.metrics().render();
-        assert!(
-            rendered.contains("kura_outbox_peer_capacity 3"),
-            "the per-peer gauge must report the fixed bound: {rendered}"
-        );
-    }
-
-    #[test]
-    fn a_fixed_outbox_cap_ignores_the_peer_count() {
-        let (_temp_dir, _config, store) = temp_store_with(|config| {
-            config.outbox_max_depth = Some(3);
-            config.outbox_max_depth_per_peer = 100;
-        });
-        assert_eq!(store.outbox_max_depth(), 3);
-        store.set_replication_peer_count(5);
-        assert_eq!(store.outbox_max_depth(), 3);
-    }
-
-    #[test]
-    fn outbox_drains_metadata_before_earlier_bulk_messages() {
-        let (_temp_dir, _config, store) = temp_store();
-
-        // Bulk first (earlier timestamp), metadata second: the metadata-lane
-        // key must still sort first so an inline action-cache entry is not
-        // parked behind a segment-blob backlog.
-        store
-            .enqueue(OutboxMessage {
-                target: "http://peer".into(),
-                operation: ReplicationOperation::UpsertArtifact {
-                    producer: ArtifactProducer::Reapi,
-                    namespace_id: "ios".into(),
-                    key: "blob/aabb".into(),
-                    content_type: "application/octet-stream".into(),
-                    artifact_id: "blob-artifact".into(),
-                    inline: false,
-                    version_ms: 1,
-                    branch: None,
-                    trunk: None,
-                    origin_region: None,
-                },
-            })
-            .expect("failed to enqueue bulk message");
-        store
-            .enqueue(OutboxMessage {
-                target: "http://peer".into(),
-                operation: ReplicationOperation::UpsertArtifact {
-                    producer: ArtifactProducer::Reapi,
-                    namespace_id: "ios".into(),
-                    key: "action_cache/ccdd".into(),
-                    content_type: "application/x-protobuf".into(),
-                    artifact_id: "entry-artifact".into(),
-                    inline: true,
-                    version_ms: 2,
-                    branch: None,
-                    trunk: None,
-                    origin_region: None,
-                },
-            })
-            .expect("failed to enqueue metadata message");
-
-        let messages = store
-            .outbox_messages()
-            .expect("failed to read outbox messages");
-        let keys: Vec<&str> = messages
-            .iter()
-            .map(|(key, _)| std::str::from_utf8(key).expect("outbox key should be utf-8"))
-            .collect();
-        assert!(
-            keys[0].starts_with("0-") && keys[1].starts_with(OUTBOX_BULK_LANE_PREFIX),
-            "expected metadata lane before bulk lane, got {keys:?}"
-        );
-        let (_, first) = &messages[0];
-        assert!(!first.operation.is_bulk());
-        // Legacy unprefixed keys (zero-padded timestamps) drain between the
-        // lanes across a rolling upgrade.
-        let legacy = format!("{:020}-legacy", crate::utils::now_ms());
-        assert!(keys[0] < legacy.as_str() && legacy.as_str() < keys[1]);
-    }
-
-    fn bulk_outbox_message(key: &str) -> OutboxMessage {
-        OutboxMessage {
-            target: "http://peer".into(),
-            operation: ReplicationOperation::UpsertArtifact {
-                producer: ArtifactProducer::Reapi,
-                namespace_id: "ios".into(),
-                key: key.into(),
-                content_type: "application/octet-stream".into(),
-                artifact_id: format!("{key}-artifact"),
-                inline: false,
-                version_ms: 1,
-                branch: None,
-                trunk: None,
-                origin_region: None,
-            },
-        }
-    }
-
-    fn metadata_outbox_message(key: &str) -> OutboxMessage {
-        OutboxMessage {
-            target: "http://peer".into(),
-            operation: ReplicationOperation::UpsertArtifact {
-                producer: ArtifactProducer::Reapi,
-                namespace_id: "ios".into(),
-                key: key.into(),
-                content_type: "application/x-protobuf".into(),
-                artifact_id: format!("{key}-artifact"),
-                inline: true,
-                version_ms: 2,
-                branch: None,
-                trunk: None,
-                origin_region: None,
-            },
-        }
-    }
-
-    #[test]
-    fn outbox_lane_depth_tracks_enqueue_and_delete() {
-        let (_temp_dir, _config, store) = temp_store();
-
-        store
-            .enqueue(bulk_outbox_message("blob/aa"))
-            .expect("failed to enqueue bulk message");
-        store
-            .enqueue(bulk_outbox_message("blob/bb"))
-            .expect("failed to enqueue bulk message");
-        store
-            .enqueue(metadata_outbox_message("action_cache/cc"))
-            .expect("failed to enqueue metadata message");
-
-        assert_eq!(store.outbox_depth(), 3);
-        assert_eq!(store.outbox_bulk_depth(), 2);
-
-        // The metadata lane sorts first, so the head is the inline entry.
-        let (metadata_key, metadata_message) = store
-            .next_outbox_message(None)
-            .expect("outbox read")
-            .expect("queued message");
-        assert!(!is_bulk_outbox_key(&metadata_key));
-        store
-            .delete_outbox_message(&metadata_key, &metadata_message.target)
-            .expect("outbox deletion");
-        assert_eq!(store.outbox_depth(), 2);
-        assert_eq!(store.outbox_bulk_depth(), 2);
-
-        let (bulk_key, bulk_message) = store
-            .next_outbox_message(None)
-            .expect("outbox read")
-            .expect("queued message");
-        assert!(is_bulk_outbox_key(&bulk_key));
-        store
-            .delete_outbox_message(&bulk_key, &bulk_message.target)
-            .expect("outbox deletion");
-        assert_eq!(store.outbox_depth(), 1);
-        assert_eq!(store.outbox_bulk_depth(), 1);
-    }
-
-    #[test]
-    fn reopening_the_store_rebuilds_outbox_lane_depths() {
-        let (_temp_dir, config, store) = temp_store();
-        store
-            .enqueue(bulk_outbox_message("blob/aa"))
-            .expect("seed bulk lane");
-        store
-            .enqueue(bulk_outbox_message("blob/bb"))
-            .expect("seed bulk lane");
-        store
-            .enqueue(metadata_outbox_message("action_cache/cc"))
-            .expect("seed metadata lane");
-        drop(store);
-
-        let io = IoController::new(
-            Metrics::new(config.region.clone(), config.tenant_id.clone()),
-            config.file_descriptor_pool_size,
-            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
-            vec![config.tmp_dir.clone(), config.data_dir.clone()],
-        )
-        .expect("failed to recreate io controller");
-        let memory = MemoryController::new(
-            io.metrics().clone(),
-            config.memory_soft_limit_bytes,
-            config.memory_hard_limit_bytes,
-        );
-        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
-
-        assert_eq!(reopened.outbox_depth(), 3);
-        assert_eq!(reopened.outbox_bulk_depth(), 2);
-    }
-
-    #[test]
-    fn snapshot_reports_outbox_depth_without_loading_messages() {
-        let (_temp_dir, _config, store) = temp_store();
-
-        store
-            .enqueue(OutboxMessage {
-                target: "http://peer-a".into(),
-                operation: ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms: 123,
-                },
-            })
-            .expect("failed to enqueue first outbox message");
-        store
-            .enqueue(OutboxMessage {
-                target: "http://peer-b".into(),
-                operation: ReplicationOperation::DeleteNamespace {
-                    namespace_id: "android".into(),
-                    version_ms: 456,
-                },
-            })
-            .expect("failed to enqueue second outbox message");
-
-        assert_eq!(
-            store
-                .outbox_message_count()
-                .expect("outbox count should load"),
-            2
-        );
-
-        let snapshot = store.snapshot().expect("snapshot should load");
-        assert_eq!(snapshot.outbox_messages, 2);
-        assert_eq!(
-            snapshot.rocksdb_block_cache_capacity_bytes,
-            _config.rocksdb_block_cache_bytes as u64
-        );
-        assert_eq!(
-            snapshot.rocksdb_write_buffer_capacity_bytes,
-            _config.rocksdb_write_buffer_manager_bytes as u64
-        );
-    }
-
-    #[tokio::test]
-    async fn local_write_enqueues_replication_targets_in_same_store_operation() {
-        let (_temp_dir, _config, store) = temp_store();
-        let targets = vec!["http://peer-a".to_string(), "http://peer-b".to_string()];
-
-        let manifest = store
-            .persist_inline_artifact_from_bytes_and_enqueue(
-                ArtifactProducer::Xcode,
-                "ios",
-                "cas-1",
-                "application/json",
-                br#"{"ok":true}"#,
-                &targets,
-                None,
-                None,
-            )
-            .await
-            .expect("artifact should persist");
-
-        let queued = store
-            .outbox_messages()
-            .expect("outbox messages should load")
-            .into_iter()
-            .map(|(_, message)| message)
-            .collect::<Vec<_>>();
-
-        assert_eq!(queued.len(), 2);
-        assert_eq!(queued[0].target, "http://peer-a");
-        assert_eq!(queued[1].target, "http://peer-b");
-        for message in queued {
-            assert_eq!(
-                message.operation,
-                ReplicationOperation::UpsertArtifact {
-                    producer: ArtifactProducer::Xcode,
-                    namespace_id: "ios".into(),
-                    key: "cas-1".into(),
-                    content_type: "application/json".into(),
-                    artifact_id: manifest.artifact_id.clone(),
-                    version_ms: manifest.version_ms,
-                    inline: true,
-                    branch: None,
-                    trunk: None,
-                    origin_region: Some("local".into()),
-                }
-            );
-        }
-    }
-
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn concurrent_artifact_writes_batch_segment_fsyncs() {
         let (_temp_dir, config, store) = temp_store();
@@ -20258,25 +18950,23 @@ mod tests {
                 let key = format!("key-{i}");
                 let persisted = if i % 2 == 0 {
                     store
-                        .persist_artifact_from_path_and_enqueue(
+                        .persist_artifact_from_path_and_replicate(
                             ArtifactProducer::Xcode,
                             "ns",
                             &key,
                             "application/octet-stream",
                             StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
-                            &[],
                         )
                         .await
                 } else {
                     store
-                        .persist_admitted_artifact_from_bytes_and_enqueue(
+                        .persist_admitted_artifact_from_bytes_and_replicate(
                             ArtifactProducer::Xcode,
                             "ns",
                             &key,
                             "application/octet-stream",
                             &body,
                             FileCachePolicy::Bounded,
-                            &[],
                         )
                         .await
                 };
@@ -20402,46 +19092,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn local_namespace_delete_enqueues_replication_targets_in_same_store_operation() {
-        let (_temp_dir, _config, store) = temp_store();
-        let targets = vec!["http://peer-a".to_string(), "http://peer-b".to_string()];
-
-        store
-            .persist_inline_artifact_from_bytes(
-                ArtifactProducer::Xcode,
-                "ios",
-                "cas-1",
-                "application/json",
-                br#"{"ok":true}"#,
-            )
-            .await
-            .expect("artifact should persist");
-
-        let version_ms = store
-            .delete_namespace_and_enqueue("ios", &targets)
-            .await
-            .expect("namespace delete should succeed");
-
-        let queued = store
-            .outbox_messages()
-            .expect("outbox messages should load")
-            .into_iter()
-            .map(|(_, message)| message)
-            .collect::<Vec<_>>();
-
-        assert_eq!(queued.len(), 2);
-        for message in queued {
-            assert_eq!(
-                message.operation,
-                ReplicationOperation::DeleteNamespace {
-                    namespace_id: "ios".into(),
-                    version_ms,
-                }
-            );
-        }
-    }
-
-    #[tokio::test]
     async fn segment_backed_write_remains_visible_after_post_commit_error_and_restart() {
         let (_temp_dir, config, store) = temp_store();
         store.failpoints().set_once(
@@ -20450,13 +19100,12 @@ mod tests {
         );
 
         let error = store
-            .persist_artifact_from_bytes_and_enqueue(
+            .persist_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Xcode,
                 "ios",
                 "artifact",
                 "application/octet-stream",
                 b"segment-bytes",
-                &["http://peer-a".to_string()],
             )
             .await
             .expect_err("write should fail after the durable commit");
@@ -20489,12 +19138,6 @@ mod tests {
             read_manifest_bytes(&reopened, &manifest).await,
             b"segment-bytes"
         );
-        assert_eq!(
-            reopened
-                .outbox_message_count()
-                .expect("outbox count should load"),
-            1
-        );
     }
 
     #[tokio::test]
@@ -20506,13 +19149,12 @@ mod tests {
         );
 
         let error = store
-            .persist_inline_artifact_from_bytes_and_enqueue(
+            .persist_inline_artifact_from_bytes_and_replicate(
                 ArtifactProducer::Xcode,
                 "ios",
                 "cas-1",
                 "application/json",
                 br#"{"value":"ok"}"#,
-                &["http://peer-a".to_string()],
                 None,
                 None,
             )
@@ -20546,12 +19188,6 @@ mod tests {
         assert_eq!(
             read_manifest_bytes(&reopened, &manifest).await,
             br#"{"value":"ok"}"#
-        );
-        assert_eq!(
-            reopened
-                .outbox_message_count()
-                .expect("outbox count should load"),
-            1
         );
     }
 

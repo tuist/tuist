@@ -38,9 +38,6 @@ impl Node {
             region: self.region.to_owned(),
             serving: true,
             draining: false,
-            pulling: true,
-            // In-process nodes are on real listeners and see each other.
-            knows_me: true,
         }
     }
 
@@ -94,7 +91,6 @@ async fn node(region: &'static str, tune: impl FnOnce(&mut crate::config::Config
     let context = test_context(move |config| {
         config.node_url = node_url;
         config.region = region.to_owned();
-        config.replication_pull = true;
         config.sync_long_poll_secs = 1;
         config.sync_region_settle_ms = 100;
         config.peers = Vec::new();
@@ -147,18 +143,13 @@ async fn siblings_converge_through_the_backward_pass_and_the_feed() {
         assert!(links[0].settled, "{}: bootstrap settled", node.url);
         assert_eq!(links[0].phase, LinkPhase::Forward);
         assert!(
-            node.state().sync.bootstrap_settled(true),
+            node.state().sync.bootstrap_settled(),
             "{}: readiness term holds",
             node.url
         );
         assert!(
             node.state().store.sync_feed().enabled(),
             "{}: the sibling asked, so the feed is on",
-            node.url
-        );
-        assert!(
-            node.state().replication_targets().is_empty(),
-            "{}: a pulling sibling is not pushed to",
             node.url
         );
     }
@@ -471,8 +462,6 @@ async fn a_link_that_gave_up_its_bootstrap_stops_bounding_the_listing() {
         region: "local".to_owned(),
         serving: true,
         draining: false,
-        pulling: true,
-        knows_me: true,
     };
     let evaluate = |views: Vec<PeerView>| {
         a.state().apply_peer_views(views);
@@ -526,7 +515,7 @@ async fn a_link_that_gave_up_its_bootstrap_stops_bounding_the_listing() {
     assert!(link.settled, "the budget is spent: ready but cold");
     assert_eq!(link.frontier, LinkFrontier::Abandoned);
     assert!(
-        a.state().sync.bootstrap_settled(true),
+        a.state().sync.bootstrap_settled(),
         "readiness no longer waits on it"
     );
 
@@ -570,8 +559,6 @@ async fn a_flapping_sibling_keeps_its_bootstrap_budget_across_respawns() {
         region: "local".to_owned(),
         serving: true,
         draining: false,
-        pulling: true,
-        knows_me: true,
     };
     async fn failures_reach(a: &Node, peer: &str, target: u32) -> u32 {
         for _ in 0..200 {
@@ -588,7 +575,7 @@ async fn a_flapping_sibling_keeps_its_bootstrap_budget_across_respawns() {
     a.state().sync.evaluate(a.state());
     assert_eq!(failures_reach(&a, &ghost.url, 1).await, 1);
     assert!(
-        !a.state().sync.bootstrap_settled(true),
+        !a.state().sync.bootstrap_settled(),
         "one failure is within the budget"
     );
 

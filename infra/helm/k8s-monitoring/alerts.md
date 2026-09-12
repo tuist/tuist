@@ -1026,8 +1026,9 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 
 `kind` is one of `response_stream` (egress capacity — the only kind the warning
 rule below is about), `multipart_uploads`, `multipart_storage`, `upload_memory`,
-`tmp_staging`, `memory_pressure_write`, `outbox`, `reapi_write_decode` or
-`reapi_materialization`.
+`tmp_staging`, `memory_pressure_write`, `reapi_write_decode` or
+`reapi_materialization` (`outbox` existed through the push path's removal in
+kura@0.46 and no longer occurs).
 
 The two `reapi_*` kinds carry no HTTP status at all — the remote-execution
 surface answers gRPC `RESOURCE_EXHAUSTED`, which clients already retry — so the
@@ -1467,7 +1468,7 @@ max by (cluster, region, pod) (
   memory pressure (state {{ $values.A.Value | printf "%.0f" }}) for 10 minutes
   ({{ $labels.cluster }})`
 - Description: `The pod's own memory controller has been out of Normal for 10
-  minutes (1 = constrained: outbox, backfill, segment refresh and snapshot
+  minutes (1 = constrained: backfill, segment refresh and snapshot
   build paused; 2 = critical: transient budget zeroed, every read refused,
   manifest index may be zeroed while the pod stays Ready). A short trip during
   a burst is expected; sustained means the pod is not working within its
@@ -1475,7 +1476,7 @@ max by (cluster, region, pod) (
   kura_background_work_paused and kura_memory_transient_reserved_bytes.`
 
 The pod's own controller has left Normal and stayed there. At Constrained the
-node pauses background work (`kura_background_work_paused` by worker: outbox,
+node pauses background work (`kura_background_work_paused` by worker:
 backfill, segment refresh, snapshot build); at Critical the transient budget is
 zeroed, every read is refused, and the manifest index can be zeroed while the
 pod stays Ready. A short trip into Constrained during a burst is the controller
@@ -3111,11 +3112,6 @@ max by (cluster, region, pod, kind) (
   GET, so a refused upload becomes a future cache miss and no build fails. On
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  outbox: one replication peer's outbox share is full (or the node is at its
-  total), read kura_outbox_target_messages against kura_outbox_peer_capacity
-  and kura_outbox_messages against kura_outbox_capacity; peers being unreachable is NOT the usual cause,
-  check kura_peer_connection_failures_total and
-  kura_replication_bandwidth_effective_limit_bytes_per_second first.
   upload_memory, memory_pressure_write, reapi_write_decode,
   reapi_materialization: the transient memory budget derived from the pod's
   ceiling is exhausted, the lever is the account's memory profile.
@@ -3176,17 +3172,6 @@ one series per limit and every value a constant in `metrics::shed_kind`, so
 the label cannot grow with traffic. Grouping by it costs nothing and names the
 limit in the summary, which is what the on-call needs to pick the lever:
 
-- `outbox`: the replication outbox reached its 100,000 cap. The drain is
-  pipelined (`OUTBOX_MAX_INFLIGHT` deliveries at once) and the metadata lane is
-  additionally batched, but the bulk lane still costs one delivery per message,
-  so a backlog is normally ingest outrunning it, not peers being unreachable:
-  in the 2026-08-28 episode both
-  `kura_peer_connection_failures_total` and
-  `kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
-  and bandwidth sat at its configured ceiling almost the whole time. It is
-  also a rollout signal: `Tuist.Kura.Rollouts.gate_checks/2` compares each
-  canary's `outboxMessages` against `baseline + 10%`, so the pod firing this
-  is very likely the one holding a runtime rollout in wave 0.
 - `upload_memory`, `memory_pressure_write`: the transient memory budget, which
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
@@ -3235,137 +3220,17 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 max by (pod) (kura_outbox_messages)
 ```
 
-### Kura replication outbox approaching its cap
+### Kura replication outbox approaching its cap (retired)
 
-```promql
-max by (cluster, pod) (
-  (kura_outbox_messages > 25000 and predict_linear(kura_outbox_messages[5m], 600) > 100000)
-  or
-  (kura_outbox_messages > 90000)
-)
-```
-
-- Threshold: `> 0`, as a separate threshold expression on `A`; the comparisons
-  inside the query filter the series and keep the depth as the value
-- Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
-  cap`, `severity: warning`, folder `Alerts`, group `Cache` (evaluated every
-  5 minutes), receiver `Slack #notifications 2`. Moved to this form on
-  2026-08-31 from `> 75000` for 15 minutes.
-- Summary: `Kura pod {{ $labels.pod }} is heading for its replication outbox
-  cap in {{ $labels.cluster }} (depth {{ $values.A.Value | printf "%.0f" }}),
-  where it starts refusing customer writes`
-- Description: `Leading indicator for "Kura shedding cache writes by kind"
-  (the outbox kind). Once the outbox reaches its cap both write gates refuse
-  public writes: HTTP answers 429 and the remote-execution surface answers gRPC
-  RESOURCE_EXHAUSTED; the cache client only retries GETs, so a refused HTTP
-  upload is lost rather than delayed. Do NOT assume an unreachable peer: check
-  max by (pod) (kura_outbox_messages) and sum by (pod)
-  (rate(kura_replication_requests_total_total{operation="upsert_artifact"}[10m]))
-  (filter by operation, the counter also counts backfill). Drain is serial and
-  node-wide, one delivery per peer round-trip, so a backlog is ingest
-  outrunning it. If the write-shed rule is also firing the window has closed.
-  The same backlog gates Kura runtime rollouts, so this pod is likely holding
-  a rollout in wave 0.`
-
-Leading indicator for the `outbox` kind of **Kura shedding cache writes by
-kind** above. That rule tells you writes are already being lost; this one is
-the window before it starts. When the retired outbox rule is deleted, update
-this rule's description, which still names it by its old title.
-
-The live description also still says the drain is "serial and node-wide, one
-delivery per peer round-trip". That stopped being true when the drain was
-pipelined and the metadata lane batched; it reads as an instruction to look for
-a slow peer when the question is which lane is deep. Correct it in the same
-edit, to: `Drain is pipelined and the metadata lane is batched, but the bulk
-lane costs one delivery per message, so a backlog is ingest outrunning it.
-Split it with max by (pod, lane) (kura_outbox_lane_messages).`
-
-#### Two terms: a forecast that leads, and a static backstop
-
-A depth threshold alone could not lead. In the 2026-08-31 episode one pod
-crossed 75000 and hit the cap under three minutes later; the old rule
-(`> 75000`, for 15 minutes, in the 5-minute Cache group) reached Alerting 28
-minutes *after* the cap. The `predict_linear` term, a 10-minute forecast over
-the last 5 minutes of depth, went true about 9 minutes before the cap at a
-depth around 32000. The 25000 floor keeps a short, self-resolving burst quiet.
-
-The `> 90000` term is the backstop for the case the forecast cannot see: a
-backlog parked just under the cap that is flat rather than rising. A full
-outbox sheds nothing until traffic arrives, so the gap between this rule and
-the shed can still be hours: in the 2026-08-28 episode the outbox sat near the
-cap all night and the first write was shed when the tenant's builds started the
-next morning. Do not read a silent shed rule as a drained outbox.
-
-Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
-than the old threshold on each of the three pods that ever reach the cap, so
-the form is net quieter as well as earlier.
-
-#### Caveat: the cap is now per peer, and the total is no longer what sheds
-
-Both 100000 and 90000 were `DEFAULT_OUTBOX_MAX_DEPTH`, which no longer exists.
-The share is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (100000) enforced **per
-replication target**: a write is shed once any one of its peers holds that
-many queued messages, whatever the node-wide total. The node is also bounded
-by a total of the share times its peer count, capped at 1000000. The total
-(`kura_outbox_messages`) can therefore sit far below `kura_outbox_capacity`
-while the pod is already shedding on one peer, so alert on both: the deepest
-per-peer queue against the share, and the total against the capacity, all
-exported by Kura:
-
-```promql
-max by (pod) (kura_outbox_target_messages) / max by (pod) (kura_outbox_peer_capacity) > 0.9
-  or max by (pod) (kura_outbox_messages / kura_outbox_capacity) > 0.9
-```
-
-Until the live rule is moved to that form, its `> 90000` backstop on the
-node-wide total fires at the old point for a one- or two-peer pod, but on a
-larger mesh it fires **early**: the total is the sum of every peer's queue, so
-a five-peer pod can page at 18000 per peer, nowhere near a shed. Read a page
-from the old rule on a large mesh against the per-target series before
-treating it as a shed.
-
-This per-peer share is an interim measure: the drain is throughput-bound
-(`OUTBOX_MAX_INFLIGHT` is a node-wide pipeline depth, not per target), so a
-larger buffer changes how much a saturated pod holds, not whether it saturates.
-The scalable replacement is the replication log redesign, tracked separately
-from this rule.
-
-#### Why the drain falls behind
-
-Do not assume the peers are unreachable. Through the 2026-08-31 and 2026-09-02
-episodes `kura_peer_connection_failures_total` was 0, apply errors were 0, and
-replication bandwidth sat at its configured ceiling. Bandwidth is not the
-constraint, and neither is the round trip.
-
-Start by splitting the backlog by lane:
-
-```promql
-max by (pod, lane) (kura_outbox_lane_messages)
-```
-
-The two lanes fail for different reasons and have different levers. The
-metadata lane (inline upserts, namespace deletes) is amortized by
-`drain_metadata_batches`, which carries up to `REPLICATION_BATCH_MAX_ITEMS`
-messages per request. The bulk lane (segment-backed artifacts) is skipped by
-that path entirely and drains one delivery per message, `OUTBOX_MAX_INFLIGHT`
-at a time, so it is bounded by per-delivery *body transfer* rather than by RTT.
-A runner-cache workload is almost all bulk lane, and on 2026-09-02 a
-write-primary replicating to two peers one region away sustained ~17.7
-messages/s against ingest peaking near 97 messages/s. A deep bulk lane points
-at the in-flight ceiling; a deep metadata lane points at batching.
-
-One artifact write also enqueues one message *per target*, so depth is not a
-count of artifacts.
-
-#### Aggregate by pod, not by series
-
-`kura_outbox_messages` carries an `instance` label, and a pod that has
-restarted appears under several instance IPs across a long window. A bare
-`kura_outbox_messages > 90000` therefore returns one series per historical IP
-and counts a single pod many times: one chronically backlogged pod showed up
-as seven separate series over a week. Always reduce with `max by (pod)` (or
-`by (cluster, pod)`) first. The same applies when counting how long a pod
-spent above a threshold.
+Retired with the push path's removal (kura@0.46): `kura_outbox_messages` and
+the outbox write shed no longer exist, so the live rule `afwtwlzgkderke`
+(`Kura - replication outbox approaching its cap`, folder `Alerts`, group
+`Cache`) evaluates an absent series and must be deleted in Grafana. The
+signal it led — writes refused for a full outbox — has no successor because
+a write is never refused for replication room any more: a pull link that
+falls behind shows as `kura_sync_forward_cursor_lag_entries` and
+`kura_region_watermark_age_seconds` on the pulling side (the `Tuist Kura /
+Details` sync row), which have no rule yet.
 
 ### Kura instance below its replica count
 

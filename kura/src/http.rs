@@ -48,7 +48,6 @@ use crate::{
     metrics::{Metrics, shed_kind},
     multipart::error::MultipartError,
     peer_tls::InternalPeerIdentity,
-    replication::replication_targets,
     request_observability::{
         REQUEST_ID_HEADER, RequestCompletion, RequestContext, RequestLogPolicy, current_request,
         log_request_completion, request_id, scope_request,
@@ -58,7 +57,7 @@ use crate::{
     store::{
         ApplyProvenance, ArtifactReader, BACKFILL_STALE_RETIRE_BATCH, BackfillIndexPage,
         StagedArtifactPath, backfill_record_kind, is_disk_full_error, is_multipart_capacity_error,
-        is_outbox_full_error, manifest_version_ms,
+        manifest_version_ms,
     },
     sync::feed::{SyncFeedRow, SyncPosition},
     telemetry::{attach_parent_context, record_trace_context, trace_export_active},
@@ -748,6 +747,7 @@ pub struct ReplicateBatchOutcomes {
 /// `MAX_INLINE_REPLICATION_BODY_BYTES`, so a u32 length is sufficient.
 pub const REPLICATE_BATCH_FRAME_HEADER_BYTES: usize = 4 + 4;
 
+#[cfg(test)]
 pub fn encode_replicate_batch_frame(meta: &[u8], body: &[u8]) -> Result<Vec<u8>, String> {
     let meta_len = u32::try_from(meta.len()).map_err(|_| {
         format!(
@@ -1278,39 +1278,32 @@ async fn reject_overloaded_public_writes(
     let method = req.method().clone();
     let route = request_route(&req);
 
-    if is_write_method(&method) && !is_probe_route(&route) {
-        if state.memory.pressure() == MemoryPressure::Critical {
-            state
-                .metrics
-                .record_memory_action("write_rejected_critical");
-            return capacity_shed_response(
-                &state.metrics,
-                "memory_pressure_write",
-                "server is shedding writes due to memory pressure",
-            );
-        }
-        if state.store.outbox_saturated(&state.replication_targets()) {
-            state.metrics.record_memory_action("write_rejected_outbox");
-            return capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            );
-        }
+    if is_write_method(&method)
+        && !is_probe_route(&route)
+        && state.memory.pressure() == MemoryPressure::Critical
+    {
+        state
+            .metrics
+            .record_memory_action("write_rejected_critical");
+        return capacity_shed_response(
+            &state.metrics,
+            "memory_pressure_write",
+            "server is shedding writes due to memory pressure",
+        );
     }
 
     next.run(req).await
 }
 
-/// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
-/// DELETE /_internal/replicate/namespace) when the pod is under Critical
-/// memory pressure. Without this guard the pod accepts the TCP connection but
-/// stalls while processing the body, so the source peer sees no progress and
-/// abandons the attempt only when its upload stall watchdog expires
-/// (`KURA_REPLICATION_UPLOAD_STALL_MS`, 60 s by default) — one stalled
-/// receiver holding up a drain loop that is serial and node-wide. Returning
-/// 503 lets the source retry immediately with its normal 2-second backoff.
-/// Reads (backfill, status) are unaffected.
+/// Fast-fails the push receivers (PUT /_internal/replicate/artifact,
+/// DELETE /_internal/replicate/namespace), still served for peers on a
+/// release that predates pull, when the pod is under Critical memory
+/// pressure. Without this guard the pod accepts the TCP connection but
+/// stalls while processing the body, so the pushing peer sees no progress
+/// and abandons the attempt only when its upload stall watchdog expires
+/// (60 s on those releases). Returning 503 lets it retry immediately with
+/// its normal 2-second backoff. Reads (backfill, sync, status) are
+/// unaffected.
 async fn reject_overloaded_internal_writes(
     State(state): State<SharedState>,
     req: Request,
@@ -1707,6 +1700,7 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
                 "lag_entries": link.lag_entries,
                 "frontier": link.frontier.as_str(),
                 "frontier_ms": link.frontier.reported_ms(),
+                "unsupported": link.unsupported,
             })
         })
         .collect();
@@ -1723,7 +1717,6 @@ async fn cluster_status(State(state): State<SharedState>) -> impl IntoResponse {
         "members": nodes.clone(),
         "regions": regions,
         "nodes": nodes,
-        "pulling": state.replication_pull(),
         "gateway": state.sync.own_gateway(),
         "sync_links": sync_links,
         "feed": {
@@ -1786,8 +1779,6 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "writer_lock_owned": status.writer_lock_owned,
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
-        "outbox_messages": status.outbox_messages,
-        "outbox_capacity": status.outbox_capacity,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
         "peer_connection_failure_count": status.peer_connection_failure_count,
@@ -2043,24 +2034,20 @@ async fn put_keyvalue(
             );
         }
     };
-    let targets = replication_targets(&state);
-
     match state
         .store
-        .persist_inline_artifact_from_bytes_and_enqueue(
+        .persist_inline_artifact_from_bytes_and_replicate(
             ArtifactProducer::Xcode,
             &namespace.namespace_id,
             &key,
             "application/json",
             &payload_bytes,
-            &targets,
             None,
             None,
         )
         .await
     {
         Ok(manifest) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Xcode, "ok", manifest.size);
@@ -2072,16 +2059,6 @@ async fn put_keyvalue(
                 manifest.size,
             );
             StatusCode::NO_CONTENT.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => {
-            state
-                .metrics
-                .record_artifact_write(ArtifactProducer::Xcode, "error", 0);
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
         }
         Err(error) => {
             state
@@ -2456,14 +2433,12 @@ async fn complete_module_upload(
             namespace_id: upload.namespace_id,
         });
 
-    let targets = replication_targets(&state);
     match state
         .store
-        .complete_multipart_upload_and_enqueue(&query.upload_id, &body.parts, &targets)
+        .complete_multipart_upload_and_replicate(&query.upload_id, &body.parts)
         .await
     {
         Ok(manifest) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Module, "ok", manifest.size);
@@ -2494,13 +2469,6 @@ async fn complete_module_upload(
             "upload_memory",
             "server is applying upload memory backpressure",
         ),
-        Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
-        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -2517,21 +2485,12 @@ async fn clean_namespace(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let targets = replication_targets(&state);
     match state
         .store
-        .delete_namespace_and_enqueue(&namespace.namespace_id, &targets)
+        .delete_namespace_and_replicate(&namespace.namespace_id)
         .await
     {
-        Ok(_version_ms) => {
-            state.notify.notify_one();
-            StatusCode::NO_CONTENT.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => capacity_shed_response(
-            &state.metrics,
-            "outbox",
-            "server is shedding writes while replication catches up",
-        ),
+        Ok(_version_ms) => StatusCode::NO_CONTENT.into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to clean cache: {error}"),
@@ -2583,9 +2542,10 @@ async fn internal_status(
         _ => state.config.node_url.clone(),
     };
 
-    // The membership view this node holds (design §11.2): a pusher takes a
-    // pulling peer off its push targets only once that peer's view names the
-    // pusher, which is what tells a node it can be dialled back.
+    // The membership view this node holds. A peer on a pre-pull release
+    // reads it with `pulling` (design §11.2): it takes this node off its
+    // push targets only once this view names it, which is what tells it
+    // that it can be dialled back and pulled from instead.
     let peers: Vec<String> = state
         .peer_views
         .load()
@@ -2598,7 +2558,7 @@ async fn internal_status(
         "tenant_id": state.config.tenant_id.clone(),
         "node_url": node_url,
         "traffic_state": state.runtime.traffic_state().as_str(),
-        "pulling": state.replication_pull(),
+        "pulling": true,
         "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),
         "peers": peers,
     }))
@@ -3443,12 +3403,16 @@ where
     }
 }
 
-/// Batched sibling of `internal_replicate_artifact`, for the metadata lane.
-/// Applies every framed inline artifact and answers one outcome per item in
-/// request order, so the sender can clear exactly the messages the peer is done
-/// with. A peer that predates this route answers 404 and the sender falls back
-/// to the per-artifact endpoint, which is what keeps a mixed-version mesh
-/// working during a rollout.
+/// Batched sibling of `internal_replicate_artifact`. Applies every framed
+/// inline artifact and answers one outcome per item in request order, so the
+/// sender can clear exactly the messages it is done with.
+///
+/// The three `/_internal/replicate/*` receivers are the push side of the
+/// replication this release removed, kept only for peers on a release that
+/// predates pull: a self-hosted node that has not been upgraded still drains
+/// its outbox into them, and refusing it would fill that outbox and refuse
+/// its clients' writes. This node never sends on these routes. Delete them
+/// once the oldest supported self-hosted release pulls.
 async fn internal_replicate_artifacts(
     State(state): State<SharedState>,
     request: Request,
@@ -3967,22 +3931,19 @@ async fn put_blob_artifact(
         }
     };
 
-    let targets = replication_targets(&state);
     let result = state
         .store
-        .persist_artifact_from_path_and_enqueue(
+        .persist_artifact_from_path_and_replicate(
             producer,
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
             StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
-            &targets,
         )
         .await;
     temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(persisted) => {
-            state.notify.notify_one();
             state
                 .metrics
                 .record_artifact_write(producer, "ok", persisted.manifest.size);
@@ -4009,14 +3970,6 @@ async fn put_blob_artifact(
                 persisted.manifest.size,
             );
             spec.success_status.into_response()
-        }
-        Err(error) if is_outbox_full_error(&error) => {
-            state.metrics.record_artifact_write(producer, "error", 0);
-            capacity_shed_response(
-                &state.metrics,
-                "outbox",
-                "server is shedding writes while replication catches up",
-            )
         }
         Err(error) => {
             state.metrics.record_artifact_write(producer, "error", 0);
@@ -5458,7 +5411,6 @@ mod tests {
                 true,
             )
             .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -5533,20 +5485,13 @@ mod tests {
                 true,
             )
             .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
-        context.state.metrics.update_outbox_messages(7, 5);
         context
             .state
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
-        context.state.metrics.record_replication(
-            &peer,
-            "upsert_artifact",
-            "error",
-            Duration::from_millis(3),
-        );
+        context.state.metrics.note_peer_connection_failure();
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -5565,7 +5510,6 @@ mod tests {
         assert_eq!(body["state"], "draining");
         assert_eq!(body["ready"], false);
         assert_eq!(body["ring_members"], 2);
-        assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
         assert_eq!(body["peer_connection_failure_count"], 1);
@@ -5575,37 +5519,6 @@ mod tests {
         assert_eq!(fingerprint.len(), 16);
         assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(body["backfill_initial_cycle"], "complete");
-    }
-
-    fn backfill_tick<'a>(
-        discovered: &'a [String],
-        lost: &'a [String],
-    ) -> crate::backfill::lifecycle::MembershipTick<'a> {
-        crate::backfill::lifecycle::MembershipTick {
-            discovered,
-            lost,
-            view_settled: true,
-            control_plane_peers: &[],
-            admission: true,
-        }
-    }
-
-    /// Settles the initial backfill cycle over one peer: first pass plus the
-    /// seam follow-up, driven through the machine without pass tasks.
-    fn settle_backfill_cycle_over(state: &SharedState, peer: &str, now: tokio::time::Instant) {
-        use crate::backfill::lifecycle::PassResolution;
-        let discovered = vec![peer.to_string()];
-        state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        state
-            .backfill
-            .test_finish_pass(peer, PassResolution::Completed, now);
-        let seam = now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-        state.backfill.test_evaluate(&backfill_tick(&[], &[]), seam);
-        state
-            .backfill
-            .test_finish_pass(peer, PassResolution::Completed, seam);
     }
 
     async fn get_ready_status(state: &SharedState) -> (StatusCode, Value) {
@@ -5625,53 +5538,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_latches_under_backfill_and_survives_a_peer_flap() {
-        let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
-        context
-            .state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-        settle_backfill_cycle_over(&context.state, &peer, tokio::time::Instant::now());
-        context.state.expire_readiness_settle_window().await;
-
-        let (status, body) = get_ready_status(&context.state).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["state"], "serving");
-
-        // The 2026-07-24 class: the peer flaps out and back, so its re-join
-        // backfill makes the node "backfilling" again. Readiness must not
-        // regress.
-        let flapped = vec![peer.clone()];
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &flapped), tokio::time::Instant::now());
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&flapped, &[]), tokio::time::Instant::now());
-        assert!(context.state.backfill.cycle_snapshot().is_backfilling());
-        context
-            .state
-            .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
-                true,
-            )
-            .await;
-
-        let (status, body) = get_ready_status(&context.state).await;
-        assert_eq!(status, StatusCode::OK, "readiness never regresses");
-        assert_eq!(body["state"], "serving");
-        assert_eq!(body["ready"], true);
-    }
-
-    #[tokio::test]
     async fn ready_reports_draining_after_the_backfill_latch() {
         let context = test_context(|_| {}).await;
         context
@@ -5682,10 +5548,6 @@ mod tests {
                 true,
             )
             .await;
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&[], &[]), tokio::time::Instant::now());
         context.state.expire_readiness_settle_window().await;
         let (status, _) = get_ready_status(&context.state).await;
         assert_eq!(status, StatusCode::OK);
@@ -5701,62 +5563,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rollout_status_reports_the_backfill_cycle_through_to_completion() {
+    async fn rollout_status_reports_a_complete_catch_up_with_no_links_to_settle() {
         let context = test_context(|_| {}).await;
-        let peer = "http://peer.kura.internal:7443".to_string();
         context
             .state
             .apply_membership_view(
-                std::collections::BTreeSet::from(["remote".to_string()]),
-                std::collections::BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
                 true,
             )
             .await;
-
-        // Mid-cycle: the mode is pending while a peer still gates.
-        let discovered = vec![peer.clone()];
-        let now = tokio::time::Instant::now();
-        context
-            .state
-            .backfill
-            .test_evaluate(&backfill_tick(&discovered, &[]), now);
-        let response = public_router(context.state.clone())
-            .oneshot(
-                Request::builder()
-                    .uri("/status/rollout")
-                    .body(Body::empty())
-                    .expect("failed to build request"),
-            )
-            .await
-            .expect("rollout status route should respond");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body: Value = serde_json::from_str(&response_text(response).await)
-            .expect("rollout status response should be json");
-        assert_eq!(body["backfill_initial_cycle"], "pending");
-        assert_eq!(body["backfill_backfilling_peers"], 1);
-        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
-        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
-        assert_eq!(body["backfill_ring_fullness_percent"], 0);
-
-        // Settled: the mode reads complete, which is what gate.sh and the
-        // fleet-rollout flow act on.
-        {
-            use crate::backfill::lifecycle::PassResolution;
-            context
-                .state
-                .backfill
-                .test_finish_pass(&peer, PassResolution::Completed, now);
-            let seam =
-                now + Duration::from_millis(crate::constants::BACKFILL_SEAM_FOLLOWUP_DELAY_MS);
-            context
-                .state
-                .backfill
-                .test_evaluate(&backfill_tick(&[], &[]), seam);
-            context
-                .state
-                .backfill
-                .test_finish_pass(&peer, PassResolution::Completed, seam);
-        }
         context.state.expire_readiness_settle_window().await;
         let response = public_router(context.state.clone())
             .oneshot(
@@ -5769,8 +5585,13 @@ mod tests {
             .expect("rollout status route should respond");
         let body: Value = serde_json::from_str(&response_text(response).await)
             .expect("rollout status response should be json");
+        // The catch-up gate contract gate.sh and the kura-controller read.
         assert_eq!(body["backfill_initial_cycle"], "complete");
         assert_eq!(body["backfill_backfilling_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_real_peers"], 0);
+        assert_eq!(body["backfill_budget_exhausted_capability_peers"], 0);
+        assert_eq!(body["backfill_ring_fullness_percent"], 0);
+        assert!(body.get("outbox_messages").is_none());
         assert_eq!(body["ready"], true, "the settled node latched serving");
         assert_eq!(body["state"], "serving");
     }
@@ -8447,88 +8268,6 @@ mod tests {
                     && line.contains("route=\"/api/cache/module/start\"")
             }),
             "a full upload cap is not a server fault: {metrics}"
-        );
-    }
-
-    #[tokio::test]
-    async fn an_outbox_that_cannot_seat_every_target_sheds_rather_than_faulting() {
-        // The public-write middleware only checks that the outbox is not
-        // already at its cap. Each store write then atomically reserves one
-        // slot *per replication target*, so a write admitted by the pre-check
-        // still loses when the remaining room is smaller than the target
-        // count. Two targets against a cap of one reproduces that gap
-        // deterministically; concurrency reaches the same branch by racing.
-        //
-        // `public_router`, not `router`: the gap only exists downstream of
-        // `reject_overloaded_public_writes`, and `combined_router` does not
-        // layer it. Going through the middleware is what makes this a test of
-        // the persistence branches rather than of the handlers in isolation --
-        // on `router` it would stay green even if the middleware regressed to
-        // answering 503.
-        let context = test_context(|config| {
-            config.outbox_max_depth = Some(1);
-            config.peers = vec![
-                "http://127.0.0.1:7101".into(),
-                "http://127.0.0.1:7102".into(),
-            ];
-        })
-        .await;
-        let app = public_router(context.state.clone());
-
-        assert!(
-            !context
-                .state
-                .store
-                .outbox_saturated(&context.state.replication_targets()),
-            "the pre-check must admit this write, or the test is not exercising the gap"
-        );
-
-        let keyvalue = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("PUT")
-                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
-                    .header("content-type", "application/json")
-                    .body(Body::from(
-                        r#"{"cas_id":"cas-outbox","entries":[{"value":"hello"}]}"#,
-                    ))
-                    .expect("failed to build put request"),
-            )
-            .await
-            .expect("keyvalue put failed");
-
-        assert_eq!(keyvalue.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_retryable_hint(&keyvalue, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
-
-        let blob = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/cache/cas/outbox-blob?tenant_id=acme&namespace_id=ios")
-                    .header("content-type", "application/octet-stream")
-                    .body(Body::from("payload"))
-                    .expect("failed to build post request"),
-            )
-            .await
-            .expect("blob post failed");
-
-        assert_eq!(blob.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_retryable_hint(&blob, backpressure::IDLE_RETRY_AFTER_CEILING_SECONDS);
-
-        let metrics = context.state.metrics.render();
-        assert!(
-            metrics
-                .lines()
-                .any(|line| line.starts_with("kura_capacity_sheds_total")
-                    && line.contains("kind=\"outbox\"")),
-            "the shed must be attributable to the outbox, not to egress pressure: {metrics}"
-        );
-        assert!(
-            !metrics.lines().any(|line| {
-                line.starts_with("kura_http_exceptions_total") && line.contains("server_error")
-            }),
-            "a full outbox is not a server fault: {metrics}"
         );
     }
 

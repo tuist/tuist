@@ -31,7 +31,9 @@ use crate::{
     replication::read_bounded_body,
     state::SharedState,
     sync::{
-        coordinator::{LinkFrontier, LinkPhase, LinkStatusCell, backoff, pass_backoff},
+        coordinator::{
+            LinkFrontier, LinkPhase, LinkStatusCell, PEER_UNSUPPORTED, backoff, pass_backoff,
+        },
         feed::{SyncFeedKind, SyncPosition},
     },
     utils::{now_ms, url_encode},
@@ -69,6 +71,10 @@ fn forward_url(app: &SharedState, peer: &str, after: Option<SyncPosition>) -> St
     url
 }
 
+fn unsupported_route(status: StatusCode) -> bool {
+    status == StatusCode::NOT_FOUND || status == StatusCode::METHOD_NOT_ALLOWED
+}
+
 async fn request_head(app: &SharedState, peer: &str) -> Result<SyncForwardHead, String> {
     let response = app
         .client()
@@ -76,6 +82,9 @@ async fn request_head(app: &SharedState, peer: &str) -> Result<SyncForwardHead, 
         .send()
         .await
         .map_err(|error| format!("sync head request failed: {error}"))?;
+    if unsupported_route(response.status()) {
+        return Err(format!("{PEER_UNSUPPORTED}: {}", response.status()));
+    }
     if !response.status().is_success() {
         return Err(format!("sync head request answered {}", response.status()));
     }
@@ -95,6 +104,9 @@ async fn request_forward(
         .await
         .map_err(|error| format!("sync forward request failed: {error}"))?;
     let status = response.status();
+    if unsupported_route(status) {
+        return Err(format!("{PEER_UNSUPPORTED}: {status}"));
+    }
     let bytes = read_bounded_body(response, RESPONSE_LIMIT_BYTES, "sync forward").await?;
     if status == StatusCode::GONE {
         return serde_json::from_slice(&bytes)
@@ -132,7 +144,7 @@ async fn run_pass(
     let window = crate::backfill::window::BackfillWindow {
         min_version_ms: window_min,
     };
-    let guard = app.backfill.claims().register_pass();
+    let guard = app.backfill_claims.register_pass();
     run_backfill_pass_with_tuning(app, peer, window, guard, cancel, tuning(app, source)).await
 }
 
@@ -298,6 +310,7 @@ pub async fn run(
                 match outcome {
                     Ok((position, frontier_ms)) => {
                         bootstrap_failures.store(0, Ordering::Relaxed);
+                        status.update(|status| status.unsupported = false);
                         cursor = Some(position);
                         // The cursor sits at the snapshot head, so it is
                         // within one page of the sibling by construction
@@ -313,6 +326,35 @@ pub async fn run(
                         if error == "cancelled" {
                             return;
                         }
+                        if error.starts_with(PEER_UNSUPPORTED) {
+                            // Nothing to wait for: the peer has to be upgraded
+                            // before this link can deliver anything, so it
+                            // settles at once, cold, and stops bounding the
+                            // serving listing (D-25). Logged on the
+                            // transition only; the retry is the slowest one.
+                            let first = status.snapshot();
+                            status.update(|status| {
+                                status.settled = true;
+                                status.unsupported = true;
+                                status.frontier = LinkFrontier::Abandoned;
+                                status.phase = LinkPhase::Retrying;
+                            });
+                            if !first.unsupported {
+                                app.metrics.record_backfill_pass_event("unsupported");
+                                warn!(
+                                    peer,
+                                    error,
+                                    "sibling runs a release that predates pull; its writes arrive through the push receivers until it is upgraded"
+                                );
+                            }
+                            tokio::select! {
+                                biased;
+                                _ = cancel.cancelled() => return,
+                                _ = tokio::time::sleep(pass_backoff(u32::MAX)) => {}
+                            }
+                            continue;
+                        }
+                        status.update(|status| status.unsupported = false);
                         let failures = bootstrap_failures
                             .fetch_add(1, Ordering::Relaxed)
                             .saturating_add(1);
@@ -449,6 +491,21 @@ pub async fn run(
                 cursor = None;
             }
             Err(error) => {
+                if error.starts_with(PEER_UNSUPPORTED) {
+                    // The sibling was rolled back to a release without the
+                    // feed mid-link: drop the cursor and let the bootstrap
+                    // path hold the link until it comes back.
+                    warn!(
+                        peer,
+                        error, "sibling stopped serving the feed; re-bootstrapping"
+                    );
+                    if let Err(error) = app.store.clear_sync_cursor(&peer) {
+                        warn!(peer, error, "failed to clear the sync cursor");
+                    }
+                    app.metrics.clear_sync_forward_cursor_lag(&peer);
+                    cursor = None;
+                    continue;
+                }
                 request_failures = request_failures.saturating_add(1);
                 status.update(|status| status.phase = LinkPhase::Retrying);
                 app.metrics.note_peer_connection_failure();

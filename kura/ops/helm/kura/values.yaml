@@ -170,10 +170,6 @@ config:
     # Pull replication (docs/replication-design.md). Every value here is
     # optional and rendered only when set; the binary's defaults apply
     # otherwise.
-    # Flip this node to pull: it reads from every peer that also pulls and
-    # keeps pushing to the rest. The control plane's account flag can also
-    # switch it on for enrolled nodes; this value only ever adds to it.
-    replicationPull: null
     # Arrival-feed cap in rows (default 1000000). Must hold the writes that
     # land during the longest backward pass a sibling can need.
     feedMaxRows: null
@@ -225,10 +221,6 @@ config:
     # Public request latency target used to further back off peer sync traffic.
     # Set to 0 to disable latency-based pressure.
     publicLatencyTargetMs: 100
-    # How long an outbox artifact upload may produce no body chunk before the
-    # attempt is abandoned and retried. This is the only deadline on that path,
-    # so it is tunable without a code change if the default proves wrong.
-    uploadStallMs: 60000
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

@@ -13,7 +13,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
@@ -217,7 +216,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       backfilling_peers: integer_field(health, "backfillingPeers"),
       backfill_degraded: health["backfillDegraded"] == true,
       backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
-      outbox_messages: integer_field(health, "outboxMessages"),
       fd_timeout_count: counter_field(health, "fdTimeoutCount"),
       peer_connection_failures: counter_field(health, "peerConnectionFailures"),
       memory_pressure_state: integer_field(health, "memoryPressureState"),
@@ -506,7 +504,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory,
       cpu_ceiling_milli: cpu_ceiling_milli,
-      replication_pull: mesh_enabled?(region) and FeatureFlags.kura_replication_pull_enabled?(account)
+      replication_pull: mesh_enabled?(region)
     }
   end
 
@@ -649,12 +647,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> binary_part(0, 12)
   end
 
-  # The flip has to move the revision: the reconciler converges on the
-  # revision alone, so a flag that changed the rendered env without moving it
-  # would sit unapplied until some unrelated input happened to (the
-  # KURA_MESH_PEERS_SYNC lesson below). Suffixed only when on, so every account
-  # the flip has not reached keeps a byte-identical revision and nothing rolls
-  # for it; reverting the flag crosses the same boundary back.
+  # Unconditional for every mesh region since the push path was removed, and
+  # kept for the same reason as the backfill suffix below: dropping it would
+  # move every flipped account's revision and roll it for no behavioural
+  # change. Held constant, flipped accounts are byte-identical (nothing
+  # rolls) and an account the flip never reached crosses the boundary once,
+  # onto pull on its current image. Instances outside a mesh region never
+  # carried it and still do not. Must stay paired with replication_pull_env/1.
   defp replication_pull_revision_suffix(%{replication_pull: true}), do: "+pull"
   defp replication_pull_revision_suffix(_entitlements), do: ""
 
@@ -908,11 +907,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # The account's pull flag, rendered into the spec so a node boots into the
-  # right mode rather than waiting for its first peer-view fetch to tell it.
-  # Not a CRD field on purpose: a field the deployed CRD schema does not
-  # declare fails every rollout bump until the CRD is upgraded, whereas an env
-  # entry rides in `extraEnv` on any controller. Must stay paired with
+  # A pull-only runtime ignores KURA_REPLICATION_PULL, but the variable is
+  # still rendered for every mesh instance so the server and the runtime can
+  # roll out in either order: a pod still on a pre-removal image boots
+  # straight into pull rather than waiting for its first peer-view fetch to
+  # tell it. Not a CRD field on purpose: a field the deployed CRD schema does
+  # not declare fails every rollout bump until the CRD is upgraded, whereas
+  # an env entry rides in `extraEnv` on any controller. Must stay paired with
   # replication_pull_revision_suffix/1.
   defp replication_pull_env(%{replication_pull: true}), do: [env_var("KURA_REPLICATION_PULL", "true")]
   defp replication_pull_env(_entitlements), do: []

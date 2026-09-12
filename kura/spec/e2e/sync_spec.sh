@@ -1,27 +1,27 @@
 # shellcheck shell=bash
 
-# Ring B of docs/replication-test-plan.md: the pull-replication redesign
+# Ring B of docs/replication-test-plan.md: pull replication
 # (docs/replication-design.md §2–§4, decisions D-1..D-16 in
 # docs/replication-implementation.md) on docker compose, one Describe per
-# topology. Every node runs on test/e2e/docker-compose.sync.yml with
-# KURA_REPLICATION_PULL=true unless the suite says otherwise; membership is
-# DNS-only, so each suite starts exactly the nodes its topology names.
+# topology. Every node runs on test/e2e/docker-compose.sync.yml; membership
+# is DNS-only, so each suite starts exactly the nodes its topology names.
 #
 #   B-1, B-2   two replicas of one region (feed convergence, forward catch-up)
 #   B-3        the same pair with a 100-row feed cap (410 → backward pass)
 #   B-4        the same pair, drain gate of a departing replica
 #   B-5..B-7   two regions × two replicas (gateway links, tombstones, failover)
-#   B-8        two regions, pull flipped on in one of them only
 #   B-9, B-10  a region of one beside a two-replica region, no server
-#   B-11       a pair whose membership is one-way (§11.2's push exception)
+#   B-11       a pair whose membership is one-way (§11.2)
 #
-# Observables are the ones the plan names: /status/cluster (`pulling`,
-# `gateway`, `sync_links`, `feed`), /_internal/status (`pulling`,
-# `traffic_state`, `peers`), the kura_sync_* / kura_gateway_role* / kura_outbox_messages
-# metric families (counters scrape with the doubled `_total_total` suffix;
-# metric_sum accepts the registered name), and the nodes' JSON logs where a
-# node has already exited. Measured latencies are appended to the file named
-# by KURA_E2E_SYNC_MEASUREMENTS when it is set.
+# B-8 (a region still on push beside a pulling one) needs a pre-pull image
+# and lives in test/e2e/kura_compatibility_rollout.sh.
+#
+# Observables are the ones the plan names: /status/cluster (`gateway`,
+# `sync_links`, `feed`), /_internal/status (`traffic_state`, `peers`), the
+# kura_sync_* / kura_gateway_role* metric families (counters scrape with the
+# doubled `_total_total` suffix; metric_sum accepts the registered name), and
+# the nodes' JSON logs where a node has already exited. Measured latencies
+# are appended to the file named by KURA_E2E_SYNC_MEASUREMENTS when it is set.
 
 SYNC_NAMESPACE=ios
 A1_NODE_URL=http://kura-a1.kura.internal:7443
@@ -137,7 +137,6 @@ print(eval(sys.argv[1]))
 }
 
 node_gateway() { cluster_eval "$1" "str(d['gateway']).lower()"; }
-node_pulling() { cluster_eval "$1" "str(d['pulling']).lower()"; }
 # One token per link, `kind:region>peer`, sorted; `none` without links.
 node_links() {
   cluster_eval "$1" "' '.join(sorted(l['kind'] + ':' + l['region'] + '>' + l['peer'] for l in d['sync_links'])) or 'none'"
@@ -305,7 +304,7 @@ Describe 'pull replication between two replicas of one region'
   AfterAll 'teardown_suite'
 
   # B-1
-  It 'converges a write from one replica to the other in under two seconds over the arrival feed with an empty outbox'
+  It 'converges a write from one replica to the other in under two seconds over the arrival feed'
     # The link shape of design §3: one replica link each way, region-local,
     # and the lowest URL holds the (idle, single-region) gateway role.
     a1_links="$(node_links "${KURA_A1_URL}")"
@@ -351,10 +350,6 @@ Describe 'pull replication between two replicas of one region'
       wait_for_output 0 20 0.25 metric_sum "${KURA_A1_URL}" kura_sync_forward_cursor_lag_entries "peer=\"${A2_NODE_URL}\"" || return 1
     The variable a1_lag should eq 0
     # ... and nothing rides the push path between two pulling peers.
-    a1_outbox="$(metric_sum "${KURA_A1_URL}" kura_outbox_messages)"
-    The variable a1_outbox should eq 0
-    a2_outbox="$(metric_sum "${KURA_A2_URL}" kura_outbox_messages)"
-    The variable a2_outbox should eq 0
     a1_pushes_to_a2="$(push_requests_to "${KURA_A1_URL}" kura-a2.kura.internal:7443)"
     The variable a1_pushes_to_a2 should eq 0
     a2_pushes_to_a1="$(push_requests_to "${KURA_A2_URL}" kura-a1.kura.internal:7443)"
@@ -701,8 +696,6 @@ Describe 'pull replication across two regions of two replicas'
     The variable b1_watermark_series should eq 1
     a1_watermark_series="$(metric_series_count "${KURA_A1_URL}" 'kura_region_watermark_age_seconds{region="region-b"}')"
     The variable a1_watermark_series should eq 1
-    outbox_total=$(( $(metric_sum "${KURA_A1_URL}" kura_outbox_messages) + $(metric_sum "${KURA_A2_URL}" kura_outbox_messages) + $(metric_sum "${KURA_B1_URL}" kura_outbox_messages) + $(metric_sum "${KURA_B2_URL}" kura_outbox_messages) ))
-    The variable outbox_total should eq 0
   End
 
   # B-7
@@ -830,90 +823,6 @@ Describe 'pull replication across two regions of two replicas'
   End
 End
 
-Describe 'mixed mesh with pull enabled in one region only'
-  Include spec/e2e/support.sh
-
-  setup_suite() {
-    sync_setup_project kura-sync-mixed
-    suite_env KURA_E2E_SYNC_PULL_B false
-    sync_build_nodes kura-a1 kura-a2 kura-b1 kura-b2 || return 1
-    sync_start_nodes kura-a1 kura-a2 kura-b1 kura-b2 || return 1
-    local url
-    for url in "${KURA_A1_URL}" "${KURA_A2_URL}" "${KURA_B1_URL}" "${KURA_B2_URL}"; do
-      wait_for_node_ready "$url" || return 1
-    done
-    for url in "${KURA_A1_URL}" "${KURA_A2_URL}" "${KURA_B1_URL}" "${KURA_B2_URL}"; do
-      wait_for_ring_members "$url" 4 || return 1
-    done
-    wait_for_output true 120 1 node_links_settled "${KURA_A1_URL}" >/dev/null || return 1
-    wait_for_output true 120 1 node_links_settled "${KURA_A2_URL}" >/dev/null || return 1
-  }
-
-  teardown_suite() {
-    compose_teardown
-  }
-
-  BeforeAll 'setup_suite'
-  Before 'resolve_sync_nodes kura-a1 kura-a2 kura-b1 kura-b2'
-  AfterAll 'teardown_suite'
-
-  # B-8
-  It 'keeps the push region pushing while the pull region pulls from its own peers, and converges both ways'
-    # The flip is per node and advertised (§5.2, D-16): region B is on push
-    # and opens no links; region A pulls from its own pulling peer and has
-    # no remote gateway to read, since nobody else pulls.
-    capture_into b1_internal internal_status kura-b1 || return 1
-    The variable b1_internal should include '"pulling":false'
-    capture_into a1_internal internal_status kura-a1 || return 1
-    The variable a1_internal should include '"pulling":true'
-    b1_pulling="$(node_pulling "${KURA_B1_URL}")"
-    The variable b1_pulling should eq false
-    b1_links="$(node_links "${KURA_B1_URL}")"
-    The variable b1_links should eq none
-    b2_links="$(node_links "${KURA_B2_URL}")"
-    The variable b2_links should eq none
-    b1_gateway="$(node_gateway "${KURA_B1_URL}")"
-    The variable b1_gateway should eq false
-    a1_links="$(node_links "${KURA_A1_URL}")"
-    The variable a1_links should eq "replica:region-a>${A2_NODE_URL}"
-    a2_links="$(node_links "${KURA_A2_URL}")"
-    The variable a2_links should eq "replica:region-a>${A1_NODE_URL}"
-    a1_region_links="$(metric_sum "${KURA_A1_URL}" kura_sync_pull_links 'link="region"')"
-    The variable a1_region_links should eq 0
-
-    # Region B still pushes: its write lands on every node.
-    from_b="$(kv_put "${KURA_B1_URL}" "${SYNC_NAMESPACE}" b8-from-b b8-from-b-value)"
-    The variable from_b should eq 204
-    wait_for_kv_present "${KURA_A1_URL}" "${SYNC_NAMESPACE}" b8-from-b b8-from-b-value 60 0.2 || return 1
-    wait_for_kv_present "${KURA_A2_URL}" "${SYNC_NAMESPACE}" b8-from-b b8-from-b-value 60 0.2 || return 1
-    wait_for_kv_present "${KURA_B2_URL}" "${SYNC_NAMESPACE}" b8-from-b b8-from-b-value 60 0.2 || return 1
-    # Region A pulls inside and pushes out: a non-gateway write reaches its
-    # sibling over the feed and region B over the legacy push path.
-    from_a="$(kv_put "${KURA_A2_URL}" "${SYNC_NAMESPACE}" b8-from-a b8-from-a-value)"
-    The variable from_a should eq 204
-    wait_for_kv_present "${KURA_A1_URL}" "${SYNC_NAMESPACE}" b8-from-a b8-from-a-value 60 0.2 || return 1
-    wait_for_kv_present "${KURA_B1_URL}" "${SYNC_NAMESPACE}" b8-from-a b8-from-a-value 60 0.2 || return 1
-    wait_for_kv_present "${KURA_B2_URL}" "${SYNC_NAMESPACE}" b8-from-a b8-from-a-value 60 0.2 || return 1
-
-    # On the wire: B pushed into A; A pushed into B; A never pushed to its
-    # pulling sibling (the per-peer rule), whose copy came over the feed.
-    b1_pushes_to_a1="$(push_requests_to "${KURA_B1_URL}" kura-a1.kura.internal:7443)"
-    b_pushed=$((b1_pushes_to_a1 >= 1 ? 1 : 0))
-    The variable b_pushed should eq 1
-    a2_pushes_to_b1="$(push_requests_to "${KURA_A2_URL}" kura-b1.kura.internal:7443)"
-    a_pushed=$((a2_pushes_to_b1 >= 1 ? 1 : 0))
-    The variable a_pushed should eq 1
-    a2_pushes_to_a1="$(push_requests_to "${KURA_A2_URL}" kura-a1.kura.internal:7443)"
-    The variable a2_pushes_to_a1 should eq 0
-    a1_pushes_to_a2="$(push_requests_to "${KURA_A1_URL}" kura-a2.kura.internal:7443)"
-    The variable a1_pushes_to_a2 should eq 0
-    capture_into b1_outbox wait_for_output 0 30 1 metric_sum "${KURA_B1_URL}" kura_outbox_messages || return 1
-    The variable b1_outbox should eq 0
-    capture_into a2_outbox wait_for_output 0 30 1 metric_sum "${KURA_A2_URL}" kura_outbox_messages || return 1
-    The variable a2_outbox should eq 0
-  End
-End
-
 Describe 'serverless mesh of a region of one beside a two-replica region'
   Include spec/e2e/support.sh
 
@@ -1004,8 +913,6 @@ Describe 'serverless mesh of a region of one beside a two-replica region'
     The variable solo_pushes_to_a1 should eq 0
     a1_pushes_to_solo="$(push_requests_to "${KURA_A1_URL}" kura-solo.kura.internal:7443)"
     The variable a1_pushes_to_solo should eq 0
-    outbox_total=$(( $(metric_sum "${KURA_A1_URL}" kura_outbox_messages) + $(metric_sum "${KURA_A2_URL}" kura_outbox_messages) + $(metric_sum "${KURA_SOLO_URL}" kura_outbox_messages) ))
-    The variable outbox_total should eq 0
   End
 End
 
@@ -1031,10 +938,11 @@ Describe 'one-way membership between two pulling nodes'
   AfterAll 'teardown_suite'
 
   # B-11
-  It 'keeps pushing to a pulling peer that cannot dial back while pulling from it'
+  It 'pulls from a peer that cannot dial back and opens no link towards it'
     # The one-way view (design §11.2): d2 lists d1, so it probes it and
     # names it; d1 lists nobody, so its own advertised view is empty and it
-    # can never learn that d2 exists.
+    # can never learn that d2 exists. With no push left, d2's writes reach
+    # d1 only through the rest of a mesh d1 can see — here there is none.
     capture_into d1_internal internal_status kura-d1 || return 1
     The variable d1_internal should include '"pulling":true'
     The variable d1_internal should include '"peers":[]'
@@ -1053,17 +961,16 @@ Describe 'one-way membership between two pulling nodes'
       wait_for_contains "$(kv_url "${KURA_D2_URL}" "${SYNC_NAMESPACE}" b11-from-d1)" '"b11-from-d1-value"' 300 0.1 || return 1
     The variable d2_read should include '"b11-from-d1-value"'
 
-    # d2 -> d1 by push: nothing on d1 pulls, so the exception is the only
-    # leg this direction has.
+    # d2 -> d1: nothing on d1 pulls and nothing pushes any more, so the
+    # write stays on d2 and d1 never opens a link.
     from_d2="$(kv_put "${KURA_D2_URL}" "${SYNC_NAMESPACE}" b11-from-d2 b11-from-d2-value)"
     The variable from_d2 should eq 204
-    wait_for_kv_present "${KURA_D1_URL}" "${SYNC_NAMESPACE}" b11-from-d2 b11-from-d2-value 60 0.2 || return 1
+    sleep 5
+    d1_read_status="$(status_only "$(kv_url "${KURA_D1_URL}" "${SYNC_NAMESPACE}" b11-from-d2)")"
+    The variable d1_read_status should eq 404
+    d1_links="$(node_links "${KURA_D1_URL}")"
+    The variable d1_links should eq none
     d2_pushes_to_d1="$(push_requests_to "${KURA_D2_URL}" kura-d1.kura.internal:7443)"
-    d2_pushed=$((d2_pushes_to_d1 >= 1 ? 1 : 0))
-    The variable d2_pushed should eq 1
-    capture_into d2_outbox wait_for_output 0 30 1 metric_sum "${KURA_D2_URL}" kura_outbox_messages || return 1
-    The variable d2_outbox should eq 0
-    d1_outbox="$(metric_sum "${KURA_D1_URL}" kura_outbox_messages)"
-    The variable d1_outbox should eq 0
+    The variable d2_pushes_to_d1 should eq 0
   End
 End

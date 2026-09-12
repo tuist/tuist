@@ -9,7 +9,6 @@ pub(crate) enum FailpointName {
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
     AfterReadArtifactBytesBeforeReturn,
-    BeforeDeleteOutboxMessageAfterSuccess,
     BeforeApplyReplicatedTombstone,
     AfterApplyReplicatedTombstone,
     AfterBackfillIndexBuildChunk,
@@ -30,9 +29,6 @@ impl FailpointName {
             }
             Self::AfterMetadataCommitBeforeReturn => "after_metadata_commit_before_return",
             Self::AfterReadArtifactBytesBeforeReturn => "after_read_artifact_bytes_before_return",
-            Self::BeforeDeleteOutboxMessageAfterSuccess => {
-                "before_delete_outbox_message_after_success"
-            }
             Self::BeforeApplyReplicatedTombstone => "before_apply_replicated_tombstone",
             Self::AfterApplyReplicatedTombstone => "after_apply_replicated_tombstone",
             Self::AfterBackfillIndexBuildChunk => "after_backfill_index_build_chunk",

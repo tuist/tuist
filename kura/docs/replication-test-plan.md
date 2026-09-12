@@ -17,7 +17,7 @@ worth running, and ring B before ring C.
 cd kura && mise exec -- cargo test sync::            # feed, cursor, watermark, role rules
 cd kura && mise exec -- cargo test backfill::        # backward pass unchanged + buffer
 cd kura && mise exec -- cargo test http::tests::internal_sync   # endpoint contract
-cd kura && mise exec -- cargo test replication::     # push path for non-pulling peers
+cd kura && mise exec -- cargo test replication::     # membership loop, peer body streaming
 cd kura && mise run clippy && mise run format -- --check
 ```
 
@@ -45,14 +45,14 @@ the same `A-n` tag):
 | A-15 | Pass-start buffer `horizon.max(watermark - buffer)` | `compute_window` result |
 | A-16 | Local role derivation: lowest URL per region, Ready and non-draining only, overlap over gaps | role table for synthetic views |
 | A-17 | Server `peer_roles` overrides local derivation | node role follows the published entry |
-| A-18 | Per-peer flip rule | pushes only to non-pulling peers; pulls from pulling peers by role |
+| A-18 | Every present peer is pulled from | siblings by region, gateways by role, whatever a peer advertises; a peer answering 404 to the feed settles as `unsupported` and counts as a capability gap, not degraded |
 | A-19 | Drain gate waits for the sibling cursor, bounded; region of one exits at once | shutdown duration under both shapes |
 | A-20 | Readiness: settled bootstrap + cursor within one page | `/ready` transitions |
 | A-21 | INV-6 serve gate on young entries with an absent blob | miss served; old entries untouched |
 | A-22 | Limiter bypass for same-region peers | limiter untouched on the sibling link |
 | A-23 | `origin_region` additive on the wire | old-format frames decode; new frames carry it |
 | A-24 | Watermark seed from `backfill/wm/` rows | first read starts at the seeded value |
-| A-25 | Push exception for a pulling peer that cannot dial back (§11.2) | a pulling peer whose advertised view omits us stays a push target, leaves once it names us, and never earns D-20's stickiness before that; `/_internal/status` carries the view |
+| A-25 | The membership view is advertised (§11.2) | `/_internal/status` carries `peers`, the view this node holds, for a pre-pull peer's own per-pair rule |
 | A-27 | Bootstrap failure budget survives a link respawn (§3.6) | a peer that leaves and re-enters the view continues its failure count; readiness settles after the budget however often the link reopens |
 | A-26 | Peer bodies limits are configuration (§11.1) | the aggregate follows the membership view (`max(8, peers × slots)`) unless pinned; the configured per-peer slot count admits exactly that many; the (N+1)th request across distinct identities is refused as `rejected_node_busy` |
 | A-28a | Feed stamps and the frontier (§4.1, D-24) | stamps are non-decreasing in seq; `frontier_ms` is the lowest in-flight stamp while one is in flight and `now` once every ticket resolves, including an aborted one |
@@ -66,8 +66,7 @@ the same `A-n` tag):
 | A-30 | A forward response captures one feed state | `head` and `frontier_ms` are read under the allocation lock, so the frontier cannot cover a sequence above the response head |
 | A-31 | Capacity decisions on arrival-ordered pages are per entry | an old entry below the next evictee is declined, then a newer entry in the same page is fetched and applied; the pass does not latch capacity completion |
 | A-32 | Feed reactivation invalidates old cursors | a consumer caught up at the old head receives `410 floor` after deactivate and reactivate; writes made while disabled arrive through the required bootstrap |
-| A-33 | Reverting pull is a level-triggered legacy transition | a continuously reachable peer is rediscovered by the legacy scheduler when this node disables pull or the peer stops advertising it, despite no membership edge |
-| A-34 | A rollback keeps the persisted feed's drain obligation | after pull changes to push, an already-enabled feed remains active for an older sibling and shutdown gates on the feed itself |
+| A-34 | The persisted feed owns the drain obligation | an already-enabled feed remains active for a sibling until the stale window expires and shutdown gates on the feed itself |
 | A-35 | Self-hosted peer views do not expose managed pod roles | a self-hosted credential receives an empty `peer_roles` list even when the account has stored internal pod roles; the managed credential still receives them |
 | A-36 | Endpoint permission skew holds evacuation | a forbidden core Endpoints read returns “not served” without an error, so the controller retains the pod until its chart permissions catch up |
 | A-37 | Slow regional role reads do not serialize a tick | two blocked peer-role observations both start before either is released, under the reconciler's bounded worker group |
@@ -83,17 +82,17 @@ cd kura && mise exec -- shellspec spec/e2e/discovery_spec.sh spec/e2e/backfill_s
 
 | # | Topology | Scenario | Observable |
 | --- | --- | --- | --- |
-| B-1 | 2 replicas, 1 region, pull on | write on A → read on B | converges < 2 s; `kura_sync_forward_cursor_lag_entries` ≈ 0; outbox empty |
+| B-1 | 2 replicas, 1 region | write on A → read on B | converges < 2 s; `kura_sync_forward_cursor_lag_entries` ≈ 0 |
 | B-2 | same | stop B, write 10k on A, start B | B converges via forward feed; no `410` |
 | B-3 | same, cap = 100 | stop B, write 1k on A, start B | `410`, backward pass, forward; all records present |
 | B-4 | same | SIGUSR1 on A with B lagging | A exits after B's cursor reaches head; `drain_timeout_total` == 0 |
-| B-5 | 2 regions × 2 replicas, pull on | write in region 1 → read in region 2 non-gateway | arrives; only gateways carry cross-region connections |
+| B-5 | 2 regions × 2 replicas | write in region 1 → read in region 2 non-gateway | arrives; only gateways carry cross-region connections |
 | B-6 | same | restart region-2 gateway | role moves to the sibling; watermark preserved; no full re-walk |
 | B-7 | same | namespace delete in region 1 | tombstone applied everywhere |
-| B-8 | 2 regions, pull on in region 1 only | mixed mesh | region 2 still pushes; region 1 pulls from region 1 peers; all records converge |
+| B-8 | 2 regions, one on the previous release with push | mixed versions (`test/e2e/kura_compatibility_rollout.sh`) | the previous region pushes into the current one and pulls from it; all records converge |
 | B-9 | region of one + 2-replica region | co-located instance | region of one pulls from the gateway; no feed on the region of one |
 | B-10 | serverless 3 nodes, 2 regions, no server | roles derived locally | exactly one gateway per region in `/status/cluster` |
-| B-11 | 2 nodes, 1 region, pull on, one-way membership (d2 lists d1, d1 lists nobody) | §11.2's push exception under the runner-region shape | a write on d1 reaches d2 by pull; a write on d2 reaches d1 by push, with d2's outbox back to zero |
+| B-11 | 2 nodes, 1 region, one-way membership (d2 lists d1, d1 lists nobody) | §11.2 under the runner-region shape | a write on d1 reaches d2 by pull; d1 opens no link and nothing pushes to it, so d2's write reaches it only through the rest of a mesh it can see |
 
 ## Ring C — k01 clusters (tens of minutes per setup)
 
@@ -106,23 +105,23 @@ repo):
 | Script | Purpose |
 | --- | --- |
 | `serverless.sh apply k0N <tag-us> [<tag-eu>] [pull]` | the serverless 2 × 2 mesh (`kura-mesh` namespace), image tags from the host registry; `wipe` removes it |
-| `regions.sh flip k0N true\|false` / `add k0N eu ap` | flip `KURA_REPLICATION_PULL` on the deployed instances; add two-replica regions |
+| `regions.sh add k0N eu ap` | add two-replica regions (`flip` is a no-op on a pull-only image) |
 | `mint-jwt.sh k0N` | an HS512 token the deployed nodes accept for `tuist/kura` writes |
 | `sync-bench.sh` | the burst + convergence + cAdvisor/du deltas table (`KURA_BENCH_TOKEN` for authenticated nodes) |
 | `rollout-check.sh` | C-5/C-6: roll an instance to a new image while writing, watch the gateway role |
 | `rebuild-check.sh` | C-8: recreate a node on an empty volume, watch the `410 incarnation` re-bootstrap |
-| `stall-check.sh` | SIGSTOP a node, burst elsewhere, compare outbox growth and catch-up time |
+| `stall-check.sh` | SIGSTOP a node, burst elsewhere, compare feed lag growth and catch-up time |
 | `remote-selfhosted.sh` | C-3: a self-hosted node in another cluster enrolling with the server (see the implementation log for why the lab cannot complete enrollment) |
 
 | # | Setup | What it exercises | Pass criterion |
 | --- | --- | --- | --- |
-| C-1 | Self-hosted, no server: 2 nodes × 2 regions (`KURA_PEERS` + `KURA_REGION`) | serverless role derivation, feed, region sync | writes on any node reach every node; one gateway per region; outbox stays empty |
-| C-2 | Self-hosted with a self-hosted server: 1 KuraInstance (2 replicas) + 1 self-hosted node, all one cluster | enrolled peer roles from the server, flip via the account flag | flag flip observed in `/_internal/status`; pushes stop; convergence continues |
+| C-1 | Self-hosted, no server: 2 nodes × 2 regions (`KURA_PEERS` + `KURA_REGION`) | serverless role derivation, feed, region sync | writes on any node reach every node; one gateway per region |
+| C-2 | Self-hosted with a self-hosted server: 1 KuraInstance (2 replicas) + 1 self-hosted node, all one cluster | enrolled peer roles from the server | the self-hosted node is pulled by the region's gateway and pulls from it; convergence continues |
 | C-3 | Self-hosted node pointing at a hosted-style server on another cluster | server-published roles across clusters | roles identical on both sides; region sync over the hairpin |
 | C-4 | Self-hosted server + 2 more regions × 2 replicas (3 KuraInstances, 3 regions) | gateway clique, origin-filtered forward reads, buffer | every write reaches all 6 nodes; cross-region connections == gateways only |
 | C-5 | 1 managed region (controller-managed KuraInstance, 2 replicas) | controller `peerRoles`, peer Service pinned to the gateway, drain gate on a rollout | rollout loses no recent write; `drain_timeout_total` == 0 |
 | C-6 | 2 managed regions | primary/gateway complement in both regions, role moves across a deploy | `kura_gateway_role_changes_total` step per deploy, no continuous climb |
-| C-7 | Mixed versions: main image in one region, branch image in the other | ship/flip compatibility | both directions converge; old region keeps push; new region pulls |
+| C-7 | Mixed versions: previous-release image (push-capable) on a self-hosted node, current image in the regions | push removal compatibility | flag on: both directions converge with no push; flag off or a pre-pull release: the old node's pushes land on the receivers, the new nodes stay Ready with `capability=1` (`unsupported` link) and the old node sees their writes only on its own backward passes |
 | C-8 | Volume rebuild (delete a data PVC's pod on an empty volume) | new incarnation, `410 incarnation`, bootstrap from the sibling | `fell_behind_total{reason="incarnation"}` == 1; readiness after bootstrap |
 
 Each ring-C run records, per node, before/after: RSS and anon memory
@@ -147,10 +146,9 @@ The scripts live in the harness repo under
 ```sh
 CLUSTER=k02 mise x -- bash ~/.config/tuist/k01/deploy.sh   # server + kura-controller + region `local` (2) + `sh` (1)
 ~/.config/tuist/k01/replication/regions.sh add  k02 eu     # region `eu` (2 replicas, own public host)
-~/.config/tuist/k01/replication/regions.sh flip k02 true   # KURA_REPLICATION_PULL on the deploy.sh instances
 
 ~/.config/tuist/k01/replication/load/setup.sh k02 200      # loader image + workspace + JWT, on the host
-~/.config/tuist/k01/replication/load/mesh-state.sh k02     # baseline: roles, links, phases, lag, outbox
+~/.config/tuist/k01/replication/load/mesh-state.sh k02     # baseline: roles, links, phases, lag
 python3 ~/.config/tuist/k01/replication/load/collect-metrics.py k02 tuist "$RUN" 15 900 &
 ~/.config/tuist/k01/replication/load/run-load.sh k02 600 75 4
 ~/.config/tuist/k01/replication/load/verify.sh  k02 <run-id> 8
@@ -168,8 +166,8 @@ the *other* region: every read hit had to cross regions. Iterations are paced to
 a fixed period so the rate is steady rather than a back-to-back burst.
 
 **What is measured.** Every 15 s, per kura pod: cAdvisor CPU seconds, working
-set and network rx/tx, plus from the pod's own `/metrics` the outbox depth and
-lanes, `kura_sync_forward_cursor_lag_entries`/`_seconds`,
+set and network rx/tx, plus from the pod's own `/metrics`
+`kura_sync_forward_cursor_lag_entries`/`_seconds`,
 `kura_sync_forward_index_entries`, `kura_region_watermark_age_seconds`,
 `kura_region_sync_last_success_age_seconds`, `kura_region_sync_bytes_fetched`,
 `kura_backfill_bodies_peer_requests_total` by outcome, `kura_gateway_role` and
@@ -185,7 +183,7 @@ against the pre-run figure.
 
 | # | Criterion |
 | --- | --- |
-| D-1 | Every link stays `forward` and `settled` for the whole run; `kura_outbox_messages` is 0 at every sample on every pod. |
+| D-1 | Every link stays `forward` and `settled` for the whole run. |
 | D-2 | `kura_region_watermark_age_seconds` is a sawtooth that resets within ~10 s of the other region's write finishing — it never ratchets upward across iterations. |
 | D-3 | `kura_gateway_role_changes_total` does not move, and `kura_peer_connection_failures_total` stays 0, under steady load. |
 | D-4 | Every pod's data dir grows by approximately the full payload written in the run, whichever region it was written through. |
@@ -215,7 +213,7 @@ by kubelet, so the 90 s event is a restart test, not a freeze test.
 
 | # | Criterion |
 | --- | --- |
-| D-7 | Every event returns the mesh to "every link `forward`/`settled`, `lag_entries` 0, outbox 0 on every pod" within 3 minutes of the event, and every Bazel iteration that overlaps an event still exits 0. |
+| D-7 | Every event returns the mesh to "every link `forward`/`settled`, `lag_entries` 0 on every pod" within 3 minutes of the event, and every Bazel iteration that overlaps an event still exits 0. |
 | D-8 | No container restart and no pod replacement other than the ones the sequence injects. A roll caused by the controller's CPU-request band change counts as a finding to record, not a pass. |
 | D-9 | `kura_sync_forward_drain_timeout_total` does not move on any pod, and `kura_sync_forward_fell_behind_total` records no reason other than the ones the events make unavoidable (`incarnation` on a pod whose volume was rebuilt). |
 | D-10 | Cross-region misses present before a gateway restart are repaired by it: a seed that read short during the run reads whole in `verify.sh` after the gateway of the region that wrote it has restarted, and the two verify passes (immediately after the run, and after every pod has been stable for 3 minutes) agree. |

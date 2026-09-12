@@ -43,7 +43,6 @@ defmodule Tuist.Kura.RolloutsTest do
         backfilling_peers: 0,
         backfill_degraded: false,
         backfill_budget_exhausted_peers: 0,
-        outbox_messages: 10,
         fd_timeout_count: 0,
         peer_connection_failures: 0,
         memory_pressure_state: 0,
@@ -646,92 +645,12 @@ defmodule Tuist.Kura.RolloutsTest do
       stub(Provisioner, :rollout_health, fn _server -> {:ok, post_health} end)
 
       assert :ok = Rollouts.sync()
-      # The outbox condition is not judged until the queue has had a window
-      # after convergence to show whether it drains.
       back_date_rollout_server(rollout, server, :converged_at, 6 * 60)
       rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
       assert :ok = Rollouts.sync()
 
       rollout = Repo.get!(Rollout, rollout.id)
       if rollout.current_wave > 0, do: :passed, else: :held
-    end
-
-    test "outbox within the tolerance band passes and beyond it holds" do
-      # baseline 100 -> band is 100 + max(ceil(100/10), 50) = 150.
-      assert gate_verdict(healthy_health(%{outbox_messages: 100}), healthy_health(%{outbox_messages: 150})) ==
-               :passed
-
-      assert gate_verdict(healthy_health(%{outbox_messages: 100}), healthy_health(%{outbox_messages: 151})) ==
-               :held
-    end
-
-    # Drives the gate through a sequence of real health samples so the
-    # extremes are tracked the way production tracks them, rather than
-    # pre-seeded into the shape the assertion wants.
-    defp outbox_verdict(baseline_depth, depths) do
-      target = "0.6.#{System.unique_integer([:positive, :monotonic])}"
-      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> target end)
-
-      %{account: account, server: server} = create_active_server()
-      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(account.name)] end)
-      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: baseline_depth})} end)
-
-      assert :ok = Rollouts.sync()
-      rollout = Rollouts.active_rollout()
-      {:ok, _} = Kura.activate_server(Repo.get!(Server, server.id), target)
-
-      Enum.each(depths, fn depth ->
-        stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: depth})} end)
-        assert :ok = Rollouts.sync()
-      end)
-
-      back_date_rollout_server(rollout, server, :converged_at, 6 * 60)
-      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
-      assert :ok = Rollouts.sync()
-
-      if Repo.get!(Rollout, rollout.id).current_wave > 0, do: :passed, else: :held
-    end
-
-    test "a queue that only grows never counts as drained" do
-      # The trough only means something after the peak it follows. Tracked
-      # independently, a queue climbing from empty to its ceiling keeps a
-      # low-water mark from before the climb and reads as though it drained.
-      assert outbox_verdict(100, [900, 1000]) == :held
-      assert outbox_verdict(100, [0, 50_000, 100_000]) == :held
-    end
-
-    test "a queue that falls back off its peak passes even though it sits above the band" do
-      # The canary carrying the runners cache swings between empty and its
-      # max depth on CI traffic alone. Depth above the band is what makes the
-      # queue worth judging; falling back off its own peak is what says
-      # replication still works.
-      assert outbox_verdict(100, [1000, 900, 400, 900]) == :passed
-    end
-
-    test "a deep queue inside the drain window holds the wave rather than passing it" do
-      # A server scoped into a wave whose soak clock is already running must
-      # not let the wave complete before its queue has been looked at.
-      %{account: canary_account, server: canary_server} = create_active_server()
-
-      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
-      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 100})} end)
-
-      assert :ok = Rollouts.sync()
-      rollout = Rollouts.active_rollout()
-
-      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
-      stub(Provisioner, :rollout_health, fn _server -> {:ok, healthy_health(%{outbox_messages: 900})} end)
-      assert :ok = Rollouts.sync()
-
-      # Converged just now: the queue has had no window to show a drain.
-      rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
-      assert :ok = Rollouts.sync()
-
-      assert Repo.get!(Rollout, rollout.id).current_wave == 0
-    end
-
-    test "a queue that drains below the band ends the episode" do
-      assert outbox_verdict(100, [1000, 10]) == :passed
     end
 
     test "failure counters tolerate the rollout's own reconnect churn" do
@@ -911,7 +830,7 @@ defmodule Tuist.Kura.RolloutsTest do
       assert :ok = Rollouts.sync()
       rollout_server = rollout_server(Repo.get!(Rollout, rollout.id), canary_server)
       assert rollout_server.soak_eligible
-      assert rollout_server.baseline_outbox_messages
+      assert rollout_server.baseline_captured_at
 
       rollout = back_date(Repo.get!(Rollout, rollout.id), :wave_healthy_since, 16 * 60)
       assert :ok = Rollouts.sync()
@@ -936,7 +855,7 @@ defmodule Tuist.Kura.RolloutsTest do
 
       rollout_server = rollout_server(rollout, canary_server)
       refute rollout_server.soak_eligible
-      assert rollout_server.baseline_outbox_messages
+      assert rollout_server.baseline_captured_at
 
       {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
       assert :ok = Rollouts.sync()
