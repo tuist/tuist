@@ -2,20 +2,24 @@ defmodule TuistWeb.API.OnceInvocationsController do
   @moduledoc """
   Ingestion and listing of Once invocation summaries.
 
-  The Once CLI posts a batch after each `once exec` completes. Each event is
-  the summary of a single wrapped action: what the CLI ran, whether it came
-  from the action cache, and how long the whole exec cycle took wall-clock.
+  The transport is the Once event protocol: a client sends a batch of events
+  to whatever URL the server advertised at `/.well-known/once` with the
+  project scope in the body, so the client never has to construct
+  server-specific paths. The path the events endpoint lives at is a Tuist
+  implementation detail; other servers speaking the same protocol can host it
+  wherever they like.
   """
   use TuistWeb, :controller
 
+  alias Tuist.Authorization
   alias Tuist.Once
   alias Tuist.Once.Invocation
+  alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
 
   require Logger
-
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
 
   @max_events_per_request 100
   @max_invocation_id_bytes 256
@@ -23,8 +27,10 @@ defmodule TuistWeb.API.OnceInvocationsController do
   @max_argv_entry_bytes 1024
   @max_git_field_bytes 1024
 
-  def create(%{assigns: %{selected_project: %Project{} = project}} = conn, %{"events" => events}) when is_list(events) do
-    if project.build_system == :once do
+  def create(conn, %{"project" => project_slug, "events" => events}) when is_binary(project_slug) and is_list(events) do
+    with {:ok, project} <- load_project(project_slug),
+         :ok <- ensure_once_project(project),
+         :ok <- authorize(conn, project) do
       {events, overflow} = Enum.split(events, @max_events_per_request)
       received = length(events) + length(overflow)
 
@@ -40,52 +46,131 @@ defmodule TuistWeb.API.OnceInvocationsController do
       |> json(%{accepted: inserted, rejected: received - inserted})
       |> halt()
     else
-      conn
-      |> put_status(:conflict)
-      |> json(%{
-        error: "project_build_system_mismatch",
-        message: "The project is not configured as an Once project."
-      })
-      |> halt()
+      {:error, :project_not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "project_not_found"})
+        |> halt()
+
+      {:error, :not_once_project} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{
+          error: "project_build_system_mismatch",
+          message: "The project is not configured as an Once project."
+        })
+        |> halt()
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "unauthorized", message: "The subject is not authorized to report events for this project."})
+        |> halt()
     end
   end
 
   def create(conn, _params) do
     conn
     |> put_status(:bad_request)
-    |> json(%{error: "invalid_payload", message: "Expected a JSON object with an `events` array."})
+    |> json(%{
+      error: "invalid_payload",
+      message: "Expected a JSON object with a `project` string and an `events` array."
+    })
     |> halt()
   end
 
-  def index(%{assigns: %{selected_project: %Project{} = project}} = conn, params) do
-    limit =
-      params
-      |> Map.get("limit", "50")
-      |> to_string()
-      |> Integer.parse()
-      |> case do
-        {value, _} when value > 0 and value <= 200 -> value
-        _ -> 50
-      end
+  def index(conn, %{"project" => project_slug} = params) do
+    with {:ok, project} <- load_project(project_slug),
+         :ok <- ensure_once_project(project),
+         :ok <- authorize(conn, project) do
+      limit = parse_limit(params["limit"])
 
-    invocations =
-      project.id
-      |> Once.list_invocations(limit: limit)
-      |> Enum.map(&invocation_json/1)
+      invocations =
+        project.id
+        |> Once.list_invocations(limit: limit)
+        |> Enum.map(&invocation_json/1)
 
-    json(conn, %{invocations: invocations})
-  end
+      json(conn, %{invocations: invocations})
+    else
+      {:error, :project_not_found} ->
+        raise NotFoundError, "The project #{project_slug} was not found."
 
-  def show(%{assigns: %{selected_project: %Project{} = project}} = conn, %{"invocation_id" => invocation_id}) do
-    case Once.get_invocation(project.id, invocation_id) do
-      nil ->
+      {:error, :not_once_project} ->
         conn
-        |> put_status(:not_found)
-        |> json(%{error: "invocation_not_found"})
+        |> put_status(:conflict)
+        |> json(%{error: "project_build_system_mismatch"})
         |> halt()
 
-      %Invocation{} = invocation ->
-        json(conn, invocation_json(invocation))
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "unauthorized"})
+        |> halt()
+    end
+  end
+
+  def index(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "missing_project"})
+    |> halt()
+  end
+
+  def show(conn, %{"project" => project_slug, "invocation_id" => invocation_id}) do
+    with {:ok, project} <- load_project(project_slug),
+         :ok <- ensure_once_project(project),
+         :ok <- authorize(conn, project) do
+      case Once.get_invocation(project.id, invocation_id) do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "invocation_not_found"})
+          |> halt()
+
+        %Invocation{} = invocation ->
+          json(conn, invocation_json(invocation))
+      end
+    else
+      {:error, :project_not_found} ->
+        raise NotFoundError, "The project #{project_slug} was not found."
+
+      {:error, :not_once_project} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "project_build_system_mismatch"})
+        |> halt()
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "unauthorized"})
+        |> halt()
+    end
+  end
+
+  defp load_project(project_slug) when is_binary(project_slug) do
+    case Projects.get_project_by_slug(project_slug, preload: [:account]) do
+      {:ok, project} -> {:ok, project}
+      {:error, _} -> {:error, :project_not_found}
+    end
+  end
+
+  defp ensure_once_project(%Project{build_system: :once}), do: :ok
+  defp ensure_once_project(_), do: {:error, :not_once_project}
+
+  defp authorize(conn, %Project{} = project) do
+    subject = Authentication.authenticated_subject(conn)
+
+    case Authorization.authorize(:build_create, subject, project) do
+      :ok -> :ok
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp parse_limit(value) do
+    case value |> to_string() |> Integer.parse() do
+      {parsed, _} when parsed > 0 and parsed <= 200 -> parsed
+      _ -> 50
     end
   end
 
