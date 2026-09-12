@@ -96,12 +96,19 @@ defmodule TuistWeb.PublicAccountLiveTest do
       end
     end
 
-    test "keys the limit on the visitor's address when signed out", %{conn: conn, account: account} do
+    test "keys the limit on the visitor's address and on the account scope when signed out",
+         %{conn: conn, account: account} do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dashboard_rate_limit_bucket_size, fn -> 60 end)
+      stub(Environment, :public_project_rate_limit_bucket_size, fn -> 120 end)
 
       expect(RateLimit, :hit, fn key, _opts ->
         assert key == "dashboard:GET:/:account_handle/runners:ip:127.0.0.1"
+        {:allow, 1}
+      end)
+
+      expect(RateLimit, :hit, fn key, _opts ->
+        assert key == "dashboard:anon-scope:GET:#{account.name}"
         {:allow, 1}
       end)
 

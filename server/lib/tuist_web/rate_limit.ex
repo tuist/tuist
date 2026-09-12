@@ -30,11 +30,11 @@ defmodule TuistWeb.RateLimit do
       route = route_pattern(conn)
       key = "dashboard:#{conn.method}:#{route}:#{requester_key(conn)}"
 
-      case __MODULE__.hit(key, limit: limit, window: window) do
-        {:allow, _count} ->
-          conn
-
-        {:deny, _limit} ->
+      with :ok <- check(key, limit, window),
+           :ok <- check_anon_scope(conn, window, opts) do
+        conn
+      else
+        :deny ->
           raise TuistWeb.Errors.TooManyRequestsError,
             message: "You have made too many requests. Please try again later."
       end
@@ -42,6 +42,34 @@ defmodule TuistWeb.RateLimit do
       conn
     end
   end
+
+  defp check(key, limit, window) do
+    case __MODULE__.hit(key, limit: limit, window: window) do
+      {:allow, _count} -> :ok
+      {:deny, _limit} -> :deny
+    end
+  end
+
+  # Aggregate anonymous traffic per (method, account[, project]) so a scraper
+  # distributed across many residential-proxy IPs is caught even when no
+  # single IP trips the per-subject key above. Signed-in requests are already
+  # keyed by user and do not need this fallback.
+  defp check_anon_scope(%Plug.Conn{} = conn, window, opts) do
+    with nil <- Authentication.current_user(conn),
+         scope when is_binary(scope) <- anon_scope(conn) do
+      limit = opts[:anon_scope_limit] || Environment.public_project_rate_limit_bucket_size()
+      check("dashboard:anon-scope:#{conn.method}:#{scope}", limit, window)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp anon_scope(%Plug.Conn{path_params: %{"account_handle" => account, "project_handle" => project}})
+       when is_binary(account) and is_binary(project), do: "#{account}/#{project}"
+
+  defp anon_scope(%Plug.Conn{path_params: %{"account_handle" => account}}) when is_binary(account), do: account
+
+  defp anon_scope(_conn), do: nil
 
   defp hit_persistent(:fixed_window, key, opts) do
     window = Keyword.fetch!(opts, :window)

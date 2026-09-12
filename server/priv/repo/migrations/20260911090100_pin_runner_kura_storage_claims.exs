@@ -61,7 +61,7 @@ defmodule Tuist.Repo.Migrations.PinRunnerKuraStorageClaims do
 
       _ ->
         raise ArgumentError,
-              "invalid runner storage claim #{inspect(claim)} for kura_server #{id}; repair before enrollment"
+              "invalid runner storage claim #{inspect(claim)} for kura_server #{inspect(id)}; repair before enrollment"
     end
   end
 
