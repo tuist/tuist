@@ -618,6 +618,55 @@
         </div>
       </.form>
     </.card_section>
+    <.card_section>
+      <p data-part="standing-prepaid-description">
+        {dgettext(
+          "dashboard",
+          "A standing level is granted again every time the subscription renews, which is what a recurring prepaid arrangement needs: minutes expire with the cycle they were bought for, so without one somebody has to set the figure above by hand every month. Setting a level here leaves the cycle now running exactly as it is. Zero stops the arrangement."
+        )}
+      </p>
+      <p data-part="standing-prepaid-next">
+        {dgettext("dashboard", "Next granted on %{date}.",
+          date: standing_prepaid_next_label(@standing_prepaid_next_at)
+        )}
+      </p>
+      <.form
+        for={%{}}
+        id="standing-prepaid-minutes-form"
+        phx-change="quote_standing_prepaid_minutes"
+        phx-submit="set_standing_prepaid_minutes"
+      >
+        <.text_input
+          id="standing-prepaid-minutes-input"
+          name="minutes"
+          value={@standing_prepaid_minutes_value}
+          input_type="number"
+          min={0}
+          label={dgettext("dashboard", "Standing monthly minutes (macOS 6 vCPU / 14 GB)")}
+        />
+        <dl :if={@standing_prepaid_quote} data-part="standing-prepaid-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Billed each cycle")}</dt>
+            <dd data-part="standing-prepaid-quote-invoiced">
+              {format_money(@standing_prepaid_quote.invoiced)}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Granted each cycle")}</dt>
+            <dd data-part="standing-prepaid-quote-granted">
+              {format_money(@standing_prepaid_quote.granted)}
+            </dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Set standing minutes")}
+          />
+        </div>
+      </.form>
+    </.card_section>
   </.card>
 
   <.card title={dgettext("dashboard", "Visibility")} icon="eye">

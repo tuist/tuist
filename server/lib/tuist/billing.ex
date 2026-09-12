@@ -13,6 +13,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
+  alias Tuist.Billing.Workers.ApplyStandingRunnerPrepaidWorker
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -22,6 +23,8 @@ defmodule Tuist.Billing do
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
   @payment_thresholds %{remote_cache_hits: 200}
+  # The statuses that carry an invoice for a prepaid charge to ride.
+  @billable_statuses ["active", "trialing"]
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
   def get_payment_thresholds do
@@ -739,6 +742,32 @@ defmodule Tuist.Billing do
     current_period_start = stripe_timestamp(subscription, :current_period_start)
     current_period_end = stripe_timestamp(subscription, :current_period_end)
 
+    # The period write and the standing-minutes job go together. The job
+    # is only enqueued when the recorded period moves forward, so a write
+    # that landed without it would leave that cycle's minutes ungranted
+    # with no later event able to notice: the redelivery Stripe sends
+    # would read the period as already current and skip.
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        persist_subscription(subscription, account, current_subscription, plan, {
+          trial_end,
+          current_period_start,
+          current_period_end
+        })
+
+        apply_standing_runner_prepaid(account, current_subscription, subscription, current_period_start)
+      end)
+
+    :ok
+  end
+
+  defp persist_subscription(
+         subscription,
+         account,
+         current_subscription,
+         plan,
+         {trial_end, current_period_start, current_period_end}
+       ) do
     cond do
       plan == :none ->
         raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
@@ -771,9 +800,38 @@ defmodule Tuist.Billing do
         })
         |> Repo.update!()
     end
+  end
+
+  # A renewal is the only subscription change that moves the period start
+  # forward, and it is the moment an account's standing prepaid minutes
+  # are due. Stripe sends `customer.subscription.updated` for far more
+  # than renewals, so comparing against the period already recorded is
+  # what separates the one from the rest.
+  #
+  # Forward, not merely different. Stripe guarantees no ordering, so an
+  # older event delivered after a newer one rewrites the row with a
+  # period already closed; treating any change as a rollover would grant
+  # against that one and then grant again when the newer period is
+  # restored. A stale event never advances past what is recorded, so
+  # comparing direction drops it.
+  #
+  # The worker's uniqueness key is a second layer rather than this one's
+  # replacement: completed jobs are pruned within hours, so it cannot
+  # recognise a redelivery that arrives after that.
+  defp apply_standing_runner_prepaid(account, current_subscription, subscription, %DateTime{} = period_start) do
+    previous_start = current_subscription && current_subscription.current_period_start
+    rolled_over? = is_nil(previous_start) or DateTime.after?(period_start, previous_start)
+
+    if subscription.status in @billable_statuses and rolled_over? do
+      %{account_id: account.id, period_start: DateTime.to_iso8601(period_start)}
+      |> ApplyStandingRunnerPrepaidWorker.new()
+      |> Oban.insert!()
+    end
 
     :ok
   end
+
+  defp apply_standing_runner_prepaid(_account, _current_subscription, _subscription, _period_start), do: :ok
 
   # A payload that carries no such timestamp clears the column rather than
   # leaving the previous one in place: a stale period is read as the

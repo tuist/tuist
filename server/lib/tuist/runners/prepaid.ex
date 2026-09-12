@@ -97,6 +97,29 @@ defmodule Tuist.Runners.Prepaid do
   reported at. That is the second dividend of keeping the balance in
   money: there is no merging, no re-basing, and no expiry sweep to run.
 
+  ## A standing monthly level
+
+  Minutes dying with their period means a customer on a recurring
+  arrangement needs a grant every cycle, and an operator setting one by
+  hand every cycle is an arrangement that fails silently: the account
+  keeps running, the credit is simply gone, and the usage is invoiced
+  gross at a rate above the one that was agreed.
+
+  `runner_prepaid_monthly_minutes` on the account is that arrangement
+  written down, and `apply_standing_minutes/1` grants it. It is driven
+  off the period rollover Stripe already reports, so the recurring case
+  needs nothing scheduled here and nothing remembered by anyone.
+
+  The level is a figure to open each period at, not a second balance.
+  Nothing reads it to decide what an account holds today; only the
+  rollover does, and what that grants is an ordinary grant carrying
+  ordinary terms.
+
+  Recording a level changes nothing about the period already running. A
+  deal struck mid-cycle still needs that cycle set by hand, because the
+  alternative is a figure typed into ops silently replacing minutes the
+  customer is part-way through spending.
+
   ## When the grant happens
 
   Selling minutes grants them, rather than waiting for the invoice
@@ -133,6 +156,7 @@ defmodule Tuist.Runners.Prepaid do
   alias Tuist.Billing.CreditGrants
   alias Tuist.Billing.Invoices
   alias Tuist.KeyValueStore
+  alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
 
   require Logger
@@ -445,6 +469,46 @@ defmodule Tuist.Runners.Prepaid do
   # asked for.
   defp grant_target(_account, 0, _opts), do: {:ok, :cleared}
   defp grant_target(account, minutes, opts), do: bill_prepaid_minutes(account, minutes, opts)
+
+  @doc """
+  The standing monthly level on `account`, or `nil` when it has none.
+  """
+  def standing_minutes(%Account{runner_prepaid_monthly_minutes: minutes}), do: minutes
+
+  @doc """
+  Sets the standing monthly level on `account`, or clears it with `nil`.
+
+  Records what every future period opens at and nothing more. The period
+  already running is left exactly as it is, so an operator agreeing a
+  deal mid-cycle sets that cycle separately.
+  """
+  def set_standing_minutes(%Account{} = account, minutes) when is_nil(minutes) or is_integer(minutes) do
+    account
+    |> Account.runner_prepaid_changeset(%{runner_prepaid_monthly_minutes: minutes})
+    |> Repo.update()
+  end
+
+  @doc """
+  Grants `account` its standing monthly level for the period that has
+  just opened.
+
+  Answers `{:ok, :no_standing_order}` for an account carrying no level,
+  which is almost every account.
+
+  Goes through `set_minutes/3` rather than granting directly, so a
+  period that opens with credit still live on it converges on the
+  standing figure instead of stacking a second grant beside it. The
+  period before it will normally have taken its grant with it, since a
+  grant expires with the period it was bought for, but one Stripe
+  reported no bounds for is dated a month out and can outlive its own
+  period.
+  """
+  def apply_standing_minutes(%Account{} = account) do
+    case standing_minutes(account) do
+      nil -> {:ok, :no_standing_order}
+      minutes -> set_minutes(account, minutes)
+    end
+  end
 
   @doc """
   Re-reads the balance and replaces the cached copy with it.
