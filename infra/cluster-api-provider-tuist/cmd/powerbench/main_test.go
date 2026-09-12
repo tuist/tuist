@@ -332,3 +332,61 @@ func TestPassedRequiresTheMidWorkloadCycleWhenOneWasAsked(t *testing.T) {
 		t.Fatal("passed() rejected an otherwise clean run")
 	}
 }
+
+// Real `pmset -g` output from the BER1 prototype (macOS 26.6). The two fields
+// starting with "autorestart" are the point: an earlier version matched the
+// name as a substring, read `autorestartatconnect 0`, and would have refused
+// to bench a host whose autorestart was enabled.
+const pmsetOutput = `System-wide power settings:
+Currently in use:
+ standby              1
+ Sleep On Power Button 1
+ hibernatefile        /var/vm/sleepimage
+ powernap             0
+ networkoversleep     0
+ disksleep            10
+ standbydelayhigh     86400
+ sleep                0
+ autopoweroffdelay    259200
+ hibernatemode        3
+ autopoweroff         1
+ ttyskeepawake        1
+ displaysleep         10
+ highstandbythreshold 50
+ standbydelaylow      10800
+ autorestartatconnect 0
+ womp                 1
+ autorestart          1
+`
+
+func TestParseAutorestartMatchesTheWholeFieldName(t *testing.T) {
+	on, err := parseAutorestart(pmsetOutput)
+	if err != nil {
+		t.Fatalf("parseAutorestart: %v", err)
+	}
+	if !on {
+		t.Fatal("read autorestart as disabled on output where it is 1; the autorestartatconnect line was matched instead")
+	}
+}
+
+func TestParseAutorestartReadsDisabled(t *testing.T) {
+	on, err := parseAutorestart(strings.Replace(pmsetOutput, " autorestart          1", " autorestart          0", 1))
+	if err != nil {
+		t.Fatalf("parseAutorestart: %v", err)
+	}
+	if on {
+		t.Fatal("read autorestart as enabled where it is 0")
+	}
+}
+
+// A host that reports no autorestart at all must not be reported as one that
+// has it switched off: the remediation differs.
+func TestParseAutorestartErrorsWhenTheSettingIsAbsent(t *testing.T) {
+	_, err := parseAutorestart("System-wide power settings:\n sleep 0\n womp 1\n")
+	if err == nil {
+		t.Fatal("parseAutorestart accepted output with no autorestart setting")
+	}
+	if !strings.Contains(err.Error(), "no autorestart setting") {
+		t.Fatalf("error does not say the setting was missing: %v", err)
+	}
+}

@@ -540,11 +540,32 @@ func (s *sshRunner) bootID(ctx context.Context) (string, error) {
 }
 
 func (s *sshRunner) autorestart(ctx context.Context) (bool, error) {
-	out, err := s.run(ctx, "pmset -g | awk '/autorestart/ {print $2}'")
+	out, err := s.run(ctx, "pmset -g")
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(out) == "1", nil
+	return parseAutorestart(out)
+}
+
+// parseAutorestart finds the autorestart setting in `pmset -g` output.
+//
+// The field name is matched whole. pmset also reports `autorestartatconnect`,
+// which has `autorestart` as a prefix and is 0 on a host where autorestart
+// itself is 1, so a substring match reads the wrong line and the preflight
+// refuses to run against a perfectly good host.
+//
+// A missing setting is an error rather than false: "this host will not power
+// itself on" and "this check could not be made" need different responses, and
+// reporting the second as the first sends the operator to fix something that
+// is not broken.
+func parseAutorestart(out string) (bool, error) {
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "autorestart" {
+			return fields[1] == "1", nil
+		}
+	}
+	return false, errors.New("pmset -g reported no autorestart setting")
 }
 
 // startLoad detaches the workload so it survives the ssh session closing, and
