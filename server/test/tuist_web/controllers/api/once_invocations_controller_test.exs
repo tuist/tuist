@@ -7,7 +7,7 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
-  describe "POST /api/projects/:account_handle/:project_handle/once/invocations" do
+  describe "POST /api/events/invocations" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
@@ -24,6 +24,7 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
       finished_at_ms = started_at_ms + 1_500
 
       body = %{
+        project: "#{user.account.name}/#{project.name}",
         events: [
           %{
             invocation_id: "01JT-hello-world-abc",
@@ -48,12 +49,10 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
         ]
       }
 
-      path = "/api/projects/#{user.account.name}/#{project.name}/once/invocations"
-
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(path, JSON.encode!(body))
+        |> post("/api/events/invocations", JSON.encode!(body))
         |> json_response(202)
 
       assert response["accepted"] == 1
@@ -73,6 +72,7 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
       finished_at_ms = started_at_ms + 100
 
       body = %{
+        project: "#{user.account.name}/#{xcode_project.name}",
         events: [
           %{
             invocation_id: "01JT-nope",
@@ -84,24 +84,46 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
         ]
       }
 
-      path = "/api/projects/#{user.account.name}/#{xcode_project.name}/once/invocations"
-
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(path, JSON.encode!(body))
+        |> post("/api/events/invocations", JSON.encode!(body))
         |> json_response(409)
 
       assert response["error"] == "project_build_system_mismatch"
     end
 
-    test "returns bad_request when the events key is missing", %{conn: conn, user: user, project: project} do
-      path = "/api/projects/#{user.account.name}/#{project.name}/once/invocations"
+    test "returns 404 when the project is unknown", %{conn: conn} do
+      started_at_ms = System.system_time(:millisecond) - 500
+      finished_at_ms = started_at_ms + 10
+
+      body = %{
+        project: "ghost/gone",
+        events: [
+          %{
+            invocation_id: "01JT-ghost",
+            status: "success",
+            exit_code: 0,
+            started_at_ms: started_at_ms,
+            finished_at_ms: finished_at_ms
+          }
+        ]
+      }
 
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(path, JSON.encode!(%{}))
+        |> post("/api/events/invocations", JSON.encode!(body))
+        |> json_response(404)
+
+      assert response["error"] == "project_not_found"
+    end
+
+    test "returns bad_request when the body is malformed", %{conn: conn} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/events/invocations", JSON.encode!(%{}))
         |> json_response(400)
 
       assert response["error"] == "invalid_payload"
@@ -112,6 +134,7 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
       finished_at_ms = started_at_ms + 1_500
 
       body = %{
+        project: "#{user.account.name}/#{project.name}",
         events: [
           %{
             invocation_id: "01JT-ok",
@@ -130,12 +153,10 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
         ]
       }
 
-      path = "/api/projects/#{user.account.name}/#{project.name}/once/invocations"
-
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(path, JSON.encode!(body))
+        |> post("/api/events/invocations", JSON.encode!(body))
         |> json_response(202)
 
       assert response["accepted"] == 1
@@ -143,7 +164,7 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/once/invocations" do
+  describe "GET /api/events/invocations" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
@@ -169,9 +190,10 @@ defmodule TuistWeb.API.OnceInvocationsControllerTest do
         }
       ])
 
-      path = "/api/projects/#{user.account.name}/#{project.name}/once/invocations"
-
-      response = conn |> get(path) |> json_response(200)
+      response =
+        conn
+        |> get("/api/events/invocations", %{"project" => "#{user.account.name}/#{project.name}"})
+        |> json_response(200)
 
       assert [invocation] = response["invocations"]
       assert invocation["invocation_id"] == "01JT-listing"
