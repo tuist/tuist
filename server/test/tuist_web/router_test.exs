@@ -31,7 +31,9 @@ defmodule TuistWeb.RouterTest do
     stub(Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
-      assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["index, follow"]
+      response_conn = get(conn, route)
+      assert get_resp_header(response_conn, "x-robots-tag") == ["index, follow"]
+      assert get_resp_header(response_conn, "x-tuist-public") == ["1"]
     end
   end
 

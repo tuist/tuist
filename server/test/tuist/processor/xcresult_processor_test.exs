@@ -545,6 +545,45 @@ defmodule Tuist.Processor.XCResultProcessorTest do
       assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_path)
     end
 
+    test "finds the bundle when it is wrapped in a non-.xcresult directory (per-scheme xcodebuild output)" do
+      # Xcode 26 no longer creates the `result-bundle` → `result-bundle.xcresult`
+      # symlink for `-resultBundlePath` targets without an extension. Combined
+      # with the CLI's per-scheme naming (`schemeResultBundlePath/1`), a
+      # multi-scheme test run archives the bundle as `result-bundle-<Scheme>/`
+      # instead of `<name>.xcresult/`. The bundle inside is a valid xcresult;
+      # only the wrapping directory's name differs. Reproduced from the Life360
+      # run `eb0b24fc-…`: the archive extracts to `result-bundle-Life360/` with
+      # `Info.plist` nested inside, and `xcresulttool` parses it happily.
+      fixture_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "xcresult_per_scheme_fixture_#{:erlang.unique_integer([:positive])}"
+        )
+
+      File.mkdir_p!(fixture_dir)
+      fixture_path = Path.join(fixture_dir, "fixture.aar")
+      File.write!(fixture_path, <<0x62, 0x76, 0x78, 0x32, "fake-aar-body">>)
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      parsed_data = %{"tests" => [%{"name" => "testPerScheme", "status" => "passed"}]}
+
+      expect(XCResultNIF, :decompress_archive, fn _archive_path, temp_dir ->
+        bundle_dir = Path.join(temp_dir, "result-bundle-Life360")
+        File.mkdir_p!(bundle_dir)
+        File.write!(Path.join(bundle_dir, "Info.plist"), "fake-plist")
+        File.mkdir_p!(Path.join(bundle_dir, "Data"))
+        :ok
+      end)
+
+      expect(XCResultNIF, :parse, fn xcresult_path, _root ->
+        assert String.ends_with?(xcresult_path, "result-bundle-Life360")
+        assert File.exists?(Path.join(xcresult_path, "Info.plist"))
+        {:ok, parsed_data}
+      end)
+
+      assert {:ok, ^parsed_data} = XCResultProcessor.process_local(fixture_path)
+    end
+
     @tag :tmp_dir
     test "logs temp_dir contents when extraction yields no recognizable bundle", %{tmp_dir: tmp_dir} do
       fixture_path = Path.join(tmp_dir, "fixture.aar")

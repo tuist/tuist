@@ -281,8 +281,16 @@ defmodule Tuist.Slack do
     end
   end
 
-  defp handle_response({:ok, %Req.Response{status: 200, body: body}}) do
+  defp handle_response({:ok, %Req.Response{status: 200, body: %{"ok" => true} = body}}) do
     {:ok, body}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}) do
+    {:error, "Slack API error: #{error}"}
+  end
+
+  defp handle_response({:ok, %Req.Response{status: 200}}) do
+    {:error, "Unexpected Slack API response"}
   end
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}}) do

@@ -22,7 +22,9 @@
       display: none;
     }
 
-    & .noora-modal [data-part="body"] {
+    /* The role modal sizes to its dropdown rather than to the width the other
+       modals on this page share. */
+    & .noora-modal > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
       min-width: unset;
     }
 
@@ -83,6 +85,12 @@
   /* Invite-member modal: padded form body and the post-create invite-link
      reveal, mirroring the webhook signing-secret disclosure. */
   & .noora-modal {
+    /* Sized like the manage-role modal rather than the wider default the other
+       modals on this page share, since both are a single role control. */
+    &:has([data-part="invite-role"]) > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
+      min-width: unset;
+    }
+
     & [data-part="modal-content-wrapper"] {
       display: flex;
       flex-direction: column;
@@ -97,6 +105,19 @@
       flex-direction: column;
       gap: var(--noora-spacing-5);
       padding: var(--noora-spacing-7) var(--noora-spacing-4);
+      width: 303px;
+
+      /* Mirrors the role control in the manage-role modal: the tick marks the
+         current role, so it is drawn on the selected row only. */
+      & [data-part="invite-role"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+
+        & .noora-dropdown-item:not([data-selected]) svg {
+          visibility: hidden;
+        }
+      }
 
       & [data-part="modal-message"] {
         display: flex;

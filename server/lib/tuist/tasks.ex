@@ -19,8 +19,11 @@ defmodule Tuist.Tasks do
       max_concurrency: max_concurrency,
       timeout: @task_timeout
     )
-    |> Enum.to_list()
-    |> Enum.map(fn {:ok, result} -> result end)
+    |> Enum.map(fn
+      {:ok, result} -> result
+      {:exit, {exception, stacktrace}} when is_exception(exception) -> reraise(exception, stacktrace)
+      {:exit, reason} -> exit(reason)
+    end)
   end
 
   defp sync? do

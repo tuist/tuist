@@ -15,15 +15,31 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:test), do: :test
   def init(:build), do: :build
   def init(:automation_alert), do: :automation_alert
+  def init({:account, :runners}), do: {:account, :runners}
+  def init({:account, :account, :update}), do: {:account, :account, :update}
+  def init({:project, :project, :update}), do: {:project, :project, :update}
 
   def init(opts) when is_list(opts) do
     opts
   end
 
   @project_categories [:run, :bundle, :cache, :preview, :test, :build, :automation_alert]
+  @account_categories [:runners]
 
   def call(conn, category) when category in @project_categories do
     authorize_project(conn, category)
+  end
+
+  def call(conn, {:account, category}) when category in @account_categories do
+    authorize_account(conn, category)
+  end
+
+  def call(conn, {:account, :account, action}) when action == :update do
+    authorize_account(conn, :account, action)
+  end
+
+  def call(conn, {:project, :project, action}) when action == :update do
+    authorize_project(conn, :project, action: action)
   end
 
   def call(conn, opts) do
@@ -33,7 +49,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
     caching = Keyword.get(opts, :caching, false)
-    action = get_action(conn)
+    action = Keyword.get(opts, :action, get_action(conn))
     subject = Authentication.authenticated_subject(conn)
 
     cache_key = [
@@ -63,6 +79,17 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       end
 
     if authorized? do
+      conn
+    else
+      deny(conn, subject, action, category)
+    end
+  end
+
+  defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category, action \\ nil) do
+    action = action || get_action(conn)
+    subject = Authentication.authenticated_subject(conn)
+
+    if authorize(subject, action, selected_account, category) do
       conn
     else
       deny(conn, subject, action, category)

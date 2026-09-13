@@ -17,6 +17,7 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
@@ -195,21 +196,7 @@ defmodule TuistWeb.API.PreviewsController do
            build_version: build_version
          }) do
       {:ok, app_build} ->
-        upload_id =
-          Storage.multipart_start(
-            AppBuilds.storage_key(%{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              app_build: app_build
-            }),
-            selected_project.account
-          )
-
-        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
-        json(conn, %{
-          status: "success",
-          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
-        })
+        start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project)
 
       {:error, %Ecto.Changeset{errors: errors}} ->
         if Keyword.has_key?(errors, :binary_id) do
@@ -375,32 +362,25 @@ defmodule TuistWeb.API.PreviewsController do
 
     case AppBuilds.app_build_by_id(app_build_id, preload: [:preview]) do
       {:ok, app_build} ->
-        :ok =
-          Storage.multipart_complete_upload(
-            AppBuilds.storage_key(%{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              app_build: app_build
-            }),
-            upload_id,
-            Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-              {part_number, etag}
-            end),
-            selected_project.account
-          )
+        object_key =
+          AppBuilds.storage_key(%{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            app_build: app_build
+          })
 
-        AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+        parts_list =
+          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+            {part_number, etag}
+          end)
 
-        Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+        case Storage.multipart_complete_upload(object_key, upload_id, parts_list, selected_project.account) do
+          :ok ->
+            complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project)
 
-        {:ok, preview} =
-          AppBuilds.preview_by_id(app_build.preview.id,
-            preload: [:app_builds, :created_by_account]
-          )
-
-        conn
-        |> put_status(:ok)
-        |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
+          {:error, _reason} ->
+            StorageError.render(conn)
+        end
 
       {:error, :not_found} ->
         conn
@@ -412,6 +392,40 @@ defmodule TuistWeb.API.PreviewsController do
         |> put_status(:bad_request)
         |> json(%{message: reason})
     end
+  end
+
+  defp start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
+    object_key =
+      AppBuilds.storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        app_build: app_build
+      })
+
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, upload_id} ->
+        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
+        json(conn, %{
+          status: "success",
+          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
+        })
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
+  end
+
+  defp complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
+    AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+
+    Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
+
+    {:ok, preview} =
+      AppBuilds.preview_by_id(app_build.preview.id, preload: [:app_builds, :created_by_account])
+
+    conn
+    |> put_status(:ok)
+    |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
   end
 
   operation(:show,

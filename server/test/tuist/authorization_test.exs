@@ -28,16 +28,16 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:account_dashboard_read, nil, account) == {:error, :forbidden}
   end
 
-  test "cannot.read.runners on a public account when the subject is not a member" do
-    # Given — a public account exposes its dashboards, but attaching to a
-    # running VM over VNC/shell stays members-only.
+  test "can.read.runners on a public account when the subject is not a member" do
+    # A public account exposes runner state, but attaching to a running virtual
+    # machine remains members-only through the separate interactive permission.
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
     {:ok, public_account} = Accounts.update_account_visibility(account, :public)
     non_member = AccountsFixtures.user_fixture()
 
     # Then
-    assert Authorization.authorize(:runners_read, nil, public_account) == {:error, :forbidden}
-    assert Authorization.authorize(:runners_read, non_member, public_account) == {:error, :forbidden}
+    assert Authorization.authorize(:runners_read, nil, public_account) == :ok
+    assert Authorization.authorize(:runners_read, non_member, public_account) == :ok
     assert Authorization.authorize(:account_dashboard_read, non_member, public_account) == :ok
   end
 
@@ -776,6 +776,54 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
+  end
+
+  test "can.read.account.runners when an account token has runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.read.account.runners when an account token has the coding-agent scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["mcp"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "cannot.read.account.runners when an account token lacks a runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:admin:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot.read.account.runners when an account token targets another private account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, other_account) == {:error, :forbidden}
   end
 
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
@@ -1530,6 +1578,17 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.attach.runners.interactive when the subject is a user of the account" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # Then
+    assert Authorization.authorize(:runners_interactive_access, user, account) == :ok
+  end
+
   test "can.user.read.ops when the environment is :dev" do
     # Given
     stub(Environment, :dev?, fn -> true end)
@@ -1555,5 +1614,117 @@ defmodule Tuist.AuthorizationTest do
 
     # Then
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
+  end
+
+  describe "viewer role" do
+    setup do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      viewer = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+
+      %{organization: organization, account: account, project: project, viewer: viewer}
+    end
+
+    test "can read a project's tests", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:test_read, viewer, project) == :ok
+    end
+
+    test "cannot update a test case, which is how test cases get quarantined", %{
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:test_update, viewer, project) == {:error, :forbidden}
+    end
+
+    test "can read a project's runs and builds", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_read, viewer, project) == :ok
+      assert Authorization.authorize(:build_read, viewer, project) == :ok
+    end
+
+    test "cannot create or update a project's runs", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:run_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:build_create, viewer, project) == {:error, :forbidden}
+    end
+
+    test "can reach a private project's dashboards and URLs", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:dashboard_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_url_access, viewer, project) == :ok
+      assert Authorization.authorize(:account_dashboard_read, viewer, account) == :ok
+    end
+
+    test "can read a project's command events", %{project: project, viewer: viewer} do
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      assert Authorization.authorize(:command_event_read, viewer, command_event) == :ok
+    end
+
+    test "cannot write to the project or account cache", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_cache_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_cache_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_cache_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:account_cache_read, viewer, account) == :ok
+      assert Authorization.authorize(:account_cache_create, viewer, account) == {:error, :forbidden}
+    end
+
+    test "cannot manage the project, the organization, or its members", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:project_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_delete, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:organization_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_delete, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:invitation_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_delete, viewer, account) == {:error, :forbidden}
+    end
+
+    test "can read runner state but cannot attach an interactive shell or VNC session", %{
+      account: account,
+      viewer: viewer
+    } do
+      # Given — attaching executes commands on the running VM and reaches the
+      # secrets the job was given, so it is withheld even though the runner
+      # dashboards are readable.
+      assert Authorization.authorize(:runners_read, viewer, account) == :ok
+
+      assert Authorization.authorize(:runners_interactive_access, viewer, account) ==
+               {:error, :forbidden}
+    end
+
+    test "cannot manage automation alerts but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:automation_alert_read, viewer, project) == :ok
+      assert Authorization.authorize(:automation_alert_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot create or delete previews but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:preview_read, viewer, project) == :ok
+      assert Authorization.authorize(:preview_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:preview_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot reach account tokens at all", %{account: account, viewer: viewer} do
+      # Given — tokens are credentials management rather than dashboard reading,
+      # and granting the read half-opens the settings shell around them.
+      assert Authorization.authorize(:account_token_read, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_token_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_token_delete, viewer, account) == {:error, :forbidden}
+    end
   end
 end

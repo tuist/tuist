@@ -62,6 +62,12 @@ dictate this shape — do not regress them:
   and agent restarts and leaves foreign links alone; our pinned links keep
   their first position. The reconcile loop still verifies position every
   cycle and reattaches (plus a churn metric) if something strips them.
+  Because Cilium leaves our links alone, a reattach means external
+  interference, and the metric counts only that: a brand-new pod device has
+  no pin yet and lands on `kura_egress_tree_link_attach_total` instead. The
+  discriminator is pin existence, not `linkAttached`, which deliberately
+  reads a present-but-unreadable pin as detached — that case is interference
+  to report, not a pod that never had a program.
 - Sibling traffic (headless DNS → the co-located replica's pod IP) takes a
   bypass branch before stamping and stays on Cilium's fast path
   (`redirect_peer`, measured at node-local line rate). The bypass is an
@@ -84,6 +90,26 @@ dictate this shape — do not regress them:
   retune arrives on freshly created pods; this agent sees the new annotation
   when the pod informer reports the replacement and converges within about a
   second of it.
+- **Tenant identity (metrics only):** the `tuist.dev/account` pod label, set
+  by kura-controller on every kura pod. A classid is stable for a live
+  account but not unique over time — the controller frees a minor when an
+  account's last instance goes and hands the same one to another account
+  later — so a `classid`-only series splices two tenants together, and
+  nothing account-level can be built from it without joining the CR
+  annotation. Every `kura_egress_tree_class_*` series carries the handle
+  beside the classid. Reading it changes no enforcement: the annotation
+  remains the sole opt-in, and a pod without the label is shaped exactly the
+  same, with an empty `account`.
+  The agent trusts the classid-to-account mapping rather than policing it, and
+  deliberately exports no conflict counter: the controller allocates a minor
+  per account under one leader with one reconcile worker, and the probe reads
+  every existing claim through `APIReader` (a quorum read, not the informer
+  cache) before choosing, so that loop cannot give two accounts one minor.
+  Anything that does produce a duplicate — a hand-edited
+  `kura.tuist.dev/egress-class-id`, a KuraInstance outside the namespace the
+  probe scans — is a broken invariant to fix at the controller, not a steady
+  state for this agent to measure. A class that did change hands shows up as
+  `old_account` on the `updated tenant class` log line.
 - **Node budget:** `Node.status.capacity["tuist.dev/egress-mbps"]`
   (advertised by the CAPI provider, see
   `infra/cluster-api-provider-tuist/controllers/shared/node_egress.go`).
@@ -121,8 +147,13 @@ dictate this shape — do not regress them:
   errors, and DaemonSet health must alert.
 - Shutdown performs no teardown: pinned links (under
   `/sys/fs/bpf/kura-egress-tree/`) keep enforcing across agent restarts and
-  upgrades. Removing shaping is an explicit operator action: delete the
-  DaemonSet, remove the pin directory, delete `kura-egress0`.
+  upgrades. Consequently `enabled: false` (or deleting the DaemonSet) stops
+  shaping only for pods created afterwards; already-shaped pods stay shaped.
+  Removing enforcement is an explicit operator action that must not depend
+  on this agent running, and has a load-bearing order (pod pins, then the
+  return pin, then `kura-egress0` — a pod program left attached to a deleted
+  trampoline blackholes that pod). The procedure is the breakglass section
+  of [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - **The box cap binds the floor, not just the ceiling.** `classRates` clamps a
   tenant's floor to the node budget *before* raising its ceiling to meet that
   floor. Clamping only the ceiling leaves a hole: a floor larger than the whole
@@ -152,16 +183,68 @@ replaced, re-run the policy bypass experiments first.
 
 ## Metrics / alerts
 
-`:9469/metrics`. Alert on: `kura_egress_tree_direct_packets` growth,
+`:9469/metrics`. Per-class series are labelled `{classid, account}` (see
+Contracts) and carry, beside the byte and drop counters, HTB's own accounting
+of where a class's traffic came from: `kura_egress_tree_class_lended_packets`
+(sent within the class's own rate) and `..._borrowed_packets` (sent by taking
+tokens from the root class), plus `..._rate_bytes_per_second` and
+`..._ceil_bytes_per_second` read back from the kernel. The rates are read back
+rather than taken from the desired class so they describe what HTB is
+enforcing — clamps and hand edits included — and they are in bytes per second,
+the unit `rate(kura_egress_tree_class_sent_bytes[…])` is already in, so demand
+against the floor is one query with nothing to join:
+
+```
+rate(kura_egress_tree_class_sent_bytes[5m]) / kura_egress_tree_class_rate_bytes_per_second
+rate(kura_egress_tree_class_borrowed_packets[5m])
+  / rate(kura_egress_tree_class_lended_packets[5m])
+```
+
+A class sustaining either well above 1 wants a floor larger than it has; one
+that never borrows is not using the floor it reserves. Both are per account,
+which is what makes them usable for sizing an account's `/ops` override.
+
+The ratio only says something about a class that has a floor. A tenant
+without one runs on the 1 Mbit trickle `classRates` gives it, so it borrows
+nearly everything by construction; for those, the demand input is
+`rate(kura_egress_tree_class_sent_bytes[…])` per account on its own.
+
+Every class gauge is refreshed once per reconcile, not per scrape (the agent
+shells out to `tc`, which does not belong on the scrape path), so on a quiet
+node the values are up to `RECONCILE_INTERVAL` (default 2m) old and a scrape
+can repeat the previous value. Keep rate windows several multiples of that.
+
+Alert on: `kura_egress_tree_direct_packets` growth,
 `kura_egress_tree_return_dropped_packets` growth,
 `kura_egress_tree_return_attach_failures_total` growth (a failing return
 attach blackholes shaped pods until the detach threshold),
-`kura_egress_tree_link_reattach_total` churn after steady state,
+`kura_egress_tree_link_reattach_total` growth at all (see below),
 `kura_egress_tree_skipped_pods` > 0,
 `kura_egress_tree_sibling_overflow_total` growth (an account outgrew the
 16-entry sibling map; extra siblings run shaped instead of bypassed, with no
 log — the counter is the only signal), and per-class floor violations under
-contention (`kura_egress_tree_class_sent_bytes` rate vs the floor).
+contention (`kura_egress_tree_class_sent_bytes` rate vs
+`kura_egress_tree_class_rate_bytes_per_second`).
+
+Do not alert on `kura_egress_tree_link_attach_total`. It counts first attaches
+on new pod devices — one per pod creation — so it tracks pod churn, not shaping
+integrity: a fleet-wide kura rollout replaces every pod, each replacement gets a
+new `lxc` device, and the counter climbs by the node's whole pod count with
+nothing wrong. Its job is to keep that traffic out of the reattach signal, which
+used to carry both and tripped its alert on every kura release. It has
+deliberately no alert arm and no dashboard panel — the kura dashboard's agent
+panel groups integrity signals, and a pod-churn counter sitting among them is
+the same conflation one level up — so it is an ad-hoc query when you want to
+confirm a rollout attached what it should, not something anyone watches.
+
+`kura_egress_tree_link_reattach_total` now moves only when a link we already
+installed was stripped or displaced, so it should sit flat at zero and any
+growth is worth a look; the matching `reattached pod program` warning names the
+pod and device. The production alert still carries the old `> 5` per-hour
+threshold that was chosen to ride over rollout noise; drop it to `> 0` once this
+split is deployed across the fleet, and not before — until then the running
+agents still emit the conflated counter and a tighter threshold only fires
+sooner on rollouts.
 
 A pod-device convergence error keeps the last known-good program attached
 (the device stays out of the stale sweep) and requeues a fast retry; a
@@ -233,15 +316,17 @@ growth is the signal.
 
 ## Rollout state
 
-Ships disabled (`egressTreeAgent.enabled: false`). Intended sequence:
-observe mode on ca-east (generous ceilings, floors informational), validate
-per-tenant counters, then real ceilings/floors per region.
-`egressTreeAgent.betaPodPrefix` (`BETA_POD_PREFIX`) narrows attachment to
-pods whose name starts with the prefix — the per-account beta gate for the
-first enforcement step. Excluded pods stay unshaped and count in
-`kura_egress_tree_beta_excluded_pods` (deliberately not in `skipped_pods`,
-which alerts). Sibling allowlists are computed over all annotated pods, so a
-matched pod keeps its bypass even when its co-located sibling is excluded;
-prefix changes converge within one reconcile cycle in both directions. The per-replica
-floor double-count in scheduler bin-packing must be fixed before floors go
-live (known issue, separate change).
+Ships disabled (`egressTreeAgent.enabled: false`). Enabled on staging,
+canary, and production, where it attaches to **every** annotated pod on the
+listed pools. Staging has run ungated since the agent landed (#12525);
+canary and production now match it, because the `BETA_POD_PREFIX` gate that
+held their first enforcement step to `kura-tuist-*` pods (#12564) is gone,
+and with it the `kura_egress_tree_beta_excluded_pods` gauge. The annotation
+is the only opt-in left, so an account reaches the tree the moment
+kura-controller renders `tuist.dev/egress-class` onto its pods. Newly matched pods attach
+within one reconcile cycle; nothing detaches, so removing the gate only ever
+widens enforcement.
+
+Remaining sequencing: ceilings are live, floors stay informational until the
+per-replica floor double-count in scheduler bin-packing is fixed (known
+issue, separate change).

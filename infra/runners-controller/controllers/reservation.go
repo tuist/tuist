@@ -7,6 +7,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -16,11 +17,15 @@ import (
 
 // Node reservation: draining one host to fit a Pod that no host can seat.
 //
-// A macOS fleet mixes guest shapes on the same hosts, and the large ones
-// need more than one guest slot on a single host. An M4-XL seats two
-// 6 vCPU guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a
-// host's slots free at the same instant. Nothing in Kubernetes arranges
-// that on its own:
+// Both fleets mix shapes on the same hosts, and the large ones need more
+// of a host than any single small Pod does. An M4-XL seats two 6 vCPU
+// guests or one 12 vCPU guest, so a 12 vCPU Pod needs BOTH of a host's
+// slots free at the same instant. The Linux fleet is the same problem at
+// a different granularity: a 64 GiB shape costs 66.5 GiB with the kata
+// overhead — a third of an AX162-R, over half of the OVH RISE-L the
+// fleet is moving to — so it needs a contiguous block that a steady
+// trickle of 8 and 16 GiB Pods keeps carving up. Nothing in Kubernetes
+// arranges either on its own:
 //
 //   - kube-scheduler does not hold a queue on an unschedulable Pod. The
 //     large Pod is attempted, fails the CPU filter, and is set aside;
@@ -81,11 +86,28 @@ const (
 	reservationCooldownAnnotation = "tuist.dev/reservation-cooldown-until"
 	reservationCooldown           = 15 * time.Minute
 
-	// maxFleetReservations is how many hosts may be held across the whole
-	// fleet at once. Every reservation is capacity withdrawn from the
-	// small shapes while it converges, so this stays at one: a second
-	// concurrent drain would hold two hosts at once, up to 4 of the
-	// 13-slot production fleet, to serve two large jobs.
+	// seatGrace is how long a Pod is safe from another pool's drain after
+	// it binds. A reservation releases as soon as its Pod lands, so
+	// without this the seat it produced is retirable before dispatch has
+	// reached the Pod and labelled it owned.
+	seatGrace = 2 * time.Minute
+
+	// maxFleetReservations is how many hosts may be held at once. The
+	// count is taken over the pool's OWN fleet nodes, so each fleet gets
+	// its own budget and a macOS reservation never blocks a Linux one.
+	//
+	// Every reservation is capacity withdrawn from the small shapes while
+	// it converges, so this stays at one. On macOS a second concurrent
+	// drain would hold two hosts, up to 4 of the 14-slot production
+	// fleet, to serve two large jobs. On Linux the argument is sharper
+	// still: that fleet is a handful of bare-metal boxes, so a single
+	// reservation is already a large share of it out of circulation.
+	// `healthyNodes` puts a floor under that — the last host is never
+	// taken.
+	//
+	// A held Linux host is not idled, only closed to new Pods — running
+	// jobs finish and free memory progressively, and the starved Pod
+	// lands the moment its shape fits rather than when the host is empty.
 	maxFleetReservations = 1
 )
 
@@ -100,13 +122,6 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	pool *tuistv1.RunnerPool,
 	pods []corev1.Pod,
 ) error {
-	// darwin only. Linux runner Pods are kata sandboxes on homogeneous
-	// bare-metal hosts an order of magnitude larger than any shape, so a
-	// shape never needs a host drained to fit.
-	if pool.Spec.OS != macosNodeOSDarwin {
-		return nil
-	}
-
 	logger := log.FromContext(ctx)
 	now := r.now()
 
@@ -128,11 +143,12 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 
 	value := podtemplate.ReservationValue(pool.Name)
 	held := reservedNode(nodes, value)
-	starved := starvedPod(pods, now)
+	starvedFor := trackStarvation(pool, pods, now)
+	starved := starvedFor >= reservationGrace
 
 	if held != nil {
 		switch {
-		case starved == nil:
+		case starvedFor == 0:
 			logger.Info("releasing node reservation; pool is served", "node", held.Name, "pool", pool.Name)
 			return r.releaseReservation(ctx, held, time.Time{})
 		case reservationAge(held, now) > reservationTimeout:
@@ -141,14 +157,39 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 				"cooldown", reservationCooldown)
 			return r.releaseReservation(ctx, held, now.Add(reservationCooldown))
 		default:
-			return r.retireIdlePodsOnReservedNode(ctx, held, pool)
+			return r.retireIdlePodsOnReservedNode(ctx, held, pool, now)
 		}
 	}
 
-	if starved == nil {
+	if !starved {
 		return nil
 	}
 	if reservationCount(nodes) >= maxFleetReservations {
+		return nil
+	}
+
+	// Oldest starvation goes first. Without this the fleet's single
+	// reservation is handed out in reconcile order, and the shapes that
+	// need it least win: a granular shape is starved often and converges
+	// in seconds, so it takes the slot, releases, and takes it again,
+	// while the coarse shape — the only one that genuinely cannot be
+	// served without a drain — waits behind pools that were merely
+	// queued. Production ran exactly that on 2026-09-04: the 16 vCPU
+	// pool waited 07:23 to 08:36 while 2, 4 and 8 vCPU pools cycled
+	// through the slot.
+	//
+	// Ordering on starvation age rather than on shape size keeps the
+	// rule symmetric. The opposite failure is on record too — a big
+	// pool holding the fleet-wide provisioning budget while the default
+	// shape was admitted nothing and the deploy cascade queued behind
+	// it — and a size-ordered rule would have made that one worse.
+	ahead, err := r.longerStarvedPool(ctx, pool, nodes, now)
+	if err != nil {
+		return err
+	}
+	if ahead != "" {
+		logger.V(1).Info("yielding the fleet reservation to a pool starved longer",
+			"pool", pool.Name, "waitingFor", ahead, "starvedFor", starvedFor.String())
 		return nil
 	}
 
@@ -165,6 +206,24 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	if reservationCount(fresh) >= maxFleetReservations {
 		return nil
 	}
+	// Never close the fleet. The taint is NoSchedule for every pool but
+	// this one, so on a single-host fleet a reservation stops dispatch
+	// outright until it clears — up to reservationTimeout, and again
+	// after each cooldown.
+	//
+	// pickReservationTarget's granularity guard does not cover this. It
+	// asks whether the shape is coarse relative to its siblings, which
+	// on Linux a 64 GiB shape genuinely is even on a lone host, so it
+	// passes. The guard only happens to cover the one-host macOS fleets
+	// because a single-guest host gives every shape exactly one seat.
+	//
+	// Waiting is the right behaviour here, and it is the same conclusion
+	// the one-guest fleets reach: nothing a drain produces is worth the
+	// fleet being shut to everyone else, and the allocator's cross-pool
+	// reclaim is the mechanism that frees room on a fleet this small.
+	if healthyNodes(fresh) < 2 {
+		return nil
+	}
 
 	target, err := r.pickReservationTarget(ctx, pool, fresh, now)
 	if err != nil {
@@ -178,32 +237,175 @@ func (r *RunnerPoolReconciler) reconcileReservation(
 	}
 
 	logger.Info("reserving node to fit a starved runner",
-		"node", target.Name, "pool", pool.Name, "pod", starved.Name)
+		"node", target.Name, "pool", pool.Name,
+		"pod", unplacedPodName(pods), "starvedFor", starvedFor.String())
 	return r.reserveNode(ctx, target, value, now)
 }
 
-// starvedPod returns a Pod that has waited past the grace period with no
-// node assigned. Phase is not the test on its own — an unscheduled Pod
-// and a Pod whose VM is still booting are both Pending — so this asks
-// for an empty `spec.nodeName`, which only an unplaced Pod has.
-func starvedPod(pods []corev1.Pod, now time.Time) *corev1.Pod {
-	var oldest *corev1.Pod
+// trackStarvation folds the pool's current placement state into
+// `status.UnplaceableSince` and returns how long it has been starved.
+// Zero means nothing is waiting.
+//
+// The caller mutates the pool in place; the reconciler's existing
+// `Status().Update` at the end of the pass persists it, the same way
+// `ObservedImage`/`ImageRolledAt` are handled.
+//
+// This replaces a per-Pod age test. Measuring starvation on a Pod's own
+// `CreationTimestamp` cannot work while the reaper deletes unplaced Pods
+// at `startTimeoutSeconds` and the pool recreates them: a Pod only
+// counted as starved between the 2-minute grace and the 5-minute reap,
+// so the moment a cohort was reaped together the replacements were all
+// too young, the pool read as "served", and a reservation part-way
+// through draining a host was thrown away. Production, 2026-09-04
+// 08:24:24: a reap and a "pool is served" release in the same second,
+// with the pool going 3 -> 2 -> 1 -> 0 Running across the window.
+func trackStarvation(pool *tuistv1.RunnerPool, pods []corev1.Pod, now time.Time) time.Duration {
+	if !poolUnplaceable(pool, pods) {
+		pool.Status.UnplaceableSince = nil
+		return 0
+	}
+	if pool.Status.UnplaceableSince == nil {
+		// Seed from the oldest Pod still waiting rather than from now.
+		// The stamp is the only durable record of the wait, so a
+		// controller restart — or the first reconcile after this field
+		// was introduced — would otherwise forgive every starvation in
+		// flight and make a Pod that has waited an hour look brand new.
+		start := now
+		if oldest := oldestUnplacedCreation(pods); !oldest.IsZero() && oldest.Before(start) {
+			start = oldest
+		}
+		stamp := metav1.NewTime(start)
+		pool.Status.UnplaceableSince = &stamp
+	}
+	if elapsed := now.Sub(pool.Status.UnplaceableSince.Time); elapsed > 0 {
+		return elapsed
+	}
+	// A starvation that starts this instant has lasted no time, but it
+	// IS a starvation — a flat zero would read as "served" and release
+	// a reservation that is still needed.
+	return time.Nanosecond
+}
+
+// oldestUnplacedCreation is the creation time of the longest-waiting
+// unplaced Pod, or the zero time when nothing is waiting.
+func oldestUnplacedCreation(pods []corev1.Pod) time.Time {
+	var oldest time.Time
 	for i := range pods {
 		pod := &pods[i]
-		if pod.Spec.NodeName != "" || !pod.DeletionTimestamp.IsZero() {
+		if !isAlive(pod) || pod.Spec.NodeName != "" {
 			continue
 		}
-		if pod.Status.Phase != corev1.PodPending {
-			continue
-		}
-		if now.Sub(pod.CreationTimestamp.Time) < reservationGrace {
-			continue
-		}
-		if oldest == nil || pod.CreationTimestamp.Time.Before(oldest.CreationTimestamp.Time) {
-			oldest = pod
+		created := pod.CreationTimestamp.Time
+		if oldest.IsZero() || created.Before(oldest) {
+			oldest = created
 		}
 	}
 	return oldest
+}
+
+// poolUnplaceable reports whether the pool is holding demand it has not
+// placed: an unscheduled Pod, or fewer bound Pods than `spec.replicas`.
+//
+// The second clause is what makes the signal survive the reap. Between
+// the reaper deleting an unplaced Pod and the converge loop recreating
+// it, the pool can momentarily own no unplaced Pod at all while being no
+// better served than it was a second earlier. `spec.replicas` is set by
+// the autoscaler from real demand and is untouched by the reap, so it
+// still reports the gap across that window.
+func poolUnplaceable(pool *tuistv1.RunnerPool, pods []corev1.Pod) bool {
+	bound := 0
+	unplaced := 0
+	for i := range pods {
+		pod := &pods[i]
+		if !isAlive(pod) {
+			continue
+		}
+		if pod.Spec.NodeName == "" {
+			unplaced++
+			continue
+		}
+		bound++
+	}
+	return unplaced > 0 || bound < int(pool.Spec.Replicas)
+}
+
+// unplacedPodName names an unplaced Pod for the reservation log line.
+// Purely for reporting — the decision is the pool-level clock above.
+func unplacedPodName(pods []corev1.Pod) string {
+	for i := range pods {
+		pod := &pods[i]
+		if isAlive(pod) && pod.Spec.NodeName == "" {
+			return pod.Name
+		}
+	}
+	return ""
+}
+
+// longerStarvedPool names a sibling on this fleet that has been unable
+// to place for longer than this pool and could still use a reservation.
+// Empty when this pool is first in line.
+func (r *RunnerPoolReconciler) longerStarvedPool(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	nodes []corev1.Node,
+	now time.Time,
+) (string, error) {
+	mine := pool.Status.UnplaceableSince
+	if mine == nil {
+		return "", nil
+	}
+
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
+		return "", fmt.Errorf("list runner pools for reservation arbitration: %w", err)
+	}
+
+	for i := range pools.Items {
+		sibling := &pools.Items[i]
+		if sibling.Name == pool.Name || !sibling.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if sibling.Spec.OS != pool.Spec.OS || sibling.Spec.FleetSelector != pool.Spec.FleetSelector {
+			continue
+		}
+		since := sibling.Status.UnplaceableSince
+		if since == nil || !since.Time.Before(mine.Time) {
+			continue
+		}
+		if now.Sub(since.Time) < reservationGrace {
+			continue
+		}
+		// Only yield to a sibling a drain could actually serve. A shape
+		// no host can seat even empty never stops being starved, so
+		// yielding to it would not be waiting for a turn — it would be
+		// a permanent block, trading the starvation this fix removes
+		// for a worse one it introduced.
+		if !shapeSeatableOnFleet(nodes, podShape{
+			cpuMilli: sibling.Spec.PodCPUMilli,
+			memoryMB: sibling.Spec.PodMemoryMB,
+		}) {
+			continue
+		}
+		return sibling.Name, nil
+	}
+	return "", nil
+}
+
+// shapeSeatableOnFleet reports whether any healthy host could seat this
+// shape if it were empty.
+func shapeSeatableOnFleet(nodes []corev1.Node, shape podShape) bool {
+	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
+		return false
+	}
+	for i := range nodes {
+		if nodeFilterReason(&nodes[i]) != "" {
+			continue
+		}
+		if nodeSeatsForShape(&nodes[i], shape) >= 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // pickReservationTarget chooses the host to drain: one that could seat
@@ -311,8 +513,10 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 // a cold start and nothing else.
 //
 // This pool's own Pods are left alone — an idle one here is the seat the
-// reservation was taken to produce. Pods running customer jobs are never
-// touched; the reservation waits them out, or times out.
+// reservation was taken to produce. So is any Pod that bound within
+// `seatGrace`, which is that same seat one reservation earlier. Pods
+// running customer jobs are never touched; the reservation waits them
+// out, or times out.
 //
 // Idleness is read through `isIdle`, matching the node-drain path: the
 // owner label alone is best-effort and can be missing on a Pod that is
@@ -321,6 +525,7 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 	ctx context.Context,
 	node *corev1.Node,
 	pool *tuistv1.RunnerPool,
+	now time.Time,
 ) error {
 	logger := log.FromContext(ctx)
 
@@ -338,6 +543,9 @@ func (r *RunnerPoolReconciler) retireIdlePodsOnReservedNode(
 			continue
 		}
 		if !isIdle(pod) {
+			continue
+		}
+		if seatedAt, ok := linuxProvisioningStartedAt(pod); ok && now.Sub(seatedAt) < seatGrace {
 			continue
 		}
 		if err := r.reapRunner(ctx, pod); err != nil {
@@ -402,8 +610,8 @@ func (r *RunnerPoolReconciler) releaseReservation(
 	return nil
 }
 
-// fleetNodes lists the macOS hosts behind a pool's fleet selector, the
-// same set the autoscaler sizes its budget from. Cached read: fine for
+// fleetNodes lists the hosts behind a pool's fleet selector, the same
+// set the autoscaler sizes its budget from. Cached read: fine for
 // deciding whether this pool already holds a reservation, and for
 // releasing one.
 func (r *RunnerPoolReconciler) fleetNodes(ctx context.Context, pool *tuistv1.RunnerPool) ([]corev1.Node, error) {
@@ -416,13 +624,33 @@ func (r *RunnerPoolReconciler) fleetNodesFrom(
 	pool *tuistv1.RunnerPool,
 ) ([]corev1.Node, error) {
 	var nodes corev1.NodeList
-	if err := reader.List(ctx, &nodes, client.MatchingLabels{
-		macosFleetLabel:  pool.Spec.FleetSelector,
-		macosNodeOSLabel: macosNodeOSDarwin,
-	}); err != nil {
+	if err := reader.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list fleet nodes: %w", err)
 	}
 	return nodes.Items, nil
+}
+
+// fleetNodeSelector addresses the hosts a pool's Pods can actually land
+// on. It mirrors the nodeSelector `podtemplate.schedulingFor` stamps on
+// those Pods, so the reservation reasons about exactly the node set the
+// scheduler considers; the two would otherwise be free to disagree about
+// which hosts belong to a fleet.
+//
+// Anything other than linux falls through to darwin, matching that same
+// function's fallback and the CRD's `os` default.
+func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
+	switch pool.Spec.OS {
+	case "linux":
+		return client.MatchingLabels{
+			fleetNodePoolLabel: pool.Spec.FleetSelector,
+			nodeOSLabel:        "linux",
+		}
+	default:
+		return client.MatchingLabels{
+			macosFleetLabel: pool.Spec.FleetSelector,
+			nodeOSLabel:     macosNodeOSDarwin,
+		}
+	}
 }
 
 // apiReader is the uncached client, used on the one path where a stale
@@ -485,10 +713,6 @@ func (r *RunnerPoolReconciler) releaseOrphanedReservations(
 // from the delete path, which returns before the ordinary reservation
 // reconciliation and would otherwise strand the taint.
 func (r *RunnerPoolReconciler) ReleaseReservationsForPool(ctx context.Context, pool *tuistv1.RunnerPool) error {
-	if pool.Spec.OS != macosNodeOSDarwin {
-		return nil
-	}
-
 	nodes, err := r.fleetNodes(ctx, pool)
 	if err != nil {
 		return err
@@ -611,4 +835,17 @@ func reservationAge(node *corev1.Node, now time.Time) time.Duration {
 // conflict instead, and the next reconcile recomputes from fresh state.
 func optimisticPatch(base client.Object) client.Patch {
 	return client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})
+}
+
+// healthyNodes counts a fleet's hosts that could take work right now.
+// Reserving is only safe while at least one other host remains to serve
+// every other pool.
+func healthyNodes(nodes []corev1.Node) int {
+	count := 0
+	for i := range nodes {
+		if nodeFilterReason(&nodes[i]) == "" {
+			count++
+		}
+	}
+	return count
 }

@@ -12,6 +12,7 @@ defmodule Tuist.Kura.MeshTest do
   alias Tuist.Kura.Registrations
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
 
   defp csr_pem(subject \\ "/CN=node") do
     :secp256r1
@@ -148,13 +149,13 @@ defmodule Tuist.Kura.MeshTest do
         "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
       }
 
-      stub(Kura, :server_regions_for_account, fn _ -> ["eu-central"] end)
+      stub(Kura, :server_regions_for_account, fn _ -> ["eu-west"] end)
       stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
       {:ok, enrollment} =
         Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
 
-      expected = "https://peer.#{String.downcase(account.name)}-eu-central-1.kura.tuist.dev:7443"
+      expected = "https://peer.#{String.downcase(account.name)}-eu-west-1.kura.tuist.dev:7443"
       assert expected in enrollment.peers
       # Split out for the node's static seed: platform-stable managed
       # endpoints only, so volatile self-hosted membership stays dynamic.
@@ -308,6 +309,85 @@ defmodule Tuist.Kura.MeshTest do
       # The two heartbeats are independent: registration advertises the
       # client-facing endpoint and plays no role in mesh membership.
       assert Mesh.self_hosted_peer_urls(account) == []
+    end
+  end
+
+  describe "peer_roles/1" do
+    test "publishes one role per pod of every managed mesh region, off the reconciled kura_servers rows" do
+      account = AccountsFixtures.organization_fixture().account
+
+      eu =
+        KuraFixtures.active_server_fixture(account,
+          region: "eu-west",
+          peer_roles: [
+            %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+            %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+          ]
+        )
+
+      KuraFixtures.active_server_fixture(account,
+        region: "us-east",
+        peer_roles: [%{"url" => "https://kura-us-0.peer:7443", "gateway" => true}]
+      )
+
+      reject(&Client.get_kura_instance/3)
+
+      assert Mesh.peer_roles(account) == [
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-west", gateway: false},
+               %{url: "https://kura-eu-1.peer:7443", region: "eu-west", gateway: true},
+               %{url: "https://kura-us-0.peer:7443", region: "us-east", gateway: true}
+             ]
+
+      assert eu.region == "eu-west"
+    end
+
+    test "publishes nothing for an instance whose controller has not published roles yet" do
+      account = AccountsFixtures.organization_fixture().account
+      KuraFixtures.active_server_fixture(account, region: "eu-west")
+
+      assert Mesh.peer_roles(account) == []
+    end
+
+    test "drops a stored entry that names no URL" do
+      account = AccountsFixtures.organization_fixture().account
+
+      KuraFixtures.active_server_fixture(account,
+        region: "eu-west",
+        peer_roles: [%{"gateway" => true}, %{"url" => "", "gateway" => true}, %{"url" => "https://kura-eu-0.peer:7443"}]
+      )
+
+      assert Mesh.peer_roles(account) == [
+               %{url: "https://kura-eu-0.peer:7443", region: "eu-west", gateway: false}
+             ]
+    end
+
+    test "skips servers in a retired region even when the row still carries roles" do
+      account = AccountsFixtures.organization_fixture().account
+
+      KuraFixtures.active_server_fixture(account,
+        region: "hetzner-staging-runners",
+        peer_roles: [%{"url" => "https://kura-retired-0.peer:7443", "gateway" => true}]
+      )
+
+      assert Mesh.peer_roles(account) == []
+    end
+
+    test "is empty for an account with no managed server" do
+      account = AccountsFixtures.organization_fixture().account
+
+      assert Mesh.peer_roles(account) == []
+    end
+  end
+
+  describe "replication_pull?/1" do
+    test "reads the account's kura_replication_pull flag" do
+      account = AccountsFixtures.organization_fixture().account
+      other = AccountsFixtures.organization_fixture().account
+
+      stub(FunWithFlags, :enabled?, fn :kura_replication_pull, [for: actor] -> actor.id == account.id end)
+
+      assert Mesh.replication_pull?(account)
+      refute Mesh.replication_pull?(other)
     end
   end
 

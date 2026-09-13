@@ -191,6 +191,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
                 // If the same helpers directory has been previously compiled, we just return the module, no need to recompile it.
                 if try await fileSystem.exists(moduleCacheDirectory) {
+                    await fileSystem.markCacheEntryUsed(at: moduleCacheDirectory)
                     return module
                 }
 

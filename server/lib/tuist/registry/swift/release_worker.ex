@@ -34,6 +34,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @max_snooze_seconds 3_600
   @default_snooze_seconds 600
 
+  # Statuses that GitHub's REST API returns for transient upstream failures
+  # (edge/proxy 5xx, secondary rate limits). Retrying immediately turns each
+  # blip into an Oban.PerformError report, so treat them the same way we treat
+  # a throttled submodule clone and defer the job instead.
+  @transient_upstream_statuses [429, 502, 503, 504]
+
   @release_deferred_event [:tuist, :registry, :swift, :release, :deferred]
 
   @doc false
@@ -1123,20 +1129,39 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # and tag, and lets it run once the budget is back.
   defp maybe_skip_release(scope, name, _full_handle, version, reason) do
     case rate_limit_deferral(reason) do
-      nil ->
-        :not_skipped
-
       {status, retry_after} ->
-        seconds = snooze_seconds(retry_after)
+        snooze_after_rate_limit(scope, name, version, status, retry_after)
 
-        Logger.warning(
-          "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after GitHub rate limit (HTTP #{status})"
-        )
-
-        :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :rate_limited})
-
-        {:snooze, seconds}
+      nil ->
+        case transient_upstream_deferral(reason) do
+          nil -> :not_skipped
+          status -> snooze_after_transient_upstream(scope, name, version, status)
+        end
     end
+  end
+
+  defp snooze_after_rate_limit(scope, name, version, status, retry_after) do
+    seconds = snooze_seconds(retry_after)
+
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after GitHub rate limit (HTTP #{status})"
+    )
+
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :rate_limited})
+
+    {:snooze, seconds}
+  end
+
+  defp snooze_after_transient_upstream(scope, name, version, status) do
+    seconds = snooze_seconds(nil)
+
+    Logger.warning(
+      "Deferring registry release #{scope}/#{name}@#{version} for #{seconds}s after transient upstream HTTP #{status}"
+    )
+
+    :telemetry.execute(@release_deferred_event, %{releases: 1}, %{reason: :transient_upstream})
+
+    {:snooze, seconds}
   end
 
   defp rate_limit_deferral({:rate_limited, status, retry_after}), do: {status, retry_after}
@@ -1152,6 +1177,24 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp rate_limit_deferral(map) when is_map(map), do: map |> Map.values() |> Enum.find_value(&rate_limit_deferral/1)
 
   defp rate_limit_deferral(_reason), do: nil
+
+  # Walks the same shapes as rate_limit_deferral/1 so a bare `{:http_error,
+  # 502}` from a REST helper and a wrapped `{:manifest_fetch_failed, [%{reason:
+  # {:http_error, 502}}, ...]}` are both recognised.
+  defp transient_upstream_deferral({:http_error, status}) when status in @transient_upstream_statuses, do: status
+
+  defp transient_upstream_deferral(tuple) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.find_value(&transient_upstream_deferral/1)
+  end
+
+  defp transient_upstream_deferral(list) when is_list(list), do: Enum.find_value(list, &transient_upstream_deferral/1)
+
+  defp transient_upstream_deferral(map) when is_map(map),
+    do: map |> Map.values() |> Enum.find_value(&transient_upstream_deferral/1)
+
+  defp transient_upstream_deferral(_reason), do: nil
 
   defp snooze_seconds(nil), do: @default_snooze_seconds
 

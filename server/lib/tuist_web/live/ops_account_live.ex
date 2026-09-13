@@ -39,6 +39,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_quote, nil)
          |> assign(:has_subscription, not is_nil(Billing.get_current_active_subscription(account)))
+         |> assign_free_tier(account)
          |> assign_kura(account)
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
@@ -49,6 +50,14 @@ defmodule TuistWeb.OpsAccountLive do
          |> put_flash(:error, dgettext("dashboard", "Account not found."))
          |> push_navigate(to: ~p"/ops/accounts")}
     end
+  end
+
+  defp assign_free_tier(socket, account) do
+    socket
+    |> assign(:free_tier_hits, account.current_month_remote_cache_hits_count || 0)
+    |> assign(:free_tier_limit, Billing.get_payment_thresholds()[:remote_cache_hits])
+    |> assign(:free_tier_reset_at, account.free_tier_reset_at)
+    |> assign(:cache_access_blocked, Billing.cache_access_blocked?(account))
   end
 
   defp preload_billing(account) do
@@ -113,6 +122,35 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, reason} ->
         {:noreply,
          put_flash(socket, :error, dgettext("dashboard", "Could not start the trial: %{reason}", reason: inspect(reason)))}
+    end
+  end
+
+  @impl true
+  def handle_event("reset_free_tier", _params, socket) do
+    case Billing.reset_free_tier(socket.assigns.account) do
+      {:ok, account} ->
+        account = preload_billing(account)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign_free_tier(account)
+         |> put_flash(
+           :info,
+           dgettext(
+             "dashboard",
+             "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month.",
+             account: account.name
+           )
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard", "Could not reset the free tier: %{reason}", reason: inspect(reason))
+         )}
     end
   end
 
@@ -218,6 +256,49 @@ defmodule TuistWeb.OpsAccountLive do
          socket
          |> assign_kura(account)
          |> put_flash(:info, dgettext("dashboard", "Sizing proposal dismissed."))}
+
+      _stale_or_missing ->
+        {:noreply, assign_kura(socket, account)}
+    end
+  end
+
+  @impl true
+  def handle_event("apply_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.apply_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, outcome} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, kura_placement_message(outcome))}
+
+      _stale_or_missing ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(
+           :error,
+           dgettext(
+             "dashboard",
+             "The proposal no longer applies; the next placement sweep re-evaluates the account."
+           )
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("dismiss_kura_placement_proposal", _params, socket) do
+    account = socket.assigns.account
+    proposal = socket.assigns.kura_placement_proposal
+
+    case proposal && Kura.dismiss_placement_proposal(proposal, socket.assigns.current_user.email) do
+      {:ok, _proposal} ->
+        {:noreply,
+         socket
+         |> assign_kura(account)
+         |> put_flash(:info, dgettext("dashboard", "Placement proposal dismissed."))}
 
       _stale_or_missing ->
         {:noreply, assign_kura(socket, account)}
@@ -439,6 +520,9 @@ defmodule TuistWeb.OpsAccountLive do
   def prepaid_expiry_label(nil), do: dgettext("dashboard", "No expiry")
   def prepaid_expiry_label(%DateTime{} = expires_at), do: Timex.format!(expires_at, "{Mfull} {D}, {YYYY}")
 
+  def free_tier_reset_label(nil), do: dgettext("dashboard", "Never")
+  def free_tier_reset_label(%DateTime{} = reset_at), do: Timex.format!(reset_at, "{Mfull} {D}, {YYYY} {h24}:{m} UTC")
+
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
@@ -448,6 +532,10 @@ defmodule TuistWeb.OpsAccountLive do
   # The rows, the forms and the numbers the rows resolve against move together:
   # an applied proposal re-pins instances and re-resolves their limits, so a
   # table left on the old assign would show values that no longer exist.
+  # Long enough to cover the shortest decision window, so an operator sees the
+  # same evidence the shortest-fused transition reads.
+  @kura_traffic_mix_days 14
+
   defp assign_kura(socket, account) do
     servers = Kura.list_servers_for_account(account.id)
 
@@ -465,6 +553,10 @@ defmodule TuistWeb.OpsAccountLive do
     |> assign(:kura_claim_proposal, Kura.claim_proposal_for(account))
     |> assign(:kura_claim_history, Kura.claim_sizing_history(account, @kura_claim_history_limit))
     |> assign(:kura_disk_usage, Kura.latest_storage_snapshots(account))
+    |> assign(:kura_placement_regions, Kura.placement_regions(account))
+    |> assign(:kura_traffic_mix, Kura.placement_traffic_mix(account, @kura_traffic_mix_days))
+    |> assign(:kura_placement_proposal, Kura.placement_proposal_for(account))
+    |> assign(:kura_placement_history, Kura.placement_history(account, @kura_claim_history_limit))
   end
 
   # One entry per egress-governed region the account holds an instance in, each
@@ -765,14 +857,27 @@ defmodule TuistWeb.OpsAccountLive do
   # The second line: how much observation stands behind the first. Days are
   # what the measurements are grouped into, so an operator can see whether this
   # is one bad afternoon or a standing pattern.
-  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: %{"ring_turnover" => turnover} = evidence})
+       when not is_nil(turnover) do
     dngettext(
       "dashboard",
       "Seen on %{count} day of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       "Seen on %{count} consecutive days of measurements (%{bytes} discarded, %{turnover}x the whole cache).",
       evidence["window_days"],
       bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0),
-      turnover: evidence["ring_turnover"] || 0
+      turnover: turnover
+    )
+  end
+
+  # No node reported the ring it was running, so there is no turnover to
+  # quote and the volume stands on its own.
+  defp kura_claim_proposal_basis(%{direction: :grow, evidence: evidence}) do
+    dngettext(
+      "dashboard",
+      "Seen on %{count} day of measurements (%{bytes} discarded).",
+      "Seen on %{count} consecutive days of measurements (%{bytes} discarded).",
+      evidence["window_days"],
+      bytes: ByteFormatter.format_bytes(evidence["evicted_bytes"] || 0)
     )
   end
 
@@ -821,6 +926,87 @@ defmodule TuistWeb.OpsAccountLive do
 
   def claim_history_reason(%{direction: :shrink, evidence: evidence}) do
     dgettext("dashboard", "peaked at %{peak}% of its disk", peak: evidence["max_occupancy_percent"])
+  end
+
+  def placement_history_change(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct],
+    do: "#{from} → #{to}"
+
+  def placement_history_change(%{kind: :expand, to_region: to}), do: dgettext("dashboard", "add %{region}", region: to)
+
+  def placement_history_change(%{kind: :retire, from_region: from}),
+    do: dgettext("dashboard", "leave %{region}", region: from)
+
+  def placement_history_actor(%{status: :open}), do: dgettext("dashboard", "Not resolved yet")
+
+  def placement_history_actor(%{resolved_by: by}) when by in ["automatic", "sweep", "stale_on_apply"],
+    do: dgettext("dashboard", "Placement")
+
+  def placement_history_actor(%{resolved_by: by}) when is_binary(by), do: by
+  def placement_history_actor(_decision), do: dgettext("dashboard", "Unknown")
+
+  # Compact enough for a table cell; the open proposal above carries the full
+  # sentence.
+  def placement_history_reason(%{kind: kind, evidence: evidence}) when kind in [:relocate, :correct] do
+    dgettext("dashboard", "%{share}%% of runs over %{days} days",
+      share: round((evidence["share"] || 0) * 100),
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :expand, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  def placement_history_reason(%{kind: :retire, evidence: evidence}) do
+    dgettext("dashboard", "%{rate} runs a day over %{days} days",
+      rate: evidence["runs_per_day"],
+      days: evidence["window_days"]
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :relocate} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account from %{from} to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :correct} = proposal) do
+    dgettext("dashboard", "Placement proposes moving this account off its first region, %{from}, to %{to}.",
+      from: proposal.from_region,
+      to: proposal.to_region
+    )
+  end
+
+  defp placement_proposal_summary(%{kind: :expand} = proposal) do
+    dgettext("dashboard", "Placement proposes also serving this account from %{to}.", to: proposal.to_region)
+  end
+
+  defp placement_proposal_summary(%{kind: :retire} = proposal) do
+    dgettext("dashboard", "Placement proposes giving up %{from} for this account.", from: proposal.from_region)
+  end
+
+  # What the apply actually did, rather than "saved". Nothing moves at the
+  # moment a proposal is applied: the lifecycle provisions the destination on
+  # the account's next demand, and the source leaves only once it is serving.
+  defp kura_placement_message(%{kind: kind, from_region: from, to_region: to}) when kind in [:relocate, :correct] do
+    dgettext(
+      "dashboard",
+      "Placement moved to %{to}. %{from} keeps serving until %{to} is up, then drains.",
+      from: from,
+      to: to
+    )
+  end
+
+  defp kura_placement_message(%{kind: :expand, to_region: to}) do
+    dgettext("dashboard", "Placement added %{region}. It is provisioned on the account's next cache demand.", region: to)
+  end
+
+  defp kura_placement_message(%{kind: :retire, from_region: from}) do
+    dgettext("dashboard", "Placement is leaving %{region}. It drains once nothing else is waiting on it.", region: from)
   end
 
   defp kura_disk_usage_label(snapshot) do

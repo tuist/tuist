@@ -1,0 +1,16 @@
+{{- if and .Values.server.enabled .Values.server.faro.receiverHost }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "faro-receiver") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: faro-receiver
+spec:
+  type: ExternalName
+  externalName: {{ .Values.server.faro.receiverHost | quote }}
+  ports:
+    - port: {{ .Values.server.faro.receiverPort }}
+      targetPort: {{ .Values.server.faro.receiverPort }}
+      protocol: TCP
+{{- end }}

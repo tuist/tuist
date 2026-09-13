@@ -1,0 +1,200 @@
+import Foundation
+import Path
+import TuistREAPI
+
+/// The `.bazelrc.tuist` that `tuist bazel setup` generates, and the one thing
+/// about it that goes stale.
+///
+/// The file is per-machine and gitignored, and Bazel reads it once at startup
+/// and never again. The endpoint it names belongs to an account whose cache can
+/// be placed in another region: the region being left serves for a drain window
+/// and is then torn down, taking its hostname out of DNS with it. Nothing in a
+/// Bazel build re-resolves, so keeping the file current is the only way the
+/// move reaches Bazel — which is why the credential helper, the one piece of
+/// Tuist a build actually runs, rewrites it.
+enum BazelrcFile {
+    static let name = ".bazelrc.tuist"
+
+    private static let remoteCacheFlag = "build --remote_cache="
+    private static let remoteCacheCompressionFlag = "build --remote_cache_compression=true"
+    private static let remoteCacheCompressionOption = "--remote_cache_compression"
+    private static let credentialHelperFlag = "build --credential_helper="
+    private static let buildEventServiceFlag = "build --bes_backend="
+    private static let legacyBuildEventServiceTimeoutFlag = "build --bes_timeout=30s"
+    private static let buildEventServiceTimeoutFlag = "build --bes_timeout=10m"
+    private static let publishAllActionsFlag = "build --build_event_publish_all_actions"
+    private static let publishAllActionsOption = "--build_event_publish_all_actions"
+    private static let doNotPublishAllActionsOption = "--nobuild_event_publish_all_actions"
+    private static let outputChunkFlag = "build --bes_outerr_chunk_size=262144"
+    private static let outputChunkOption = "--bes_outerr_chunk_size"
+    private static let namedSetEntriesFlag = "build --build_event_max_named_set_of_file_entries=500"
+    private static let namedSetEntriesOption = "--build_event_max_named_set_of_file_entries"
+    private static let profileFlags = [
+        "build --generate_json_trace_profile=yes",
+        "build --noslim_profile",
+        "build --experimental_build_event_upload_strategy=remote",
+        "build --experimental_profile_include_target_label",
+        "build --experimental_profile_include_primary_output",
+    ]
+    private static let remoteHeaderFlag = "build --remote_header=x-tuist-account-handle="
+    private static let remoteInstanceNameFlag = "build --remote_instance_name="
+
+    static func render(
+        endpoint: GRPCEndpoint,
+        accountHandle: String,
+        projectHandle: String,
+        credentialHelperPath: AbsolutePath,
+        buildInsights: Bool = true,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+    ) -> String {
+        let buildEventServiceConfiguration = buildInsights ? """
+        \(buildEventServiceFlag)\(endpoint.url)
+        build --bes_header=x-tuist-account-handle=\(accountHandle)
+        build --bes_header=x-tuist-project-handle=\(projectHandle)
+        \(buildEventServiceTimeoutFlag)
+        build --bes_upload_mode=fully_async
+        \(outputChunkFlag)
+        \(namedSetEntriesFlag)
+        \(publishAllActionsFlag)
+        \(profileFlags.joined(separator: "\n"))
+        build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)
+
+        """ : ""
+
+        return """
+        \(remoteCacheFlag)\(endpoint.url)
+        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
+        build --remote_instance_name=\(projectHandle)
+        \(remoteCacheCompressionFlag)
+        \(buildEventServiceConfiguration)
+
+        """
+    }
+
+    /// The endpoint URL the file names, or `nil` when it names none.
+    static func remoteCache(in contents: String) -> String? {
+        contents
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .first { $0.hasPrefix(remoteCacheFlag) }
+            .map { String($0.dropFirst(remoteCacheFlag.count)) }
+    }
+
+    /// `contents` pointed at `endpoint`, or `nil` when it already is.
+    ///
+    /// The endpoint lines are rewritten and everything else is left
+    /// alone, so anything a developer added to the file survives a move. The
+    /// credential helper's own path is carried across rather than recomputed:
+    /// the file records where Bazel was told to find it, and that is not this
+    /// code's to change.
+    static func replacingRemoteCache(
+        in contents: String,
+        with endpoint: GRPCEndpoint,
+        cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
+    ) -> String? {
+        guard remoteCache(in: contents) != nil else { return nil }
+
+        let rewritten = contents
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                if line.hasPrefix(remoteCacheFlag) {
+                    return "\(remoteCacheFlag)\(endpoint.url)"
+                }
+                if line.hasPrefix(credentialHelperFlag) {
+                    // `<host>=<path>`: the path may itself contain `=`, so split once.
+                    let value = line.dropFirst(credentialHelperFlag.count)
+                    guard let separator = value.firstIndex(of: "=") else { return String(line) }
+                    let path = value[value.index(after: separator)...]
+                    return "\(credentialHelperFlag)\(endpoint.host)=\(path)"
+                }
+                if line.hasPrefix(buildEventServiceFlag) {
+                    return "\(buildEventServiceFlag)\(endpoint.url)"
+                }
+                if line == Substring(legacyBuildEventServiceTimeoutFlag) {
+                    return buildEventServiceTimeoutFlag
+                }
+                return String(line)
+            }
+            .joined(separator: "\n")
+
+        let mid: String = {
+            let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+            let cpuCapacityFlag = lines.contains(where: { hasOption("--build_metadata=TUIST_CPU_COUNT", in: $0) })
+                ? nil : "build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)"
+            if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
+                var missingFlags: [String] = []
+                if let cpuCapacityFlag {
+                    missingFlags.append(cpuCapacityFlag)
+                }
+                if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
+                    missingFlags.append(outputChunkFlag)
+                }
+                if !lines.contains(where: { hasOption(namedSetEntriesOption, in: $0) }) {
+                    missingFlags.append(namedSetEntriesFlag)
+                }
+                if !lines.contains(where: hasActionPublicationPreference) {
+                    missingFlags.append(publishAllActionsFlag)
+                }
+                for flag in profileFlags {
+                    let option = String(flag.dropFirst("build ".count).split(separator: "=")[0])
+                    let positive = option.hasPrefix("--no") ? "--" + option.dropFirst(4) : option
+                    let negative = "--no" + positive.dropFirst(2)
+                    if !lines.contains(where: { hasOption(positive, in: $0) || hasOption(negative, in: $0) }) {
+                        missingFlags.append(flag)
+                    }
+                }
+                return missingFlags.isEmpty
+                    ? rewritten
+                    : rewritten.trimmingCharacters(in: .newlines) + "\n" + missingFlags.joined(separator: "\n") + "\n"
+            }
+            guard let accountHandle = lines.first(where: { $0.hasPrefix(remoteHeaderFlag) })
+                .map({ String($0.dropFirst(remoteHeaderFlag.count)) }),
+                let projectHandle = lines.first(where: { $0.hasPrefix(remoteInstanceNameFlag) })
+                .map({ String($0.dropFirst(remoteInstanceNameFlag.count)) })
+            else {
+                return rewritten
+            }
+
+            let suffix = """
+            \(buildEventServiceFlag)\(endpoint.url)
+            build --bes_header=x-tuist-account-handle=\(accountHandle)
+            build --bes_header=x-tuist-project-handle=\(projectHandle)
+            \(buildEventServiceTimeoutFlag)
+            build --bes_upload_mode=fully_async
+            \(outputChunkFlag)
+            \(namedSetEntriesFlag)
+            \(publishAllActionsFlag)
+            \(profileFlags.joined(separator: "\n"))
+            \(cpuCapacityFlag ?? "")
+            """
+
+            return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
+        }()
+
+        // Backfill the compression flag on files that predate it, so a
+        // migration reaches Bazel without the user having to touch the file
+        // by hand. An explicit user preference (either value) is preserved.
+        let midLines = mid.split(separator: "\n", omittingEmptySubsequences: false)
+        let updated: String
+        if midLines.contains(where: { hasOption(remoteCacheCompressionOption, in: $0) }) {
+            updated = mid
+        } else {
+            updated = mid.trimmingCharacters(in: .newlines) + "\n" + remoteCacheCompressionFlag + "\n"
+        }
+        return updated == contents ? nil : updated
+    }
+
+    private static func hasActionPublicationPreference(_ line: Substring) -> Bool {
+        hasOption(publishAllActionsOption, in: line) || hasOption(doNotPublishAllActionsOption, in: line)
+    }
+
+    private static func hasOption(_ option: String, in line: Substring) -> Bool {
+        let configuration = line.split(separator: "#", maxSplits: 1).first ?? line
+        let tokens = configuration.split(whereSeparator: \.isWhitespace)
+        guard let command = tokens.first, command == "build" || command == "common" else { return false }
+
+        return tokens.dropFirst().contains { token in
+            token == Substring(option) || token.hasPrefix("\(option)=")
+        }
+    }
+}

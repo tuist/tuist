@@ -156,6 +156,18 @@ defmodule Tuist.Kura.Server do
     field :observed_image_tag, :string
     field :last_observed_at, :utc_datetime
 
+    # Observed-state projection too: the replication roles the kura-controller
+    # publishes for this instance's pods (`status.peerRoles`), one
+    # `%{"url" => ..., "gateway" => ...}` per pod, `url` being the pod's
+    # internal peer URL exactly as the controller renders its `KURA_NODE_URL`.
+    # Refreshed by the reconciler each tick it observes the instance, so the
+    # mesh view can publish roles from Postgres instead of reading each
+    # region's apiserver on the request path. Bounded staleness is one
+    # reconciler tick; roles are an optimisation over the local lowest-URL
+    # rule (kura/docs/replication-design.md §2.2), so a tick's lag costs
+    # nothing but a late role move.
+    field :peer_roles, {:array, :map}, default: []
+
     # Readiness heartbeat: the reconciler stamps it each tick a private
     # node-port server's endpoint is observable (the backing KuraInstance
     # only publishes the endpoint for a ready primary pod). Dispatch
@@ -163,6 +175,12 @@ defmodule Tuist.Kura.Server do
     # public cache. Distinct from last_observed_at, which tracks the last
     # image observation regardless of endpoint readiness.
     field :last_ready_at, :utc_datetime
+
+    # When the reconciler first saw the region template render a public host
+    # different from `url`. Set only while such a change is outstanding, and the
+    # clock the endpoint probe is held on so it cannot resolve the new host
+    # ahead of its DNS record.
+    field :public_host_drift_observed_at, :utc_datetime
 
     belongs_to :account, Account
 
@@ -290,6 +308,62 @@ defmodule Tuist.Kura.Server do
     |> validate_length(:observed_image_tag, max: 128)
     |> validate_status_and_image()
   end
+
+  @doc "Reconciler-only changeset for the public-host drift clock."
+  def public_host_drift_changeset(server, attrs) do
+    cast(server, attrs, [:public_host_drift_observed_at])
+  end
+
+  @doc """
+  Reconciler-only changeset for the observed replication roles. Kept apart
+  from `observation_changeset/2` because the two are written on different
+  paths and neither should be able to blank the other's columns: the role
+  refresh must be able to record an empty list (the controller published
+  none) without touching `status`, and a status projection must not drop
+  roles it never read.
+
+  Entries that carry no URL name nothing a node could match a role to, so
+  they are dropped rather than stored as a role for an empty address.
+  """
+  def peer_roles_changeset(server, attrs) do
+    server
+    |> cast(attrs, [:peer_roles])
+    |> validate_required([:peer_roles])
+    |> update_change(:peer_roles, &normalize_peer_roles/1)
+    |> discard_unchanged_peer_roles()
+  end
+
+  # Normalisation runs after `cast/3`, so a list that only differed in key
+  # shape still reads as a change until it is compared again. Dropping it
+  # here keeps `Repo.update/1` a no-op for the steady state, where the
+  # reconciler re-reads the same roles every tick.
+  defp discard_unchanged_peer_roles(changeset) do
+    stored = changeset.data.peer_roles
+
+    case fetch_change(changeset, :peer_roles) do
+      {:ok, ^stored} -> delete_change(changeset, :peer_roles)
+      _ -> changeset
+    end
+  end
+
+  defp normalize_peer_roles(roles) when is_list(roles) do
+    Enum.flat_map(roles, fn role ->
+      case peer_role_url(role) do
+        url when is_binary(url) and url != "" -> [%{"url" => url, "gateway" => peer_role_gateway(role)}]
+        _ -> []
+      end
+    end)
+  end
+
+  defp normalize_peer_roles(roles), do: roles
+
+  defp peer_role_url(%{url: url}), do: url
+  defp peer_role_url(%{"url" => url}), do: url
+  defp peer_role_url(_role), do: nil
+
+  defp peer_role_gateway(%{gateway: gateway}), do: gateway == true
+  defp peer_role_gateway(%{"gateway" => gateway}), do: gateway == true
+  defp peer_role_gateway(_role), do: false
 
   # Only the paths that create the instance's volumes write a claim, so a value
   # that cannot be rendered is a bug at the point it is pinned rather than one to

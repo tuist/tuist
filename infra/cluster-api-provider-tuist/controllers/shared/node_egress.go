@@ -14,19 +14,39 @@ import (
 // matching string in the kura-controller; this is the capacity side.
 const EgressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
+// NodeEgressMbps is the budget the node currently advertises, or 0 when it
+// advertises none.
+func NodeEgressMbps(node *corev1.Node) int32 {
+	quantity, ok := node.Status.Capacity[EgressMbpsResource]
+	if !ok {
+		return 0
+	}
+	value, ok := quantity.AsInt64()
+	if !ok || value <= 0 {
+		return 0
+	}
+	return int32(value)
+}
+
 // ReconcileNodeEgressCapacity advertises mbps as the node's
-// tuist.dev/egress-mbps extended-resource capacity, idempotently. No-op when
-// mbps <= 0 (cloud nodes whose NIC isn't shared) or the capacity already
-// matches. Custom extended resources live in node status and must be set via the
-// status subresource; a JSON merge patch adds the key without disturbing the
-// kubelet-managed cpu/memory/ephemeral-storage. Callers re-apply it on every
+// tuist.dev/egress-mbps extended-resource capacity, idempotently, and removes
+// the capacity when mbps <= 0 (cloud nodes whose NIC isn't shared). Custom
+// extended resources live in node status and must be set via the status
+// subresource; a JSON merge patch adds or removes the key without disturbing
+// the kubelet-managed cpu/memory/ephemeral-storage. Callers re-apply it on every
 // reconcile so a kubelet re-registration that resets status can't strand it.
 func ReconcileNodeEgressCapacity(ctx context.Context, c client.Client, node *corev1.Node, mbps int32) error {
+	cur, present := node.Status.Capacity[EgressMbpsResource]
 	if mbps <= 0 {
-		return nil
+		if !present {
+			return nil
+		}
+		patch := client.MergeFrom(node.DeepCopy())
+		delete(node.Status.Capacity, EgressMbpsResource)
+		return c.Status().Patch(ctx, node, patch)
 	}
 	want := *resource.NewQuantity(int64(mbps), resource.DecimalSI)
-	if cur, ok := node.Status.Capacity[EgressMbpsResource]; ok && cur.Cmp(want) == 0 {
+	if present && cur.Cmp(want) == 0 {
 		return nil
 	}
 	patch := client.MergeFrom(node.DeepCopy())

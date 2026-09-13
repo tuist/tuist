@@ -2,12 +2,16 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   use TuistWeb, :html
   use Noora
 
-  import TuistWeb.Marketing.MarketingComponents
+  import TuistWeb.Marketing.MarketingFrameworkLogos
+  import TuistWeb.Marketing.MarketingIllustrations
   import TuistWeb.Marketing.MarketingOrgLogos
   import TuistWeb.Marketing.TestimonialOrgLogos
 
   embed_templates("marketing_html/*")
   embed_templates("marketing_html/blog/*")
+  # Templates for the redesigned marketing pages. The suffix keeps the
+  # function names (e.g. home_new/1) distinct from their legacy counterparts.
+  embed_templates("marketing_html/new/*", suffix: "_new")
 
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
@@ -154,6 +158,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
       <img
         data-part="background"
         src={~p"/marketing/images/components/banner/background.webp"}
+        alt=""
         loading="lazy"
         decoding="async"
       />
@@ -187,7 +192,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     ~H"""
     <div data-part="member">
       <div data-part="photo">
-        <img src={static_asset_path(@photo_src)} loading="lazy" decoding="async" />
+        <img src={static_asset_path(@photo_src)} alt="" loading="lazy" decoding="async" />
         <div data-part="data">
           <h3 data-part="name">
             {@name}
@@ -322,6 +327,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           <img
             data-part="avatar"
             src={static_asset_path(@avatar_src)}
+            alt=""
             loading="lazy"
             decoding="async"
           />

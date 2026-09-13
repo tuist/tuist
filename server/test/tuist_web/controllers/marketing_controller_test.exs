@@ -2,7 +2,32 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.AppStore
   alias Tuist.Atlas.Email
+  alias Tuist.GitHub.Releases
+  alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Newsletter
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
+
+  @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
+  defp stub_latest_app_release do
+    stub(Releases, :get_latest_app_release, fn ->
+      %{
+        published_at: Timex.format!(DateTime.utc_now(), "{ISO:Extended}"),
+        name: "App 0.25.6",
+        tag_name: "app@0.25.6",
+        html_url: "https://github.com/tuist/tuist/releases/tag/app@0.25.6",
+        assets: [
+          %{
+            name: "Tuist.dmg",
+            browser_download_url: "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+          }
+        ]
+      }
+    end)
+  end
 
   describe "GET /" do
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
@@ -15,6 +40,367 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "describes the site and the product with structured data", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      types =
+        ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
+        |> Regex.scan(html, capture: :all_but_first)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+
+      assert "Organization" in types
+      assert "WebSite" in types
+      assert "SoftwareApplication" in types
+    end
+
+    test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+
+      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
+    end
+  end
+
+  describe "GET /blog/:year/:month/:day/:slug" do
+    test "emits article metadata with a profile URL for the author", %{conn: conn} do
+      post = List.first(Blog.get_posts())
+      html = conn |> get(post.slug) |> html_response(200)
+
+      assert html =~ ~s(<meta property="og:type" content="article">)
+      # Open Graph types article:author as a profile, so a display name is not
+      # a valid value here.
+      assert [author] = Regex.run(~r|article:author" content="([^"]*)"|, html, capture: :all_but_first)
+      assert author =~ ~r|\Ahttps://|
+      assert html =~ ~s(<meta property="twitter:url" content="#{Tuist.Environment.app_url(path: post.slug)}">)
+    end
+  end
+
+  describe "GET /sitemap.xml" do
+    # The sitemap enumerates documentation slugs, which include command-line
+    # pages fetched from the latest GitHub release. Stub them so the test does
+    # not depend on the network.
+    setup do
+      stub(Tuist.Docs.CLI, :get_pages, fn -> [] end)
+      :ok
+    end
+
+    test "includes the product pages", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for path <- ["/cache", "/flaky-tests", "/test-insights", "/previews"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+
+      for path <- ["/about", "/newsletter"] do
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
+    test "carries lastmod for dated content and omits it elsewhere", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      post = List.first(Blog.get_posts())
+      post_date = post.date |> DateTime.to_date() |> Date.to_iso8601()
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: post.slug))}</loc>\s*<lastmod>#{post_date}</lastmod>|
+
+      # A docs page has no trustworthy modification date, so it gets no lastmod
+      # rather than one Google would later learn to distrust.
+      refute xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/en/docs"))}</loc>\s*<lastmod>|
+    end
+
+    test "no longer emits the directives search engines ignore", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      refute xml =~ "<priority>"
+      refute xml =~ "<changefreq>"
+    end
+  end
+
+  describe "GET / (new design rollout)" do
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "anonymous responses stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/")
+
+      assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
+    end
+
+    test "authenticated responses are not cacheable by shared caches", %{conn: conn} do
+      # An authenticated user can be actor-gated onto a redesigned page, so
+      # a shared cache must never store their variant at the ordinary URL.
+      user = AccountsFixtures.user_fixture()
+
+      conn = conn |> log_in_user(user) |> get("/")
+
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
+  end
+
+  describe "GET /compute" do
+    test "is hidden behind a 404 while the page flag is off", %{conn: conn} do
+      assert_error_sent :not_found, fn ->
+        get(conn, "/compute")
+      end
+    end
+
+    test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/compute")
+
+      html = html_response(conn, 200)
+      assert html =~ "marketing-compute"
+      # The hero's CI switch and both migration diffs it toggles between.
+      assert html =~ ~s(data-part="ci-switch")
+      assert html =~ "runs-on: tuist-macos"
+      assert html =~ ~s(queue: "tuist-macos")
+
+      # The redesign ships a designed social card instead of a rendered one.
+      assert html =~
+               ~s(property="og:image" content="#{Tuist.Environment.app_url(path: "/marketing/images/og/compute.png")}")
+
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /tests" do
+    test "is hidden behind a 404 while the page flag is off", %{conn: conn} do
+      assert_error_sent :not_found, fn ->
+        get(conn, "/tests")
+      end
+    end
+
+    test "renders the redesigned page when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/tests")
+
+      html = html_response(conn, 200)
+      assert html =~ "marketing-tests"
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /download" do
+    test "redirects to the latest macOS app DMG when the redesign flag is off", %{conn: conn} do
+      stub_latest_app_release()
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      conn = get(conn, ~p"/download")
+
+      assert redirected_to(conn) ==
+               "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+    end
+
+    test "raises not found when the redesign flag is off and no release exists", %{conn: conn} do
+      stub(Releases, :get_latest_app_release, fn -> nil end)
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      assert_raise NotFoundError, fn ->
+        get(conn, ~p"/download")
+      end
+    end
+
+    test "renders the download page with the macOS hero by default", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download Tuist"
+      assert html =~ "Download for macOS"
+      assert html =~ "Version 0.25.6"
+      assert html =~ "https://github.com/tuist/tuist/releases/download/app@0.25.6/Tuist.dmg"
+      assert [vary] = get_resp_header(conn, "vary")
+      assert vary =~ "user-agent"
+    end
+
+    test "renders the iPhone hero with the iOS app version for iOS visitors", %{conn: conn} do
+      stub_latest_app_release()
+      stub(AppStore, :get_latest_ios_app_version, fn -> "1.2.3" end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      conn =
+        conn
+        |> put_req_header("user-agent", @iphone_user_agent)
+        |> get(~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download on iPhone"
+      assert html =~ "Version 1.2.3"
+      assert html =~ AppStore.ios_app_url()
+    end
+
+    test "omits the hero version when no release information is available", %{conn: conn} do
+      stub(Releases, :get_latest_app_release, fn -> nil end)
+      stub(AppStore, :get_latest_ios_app_version, fn -> nil end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/download")
+
+      html = html_response(conn, 200)
+      assert html =~ "Download for macOS"
+      refute html =~ ~s(data-part="version")
+      assert html =~ "https://github.com/tuist/tuist/releases"
+    end
+  end
+
+  describe "GET /newsletter" do
+    test "renders the legacy newsletter page by default", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Tuist Digest"
+      refute html =~ ~s(id="marketing-newsletter-form")
+    end
+
+    test "renders the redesigned newsletter page when the flag is on", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Tuist Digest"
+      assert html =~ ~s(id="marketing-newsletter-form")
+      assert html =~ ~s(phx-hook="NewsletterForm")
+      assert html =~ "Supercharge your development"
+      assert html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "lists every past issue newest first with the sort control when the flag is on", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      conn = get(conn, ~p"/newsletter")
+
+      html = html_response(conn, 200)
+      assert html =~ "Past newsletter issues"
+      assert html =~ ~s(phx-hook="NewsletterIssuesSort")
+
+      numbers =
+        ~r/data-part="row" data-number="(\d+)"/
+        |> Regex.scan(html)
+        |> Enum.map(fn [_, number] -> String.to_integer(number) end)
+
+      expected = Newsletter.issues() |> Enum.map(& &1.number) |> Enum.sort(:desc)
+      assert numbers == expected
+      assert html =~ ~s(href="/newsletter/issues/#{List.first(expected)}")
+    end
+  end
+
+  describe "GET /newsletter/issues/:issue_number" do
+    test "renders the issue page", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="newsletter-issue")
+      assert html =~ issue.title
+      assert html =~ "Worthy Five: #{issue.interview["interviewee"]}"
+      assert html =~ "/newsletter/issues/#{issue.number - 1}"
+      assert html =~ "This is the latest issue"
+      assert html =~ "All issues"
+      refute html =~ "View in web browser"
+      refute html =~ "{unsubscribe_url}"
+      refute html =~ "#622ed4"
+    end
+
+    test "renders the same page as the email export", %{conn: conn} do
+      issue = Enum.max_by(Newsletter.issues(), & &1.number)
+
+      conn = get(conn, ~p"/newsletter/issues/#{issue.number}?email")
+
+      assert response_content_type(conn, :text) =~ "charset=utf-8"
+      body = response(conn, 200)
+      assert body =~ ~s(id="newsletter-issue")
+      assert body =~ issue.title
+      assert body =~ "View in web browser"
+      assert body =~ "{unsubscribe_url}"
+      refute body =~ "@font-face"
+      assert body =~ "[data-ogsc] .button-primary"
     end
   end
 
@@ -83,11 +469,65 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
   describe "GET /page" do
     test "raises NotFoundError when page is not found", %{conn: conn} do
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         conn
         |> Map.put(:request_path, "//terms")
         |> TuistWeb.Marketing.MarketingController.page(%{})
       end
+    end
+  end
+
+  describe "GET /terms (new design rollout)" do
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, "/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _ -> false
+      end)
+
+      conn = get(conn, "/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get("/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+
+    test "keeps the legacy design for authenticated users without the actor gate", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+      stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+      conn = conn |> log_in_user(user) |> get("/terms")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
     end
   end
 
@@ -106,6 +546,94 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert redirected_to(conn) ==
                "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+    end
+
+    test "renders the legacy design and stylesheet by default", %{conn: conn} do
+      conn = get(conn, ~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle.css"
+      refute html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the new design and stylesheet when the page flag is enabled", %{conn: conn} do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _ -> false
+      end)
+
+      conn = get(conn, ~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+      # The redesign swaps the static OG photo for the generated artwork.
+      assert html =~ "/open-graph-images/"
+    end
+
+    test "renders the new design for a user actor-gated onto the page flag", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      user_id = user.id
+
+      stub(FunWithFlags, :enabled?, fn _flag -> false end)
+
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing, [for: %{id: ^user_id}] -> true
+        _flag, _opts -> false
+      end)
+
+      conn = conn |> log_in_user(user) |> get(~p"/customers/monzo")
+
+      html = html_response(conn, 200)
+      assert html =~ "/marketing/assets/bundle-new.css"
+      refute html =~ "/marketing/assets/bundle.css"
+    end
+  end
+
+  describe "GET /newsletter/verify with the redesign flag on" do
+    setup do
+      stub(FunWithFlags, :enabled?, fn
+        :new_marketing -> true
+        _flag -> false
+      end)
+
+      :ok
+    end
+
+    test "renders the confirm state", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Confirm Subscription"
+      assert html =~ "Confirm subscription"
+      assert html =~ ~s(name="token" value="#{token}")
+      assert html =~ "/marketing/assets/bundle-new.css"
+    end
+
+    test "renders the failed state for an invalid token", %{conn: conn} do
+      conn = get(conn, ~p"/newsletter/verify?token=invalid")
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Newsletter Verification Failed"
+      assert html =~ "Subscribe again"
+    end
+
+    test "renders the subscribed state after confirming", %{conn: conn} do
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+      expect(Email, :add_to_newsletter_list, fn ^email -> :ok end)
+
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
+
+      html = html_response(conn, 200)
+      assert html =~ ~s(id="marketing-newsletter-verify")
+      assert html =~ "Successfully Subscribed!"
+      assert html =~ "Back to home"
     end
   end
 

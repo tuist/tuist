@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -342,8 +343,12 @@ func (r *PeerDemuxReconciler) image() string {
 	return defaultPeerDemuxImage
 }
 
-func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	mapInstance := func(_ context.Context, obj client.Object) []reconcile.Request {
+// peerDemuxInstanceEventHandler enqueues the region of the KuraInstance an
+// event is about. EnqueueRequestsFromMapFunc maps both the old and the new
+// object of an update, so a region change also enqueues the region the
+// instance left and that region's demux is torn down.
+func peerDemuxInstanceEventHandler() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
 		instance, ok := obj.(*kurav1alpha1.KuraInstance)
 		if !ok || instance.Spec.Region == "" {
 			return nil
@@ -351,13 +356,39 @@ func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return []reconcile.Request{{
 			NamespacedName: types.NamespacedName{Name: instance.Spec.Region, Namespace: instance.Namespace},
 		}}
-	}
+	})
+}
+
+// peerDemuxDaemonSetEventHandler enqueues the region a demux DaemonSet
+// belongs to. The informer's initial list emits a Create for every existing
+// demux, so a demux left behind for a region no instance is in any more (the
+// instances moved while the controller was not running) is reconciled and
+// torn down at startup instead of holding the host port forever.
+func peerDemuxDaemonSetEventHandler() handler.EventHandler {
+	return handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
+		labels := obj.GetLabels()
+		region := labels["tuist.dev/region"]
+		if labels["app.kubernetes.io/name"] != "kura-peer-demux" || region == "" {
+			return nil
+		}
+		return []reconcile.Request{{
+			NamespacedName: types.NamespacedName{Name: region, Namespace: obj.GetNamespace()},
+		}}
+	})
+}
+
+func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("peer-demux").
 		Watches(
 			&kurav1alpha1.KuraInstance{},
-			handler.EnqueueRequestsFromMapFunc(mapInstance),
+			peerDemuxInstanceEventHandler(),
 			builder.WithPredicates(kuraInstanceDesiredStateChangedPredicate()),
+		).
+		Watches(
+			&appsv1.DaemonSet{},
+			peerDemuxDaemonSetEventHandler(),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Complete(r)
 }

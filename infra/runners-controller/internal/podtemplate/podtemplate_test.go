@@ -1,6 +1,7 @@
 package podtemplate
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -188,7 +189,7 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	for _, mount := range []corev1.VolumeMount{
 		{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"},
 		{Name: "tuist-runner-jit", MountPath: jitMountPath},
-		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		{Name: "shell-sock", MountPath: shellSocketMountPath},
 	} {
 		if !hasVolumeMount(shell.VolumeMounts, mount) {
 			t.Errorf("shell sidecar missing mount %+v; got %+v", mount, shell.VolumeMounts)
@@ -206,8 +207,8 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_SOCKET"); got != shellSocketPath {
 		t.Errorf("shell socket path = %q, want %q", got, shellSocketPath)
 	}
-	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != "/home/runner/actions-runner/_work" {
-		t.Errorf("shell workdir = %q, want shared runner workspace", got)
+	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != workPath {
+		t.Errorf("shell workdir = %q, want the runner work directory %q", got, workPath)
 	}
 	if shell.SecurityContext == nil || shell.SecurityContext.RunAsUser == nil || *shell.SecurityContext.RunAsUser != 0 {
 		t.Errorf("shell sidecar must start as root to read the token before dropping PTY children; got %+v", shell.SecurityContext)
@@ -363,16 +364,23 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// runner container. Mirrors the ARC pattern.
 	pod := build(t, basePool("linux"))
 
-	// Four init containers: the dind sidecar first (so its startupProbe
-	// gates the rest of the Pod), then the metrics and shell sidecars,
-	// then the poller.
-	if len(pod.Spec.InitContainers) != 4 {
-		t.Fatalf("InitContainers = %d, want 4 (dind sidecar + metrics sidecar + shell sidecar + poller)", len(pod.Spec.InitContainers))
+	// Five init containers: the externals staging copy, then the dind
+	// sidecar (whose startupProbe gates the rest of the Pod), then the
+	// metrics and shell sidecars, then the poller.
+	if len(pod.Spec.InitContainers) != 5 {
+		t.Fatalf("InitContainers = %d, want 5 (externals staging + dind sidecar + metrics sidecar + shell sidecar + poller)", len(pod.Spec.InitContainers))
 	}
-	dind := pod.Spec.InitContainers[0]
-	if dind.Name != "dind" {
-		t.Errorf("first initContainer Name = %q, want \"dind\" (must precede poller so docker is ready)", dind.Name)
+	names := make([]string, 0, len(pod.Spec.InitContainers))
+	for _, c := range pod.Spec.InitContainers {
+		names = append(names, c.Name)
 	}
+	// dind must still precede the poller so docker is up before a job
+	// can be claimed, and the staging copy must precede dind so the
+	// externals are in place before dockerd can serve a container.
+	if got, want := names, []string{"dind-externals", "dind", "metrics", "shell", "poller"}; !slices.Equal(got, want) {
+		t.Errorf("initContainer order = %v, want %v", got, want)
+	}
+	dind := initContainer(t, pod, "dind")
 	if dind.Image != testDindImage {
 		t.Errorf("sidecar Image = %q, want %q", dind.Image, testDindImage)
 	}
@@ -412,7 +420,7 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// docker-run -v bind-mounts resolve identically on both sides.
 	for _, vm := range []corev1.VolumeMount{
 		{Name: "dind-sock", MountPath: "/var/run"},
-		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		{Name: "work", MountPath: workPath},
 	} {
 		if !hasVolumeMount(runner.VolumeMounts, vm) {
 			t.Errorf("runner missing volumeMount %+v; got %+v", vm, runner.VolumeMounts)
@@ -455,6 +463,99 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxDindSharesRunnerExternals(t *testing.T) {
+	// `jobs.<id>.container` makes the runner bind-mount its own
+	// externals directory into the job container as /__e, and dockerd
+	// resolves that path in the sidecar. Without the staged copy the
+	// daemon creates an empty directory there and every step in the
+	// container fails on a missing /__e/node2x/bin/node.
+	pod := build(t, basePool("linux"))
+
+	staging := initContainer(t, pod, "dind-externals")
+	// Copies from the runner image, so it must run that image.
+	if staging.Image != pod.Spec.Containers[0].Image {
+		t.Errorf("staging Image = %q, want the runner image %q", staging.Image, pod.Spec.Containers[0].Image)
+	}
+	// A plain init container: it has to finish, not linger like the
+	// native sidecars around it.
+	if staging.RestartPolicy != nil {
+		t.Errorf("staging RestartPolicy = %v, want nil (runs to completion)", *staging.RestartPolicy)
+	}
+	args := strings.Join(staging.Args, " ")
+	if !strings.Contains(args, "cp -a /home/runner/actions-runner/externals/. /mnt/dind-externals/") {
+		t.Errorf("staging args = %q, want a copy of the runner externals into the shared volume", args)
+	}
+	// Staging must not mount the volume over its own source.
+	if hasVolumeMount(staging.VolumeMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: "/home/runner/actions-runner/externals"}) {
+		t.Errorf("staging mounts the volume over its copy source; got %+v", staging.VolumeMounts)
+	}
+	if !hasVolumeMount(staging.VolumeMounts, corev1.VolumeMount{Name: "dind-externals", MountPath: "/mnt/dind-externals"}) {
+		t.Errorf("staging missing the dind-externals mount; got %+v", staging.VolumeMounts)
+	}
+
+	// The sidecar sees them at the runner's own path, because that is
+	// the path the runner hands to docker.
+	dind := initContainer(t, pod, "dind")
+	externals := corev1.VolumeMount{Name: "dind-externals", MountPath: "/home/runner/actions-runner/externals"}
+	if !hasVolumeMount(dind.VolumeMounts, externals) {
+		t.Errorf("sidecar missing %+v; got %+v", externals, dind.VolumeMounts)
+	}
+	// The runner keeps the copy baked into its image; shadowing it
+	// with the staging volume would be a way to serve it a stale one.
+	if hasVolumeMount(pod.Spec.Containers[0].VolumeMounts, externals) {
+		t.Errorf("runner should not mount dind-externals over its own externals directory")
+	}
+	if !hasVolume(pod.Spec.Volumes, "dind-externals") {
+		t.Errorf("pod missing volume \"dind-externals\"; got %+v", pod.Spec.Volumes)
+	}
+}
+
+func TestBuild_LinuxDindSharesRunnerWorkDirectory(t *testing.T) {
+	// The runner honors the absolute `work_folder` the server mints
+	// into the JIT config (`Tuist.Runners`, /home/runner/work on
+	// Linux) and never touches its own `<runner root>/_work`
+	// default. Mount the shared volume anywhere else and the real
+	// work directory stays container-local: dockerd then bind-mounts
+	// a path that does not exist in the sidecar, docker creates it
+	// empty, and every step of a `jobs.<id>.container` job fails —
+	// `run:` steps on a missing /__w/_temp/<id>.sh, JS actions on a
+	// missing /__w/_actions/<owner>/<repo>/<ref>/dist/index.js.
+	pod := build(t, basePool("linux"))
+
+	if workPath != "/home/runner/work" {
+		t.Fatalf("workPath = %q, want the server-minted work_folder /home/runner/work", workPath)
+	}
+	work := corev1.VolumeMount{Name: "work", MountPath: workPath}
+	if !hasVolumeMount(pod.Spec.Containers[0].VolumeMounts, work) {
+		t.Errorf("runner missing %+v; got %+v", work, pod.Spec.Containers[0].VolumeMounts)
+	}
+	if !hasVolumeMount(initContainer(t, pod, "dind").VolumeMounts, work) {
+		t.Errorf("sidecar missing %+v; docker resolves /__w in its namespace", work)
+	}
+}
+
+func TestBuild_LinuxShellSocketIsNotInsideTheWorkTree(t *testing.T) {
+	// The runner bind-mounts the whole work directory into a job
+	// container as /__w. The PTY socket is the runner container's
+	// entry point, so it lives on its own volume rather than being
+	// handed to the workflow along with the workspace.
+	pod := build(t, basePool("linux"))
+
+	if strings.HasPrefix(shellSocketPath, workPath+"/") {
+		t.Errorf("shell socket %q sits under the work directory %q, which is bind-mounted into job containers as /__w", shellSocketPath, workPath)
+	}
+	sock := corev1.VolumeMount{Name: "shell-sock", MountPath: shellSocketMountPath}
+	if !hasVolumeMount(pod.Spec.Containers[0].VolumeMounts, sock) {
+		t.Errorf("runner missing %+v; got %+v", sock, pod.Spec.Containers[0].VolumeMounts)
+	}
+	if !hasVolumeMount(initContainer(t, pod, "shell").VolumeMounts, sock) {
+		t.Errorf("shell sidecar missing %+v; it brokers the PTY over that socket", sock)
+	}
+	if !hasVolume(pod.Spec.Volumes, "shell-sock") {
+		t.Errorf("pod missing volume \"shell-sock\"; got %+v", pod.Spec.Volumes)
+	}
+}
+
 func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
 	// With a mirror URL configured, dockerd launches with
 	// --registry-mirror plus a matching --insecure-registry (the
@@ -464,7 +565,7 @@ func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
-	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	args := strings.Join(initContainer(t, pod, "dind").Args, " ")
 	if !strings.Contains(args, "--registry-mirror="+mirror) {
 		t.Errorf("dind args missing --registry-mirror=%s; got %v", mirror, args)
 	}
@@ -477,7 +578,7 @@ func TestBuild_LinuxDindNoRegistryMirrorByDefault(t *testing.T) {
 	// Empty mirror → no --registry-mirror flag; dockerd pulls docker.io
 	// directly.
 	pod := build(t, basePool("linux"))
-	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	args := strings.Join(initContainer(t, pod, "dind").Args, " ")
 	if strings.Contains(args, "--registry-mirror") {
 		t.Errorf("dind args must not carry --registry-mirror when none configured; got %v", args)
 	}
@@ -729,6 +830,20 @@ func envValue(env []corev1.EnvVar, name string) string {
 		}
 	}
 	return ""
+}
+
+// initContainer returns the init container with the given name.
+// Looking them up by name rather than index keeps these tests from
+// churning every time a sidecar is added ahead of another.
+func initContainer(t *testing.T, pod *corev1.Pod, name string) corev1.Container {
+	t.Helper()
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("pod has no %q init container; got %+v", name, pod.Spec.InitContainers)
+	return corev1.Container{}
 }
 
 func hasVolumeMount(mounts []corev1.VolumeMount, want corev1.VolumeMount) bool {

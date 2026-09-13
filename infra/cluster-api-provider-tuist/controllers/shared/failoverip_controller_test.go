@@ -58,14 +58,14 @@ func failoverIPCR(demux bool) *infrav1.FailoverIP {
 	spec := infrav1.FailoverIPSpec{
 		IP:               "203.0.113.10",
 		Vendor:           "fake",
-		Region:           "eu-central",
+		Region:           "eu-west",
 		NodePoolSelector: map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
 	}
 	if demux {
 		spec.DemuxSelector = map[string]string{"app.kubernetes.io/component": "peer-demux"}
 		spec.DemuxNamespace = "kura"
 	}
-	return &infrav1.FailoverIP{ObjectMeta: metav1.ObjectMeta{Name: "eu-central-peer"}, Spec: spec}
+	return &infrav1.FailoverIP{ObjectMeta: metav1.ObjectMeta{Name: "eu-west-peer"}, Spec: spec}
 }
 
 func newFailoverReconciler(t *testing.T, mover FailoverIPMover, objs ...client.Object) (*FailoverIPReconciler, client.Client) {
@@ -87,7 +87,7 @@ func newFailoverReconciler(t *testing.T, mover FailoverIPMover, objs ...client.O
 
 func reconcileFailover(t *testing.T, r *FailoverIPReconciler) {
 	t.Helper()
-	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central-peer"}}); err != nil {
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-west-peer"}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -136,7 +136,7 @@ func TestFailoverIPNoMoverIsNoop(t *testing.T) {
 	r, c := newFailoverReconciler(t, nil, failoverIPCR(false), poolNode("node-a", true))
 	reconcileFailover(t, r)
 	got := &infrav1.FailoverIP{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "eu-central-peer"}, got); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "eu-west-peer"}, got); err != nil {
 		t.Fatal(err)
 	}
 	if got.Status.Message == "" {

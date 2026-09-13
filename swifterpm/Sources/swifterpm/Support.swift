@@ -83,6 +83,7 @@ enum SystemProcess {
         _ arguments: [String],
         workingDirectory: URL? = nil,
         environment: [String: String] = [:],
+        customEnvironment: [String: String]? = nil,
         forwardOutput: Bool = false,
         outputLimit: Int = 64 * 1024 * 1024
     ) async throws -> Result {
@@ -90,7 +91,7 @@ enum SystemProcess {
             let result = try await Subprocess.run(
                 subprocessExecutable(executable),
                 arguments: Arguments(arguments),
-                environment: subprocessEnvironment(environment),
+                environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
                 workingDirectory: workingDirectory.map { FilePath($0.path) },
                 output: .standardOutput,
                 error: .standardError
@@ -106,7 +107,7 @@ enum SystemProcess {
         let result = try await Subprocess.run(
             subprocessExecutable(executable),
             arguments: Arguments(arguments),
-            environment: subprocessEnvironment(environment),
+            environment: subprocessEnvironment(environment, customEnvironment: customEnvironment),
             workingDirectory: workingDirectory.map { FilePath($0.path) },
             output: .bytes(limit: outputLimit),
             error: .bytes(limit: outputLimit)
@@ -144,9 +145,27 @@ enum SystemProcess {
         executable.contains("/") ? .path(FilePath(executable)) : .name(executable)
     }
 
-    private static func subprocessEnvironment(_ environment: [String: String])
+    private static func subprocessEnvironment(
+        _ environment: [String: String],
+        customEnvironment: [String: String]?
+    )
         -> Subprocess.Environment
     {
+        if let customEnvironment {
+            var values: [Subprocess.Environment.Key: String] = [:]
+            var overrides: [Subprocess.Environment.Key: String?] = [:]
+            for (key, value) in customEnvironment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    values[subprocessKey] = value
+                }
+            }
+            for (key, value) in environment {
+                if let subprocessKey = Subprocess.Environment.Key(rawValue: key) {
+                    overrides[subprocessKey] = value
+                }
+            }
+            return .custom(values).updating(overrides)
+        }
         guard !environment.isEmpty else { return .inherit }
         var overrides: [Subprocess.Environment.Key: String?] = [:]
         for (key, value) in environment {
@@ -364,16 +383,18 @@ enum HTTPAuthorization {
 
         // Explicit, host-scoped credentials win over an ambient GitHub token. A
         // `machine api.github.com` entry in a netrc file is a deliberate per-host
-        // credential, so it must beat a generic GITHUB_TOKEN /
-        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // credential, so it must beat a generic SWIFTERPM_GITHUB_TOKEN /
+        // GITHUB_TOKEN / GH_TOKEN that may be scoped to an unrelated repository — otherwise a
         // repo-scoped CI token shadows the netrc credential that can actually read
-        // a private release asset. This mirrors SwiftPM, whose download
-        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
+        // a private release asset. SwiftPM's makeAuthorizationProvider actually
+        // ranks its environment token above netrc, but we keep netrc first here
+        // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
+        // host a netrc entry deliberately targets.
         if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
             netrcCredential: Environment.netrc.credential(for: url),
             keychain: { await KeychainAuthorization.credential(for: url) },
-            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+            gitHubEnvToken: GitHubAuth.envToken(from: environment)
         ) {
             return header
         }
@@ -397,7 +418,7 @@ enum HTTPAuthorization {
         if let credential = await keychain() {
             return basicHeader(credential)
         }
-        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
+        if isGitHub, let token = gitHubEnvToken {
             return bearerHeader(token)
         }
         return nil
@@ -415,11 +436,6 @@ enum HTTPAuthorization {
 
     private static func bearerHeader(_ token: String) -> String {
         "Bearer \(token)"
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let value, !value.isEmpty else { return nil }
-        return value
     }
 }
 
@@ -444,9 +460,6 @@ enum Hashing {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    static func shortRevision(_ revision: String) -> String {
-        String(revision.prefix(12))
-    }
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

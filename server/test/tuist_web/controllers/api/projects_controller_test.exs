@@ -164,6 +164,38 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
+    test "returns newly created project with Bazel build system", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-bazel-project",
+          build_system: "bazel"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => response["id"],
+               "full_name" => "#{user.account.name}/my-bazel-project",
+               "default_branch" => "main",
+               "repository_url" => nil,
+               "visibility" => "private",
+               "build_system" => "bazel",
+               "token" => ""
+             }
+
+      assert response["token"] == ""
+    end
+
     test "returns an error if the provided account doesn't exist", %{
       conn: conn,
       user: user

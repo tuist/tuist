@@ -1,0 +1,25 @@
+# Cloudflare-verified crawlers can index public pages without solving a
+# browser challenge. This separate rule still places a hard ceiling on the
+# database-backed requests from each crawler address and returns HTTP 429 so
+# compliant crawlers back off.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareRateLimit
+metadata:
+  name: verified-crawlers-public-pages
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Verified crawlers - public pages"
+  expression: "(http.request.method eq \"GET\" and cf.client.bot)"
+  action: block
+  enabled: true
+  mode: active
+  createNewRule: true
+  retainOnDelete: false
+  ratelimit:
+    characteristics:
+      - "ip.src"
+      - "cf.colo.id"
+    requestsPerPeriod: 60
+    period: 10
+    mitigationTimeoutSeconds: 10
+    countingExpression: "(http.response.headers[\"x-tuist-public\"][0] eq \"1\")"

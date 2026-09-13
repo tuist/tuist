@@ -113,6 +113,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
     ) async throws {
         let extraArguments = arguments.flatMap(\.arguments)
         var arguments: [String] = []
+        let usesXCTestRun = action == .testWithoutBuilding && passthroughXcodeBuildArguments.contains("-xctestrun")
 
         // Action
         if clean {
@@ -128,11 +129,13 @@ public struct XcodeBuildController: XcodeBuildControlling {
             arguments.append("test-without-building")
         }
 
-        // Scheme
-        arguments.append(contentsOf: ["-scheme", scheme])
+        if !usesXCTestRun {
+            // Scheme
+            arguments.append(contentsOf: ["-scheme", scheme])
 
-        // Target
-        arguments.append(contentsOf: target.xcodebuildArguments)
+            // Target
+            arguments.append(contentsOf: target.xcodebuildArguments)
+        }
 
         // Arguments
         arguments.append(contentsOf: extraArguments)
@@ -179,7 +182,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
             arguments.append(contentsOf: ["-skip-testing", test.description])
         }
 
-        if let testPlanConfiguration {
+        if let testPlanConfiguration, !usesXCTestRun {
             arguments.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
             for configuration in testPlanConfiguration.configurations {
                 arguments.append(contentsOf: ["-only-test-configuration", configuration])

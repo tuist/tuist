@@ -88,9 +88,99 @@ defmodule Tuist.ClickHouseRetryTest do
 
       assert :counters.get(counter, 1) == 1
     end
+
+    test "retries a raised memory-limit error and returns once the call succeeds" do
+      counter = :counters.new(1, [])
+
+      log =
+        capture_log(fn ->
+          assert ClickHouseRetry.with_retry(
+                   fn ->
+                     :counters.add(counter, 1, 1)
+
+                     if :counters.get(counter, 1) < 2 do
+                       raise %Ch.Error{code: 241, message: "Memory limit (for query) exceeded"}
+                     end
+
+                     :ok
+                   end,
+                   memory_retries: 1
+                 ) == :ok
+        end)
+
+      assert :counters.get(counter, 1) == 2
+      assert log =~ "ClickHouse is over its memory budget"
+    end
+
+    test "reraises the memory-limit error after exhausting retries" do
+      counter = :counters.new(1, [])
+
+      capture_log(fn ->
+        assert_raise Ch.Error, fn ->
+          ClickHouseRetry.with_retry(
+            fn ->
+              :counters.add(counter, 1, 1)
+              raise %Ch.Error{code: 241, message: "Memory limit (for query) exceeded"}
+            end,
+            memory_retries: 1
+          )
+        end
+      end)
+
+      assert :counters.get(counter, 1) == 2
+    end
+
+    test "does not retry unrelated raised ClickHouse errors" do
+      counter = :counters.new(1, [])
+
+      assert_raise Ch.Error, fn ->
+        ClickHouseRetry.with_retry(fn ->
+          :counters.add(counter, 1, 1)
+          raise %Ch.Error{code: 62, message: "Syntax error"}
+        end)
+      end
+
+      assert :counters.get(counter, 1) == 1
+    end
   end
 
   describe "with_result_retry/2" do
+    # The wording of code 241 differs between the per-user budget and the
+    # process-wide ceiling, and changed again in ClickHouse 26. Production
+    # emits these two verbatim; both have to be recognised as retryable.
+    for {label, message} <- [
+          {"process-wide ceiling",
+           "Code: 241. DB::Exception: (total) memory limit exceeded: would use 18.00 GiB " <>
+             "(attempt to allocate chunk of 0.00 B), current RSS: 18.00 GiB, maximum: 18.00 GiB. " <>
+             "(MEMORY_LIMIT_EXCEEDED)"},
+          {"per-user budget",
+           "Code: 241. DB::Exception: User memory limit exceeded: would use 8.02 GiB " <>
+             "(attempt to allocate chunk of 4.00 MiB), maximum: 8.00 GiB. (MEMORY_LIMIT_EXCEEDED)"}
+        ] do
+      test "retries the #{label} memory error" do
+        counter = :counters.new(1, [])
+        error = %Ch.Error{code: 241, message: unquote(message)}
+
+        capture_log(fn ->
+          assert {:ok, :result} =
+                   ClickHouseRetry.with_result_retry(
+                     fn ->
+                       :counters.add(counter, 1, 1)
+
+                       if :counters.get(counter, 1) == 1 do
+                         {:error, error}
+                       else
+                         {:ok, :result}
+                       end
+                     end,
+                     memory_retries: 1
+                   )
+        end)
+
+        assert :counters.get(counter, 1) == 2
+      end
+    end
+
     test "retries a tagged per-user memory error" do
       counter = :counters.new(1, [])
 
@@ -107,12 +197,12 @@ defmodule Tuist.ClickHouseRetryTest do
                          {:ok, :result}
                        end
                      end,
-                     user_memory_retries: 1
+                     memory_retries: 1
                    )
         end)
 
       assert :counters.get(counter, 1) == 2
-      assert log =~ "ClickHouse user memory budget is busy"
+      assert log =~ "ClickHouse is over its memory budget"
     end
 
     test "returns the tagged error when the retry budget is exhausted" do
@@ -120,7 +210,7 @@ defmodule Tuist.ClickHouseRetryTest do
 
       assert {:error, ^error} =
                ClickHouseRetry.with_result_retry(fn -> {:error, error} end,
-                 user_memory_retries: 0
+                 memory_retries: 0
                )
     end
 
@@ -134,7 +224,7 @@ defmodule Tuist.ClickHouseRetryTest do
                    :counters.add(counter, 1, 1)
                    {:error, error}
                  end,
-                 user_memory_retries: 1
+                 memory_retries: 1
                )
 
       assert :counters.get(counter, 1) == 1
@@ -156,7 +246,7 @@ defmodule Tuist.ClickHouseRetryTest do
                      end
                    end,
                    transport_retries: 1,
-                   user_memory_retries: 0
+                   memory_retries: 0
                  )
       end)
 

@@ -100,9 +100,12 @@ func main() {
 	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
 	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
 	flag.IntVar(&maxPods, "max-pods", 2,
-		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
-			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
-			"instances per host); Tart refuses to start a third VM.")
+		"Pod ceiling advertised as the Node's pods capacity. NOT the "+
+			"concurrent-VM limit: the scheduler counts terminated Pods against "+
+			"this until GC deletes them, so a host is given guests x 2 + 1. "+
+			"Apple's macOS SLA caps simultaneous virtualized macOS instances at "+
+			"2 per host, and Tart enforces that itself regardless of this value. "+
+			"The default of 2 is one guest slot plus one terminating predecessor.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
 		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
 			"this is left at the default `:8080`, the bind address is "+
@@ -138,9 +141,12 @@ func main() {
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
 		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache). "+
-			"This is the CAS's byte BUDGET within that shared image: it sets the CAS's share of --cache-volume-cap-gib "+
-			"(staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes), and the binary cache gets the rest minus a "+
-			"filesystem reserve (max(2 GiB, 5%)), so the two pruners never over-commit the one image. Persisted across VMs, riding the binary "+
+			"This is the CAS's FOOTPRINT allowance within that shared image: it sets the CAS's share of "+
+			"--cache-volume-cap-gib, and the binary cache gets the rest minus a filesystem reserve (max(2 GiB, 5%)), "+
+			"so the two pruners never over-commit the one image. The guest is given HALF of it as "+
+			"COMPILATION_CACHE_LIMIT_SIZE, because that setting bounds one GENERATION and a store keeps two (a "+
+			"primary plus the demoted upstream that is still the warm cache) — so budget this for what the store "+
+			"should OCCUPY, not for what one generation may reach. Persisted across VMs, riding the binary "+
 			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+

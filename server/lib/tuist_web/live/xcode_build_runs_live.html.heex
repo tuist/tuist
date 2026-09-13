@@ -56,37 +56,10 @@
           }
         >
           <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
-            <div data-part="cell" data-type="text">
-              <div
-                data-part="scheme-with-tags"
-                style="display: flex; align-items: center; gap: 8px;"
-              >
-                <span data-part="label">
-                  {if(build_run.scheme == "", do: "None", else: build_run.scheme)}
-                </span>
-                <.badge
-                  :if={Enum.any?(build_run.custom_tags || [])}
-                  label={List.first(build_run.custom_tags)}
-                  color="success"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(build_run.custom_tags || []) == 2}
-                  label={Enum.at(build_run.custom_tags, 1)}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-                <.badge
-                  :if={length(build_run.custom_tags || []) > 2}
-                  label={"+#{length(build_run.custom_tags) - 1}"}
-                  color="information"
-                  style="light-fill"
-                  size="large"
-                />
-              </div>
-            </div>
+            <.project_with_tags_cell
+              label={if(build_run.scheme == "", do: "None", else: build_run.scheme)}
+              tags={build_run.custom_tags || []}
+            />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
             <.text_cell label={

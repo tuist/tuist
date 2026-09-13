@@ -105,7 +105,7 @@ Tuist matches provisioned users by `userName`. It does not store the directory o
 
 Under **Mappings**, set **Provision Microsoft Entra ID Groups** to disabled.
 
-Tuist's SCIM groups are two fixed groups that represent organization roles rather than directory groups you can create, so an attempt to provision a directory group fails. Assign roles as described below instead.
+Tuist's SCIM groups are a fixed group per organization role rather than directory groups you can create, so an attempt to provision a directory group fails. Assign roles as described below instead.
 
 ### Step 5: Assign users and start provisioning {#entra-step-5}
 
@@ -117,9 +117,11 @@ Entra ID provisions on its own schedule, which is typically every 40 minutes, so
 
 To test deprovisioning, unassign or disable a user in Entra ID and verify that they disappear from the Tuist organization's **Members** tab.
 
-### Assigning administrators {#entra-assigning-administrators}
+### Assigning roles {#entra-assigning-administrators}
 
-Tuist has two access levels, `admin` and `user`. Define them as app roles on the Entra application, then map the role to the SCIM `roles` attribute so that assignment in Entra ID sets the member's Tuist role. Users provisioned without a role become regular members.
+Tuist has three <.localized_link href="/guides/server/accounts-and-projects#roles">roles</.localized_link>: `admin`, `user`, and `viewer`. Define them as app roles on the Entra application, then map the role to the SCIM `roles` attribute so that assignment in Entra ID sets the member's Tuist role.
+
+A user provisioned without a role gets the role the organization enrolls single sign-on members at, which is `user` unless an administrator changed it under **Settings > Authentication**.
 
 ## Lifecycle behavior {#lifecycle-behavior}
 
@@ -127,7 +129,7 @@ When your identity provider assigns a user to the provisioning application, Tuis
 
 When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 
-Tuist exposes two synthetic SCIM groups: `Admins` and `Users`. Group membership changes from your identity provider map to organization roles in Tuist.
+Tuist exposes three synthetic SCIM groups: `Admins`, `Users`, and `Viewers`. Group membership changes from your identity provider map to organization roles in Tuist.
 
 ## Supported SCIM features {#supported-scim-features}
 

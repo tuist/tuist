@@ -6,6 +6,7 @@ defmodule Tuist.Runners.AllowanceTest do
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Trials
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -100,6 +101,31 @@ defmodule Tuist.Runners.AllowanceTest do
       end
     end
 
+    test "an account on a runner trial is never cut off", %{account: account} do
+      # A trial is "uses runners without being billed for them", and a trial
+      # account has no subscription, so effective_plan reports :air. Without
+      # this the account is cut off at the baseline and the trial does not let
+      # it run runners at all — which is the whole thing it grants.
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, Allowance.free_monthly_minutes() * 10)
+
+      {:ok, account} = Trials.start(account)
+
+      refute Allowance.exhausted?(account)
+    end
+
+    test "an account whose trial was cancelled is cut off again", %{account: account} do
+      stub(Billing, :effective_plan, fn _account -> :air end)
+      stub(Billing, :current_billing_period, fn _account -> nil end)
+      used_minutes(account, Allowance.free_monthly_minutes())
+
+      {:ok, account} = Trials.start(account)
+      {:ok, account} = Trials.cancel(account)
+
+      assert Allowance.exhausted?(account)
+    end
+
     test "an account that has run nothing is not exhausted", %{account: account} do
       stub(Billing, :effective_plan, fn _account -> :air end)
       stub(Billing, :current_billing_period, fn _account -> nil end)
@@ -176,28 +202,16 @@ defmodule Tuist.Runners.AllowanceTest do
       # Three days of 60 minutes against a 100 minute allowance: the
       # first is entirely free, the second straddles the boundary, the
       # third is entirely billed.
-      for days_ago <- [3, 2, 1] do
-        started = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+      period_start =
+        DateTime.new!(Date.add(Date.utc_today(), -3), ~T[00:00:00], "Etc/UTC")
 
-        Repo.insert!(%RunnerSession{
-          account_id: account.id,
-          workflow_job_id: System.unique_integer([:positive]),
-          fleet_name: "tuist-macos",
-          pod_name: "pod-#{System.unique_integer([:positive])}",
-          runner_name: "",
-          platform: :macos,
-          vcpus: 6,
-          memory_gb: 14,
-          billing_multiplier: 10_000,
-          started_at: started,
-          job_started_at: started,
-          job_ended_at: DateTime.add(started, 60 * 60, :second),
-          inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
-          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-        })
+      period_end = DateTime.add(period_start, 4, :day)
+
+      for day <- 0..2 do
+        ran_minutes(account, DateTime.add(period_start, day, :day), 60)
       end
 
-      breakdown = Allowance.period_breakdown(account)
+      breakdown = Allowance.period_breakdown(account, {period_start, period_end})
 
       assert breakdown.minutes == 180
       # 180 minutes at $0.075, of which 80 are past the allowance.
@@ -426,7 +440,7 @@ defmodule Tuist.Runners.AllowanceTest do
     test "leaves a day that ran wholly inside the trial with nothing billed", %{account: account} do
       # Past the allowance, so a day the trial covered has to be zeroed
       # deliberately rather than by the free tier happening to reach it.
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[12:00:00], "Etc/UTC")
       period = {DateTime.add(now, -4, :day), DateTime.add(now, 1, :day)}
       account = trial_ended(account, DateTime.add(now, -2, :day))
 
@@ -483,8 +497,16 @@ defmodule Tuist.Runners.AllowanceTest do
     end
 
     test "prices nothing at all while the trial is still running", %{account: account} do
-      account = on_trial_since(account, DateTime.add(DateTime.utc_now(), -30, :day))
-      ran_minutes(account, DateTime.add(DateTime.utc_now(), -4, :hour), 180)
+      # This is the one trial case that takes the default window, which
+      # is the calendar month, so the trial only covers the whole of it
+      # when it started before the 1st. The clock is frozen because on
+      # the 31st a trial that started 30 days ago starts inside the
+      # month, and on the 1st a run four hours ago falls before it.
+      now = ~U[2024-01-17 12:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+
+      account = on_trial_since(account, DateTime.add(now, -30, :day))
+      ran_minutes(account, DateTime.add(now, -4, :hour), 180)
 
       breakdown = Allowance.period_breakdown(account)
 

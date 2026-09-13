@@ -5,6 +5,8 @@ defmodule TuistWeb.OverviewLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Bazel
+  alias Tuist.ReapiCache
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -136,6 +138,366 @@ defmodule TuistWeb.OverviewLiveTest do
       assert html =~ "gradle-overview"
       assert has_element?(lv, ".gradle-overview")
       assert has_element?(lv, "[data-part=widgets]")
+    end
+  end
+
+  describe "Bazel project" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(handle: "bazeluser#{System.unique_integer([:positive])}")
+
+      %{account: account} =
+        organization =
+        AccountsFixtures.organization_fixture(
+          name: "bazel-org",
+          creator: user,
+          preload: [:account]
+        )
+
+      selected_project =
+        ProjectsFixtures.project_fixture(
+          name: "bazel-project",
+          account_id: account.id,
+          build_system: :bazel
+        )
+
+      conn =
+        conn
+        |> assign(:selected_project, selected_project)
+        |> assign(:selected_account, account)
+        |> log_in_user(user)
+
+      %{conn: conn, project: selected_project, organization: organization}
+    end
+
+    test "renders Bazel analytics, builds, and tests instead of Xcode analytics", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, lv, _html} = live(conn, path)
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, ".bazel-overview")
+      assert has_element?(lv, "[data-part=analytics-card]", "Analytics")
+      assert has_element?(lv, "[data-part=analytics-content]")
+      assert has_element?(lv, "#bazel-overview-analytics-environment-dropdown")
+      assert has_element?(lv, "#bazel-action-cache-hit-rate")
+      assert has_element?(lv, "#bazel-average-build-time")
+      assert has_element?(lv, "#bazel-average-test-run-duration")
+      assert has_element?(lv, "[data-part=builds-card]", "Builds")
+      assert has_element?(lv, "[data-part=tests-card]", "Tests")
+      assert has_element?(lv, "#bazel-overview-builds-environment-dropdown")
+      assert has_element?(lv, "[data-part=builds-card]", "No builds yet")
+      refute has_element?(lv, "#bazel-recent-builds-chart")
+      refute has_element?(lv, "#bazel-recent-test-runs-chart")
+      refute has_element?(lv, "[data-part=bazel-remote-cache]")
+    end
+
+    test "filters Bazel overview invocations by environment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      base_invocation = %{
+        command: "build",
+        status: "success",
+        exit_code: 0,
+        started_at: NaiveDateTime.add(now, -5, :second),
+        finished_at: now,
+        duration_ms: 5_000,
+        project_id: project.id,
+        account_handle: project.account.name,
+        project_handle: project.name,
+        cache_endpoint: "cache.tuist.dev"
+      }
+
+      Bazel.create_invocations([
+        Map.merge(base_invocation, %{invocation_id: "local-overview-invocation", is_ci: false}),
+        Map.merge(base_invocation, %{invocation_id: "ci-overview-invocation", is_ci: true})
+      ])
+
+      cache_event = %{
+        client_kind: "bazel",
+        operation: "action_cache",
+        action_digest: "action",
+        size: 128,
+        duration_ms: 5,
+        action_mnemonic: "SwiftCompile",
+        target_label: "//App:App",
+        configuration_id: "config-1",
+        project_id: project.id,
+        account_handle: project.account.name,
+        project_handle: project.name,
+        cache_endpoint: "cache.tuist.dev"
+      }
+
+      ReapiCache.create_cache_events([
+        Map.merge(cache_event, %{
+          invocation_id: "local-overview-invocation",
+          outcome: "miss"
+        }),
+        Map.merge(cache_event, %{
+          invocation_id: "ci-overview-invocation",
+          outcome: "hit"
+        })
+      ])
+
+      params = %{
+        "analytics-environment" => "ci",
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
+        "builds-environment" => "ci",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+
+      {:ok, lv, _html} = live(conn, path)
+      html = render_async(lv, @render_async_timeout)
+
+      assert html =~ "ci-overview-invocation"
+      refute html =~ "local-overview-invocation"
+      assert has_element?(lv, "#bazel-action-cache-hit-rate", "100.0%")
+    end
+
+    test "applies the invocation date range to both overview charts", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      Bazel.create_invocations([
+        %{
+          invocation_id: "outside-selected-period",
+          command: "build",
+          status: "success",
+          exit_code: 0,
+          started_at: NaiveDateTime.add(now, -5, :second),
+          finished_at: now,
+          duration_ms: 5_000,
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      params = %{
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2001-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, lv, _html} = live(conn, path)
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "[data-part=builds-card]", "No builds in the selected period")
+      refute has_element?(lv, "#bazel-recent-builds-chart")
+      refute has_element?(lv, "[data-part=builds-card]", "Get started")
+    end
+
+    test "distinguishes an empty cache period from a project without cache observations", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      ReapiCache.create_cache_events([
+        %{
+          client_kind: "bazel",
+          operation: "action_cache",
+          outcome: "hit",
+          action_digest: "outside-period",
+          size: 2_048,
+          duration_ms: 10,
+          invocation_id: "invocation-1",
+          action_mnemonic: "SwiftCompile",
+          target_label: "//App:App",
+          configuration_id: "config-1",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2000-01-01T00:00:00Z",
+        "analytics-end-date" => "2001-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, live_view, _html} = live(conn, path)
+      render_async(live_view, @render_async_timeout)
+
+      assert has_element?(live_view, "[data-part='analytics-card']", "No cache observations in the selected period")
+      refute has_element?(live_view, "[data-part='analytics-card']", "Get started")
+    end
+
+    test "hides previews and bundles from the project navigation", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+
+      refute has_element?(lv, ~s(a[href="/#{organization.account.name}/#{project.name}/previews"]))
+      refute has_element?(lv, ~s(a[href="/#{organization.account.name}/#{project.name}/bundles"]))
+      assert has_element?(lv, "a", "Project Settings")
+    end
+
+    test "renders Bazel overview analytics", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      ReapiCache.create_cache_events([
+        %{
+          client_kind: "bazel",
+          operation: "action_cache",
+          outcome: "hit",
+          action_digest: "action-hit",
+          size: 2_048,
+          duration_ms: 10,
+          invocation_id: "invocation-1",
+          action_mnemonic: "SwiftCompile",
+          target_label: "//App:App",
+          configuration_id: "config-1",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        },
+        %{
+          client_kind: "bazel",
+          operation: "action_cache",
+          outcome: "miss",
+          action_digest: "action-miss",
+          size: 0,
+          duration_ms: 5,
+          invocation_id: "invocation-1",
+          action_mnemonic: "SwiftCompile",
+          target_label: "//App:App",
+          configuration_id: "config-1",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        },
+        %{
+          client_kind: "bazel",
+          operation: "action_cache",
+          outcome: "write",
+          action_digest: "action-write",
+          size: 1_024,
+          duration_ms: 15,
+          invocation_id: "invocation-1",
+          action_mnemonic: "SwiftCompile",
+          target_label: "//App:App",
+          configuration_id: "config-1",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      Bazel.create_invocations([
+        %{
+          invocation_id: "invocation-1",
+          command: "build",
+          status: "success",
+          exit_code: 0,
+          started_at: NaiveDateTime.add(now, -5, :second),
+          finished_at: now,
+          duration_ms: 5_000,
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2025-01-01T00:00:00Z",
+        "analytics-end-date" => "2030-01-01T00:00:00Z",
+        "builds-date-range" => "custom",
+        "builds-start-date" => "2000-01-01T00:00:00Z",
+        "builds-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, lv, _html} = live(conn, path)
+      render_async(lv, @render_async_timeout)
+
+      assert has_element?(lv, "#bazel-action-cache-hit-rate", "50.0%")
+      assert has_element?(lv, "#bazel-average-build-time", "5.0s")
+      assert has_element?(lv, "#bazel-average-test-run-duration")
+      assert has_element?(lv, "#bazel-cache-hit-rate-chart")
+      assert has_element?(lv, "#bazel-recent-builds-chart")
+    end
+
+    test "renders a zero-percent action-cache hit-rate series when lookups exist", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      ReapiCache.create_cache_events([
+        %{
+          client_kind: "bazel",
+          operation: "action_cache",
+          outcome: "miss",
+          action_digest: "action-miss",
+          size: 0,
+          duration_ms: 5,
+          invocation_id: "all-misses",
+          action_mnemonic: "SwiftCompile",
+          target_label: "//App:App",
+          configuration_id: "config-1",
+          project_id: project.id,
+          account_handle: project.account.name,
+          project_handle: project.name,
+          cache_endpoint: "cache.tuist.dev"
+        }
+      ])
+
+      params = %{
+        "analytics-date-range" => "custom",
+        "analytics-start-date" => "2000-01-01T00:00:00Z",
+        "analytics-end-date" => "2100-01-01T00:00:00Z"
+      }
+
+      path = ~p"/#{organization.account.name}/#{project.name}" <> "?" <> URI.encode_query(params)
+      {:ok, live_view, _html} = live(conn, path)
+      render_async(live_view, @render_async_timeout)
+
+      assert has_element?(live_view, "#bazel-cache-hit-rate-chart")
+
+      refute has_element?(
+               live_view,
+               "[data-part='cache-hit-rate-chart-section']",
+               "No cache observations yet"
+             )
     end
   end
 end

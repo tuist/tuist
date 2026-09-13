@@ -16,12 +16,13 @@ defmodule TuistWeb.API.Schemas.CommandEventArtifact do
         description: """
         The command event artifact type. It can be:
         - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
+        - stress_result_bundle: The `.xcresult` bundle the new-test stress gate produced when it reran the run's new test cases
         - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
         - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
         - session: A zipped CLI session directory containing logs and network recordings.
         """,
         type: :string,
-        enum: ["result_bundle", "invocation_record", "result_bundle_object", "session"]
+        enum: ["result_bundle", "stress_result_bundle", "invocation_record", "result_bundle_object", "session"]
       },
       name: %Schema{
         description: "The name of the file. It's used only for certain types such as result_bundle_object",

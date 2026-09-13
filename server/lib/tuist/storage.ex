@@ -104,7 +104,22 @@ defmodule Tuist.Storage do
       %{object_key: object_key, upload_id: upload_id}
     )
 
+    report_multipart_complete_failure(object_key, upload_id, result)
+
     result
+  end
+
+  defp report_multipart_complete_failure(_object_key, _upload_id, :ok), do: :ok
+
+  defp report_multipart_complete_failure(_object_key, _upload_id, {:error, :multipart_upload_not_found}), do: :ok
+
+  defp report_multipart_complete_failure(object_key, upload_id, {:error, reason}) do
+    Logger.error("Could not complete the multipart upload #{upload_id} for #{object_key}: #{inspect(reason)}")
+
+    Sentry.capture_message("Object storage rejected the completion of a multipart upload",
+      level: :error,
+      extra: %{object_key: object_key, upload_id: upload_id, reason: inspect(reason)}
+    )
   end
 
   defp multipart_complete_upload_error({:http_error, 404, %{body: body}} = reason) when is_binary(body) do
@@ -366,34 +381,54 @@ defmodule Tuist.Storage do
   end
 
   def multipart_start(object_key, actor) do
-    {time, upload_id} =
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
         case storage_provider(actor) do
           :azure_blob ->
-            AzureBlob.multipart_start(object_key)
+            {:ok, AzureBlob.multipart_start(object_key)}
 
           :s3 ->
-            {config, bucket_name} = s3_config_and_bucket(actor)
-            headers = region_headers(actor)
-
-            operation =
-              bucket_name
-              |> ExAws.S3.initiate_multipart_upload(object_key)
-              |> Map.put(:headers, Map.new(headers))
-
-            %{body: %{upload_id: upload_id}} = ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
-
-            upload_id
+            s3_multipart_start(object_key, actor)
         end
       end)
 
-    :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_multipart_start_upload(),
-      %{duration: time},
-      %{object_key: object_key}
-    )
+    case result do
+      {:ok, _upload_id} ->
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_multipart_start_upload(),
+          %{duration: time},
+          %{object_key: object_key}
+        )
 
-    upload_id
+      {:error, reason} ->
+        report_multipart_start_failure(object_key, reason)
+    end
+
+    result
+  end
+
+  defp s3_multipart_start(object_key, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+    headers = region_headers(actor)
+
+    operation =
+      bucket_name
+      |> ExAws.S3.initiate_multipart_upload(object_key)
+      |> Map.put(:headers, Map.new(headers))
+
+    case ExAws.request(operation, Map.merge(config, fast_api_req_opts())) do
+      {:ok, %{body: %{upload_id: upload_id}}} -> {:ok, upload_id}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp report_multipart_start_failure(object_key, reason) do
+    Logger.error("Could not start a multipart upload for #{object_key}: #{inspect(reason)}")
+
+    Sentry.capture_message("Object storage rejected the start of a multipart upload",
+      level: :error,
+      extra: %{object_key: object_key, reason: inspect(reason)}
+    )
   end
 
   def delete_all_objects(prefix, actor) do

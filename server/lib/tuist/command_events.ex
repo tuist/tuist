@@ -169,6 +169,11 @@ defmodule Tuist.CommandEvents do
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
+  def get_stress_result_bundle_key(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/stress_result_bundle.zip"
+  end
+
   def get_session_key(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
@@ -184,6 +189,10 @@ defmodule Tuist.CommandEvents do
 
   def get_result_bundle_object_key(run_id, project, result_bundle_object_id) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/#{result_bundle_object_id}.json"
+  end
+
+  def get_stress_result_bundle_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/stress_result_bundle.zip"
   end
 
   def get_session_key(run_id, project) do
@@ -349,7 +358,7 @@ defmodule Tuist.CommandEvents do
   end
 
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    counted_from = usage_counted_from(account_id, date)
+    counted_from = Account |> Repo.get!(account_id) |> usage_counted_from(date)
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
 
@@ -363,14 +372,12 @@ defmodule Tuist.CommandEvents do
     )
   end
 
-  # An account's free tier can be reset mid-month, which moves the start of the
-  # counting window forward. A reset older than the current month is inert, so
-  # the window returns to the month boundary once the month rolls over.
-  defp usage_counted_from(account_id, date) do
+  @doc """
+  The cache counting window shared by monthly usage and Air notifications.
+  A mid-month free-tier reset moves its start forward until the next month.
+  """
+  def usage_counted_from(%Account{free_tier_reset_at: reset_at}, date) do
     beginning_of_month = Timex.beginning_of_month(date)
-
-    reset_at =
-      Repo.one(from(a in Account, where: a.id == ^account_id, select: a.free_tier_reset_at))
 
     if is_nil(reset_at) or DateTime.before?(reset_at, beginning_of_month) do
       beginning_of_month
@@ -1018,6 +1025,10 @@ defmodule Tuist.CommandEvents do
   defp apply_is_ci_filter(query, true), do: where(query, [event: e], e.is_ci == true)
   defp apply_is_ci_filter(query, false), do: where(query, [event: e], e.is_ci == false)
 
+  defp apply_git_branch_filter(query, nil), do: query
+  defp apply_git_branch_filter(query, ""), do: query
+  defp apply_git_branch_filter(query, branch), do: where(query, [event: e], e.git_branch == ^branch)
+
   defp apply_scheme_filter(query, nil), do: query
   defp apply_scheme_filter(query, scheme), do: where(query, [event: e], e.scheme == ^scheme)
 
@@ -1045,6 +1056,7 @@ defmodule Tuist.CommandEvents do
   defp add_filters(query, opts) do
     query
     |> query_with_is_ci_filter(opts)
+    |> apply_git_branch_filter(Keyword.get(opts, :git_branch))
     |> apply_scheme_filter(Keyword.get(opts, :scheme))
     |> apply_category_filter(Keyword.get(opts, :category))
     |> apply_status_filter(Keyword.get(opts, :status))

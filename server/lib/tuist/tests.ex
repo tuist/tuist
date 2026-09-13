@@ -36,6 +36,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseBranchPresence
@@ -53,6 +54,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
@@ -503,6 +505,7 @@ defmodule Tuist.Tests do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
+    stress_new_tests = Map.get(attrs, :stress_new_tests)
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -511,12 +514,15 @@ defmodule Tuist.Tests do
         attrs
       end
 
+    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
+
     case %Test{}
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
         create_run_destinations(test, Map.get(attrs, :run_destinations, []))
         create_run_errors(test, Map.get(attrs, :run_errors, []))
+        StressNewTests.insert_candidates(test, stress_new_tests)
 
         {test_case_ids_with_flaky_run, test_case_runs} =
           create_test_modules(test, test_modules, shard_index, shard_plan)
@@ -526,11 +532,13 @@ defmodule Tuist.Tests do
 
           project = Tuist.Projects.get_project_by_id(test.project_id)
 
-          Tuist.PubSub.broadcast(
-            test,
-            "#{project.account.name}/#{project.name}",
-            :test_created
-          )
+          if project do
+            Tuist.PubSub.broadcast(
+              test,
+              "#{project.account.name}/#{project.name}",
+              :test_created
+            )
+          end
         end)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
@@ -713,10 +721,14 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
+          stress_new_tests = Map.get(attrs, :stress_new_tests)
+          StressNewTests.insert_candidates(existing_test, stress_new_tests)
+
           updated_test =
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
+            |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
           update_attrs =
             updated_test
@@ -731,11 +743,13 @@ defmodule Tuist.Tests do
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
-            Tuist.PubSub.broadcast(
-              updated_test,
-              "#{project.account.name}/#{project.name}",
-              :test_created
-            )
+            if project do
+              Tuist.PubSub.broadcast(
+                updated_test,
+                "#{project.account.name}/#{project.name}",
+                :test_created
+              )
+            end
           end)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
@@ -1147,7 +1161,10 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+  @doc """
+  Returns the stable identity shared by test ingestion and quarantine lookups.
+  """
+  def generate_test_case_id(project_id, name, module_name, suite_name) do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
     <<a::32, b::16, c::16, d::16, e::48>> =
@@ -1201,6 +1218,36 @@ defmodule Tuist.Tests do
     Map.new(test_case_ids, fn test_case_id ->
       {test_case_id, Map.get(resolved_states, test_case_id, @default_test_case_state)}
     end)
+  end
+
+  @doc """
+  Resolves quarantine state at the start of an externally reported test run.
+  Delayed report processing must not apply a later quarantine change to history.
+  """
+  def get_test_case_states_at(project_id, test_case_ids, at) do
+    resolved =
+      test_case_ids
+      |> Enum.uniq()
+      |> Enum.chunk_every(2_000)
+      |> Enum.flat_map(fn ids ->
+        ClickHouseRepo.all(
+          from(s in TestCaseState,
+            where: s.project_id == ^project_id,
+            where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
+            where: s.inserted_at <= ^at,
+            group_by: s.test_case_id,
+            select: %{
+              test_case_id: s.test_case_id,
+              state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+              is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+            }
+          ),
+          multipart: true
+        )
+      end)
+      |> Map.new(&{&1.test_case_id, normalize_test_case_state(&1)})
+
+    Map.new(test_case_ids, &{&1, Map.get(resolved, &1, @default_test_case_state)})
   end
 
   # Scoped by `project_id` (which the caller already read off the test case) so
@@ -1915,7 +1962,9 @@ defmodule Tuist.Tests do
   end
 
   defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
-  defp check_cross_run_flakiness(%{git_commit_sha: nil}, test_case_data), do: {test_case_data, []}
+
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
+    do: {test_case_data, []}
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
@@ -2319,6 +2368,7 @@ defmodule Tuist.Tests do
             name: Map.get(rep_attrs, :name),
             status: Map.get(rep_attrs, :status),
             duration: Map.get(rep_attrs, :duration, 0),
+            source: Map.get(rep_attrs, :source) || "run",
             inserted_at: now
           }
         end)
@@ -2372,6 +2422,7 @@ defmodule Tuist.Tests do
         name: Map.get(rep_attrs, :name),
         status: Map.get(rep_attrs, :status),
         duration: Map.get(rep_attrs, :duration, 0),
+        source: Map.get(rep_attrs, :source) || "run",
         inserted_at: NaiveDateTime.utc_now()
       }
     end)
@@ -2572,26 +2623,44 @@ defmodule Tuist.Tests do
     # be pure overhead there.
     total_count = test_cases_count(base_query, flop, query_settings)
 
+    # Ordering by a duration statistic has to rank every candidate row, so
+    # those requests keep the join. Every other request selects the page from
+    # `test_cases` alone and reads the statistics afterwards for the rows that
+    # survived pagination. The join carries no `LIMIT` into its subquery, so
+    # leaving it in place merges the aggregate over the project's whole active
+    # suite to render one page of it.
+    {joined_duration_fields, page_duration_fields} =
+      if duration_order_fields(attrs) == [] do
+        {[], duration_fields}
+      else
+        {duration_fields, []}
+      end
+
     case state_filter_mode do
       :joined ->
-        base_query
-        |> select_resolved_test_case_state()
-        |> select_durations(project_id, duration_fields, is_ci)
-        |> Tuist.ClickHouseFlop.run(flop,
-          for: TestCase,
-          count: total_count,
-          query_opts: [settings: query_settings]
-        )
+        {test_cases, meta} =
+          base_query
+          |> select_resolved_test_case_state()
+          |> select_durations(project_id, joined_duration_fields, is_ci)
+          |> Tuist.ClickHouseFlop.run(flop,
+            for: TestCase,
+            count: total_count,
+            query_opts: [settings: query_settings]
+          )
+
+        {select_page_durations(test_cases, project_id, page_duration_fields, is_ci), meta}
 
       :preloaded ->
         {test_cases, meta} =
           base_query
-          |> select_durations(project_id, duration_fields, is_ci)
+          |> select_durations(project_id, joined_duration_fields, is_ci)
           |> Tuist.ClickHouseFlop.run(flop,
             for: TestCase,
             count: total_count,
-            query_opts: [settings: @duration_join_settings]
+            query_opts: [settings: page_query_settings(joined_duration_fields)]
           )
+
+        test_cases = select_page_durations(test_cases, project_id, page_duration_fields, is_ci)
 
         resolved_page_states =
           resolve_test_case_states(project_id, Enum.map(test_cases, & &1.id))
@@ -2605,6 +2674,9 @@ defmodule Tuist.Tests do
         {test_cases, meta}
     end
   end
+
+  defp page_query_settings([]), do: []
+  defp page_query_settings(_joined_duration_fields), do: @duration_join_settings
 
   @doc """
   Duration fields `list_test_cases/3` can compute and sort by.
@@ -2630,6 +2702,51 @@ defmodule Tuist.Tests do
 
     Enum.filter(@duration_fields, fn field ->
       MapSet.member?(preloaded, "#{field}_ms") or MapSet.member?(ordered, to_string(field))
+    end)
+  end
+
+  # The subset the caller ranks by, which is what decides whether the statistics
+  # have to be computed before the page is cut.
+  defp duration_order_fields(attrs) do
+    ordered = to_string_set(Map.get(attrs, :order_by) || Map.get(attrs, "order_by"))
+
+    Enum.filter(@duration_fields, &MapSet.member?(ordered, to_string(&1)))
+  end
+
+  # Reads the statistics for one page of test cases. Scoping the aggregate to
+  # the page's identifiers is what keeps the merge bounded: the identifiers ride
+  # the table's sort prefix, so ClickHouse reads the granules holding those test
+  # cases rather than every row the project wrote inside the window.
+  #
+  # `run_count` defaults to 0 for a test case with no rows in the window, which
+  # is the same value the LEFT JOIN path produces for it, so the sample floor
+  # treats both identically.
+  defp select_page_durations(test_cases, _project_id, [], _is_ci), do: test_cases
+  defp select_page_durations([], _project_id, _duration_fields, _is_ci), do: []
+
+  defp select_page_durations(test_cases, project_id, duration_fields, is_ci) do
+    test_case_ids = Enum.map(test_cases, & &1.id)
+
+    stats =
+      project_id
+      |> test_case_duration_stats_subquery(duration_fields, is_ci)
+      |> where([stats], stats.test_case_id in ^test_case_ids)
+      |> ClickHouseRepo.all(settings: @duration_join_settings)
+      |> Map.new(&{&1.test_case_id, &1})
+
+    Enum.map(test_cases, fn test_case ->
+      row = Map.get(stats, test_case.id, %{})
+      run_count = Map.get(row, :run_count, 0)
+
+      durations =
+        Map.new(duration_fields, fn field ->
+          value = if run_count >= @min_duration_samples, do: Map.get(row, field)
+          {:"#{field}_ms", value}
+        end)
+
+      test_case
+      |> Map.merge(durations)
+      |> Map.put(:duration_sample_count, run_count)
     end)
   end
 
@@ -4318,7 +4435,8 @@ defmodule Tuist.Tests do
           repetition_number: r.repetition_number,
           name: r.name,
           status: r.status,
-          duration: r.duration
+          duration: r.duration,
+          source: r.source
         }
       )
 

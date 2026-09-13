@@ -138,7 +138,7 @@ func TestWWNFill_SkipsHardwareDetailsAbsent(t *testing.T) {
 	}
 }
 
-func TestWWNFill_DeduplicatesAndTakesFirstTwo(t *testing.T) {
+func TestWWNFill_DeduplicatesAndKeepsEveryDisk(t *testing.T) {
 	obj := makeHostWithHardwareDetails("bm-1", true,
 		[]string{"eui.001", "eui.001" /* dup */, "eui.002", "eui.003"}, nil)
 
@@ -151,11 +151,48 @@ func TestWWNFill_DeduplicatesAndTakesFirstTwo(t *testing.T) {
 	if !ok {
 		t.Fatal("expected raid.wwn to be set")
 	}
-	if got, want := len(wwns), 2; got != want {
-		t.Fatalf("wwn count: got %d want %d", got, want)
+	want := []string{"eui.001", "eui.002", "eui.003"}
+	if len(wwns) != len(want) {
+		t.Fatalf("wwn count: got %d want %d (%v)", len(wwns), len(want), wwns)
 	}
-	if wwns[0] != "eui.001" || wwns[1] != "eui.002" {
-		t.Errorf("expected first two unique WWNs in scan order; got %v", wwns)
+	for i := range want {
+		if wwns[i] != want[i] {
+			t.Errorf("expected every unique WWN in scan order; got %v", wwns)
+			break
+		}
+	}
+}
+
+// The case this exists for. A four-disk box truncated to two would install
+// across half its disks and leave the rest out of the array, and the layout is
+// fixed at install, so the only way back is a reinstall.
+func TestWWNFill_FourDiskHostKeepsAllFour(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.002", "eui.003", "eui.004"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 4; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+// Unchanged for the shape every Hetzner bare-metal host we run today has.
+func TestWWNFill_TwoDiskHostIsUnaffected(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true, []string{"eui.001", "eui.002"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 2; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
 	}
 }
 
