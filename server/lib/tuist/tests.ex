@@ -71,6 +71,7 @@ defmodule Tuist.Tests do
   @active_window_days 14
   @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
+  @unscoped_test_runs_lookback_days 30
   # ClickHouse query parameters are encoded in the request address. Ten thousand
   # identifiers stay comfortably below its default one-mebibyte limit while
   # still covering the small explicit-state sets this path is designed for.
@@ -362,7 +363,15 @@ defmodule Tuist.Tests do
   end
 
   def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+    base_query =
+      if scoped_test_run_attrs?(attrs) do
+        Test
+      else
+        thirty_days_ago = DateTime.add(DateTime.utc_now(), -@unscoped_test_runs_lookback_days, :day)
+        from(t in Test, where: t.ran_at >= ^thirty_days_ago)
+      end
+
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
 
     results = Repo.preload(results, :ran_by_account)
 
@@ -421,6 +430,15 @@ defmodule Tuist.Tests do
 
   def list_test_module_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
+  end
+
+  defp scoped_test_run_attrs?(attrs) do
+    attrs
+    |> flop_filters()
+    |> Enum.any?(fn
+      %{field: :ran_at} -> true
+      _ -> false
+    end)
   end
 
   defp scoped_test_suite_run_attrs?(attrs) do
