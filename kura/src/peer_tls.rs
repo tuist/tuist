@@ -131,7 +131,7 @@ impl PeerClientFactory {
             let ca = Certificate::from_pem(&identity.ca_pem)
                 .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
 
-            builder = builder.identity(id).add_root_certificate(ca);
+            builder = builder.identity(id).tls_certs_only([ca]);
         }
 
         Ok(builder)
