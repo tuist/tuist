@@ -371,7 +371,8 @@ defmodule TuistWeb.Marketing.Components.SegmentRingLab do
 
           <div class="segment-ring-lab__legend">
             <span><i class="segment-ring-lab__key" data-key="written"></i> artifact body</span>
-            <span><i class="segment-ring-lab__key" data-key="free"></i> free space, only ever in the open segment</span>
+            <span><i class="segment-ring-lab__key" data-key="free"></i>
+            free space, only ever in the open segment</span>
           </div>
 
           <dl class="segment-ring-lab__stats">

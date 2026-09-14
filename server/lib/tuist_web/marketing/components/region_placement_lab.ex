@@ -353,7 +353,12 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
       <.card icon="world" title="Where an account's instances live">
         <.card_section>
           <div class="region-placement-lab__header">
-            <button type="button" class="region-placement-lab__toggle" data-toggle aria-pressed="false">
+            <button
+              type="button"
+              class="region-placement-lab__toggle"
+              data-toggle
+              aria-pressed="false"
+            >
               Pause
             </button>
           </div>
@@ -367,8 +372,7 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
             data-chart
             phx-hook=".RegionPlacement"
             phx-update="ignore"
-          >
-          </svg>
+          ></svg>
 
           <div class="region-placement-lab__legend">
             <span>The shaded band is the gap between the two thresholds. Traffic can wander inside it without anything happening.</span>
