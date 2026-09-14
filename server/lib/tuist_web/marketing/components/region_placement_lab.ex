@@ -20,8 +20,8 @@ defmodule TuistWeb.Marketing.Components.RegionPlacementLab do
       // grows into a second instance, one goes quiet and is retired.
       const REGIONS = [
         { label: "us-east", base: 0.72, amplitude: 0.11, rate: 0.34, phase: 0 },
-        { label: "eu-central", base: 0.44, amplitude: 0.33, rate: 0.21, phase: -1.2 },
-        { label: "ap-northeast", base: 0.50, amplitude: 0.37, rate: 0.16, phase: 2.4 },
+        { label: "eu-west", base: 0.44, amplitude: 0.33, rate: 0.21, phase: -1.2 },
+        { label: "ap-southeast", base: 0.50, amplitude: 0.37, rate: 0.16, phase: 2.4 },
       ]
 
       const CHART_X = 120
