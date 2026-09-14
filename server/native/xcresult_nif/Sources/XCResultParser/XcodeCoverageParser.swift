@@ -27,20 +27,21 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
     }
 
     public func parse(resultBundlePath: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport? {
-        let output: String? = try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage") { temporaryDirectory -> String? in
-            let bundlePath = try await xcresultPath(for: resultBundlePath, temporaryDirectory: temporaryDirectory)
-            do {
-                // Spawned directly rather than through a shell: the bundle path is user-controlled
-                // and goes through as one argument, so no quoting is involved.
-                return try await commandRunner.run(
-                    arguments: ["/usr/bin/xcrun", "xccov", "view", "--report", "--json", bundlePath.pathString]
-                ).concatenatedString(including: [.standardOutput])
-            } catch let CommandError.terminated(_, stderr, _) where Self.reportsNoCoverage(stderr) {
-                // A run without `-enableCodeCoverage YES` writes no coverage archive, which is the
-                // common case rather than a failure.
-                return nil
+        let output: String? = try await fileSystem
+            .runInTemporaryDirectory(prefix: "xcode-coverage") { temporaryDirectory -> String? in
+                let bundlePath = try await xcresultPath(for: resultBundlePath, temporaryDirectory: temporaryDirectory)
+                do {
+                    // Spawned directly rather than through a shell: the bundle path is user-controlled
+                    // and goes through as one argument, so no quoting is involved.
+                    return try await commandRunner.run(
+                        arguments: ["/usr/bin/xcrun", "xccov", "view", "--report", "--json", bundlePath.pathString]
+                    ).concatenatedString(including: [.standardOutput])
+                } catch let CommandError.terminated(_, stderr, _) where Self.reportsNoCoverage(stderr) {
+                    // A run without `-enableCodeCoverage YES` writes no coverage archive, which is the
+                    // common case rather than a failure.
+                    return nil
+                }
             }
-        }
 
         guard let output else { return nil }
 
@@ -64,11 +65,11 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         )
     }
 
-    // xccov identifies a bundle by its `.xcresult` extension and refuses anything else with
-    // "unrecognized file format". `xcodebuild -resultBundlePath <name>` without an extension
-    // writes `<name>.xcresult` and leaves `<name>` as a symlink to it, which is what Tuist's
-    // default result bundle path looks like, so follow the link; a bundle that really has no
-    // extension is reached through a temporary link that has one.
+    /// xccov identifies a bundle by its `.xcresult` extension and refuses anything else with
+    /// "unrecognized file format". `xcodebuild -resultBundlePath <name>` without an extension
+    /// writes `<name>.xcresult` and leaves `<name>` as a symlink to it, which is what Tuist's
+    /// default result bundle path looks like, so follow the link; a bundle that really has no
+    /// extension is reached through a temporary link that has one.
     private func xcresultPath(for path: AbsolutePath, temporaryDirectory: AbsolutePath) async throws -> AbsolutePath {
         // A missing bundle is xccov's error to report, not ours to mask.
         guard try await fileSystem.exists(path) else { return path }
@@ -80,13 +81,13 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         return link
     }
 
-    // The messages xccov prints for a bundle that has no coverage to read.
+    /// The messages xccov prints for a bundle that has no coverage to read.
     private static func reportsNoCoverage(_ stderr: String) -> Bool {
         stderr.contains("No coverage data") || stderr.contains("No coverage archive present")
     }
 
-    // Compared after resolving symlinks on both sides: xccov reports the real path, while the
-    // root the caller knows can sit behind a link (`/tmp` is `/private/tmp` on macOS).
+    /// Compared after resolving symlinks on both sides: xccov reports the real path, while the
+    /// root the caller knows can sit behind a link (`/tmp` is `/private/tmp` on macOS).
     private func relativize(_ path: String, to rootDirectory: AbsolutePath?) -> String {
         guard let rootDirectory,
               let root = try? AbsolutePath(validating: Self.canonical(rootDirectory.pathString)),
@@ -96,10 +97,10 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         return absolutePath.relative(to: root).pathString
     }
 
-    // `realpath` of the longest existing prefix with the rest appended, so a file the report
-    // names but the checkout no longer has still canonicalizes through the directories that exist.
-    // Foundation's `resolvingSymlinksInPath` is avoided: it strips `/private` from some paths and
-    // not others, which is the very mismatch this guards against.
+    /// `realpath` of the longest existing prefix with the rest appended, so a file the report
+    /// names but the checkout no longer has still canonicalizes through the directories that exist.
+    /// Foundation's `resolvingSymlinksInPath` is avoided: it strips `/private` from some paths and
+    /// not others, which is the very mismatch this guards against.
     private static func canonical(_ path: String) -> String {
         var existing = path
         var rest: [String] = []

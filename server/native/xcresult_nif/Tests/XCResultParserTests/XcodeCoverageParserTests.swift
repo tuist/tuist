@@ -45,33 +45,33 @@ struct XcodeCoverageParserTests {
     @Test
     func parsesTargetsAndRelativizesPathsUnderTheRoot() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
-        let bundle = root.appending(component: "run.xcresult")
-        let json = """
-        {
-          "coveredLines": 6, "executableLines": 13, "lineCoverage": 0.46,
-          "targets": [
+            let bundle = root.appending(component: "run.xcresult")
+            let json = """
             {
-              "name": "Calculator", "coveredLines": 5, "executableLines": 11, "lineCoverage": 0.45,
-              "buildProductPath": "/dd/Calculator",
-              "files": [
-                {"name": "Add.swift", "path": "\(root.pathString)/Sources/Calculator/Add.swift",
-                 "coveredLines": 5, "executableLines": 11, "lineCoverage": 0.45, "functions": []},
-                {"name": "Dep.swift", "path": "/elsewhere/Dep.swift",
-                 "coveredLines": 1, "executableLines": 2, "lineCoverage": 0.5, "functions": []}
+              "coveredLines": 6, "executableLines": 13, "lineCoverage": 0.46,
+              "targets": [
+                {
+                  "name": "Calculator", "coveredLines": 5, "executableLines": 11, "lineCoverage": 0.45,
+                  "buildProductPath": "/dd/Calculator",
+                  "files": [
+                    {"name": "Add.swift", "path": "\(root.pathString)/Sources/Calculator/Add.swift",
+                     "coveredLines": 5, "executableLines": 11, "lineCoverage": 0.45, "functions": []},
+                    {"name": "Dep.swift", "path": "/elsewhere/Dep.swift",
+                     "coveredLines": 1, "executableLines": 2, "lineCoverage": 0.5, "functions": []}
+                  ]
+                }
               ]
             }
-          ]
-        }
-        """
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
+            """
+            let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
 
-        let got = try #require(await subject.parse(resultBundlePath: bundle, rootDirectory: root))
+            let got = try #require(await subject.parse(resultBundlePath: bundle, rootDirectory: root))
 
-        #expect(got.targets.map(\.name) == ["Calculator"])
-        #expect(got.targets[0].coveredLines == 5)
-        #expect(got.targets[0].executableLines == 11)
-        #expect(got.targets[0].files.map(\.path) == ["Sources/Calculator/Add.swift", "/elsewhere/Dep.swift"])
-        #expect(got.targets[0].files.map(\.coveredLines) == [5, 1])
+            #expect(got.targets.map(\.name) == ["Calculator"])
+            #expect(got.targets[0].coveredLines == 5)
+            #expect(got.targets[0].executableLines == 11)
+            #expect(got.targets[0].files.map(\.path) == ["Sources/Calculator/Add.swift", "/elsewhere/Dep.swift"])
+            #expect(got.targets[0].files.map(\.coveredLines) == [5, 1])
         }
     }
 
@@ -109,12 +109,16 @@ struct XcodeCoverageParserTests {
             let json = """
             {"coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "targets": [
               {"name": "A", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "buildProductPath": "/a",
-               "files": [{"name": "F.swift", "path": "\(real.pathString)/Sources/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
+               "files": [{"name": "F.swift", "path": "\(real
+                .pathString)/Sources/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
             ]}
             """
             let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
 
-            let got = try #require(await subject.parse(resultBundlePath: real.appending(component: "run.xcresult"), rootDirectory: link))
+            let got = try #require(await subject.parse(
+                resultBundlePath: real.appending(component: "run.xcresult"),
+                rootDirectory: link
+            ))
 
             #expect(got.targets[0].files.map(\.path) == ["Sources/F.swift"])
         }
@@ -123,28 +127,31 @@ struct XcodeCoverageParserTests {
     @Test
     func returnsNilWhenTheBundleHasNoCoverage() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: nil))
+            let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: nil))
 
-        let got = try await subject.parse(resultBundlePath: root.appending(component: "run.xcresult"), rootDirectory: root)
+            let got = try await subject.parse(resultBundlePath: root.appending(component: "run.xcresult"), rootDirectory: root)
 
-        #expect(got == nil)
+            #expect(got == nil)
         }
     }
 
     @Test
     func keepsPathsAbsoluteWithoutARoot() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
-        let json = """
-        {"coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "targets": [
-          {"name": "A", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "buildProductPath": "/a",
-           "files": [{"name": "F.swift", "path": "/repo/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
-        ]}
-        """
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
+            let json = """
+            {"coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "targets": [
+              {"name": "A", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "buildProductPath": "/a",
+               "files": [{"name": "F.swift", "path": "/repo/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
+            ]}
+            """
+            let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
 
-        let got = try #require(await subject.parse(resultBundlePath: root.appending(component: "run.xcresult"), rootDirectory: nil))
+            let got = try #require(await subject.parse(
+                resultBundlePath: root.appending(component: "run.xcresult"),
+                rootDirectory: nil
+            ))
 
-        #expect(got.targets[0].files.map(\.path) == ["/repo/F.swift"])
+            #expect(got.targets[0].files.map(\.path) == ["/repo/F.swift"])
         }
     }
 }

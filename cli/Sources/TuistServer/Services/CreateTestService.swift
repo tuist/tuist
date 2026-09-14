@@ -265,27 +265,6 @@ import TuistHTTP
                         nil
                     }
 
-            // Coverage is read off the bundle on this machine in every processing mode, because
-            // only this checkout can relativize the paths xccov reports.
-            let xcodeCoverage: Components.Schemas.XcodeCoverage? = testSummary.coverage.map { report in
-                Components.Schemas.XcodeCoverage(
-                    targets: report.targets.map { target in
-                        Components.Schemas.XcodeCoverage.targetsPayloadPayload(
-                            covered_lines: target.coveredLines,
-                            executable_lines: target.executableLines,
-                            files: target.files.map { file in
-                                Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayloadPayload(
-                                    covered_lines: file.coveredLines,
-                                    executable_lines: file.executableLines,
-                                    path: file.path
-                                )
-                            },
-                            name: target.name
-                        )
-                    }
-                )
-            }
-
             let response = try await client.createTest(
                 .init(
                     path: .init(
@@ -316,7 +295,7 @@ import TuistHTTP
                             status: status,
                             stress_new_tests: stressNewTests,
                             test_modules: testModules,
-                            xcode_coverage: xcodeCoverage,
+                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
                             xcode_version: xcodeVersion
                         )
                     )
@@ -500,6 +479,28 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
+    /// Coverage is read off the bundle on this machine in every processing mode, because
+    /// only this checkout can relativize the paths xccov reports.
+    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
+        report.map { report in
+            Components.Schemas.XcodeCoverage(
+                targets: report.targets.map { target in
+                    Components.Schemas.XcodeCoverage.targetsPayloadPayload(
+                        covered_lines: target.coveredLines,
+                        executable_lines: target.executableLines,
+                        files: target.files.map { file in
+                            Components.Schemas.XcodeCoverage.targetsPayloadPayload.filesPayloadPayload(
+                                covered_lines: file.coveredLines,
+                                executable_lines: file.executableLines,
+                                path: file.path
+                            )
+                        },
+                        name: target.name
+                    )
+                }
+            )
+        }
+    }
 #endif
 
 struct StressRepetitionKey: Hashable {
