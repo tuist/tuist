@@ -75,7 +75,7 @@ struct SetupCacheCommandServiceTests {
 
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
-            .willReturn()
+            .willReturn(nil)
 
         given(launchAgentService)
             .teardownLaunchAgent(label: .any, plistFileName: .any)
@@ -84,6 +84,11 @@ struct SetupCacheCommandServiceTests {
         given(cacheSocketService)
             .waitUntilListening(at: .any, timeout: .any)
             .willReturn(true)
+
+        // A daemon serving the socket under a process this setup did not displace.
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .any)
+            .willReturn(4242)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
@@ -388,6 +393,140 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsCASLogPath() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the proxy writes its diagnostics only to the file this variable
+        // names, so without forwarding them they cannot be turned on for a proxy
+        // running under launchd.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": "/tmp/cas.log",
+                ])
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_defaultsTheCASLogPathOnCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the counters that tell the CAS failure shapes apart are written
+        // only to this file, so a diagnostic nobody knew to switch on is off during
+        // every incident that needs it.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": environment.casLogPath().pathString,
+                    "TUIST_CAS_PREFETCH": "keys",
+                ])
+            )
+            .called(1)
+    }
+
+    /// The proxy on a developer machine is a long-lived LaunchAgent, so even a
+    /// bounded file is state `tuist setup cache` would be creating for a reader who
+    /// never asked for it.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_doesNotDefaultTheCASLogPathOffCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"])
+            )
+            .called(1)
+    }
+
+    /// The #12733 forwarding stays in front of the default: a value the caller set
+    /// is where they expect to read the diagnostics back from.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_prefersAnExplicitCASLogPathOverTheCIDefault() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+        environment.variables["TUIST_CAS_LOG"] = "/tmp/explicit-cas.log"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CAS_LOG": "/tmp/explicit-cas.log",
+                    "TUIST_CAS_PREFETCH": "keys",
+                ])
+            )
+            .called(1)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -490,14 +629,16 @@ struct SetupCacheCommandServiceTests {
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
-    ) func setupCache_withoutKuraFlag_installsLegacyDaemon() async throws {
-        // Given: no TUIST_FEATURE_FLAG_KURA, so setup takes the legacy per-project
-        // daemon path that every not-yet-migrated account still runs. The kura
-        // backwards-compat promise rests on this branch, so pin its behaviour.
+    ) func setupCache_withKuraDisabled_installsLegacyDaemon() async throws {
+        // Given: TUIST_FEATURE_FLAG_KURA turned off, so setup takes the legacy
+        // per-project daemon path that every not-yet-migrated account still runs.
+        // The kura backwards-compat promise rests on this branch, so pin its
+        // behaviour.
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "0"
 
         let config = Tuist.test(
             fullHandle: "organization/project",
@@ -524,7 +665,10 @@ struct SetupCacheCommandServiceTests {
                     Constants.URLs.production.absoluteString,
                     "--no-upload",
                 ]),
-                environmentVariables: .value(["TUIST_TOKEN": token])
+                environmentVariables: .value([
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "0",
+                ])
             )
             .called(1)
         verify(cacheSocketService)
@@ -563,6 +707,43 @@ struct SetupCacheCommandServiceTests {
                 timeout: .value(.zero)
             )
             .called(2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_restartsTheAgentWhenTheSocketIsAnsweredByTheDisplacedDaemon() async throws {
+        // Given: the socket answers on the first check, but from the very process
+        // this setup displaced. On the socket alone that is indistinguishable from
+        // a healthy new daemon, and setup used to report success for it moments
+        // before the process exited leaving nothing bootstrapped.
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        launchAgentService.reset()
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn(4242)
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
+        given(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .willReturn()
+        var identityChecks = 0
+        given(launchAgentService)
+            .runningProcessIdentifier(label: .value("tuist.cas-proxy"))
+            .willProduce { _ in
+                identityChecks += 1
+                return identityChecks == 1 ? 4242 : 5555
+            }
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the restart the socket check alone would have skipped.
+        verify(launchAgentService)
+            .restartLaunchAgent(label: .value("tuist.cas-proxy"))
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

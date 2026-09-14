@@ -574,6 +574,27 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
+  describe "evaluate_by_run_count/2 with last-days window" do
+    test "scopes evaluation to a large batch of test cases" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_ids = Enum.map(1..2_000, fn _index -> Ecto.UUID.generate() end)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => 3,
+            "window_type" => "last_days",
+            "window" => "30d",
+            "comparison" => "gte"
+          }
+        )
+
+      assert %{triggered: []} = FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
+    end
+  end
+
   describe "evaluate_by_run_count/1 with rolling window" do
     test "fires when flaky run count in last N runs meets the threshold" do
       project = ProjectsFixtures.project_fixture()

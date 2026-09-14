@@ -24,6 +24,10 @@
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
+{{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
+{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
+{{- end }}
 {{- if not $imageTag }}
 {{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
 {{- end }}
@@ -81,6 +85,13 @@ rules:
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]
+  # The evacuation and gateway handover gates read the client and peer
+  # Services' core Endpoints to see which pod traffic actually lands on before
+  # deleting the other; without list/watch the cached client's informer is
+  # forbidden and every reconcile wedges.
+  - apiGroups: [""]
+    resources: [endpoints]
+    verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
   # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
@@ -133,6 +144,11 @@ rules:
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, update, patch]
+  # metrics-server's aggregated API is the source behind requests.cpu. An
+  # aggregated API cannot be bound per namespace.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: [pods]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -207,6 +223,48 @@ subjects:
     name: {{ $name }}
     namespace: {{ $namespace }}
 {{- if .Values.server.enabled }}
+---
+# The ops account page reads what a region has left: its nodes' allocatable disk
+# and egress, and what is already reserved on the box an account's instances sit
+# on. Both are cluster-scoped, so they cannot live in the namespaced server Role
+# below — and they are deliberately not the controller's -node-reads role, which
+# also carries persistentvolumes update/patch. The server is internet-facing;
+# read-only is the whole of what it needs here.
+#
+# The pod list is cluster-wide because an extended resource is reserved against
+# the node rather than against a namespace, so a box's reservations can only be
+# summed by reading every pod on it. That exposes every namespace's pod specs
+# (inline env values, args) to the server — a conscious grant, list only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $serverRoleName }}-cluster-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -288,8 +346,15 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
+            {{- with .Values.kuraController.connectivityDiagnostics.instances }}
+            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," .) | quote }}
+            {{- end }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
+            {{- end }}
+            {{- if $publicWildcard.enabled }}
+            - --public-tls-secret-name={{ $publicWildcard.secretName }}
+            - --public-tls-dns-names={{ join "," $publicWildcard.dnsNames }}
             {{- end }}
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
@@ -493,4 +558,33 @@ spec:
 {{- end }}
 {{- end }}
 
+{{- end }}
+
+{{- if and .Values.kuraController.enabled .Values.kuraController.privateGateway.enabled }}
+---
+# Endpoint readiness observes the shared gateway via the uncached APIReader.
+# The controller's normal Pod informer remains restricted to the kura namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+    namespace: {{ .Values.kuraController.namespace | default .Release.Namespace }}
 {{- end }}

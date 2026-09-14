@@ -31,8 +31,9 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
     {:ok, _} = Claims.attempt(workflow_job_id, account.id, "fleet-a", pod_name, @resources)
 
     age = Keyword.get(opts, :age_seconds, 3600)
+    claimed_at = DateTime.add(DateTime.utc_now(), -age, :second)
 
-    updates = [claimed_at: DateTime.add(DateTime.utc_now(), -age, :second)]
+    updates = [claimed_at: claimed_at]
 
     updates =
       case Keyword.get(opts, :missing_for_seconds) do
@@ -41,9 +42,17 @@ defmodule Tuist.Runners.Workers.PodReconciliationWorkerTest do
       end
 
     Repo.update_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id), set: updates)
+
+    # The claim and its lifecycle row are written from one `claimed_at` in
+    # a single transaction, and the release path is guarded on that handle
+    # agreeing. Ageing only the claim would model a state production
+    # cannot reach.
+    Repo.update_all(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id and j.status == "claimed"),
+      set: [claimed_at: claimed_at]
+    )
   end
 
-  defp claim(workflow_job_id), do: Repo.get(Claim, workflow_job_id)
+  defp claim(workflow_job_id), do: Repo.one(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
 
   defp session_fixture(account, pod_name, opts \\ []) do
     now = DateTime.utc_now()

@@ -4,10 +4,15 @@
 use std::time::{Duration, Instant};
 
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, header::HeaderMap};
 use serde_json::{Value, json};
+use tracing::{Instrument, field};
 
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    request_observability::{REQUEST_ID_HEADER, current_request},
+    telemetry::{inject_current_trace_context, record_trace_context, trace_export_active},
+};
 
 /// How far past its own `exp` a credential is still taken as current, matching
 /// jsonwebtoken's own default. It absorbs the clock skew between the issuer and
@@ -265,9 +270,27 @@ impl TuistBackend {
         let url = format!("{}{path}", self.base_url.trim_end_matches('/'));
 
         let mut attempt = 0;
-        let response = loop {
+        let (response, request_span) = loop {
             attempt += 1;
             let start = Instant::now();
+
+            let request_span = if trace_export_active() {
+                let span = tracing::info_span!(
+                    "kura.auth.backend_request",
+                    http.request.method = %method,
+                    http.route = route,
+                    server.address = %self.base_url,
+                    kura.request.attempt = attempt,
+                    http.response.status_code = field::Empty,
+                    kura.auth.result = field::Empty,
+                    trace_id = field::Empty,
+                    span_id = field::Empty,
+                );
+                record_trace_context(&span);
+                span
+            } else {
+                tracing::Span::none()
+            };
 
             let mut builder = self.client.request(method.clone(), &url);
             for (name, value) in headers {
@@ -277,8 +300,19 @@ impl TuistBackend {
                 builder = builder.json(body);
             }
 
-            match builder.send().await {
+            let mut propagated_headers = HeaderMap::new();
+            if let Some(context) = current_request() {
+                builder = builder.header(REQUEST_ID_HEADER, context.request_id());
+            }
+            if trace_export_active() {
+                let _entered = request_span.enter();
+                inject_current_trace_context(&mut propagated_headers);
+            }
+            builder = builder.headers(propagated_headers);
+
+            match builder.send().instrument(request_span.clone()).await {
                 Ok(response) => {
+                    request_span.record("http.response.status_code", response.status().as_u16());
                     self.metrics.record_auth_backend(
                         route,
                         "ok",
@@ -286,9 +320,10 @@ impl TuistBackend {
                         "none",
                         start.elapsed(),
                     );
-                    break response;
+                    break (response, request_span);
                 }
                 Err(error) => {
+                    request_span.record("kura.auth.result", "error");
                     let error_kind = classify_reqwest_error(&error);
                     self.metrics.record_auth_backend(
                         route,
@@ -312,10 +347,20 @@ impl TuistBackend {
         };
 
         let status = response.status().as_u16();
-        let body = response
+        let body = match response
             .json::<Value>()
+            .instrument(request_span.clone())
             .await
-            .map_err(|error| format!("Tuist {route} returned invalid JSON: {error}"))?;
+        {
+            Ok(body) => {
+                request_span.record("kura.auth.result", "ok");
+                body
+            }
+            Err(error) => {
+                request_span.record("kura.auth.result", "decode_error");
+                return Err(format!("Tuist {route} returned invalid JSON: {error}"));
+            }
+        };
 
         Ok(Response { status, body })
     }
@@ -388,6 +433,9 @@ fn format_reqwest_error(error: &reqwest::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use axum::{Json, Router, routing::get};
     use jsonwebtoken::{EncodingKey, Header, encode};
 
     use super::test_keys::*;
@@ -467,6 +515,70 @@ mod tests {
         assert!(JwtVerifier::public_keys("not a pem").is_err());
         assert!(JwtVerifier::public_keys("").is_err());
     }
+
+    #[tokio::test]
+    async fn forwards_the_current_request_id_to_tuist() {
+        let captured = Arc::new(Mutex::new(None));
+        let router = Router::new().route(
+            "/api/cache/access",
+            get({
+                let captured = captured.clone();
+                move |headers: axum::http::HeaderMap| {
+                    let captured = captured.clone();
+                    async move {
+                        *captured.lock().expect("capture lock") = headers
+                            .get(REQUEST_ID_HEADER)
+                            .and_then(|value| value.to_str().ok())
+                            .map(ToOwned::to_owned);
+                        Json(json!({ "projects": [] }))
+                    }
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("capture listener should bind");
+        let address = listener
+            .local_addr()
+            .expect("capture listener should have an address");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("capture server should run");
+        });
+        let backend = TuistBackend::new(
+            format!("http://{address}"),
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            None,
+            None,
+            Metrics::new("test".into(), "test".into()),
+        )
+        .expect("backend should initialize");
+        let context = crate::request_observability::RequestContext::new(
+            Instant::now(),
+            "request-123".into(),
+            "GET".into(),
+            "/api/cache/module/{id}".into(),
+            crate::request_observability::RequestLogPolicy {
+                sample_rate: 0.0,
+                slow_request_threshold: Duration::from_secs(30),
+                warning_log_interval: Duration::from_secs(60),
+            },
+            tracing::Span::none(),
+        );
+
+        crate::request_observability::scope_request(context, backend.cache_access("Bearer test"))
+            .await
+            .expect("cache access should succeed");
+
+        assert_eq!(
+            captured.lock().expect("capture lock").as_deref(),
+            Some("request-123")
+        );
+        server.abort();
+    }
+
     // Minted by the server's own signer rather than by this crate, so the two
     // stacks stay pinned to the same ES256 encoding: JWS wants a raw r||s
     // signature and a DER one would verify nowhere. It also pins the grant

@@ -1,0 +1,159 @@
+# Staging workload Cluster, topology mode against tuist-hcloud.
+# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# `bare-metal-worker` MachineDeployment that claims Hetzner Robot
+# AX42-U boxes for the Linux runner fleet.
+#
+# Linux GitHub Actions runners run as Firecracker microVMs (via Kata
+# Containers) on the bare-metal nodes. The HetznerBareMetalHost CRs
+# the bare-metal MD claims live in `bare-metal-staging.yaml`; caph
+# rescue-boots each AX42-U, runs `installimage` to write Ubuntu
+# 24.04 LTS, and the cloud-init in
+# `tuist-bare-metal-worker-bootstraptemplate` (in
+# `clusterclass-tuist.yaml`-via-`bare-metal-staging.yaml`) runs
+# `kubeadm join` automatically.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: tuist-staging
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      replicas: 3
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      # Extend the canary-validated fallback to staging. New control-plane
+      # kubelets bootstrap through the load-balanced endpoint until their
+      # local control-plane endpoint is available.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
+      # Default for pools without an override (md-0).
+      - name: hcloudWorkerMachineType
+        value: cpx32
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+      # The kubelet must expose the real systemd-resolved resolver file to
+      # pods, not Ubuntu's loopback stub at /etc/resolv.conf.
+      - name: workerResolvConf
+        value: /run/systemd/resolve/resolv.conf
+      # Scopes bare-metal HBM claims to this cluster (see the
+      # `HetznerBareMetalMachineTemplateClusterSelector` patch in
+      # `clusterclass-tuist.yaml`). Matches the `--clusters` entry
+      # on the `hetzner-robot-controller` Deployment and the
+      # cluster prefix in the Robot panel server name
+      # (`tuist-bm-staging-…`).
+      - name: bareMetalCluster
+        value: staging
+      # Declared in every cluster, including those with no stateful pool. See
+      # the variable's definition in `clusterclass-tuist.yaml`: a defaulted
+      # ClusterClass variable left implicit here makes the post-apply drift
+      # check in `mgmt-cluster-apply.yml` fail permanently.
+      - name: statefulRaidLevel
+        value: 1
+      # Insert InternalIP ahead of Hostname so the apiserver can reach the
+      # cross-cloud kura kubelets (Dedibox/Elastic Metal): they report no
+      # ExternalIP and an unresolvable Hostname, so the default order lands on
+      # Hostname and breaks logs/exec + metrics-server. Hetzner nodes keep
+      # ExternalIP first, so their behaviour is unchanged.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
+    workers:
+      machineDeployments:
+        # General-purpose pool: Phoenix server, system DaemonSets.
+        # Stays on Hetzner Cloud (cpx32) since these workloads don't
+        # benefit from bare metal and the elastic scaling matters
+        # more than per-host cost.
+        - class: hcloud-worker
+          name: md-0
+          replicas: 2
+          failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+        # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors production so
+        # the failover controller + cutover are exercised end to end on
+        # staging before production. Nodes self-apply the candidate label
+        # `tuist.dev/stable-egress-candidate=server`; the controller keeps the
+        # Floating IP + active label on one Ready node and fails over on loss.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          rollout:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          # HA floor for the 2-node egress gateway pool. Overrides the
+          # hcloud-worker class default (unhealthyInRange "[0-2]", which permits
+          # remediating BOTH nodes at once). Never auto-remediate the whole pair:
+          # a single bad node is replaced, but if both go unhealthy the cause is
+          # almost always systemic (control-plane blip, network partition), so
+          # CAPI holds and pages instead of deleting the pool — the failure that
+          # left canary with no egress gateway on 2026-07-30, when both nodes
+          # were remediated and an expired CAPI webhook then blocked recreation.
+          healthCheck:
+            remediation:
+              triggerIf:
+                unhealthyInRange: "[0-1]"
+              # Belt-and-suspenders: even within range, only one replacement in
+              # flight so a rolling remediation always keeps a gateway serving.
+              maxInFlight: 1
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
+              # Isolate the gateway pool: only cilium, hcloud-csi, the egress
+              # host-configurer and the (tolerating) monitoring agents run here.
+              # Keeps ingress-nginx/CoreDNS/Redis off these nodes so they can't
+              # OOM the egress gateway.
+              - name: workerNodeTaints
+                value: tuist.dev/stable-egress=true:NoSchedule
+        # Stateful bare-metal pool carrying staging's in-cluster ClickHouse
+        # (spec #73). One AX42-1 in FSN1, one replica plus one Keeper, on a
+        # local PV under /data.
+        #
+        # Staging is where the `stateful-worker` class runs first: the
+        # installimage layout, the /data partition, the local PV and the
+        # taint all get exercised here before canary, and canary before
+        # production, the same cascade every deploy follows.
+        #
+        # `statefulRaidLevel` is left at its default of 1, which is correct
+        # for this two-disk box. A four-disk production host must override
+        # it to 10. See the variable's definition in `clusterclass-tuist.yaml`.
+        #
+        # PREREQ: the Robot server must be named `tuist-bm-staging-ch-1` so
+        # `hetzner-robot-controller` reflects it as a HetznerBareMetalHost
+        # stamped for this cluster. Unlike the in-house CAPI fleets, an
+        # unclaimable replica here does not wedge a Helm release: caph just
+        # parks the Machine as `NoAvailableHost` until a host appears.
+        - class: stateful-worker
+          name: md-clickhouse
+          replicas: 1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: clickhouse

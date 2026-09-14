@@ -181,6 +181,51 @@ defmodule TuistWeb.Utilities.QueryTest do
     end
   end
 
+  describe "positive_integer/2" do
+    test "parses positive integers and rejects invalid values" do
+      assert Query.positive_integer("2") == 2
+      assert Query.positive_integer(3) == 3
+      assert Query.positive_integer("0") == 1
+      assert Query.positive_integer("invalid", 4) == 4
+      assert Query.positive_integer(nil) == 1
+    end
+  end
+
+  describe "bounded_page/2" do
+    test "parses positive integer strings" do
+      assert Query.bounded_page("3") == 3
+    end
+
+    test "defaults to 1 for nil, non-integer, and non-positive inputs" do
+      assert Query.bounded_page(nil) == 1
+      assert Query.bounded_page("") == 1
+      assert Query.bounded_page("xyz") == 1
+      assert Query.bounded_page("0") == 1
+      assert Query.bounded_page("-3") == 1
+    end
+
+    test "clamps to the default maximum of 100" do
+      assert Query.bounded_page("100") == 100
+      assert Query.bounded_page("101") == 100
+      assert Query.bounded_page("5000") == 100
+    end
+
+    test "honors an explicit max" do
+      assert Query.bounded_page("500", max: 200) == 200
+      assert Query.bounded_page("50", max: 200) == 50
+    end
+
+    test "honors an explicit default" do
+      assert Query.bounded_page(nil, default: 2) == 2
+      assert Query.bounded_page("xyz", default: 2) == 2
+    end
+
+    test "does not raise on the ArgumentError-triggering shapes String.to_integer would" do
+      assert Query.bounded_page("1.5") == 1
+      assert Query.bounded_page("99999999999999999999") == 100
+    end
+  end
+
   describe "clear_incompatible_cursors/2" do
     test "preserves a cursor whose fields match the sort order" do
       cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17]})

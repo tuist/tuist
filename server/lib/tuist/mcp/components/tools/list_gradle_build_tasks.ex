@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
         "outcome" => %{
           "type" => "string",
           "description" =>
-            "Filter by task outcome: local_hit, remote_hit, up_to_date, executed, failed, skipped, or no_source."
+            "Filter by task outcome: local_hit, remote_hit, cache_hit, up_to_date, executed, failed, skipped, or no_source."
         },
         "cacheable" => %{
           "type" => "boolean",
@@ -42,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
           "items" => %{
             "type" => "object",
             "properties" => %{
+              "execution" => Tuist.MCP.GradleSchemas.execution(),
               "id" => %{"type" => "string"},
               "task_path" => %{"type" => "string"},
               "task_type" => %{"type" => "string"},
@@ -53,6 +54,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
               "started_at" => %{"type" => ["string", "null"]}
             },
             "required" => [
+              "execution",
               "id",
               "task_path",
               "task_type",
@@ -111,6 +113,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
            Enum.map(tasks, fn task ->
              %{
                id: task.id,
+               execution: Gradle.task_execution_data(task),
                task_path: task.task_path,
                task_type: task.task_type,
                outcome: task.outcome,

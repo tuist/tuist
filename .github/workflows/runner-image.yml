@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin. This is also the build path for betas, which never enter that matrix."
         required: true
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
@@ -47,10 +47,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: infra/runner-image/go.mod
-
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base authenticates. The registry is
       # tailnet-only and every image on it needs a credential, for
@@ -66,12 +62,11 @@ jobs:
 
       - uses: ./.github/actions/reclaim-tart-disk
 
-      - name: Build runner shell agent
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
+      # Every binary runner.pkr.hcl provisions, built the same way the
+      # production cascade builds them — see the action for why it is shared.
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         id: build

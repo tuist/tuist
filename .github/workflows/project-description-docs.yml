@@ -28,7 +28,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
@@ -46,9 +45,8 @@ jobs:
           path: .build
           key: linux-project-description-docc-${{ hashFiles('Package.resolved') }}
           restore-keys: linux-project-description-docc-
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "swift@6.2.4 node@20.12.0 npm:wrangler@4.30.0"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

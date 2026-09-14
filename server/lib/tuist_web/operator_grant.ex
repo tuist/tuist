@@ -60,8 +60,7 @@ defmodule TuistWeb.OperatorGrant do
   # Tolerance for clock drift between the ops signer and this server.
   @clock_skew_seconds 60
   # Account handles are alphanumeric + dashes (mirrors the server's name
-  # validation). Reject anything else so a `%`/`_` in the grant can't be
-  # resolved as a SQL LIKE wildcard by `get_account_by_handle/1`.
+  # validation). Anything else is rejected before the handle is resolved.
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
   @grant_header "x-tuist-operator-grant"
 

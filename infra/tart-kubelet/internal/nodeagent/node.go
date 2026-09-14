@@ -317,8 +317,11 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		mem = 16384
 	}
 	if maxPods == 0 {
-		// Apple's macOS SLA caps virtualized macOS instances at 2 per
-		// bare-metal host; Tart refuses to start a third VM.
+		// The Node's Pod ceiling, not the VM ceiling: one guest slot plus one
+		// terminating predecessor. The scheduler counts terminated Pods against
+		// pods capacity until GC deletes them, so this has to exceed the guest
+		// count. Apple's cap of two simultaneous virtualized macOS instances per
+		// host is enforced by Tart, independently of this number.
 		maxPods = 2
 	}
 	if node.Status.Capacity == nil {

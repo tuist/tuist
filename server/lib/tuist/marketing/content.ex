@@ -30,6 +30,10 @@ defmodule Tuist.Marketing.Content do
     post_image_url.(post)
   end
 
+  # Case studies only carry a path when their front matter names one; the
+  # web layer derives the generated card otherwise.
+  def get_entry_image_url({:case_study, %{og_image_path: nil}}, _post_image_url), do: nil
+
   def get_entry_image_url({:case_study, case_study}, _post_image_url) do
     Tuist.Environment.app_url(path: case_study.og_image_path, marketing: true)
   end

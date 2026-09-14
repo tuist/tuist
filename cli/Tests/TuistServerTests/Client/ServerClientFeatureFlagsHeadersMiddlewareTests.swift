@@ -14,6 +14,48 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
             ],
             arguments: []
         )
+
+        let headerValue = try await headerValue(environment: environment)
+
+        #expect(headerValue == "A,KURA")
+    }
+
+    @Test func adds_the_default_enabled_feature_flags_when_no_variable_is_set() async throws {
+        let environment = Environment(variables: [:], arguments: [])
+
+        let headerValue = try await headerValue(environment: environment)
+
+        #expect(headerValue == "KURA")
+    }
+
+    @Test func omits_a_feature_flag_disabled_by_a_falsey_value() async throws {
+        let environment = Environment(
+            variables: [
+                "TUIST_FEATURE_FLAG_KURA": "0",
+                "TUIST_FEATURE_FLAG_A": "1",
+            ],
+            arguments: []
+        )
+
+        let headerValue = try await headerValue(environment: environment)
+
+        #expect(headerValue == "A")
+    }
+
+    @Test func omits_the_header_when_every_feature_flag_is_disabled() async throws {
+        let environment = Environment(
+            variables: [
+                "TUIST_FEATURE_FLAG_KURA": "false",
+            ],
+            arguments: []
+        )
+
+        let headerValue = try await headerValue(environment: environment)
+
+        #expect(headerValue == nil)
+    }
+
+    private func headerValue(environment: Environment) async throws -> String? {
         let subject = ServerClientFeatureFlagsHeadersMiddleware()
         let url = URL(string: "https://tuist.dev")!
         let request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: "/")
@@ -34,6 +76,6 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
 
         let featureFlagsHeaderName = try #require(HTTPField.Name(ClientFeatureFlags.headerName))
         #expect(gotResponse == response)
-        #expect(gotRequest?.headerFields[featureFlagsHeaderName] == "A")
+        return gotRequest?.headerFields[featureFlagsHeaderName]
     }
 }

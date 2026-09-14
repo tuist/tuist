@@ -29,6 +29,20 @@
           </div>
         </div>
         <h1 data-part="label">{@title}</h1>
+        <.badge
+          :if={Enum.any?(@build.custom_tags || [])}
+          label={List.first(@build.custom_tags)}
+          color="success"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :for={tag <- Enum.slice(@build.custom_tags || [], 1..-1//1)}
+          label={tag}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@test_run}
@@ -58,18 +72,35 @@
       patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
     />
     <.tab_menu_horizontal_item
+      :if={@timeline_available}
+      label={dgettext("dashboard_builds", "Timeline")}
+      selected={@selected_tab == "timeline"}
+      patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+    />
+    <.tab_menu_horizontal_item
       :if={(@build.cacheable_tasks_count || 0) > 0}
       label={dgettext("dashboard_gradle", "Gradle Cache")}
       selected={@selected_tab == "gradle-cache"}
       patch={"?#{Query.put(@uri.query, "tab", "gradle-cache")}"}
     />
     <.tab_menu_horizontal_item
-      :if={length(@machine_metrics) > 0}
-      label={dgettext("dashboard_gradle", "Machine Metrics")}
-      selected={@selected_tab == "machine-metrics"}
-      patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
+      :if={@has_build_setup_data}
+      label={dgettext("dashboard_gradle", "Build Setup")}
+      selected={@selected_tab == "build-setup"}
+      patch={"?#{Query.put(@uri.query, "tab", "build-setup")}"}
     />
   </.tab_menu_horizontal>
+  <section :if={@selected_tab == "timeline"}>
+    <.build_timeline_section
+      timeline={@timeline}
+      duration={@build.duration_ms}
+      version={@timeline_version}
+      source="gradle"
+      url={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/timeline.json"
+      }
+    />
+  </section>
   <%= if @selected_tab == "overview" do %>
     <.card
       title={dgettext("dashboard_gradle", "Build Details")}
@@ -83,14 +114,14 @@
               <div data-part="title">{dgettext("dashboard_gradle", "Status")}</div>
               <.badge
                 :if={@build.status == "success"}
-                label={dgettext("dashboard_gradle", "Success")}
+                label={dgettext("dashboard_gradle", "Passed")}
                 color="success"
                 style="fill"
                 size="large"
               />
               <.badge
                 :if={@build.status == "failure"}
-                label={dgettext("dashboard_gradle", "Failure")}
+                label={dgettext("dashboard_gradle", "Failed")}
                 color="destructive"
                 style="fill"
                 size="large"
@@ -104,7 +135,11 @@
               />
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Duration")}</div>
+              <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
+              <.gradle_build_ran_by_badge_cell build={@build} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Build duration")}</div>
               <span data-part="label">
                 <.history />
                 {format_duration(@build.duration_ms)}
@@ -113,12 +148,8 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_gradle", "Built at")}</div>
               <span data-part="label">
-                {Tuist.Utilities.DateFormatter.from_now(@build.inserted_at)}
+                {DateFormatter.format_with_timezone(@build.inserted_at, @user_timezone)}
               </span>
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
-              <.gradle_build_ran_by_badge_cell build={@build} />
             </div>
           </div>
           <div data-part="metadata-row">
@@ -149,6 +180,32 @@
             </div>
           </div>
         </div>
+        <div :if={map_size(@build.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_gradle", "Custom metadata")}
+          </span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@build.custom_values)}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_gradle", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_gradle", "Value")}>
+              <a
+                :if={url?(value)}
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-part="custom-metadata-link"
+              >
+                {value}
+              </a>
+              <.text_cell :if={not url?(value)} label={value} />
+            </:col>
+          </.table>
+        </div>
       </.card_section>
     </.card>
     <.card
@@ -158,7 +215,12 @@
     >
       <.card_section data-part="tasks-table-section">
         <div data-part="filters">
-          <.form for={%{}} phx-change="search-tasks" phx-debounce="200">
+          <.form
+            id="gradle-build-tasks-search-form"
+            for={%{}}
+            phx-change="search-tasks"
+            phx-debounce="200"
+          >
             <.text_input
               type="search"
               id="search-tasks"
@@ -233,7 +295,15 @@
         >
           <.active_filter :for={filter <- @tasks_active_filters} filter={filter} />
         </div>
-        <.table id="gradle-tasks-table" rows={@tasks}>
+        <.table
+          id="gradle-tasks-table"
+          rows={@tasks}
+          row_navigate={
+            fn task ->
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+            end
+          }
+        >
           <:col
             :let={task}
             label={dgettext("dashboard_gradle", "Task")}
@@ -295,8 +365,474 @@
       </.card_section>
     </.card>
   <% end %>
-  <%= if @selected_tab == "machine-metrics" do %>
-    <.machine_metrics_charts metrics={@machine_metrics} />
+  <%= if @selected_tab == "build-setup" do %>
+    <div data-part="build-setup">
+      <.card
+        title={dgettext("dashboard_gradle", "Configuration")}
+        icon="settings"
+        data-part="configuration-card"
+      >
+        <.card_section data-part="configuration-summary">
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration time")}
+            description={
+              dgettext("dashboard_gradle", "Time Gradle spent configuring this build.")
+            }
+            value={format_duration(@configuration_duration_ms)}
+            id="widget-configuration-time"
+            empty={@configuration_duration_ms == 0}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration cache")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Status of Gradle's configuration cache for this build."
+              )
+            }
+            value={configuration_cache_status_label(@build.configuration_cache_status)}
+            id="widget-configuration-cache"
+            empty={@build.configuration_cache_status == ""}
+            empty_label={dgettext("dashboard_gradle", "Not requested")}
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Configuration cache load")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Time spent loading a reused configuration cache entry."
+              )
+            }
+            value={
+              if @build.configuration_cache_load_duration_ms,
+                do: format_duration(@build.configuration_cache_load_duration_ms),
+                else: dgettext("dashboard_gradle", "—")
+            }
+            id="widget-configuration-cache-load"
+            empty={is_nil(@build.configuration_cache_load_duration_ms)}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+        </.card_section>
+        <.card_section
+          :if={@build.configuration_cache_invalidation_reasons != []}
+          data-part="configuration-cache-invalidation-reasons"
+        >
+          <div data-part="title">
+            <span data-part="label">{dgettext("dashboard_gradle", "Invalidation reasons")}</span>
+          </div>
+          <ul>
+            <li :for={reason <- @build.configuration_cache_invalidation_reasons}>{reason}</li>
+          </ul>
+        </.card_section>
+        <.card_section
+          :if={@configuration_timeline_operations != []}
+          data-part="configuration-timeline-section"
+        >
+          <div data-part="timeline-scale">
+            <span></span>
+            <div data-part="timeline-scale-labels">
+              <span>0s</span>
+              <span>{format_duration(@configuration_timeline_range.duration_ms)}</span>
+            </div>
+            <span></span>
+          </div>
+          <div data-part="timeline">
+            <div
+              :for={timeline_operation <- @configuration_timeline_operations}
+              data-part="timeline-row"
+            >
+              <div data-part="timeline-label">
+                <span data-part="timeline-phase">
+                  {configuration_phase_label(timeline_operation.operation.phase)}
+                </span>
+                <span data-part="timeline-scope">
+                  {configuration_operation_scope(timeline_operation.operation)}
+                </span>
+              </div>
+              <div data-part="timeline-track">
+                <div
+                  data-part="timeline-bar"
+                  data-phase={timeline_operation.operation.phase}
+                  style={configuration_timeline_bar_style(timeline_operation)}
+                  title={
+                    "#{configuration_phase_label(timeline_operation.operation.phase)} · #{configuration_operation_scope(timeline_operation.operation)} · #{format_duration(timeline_operation.operation.duration_ms)}"
+                  }
+                >
+                </div>
+              </div>
+              <span data-part="timeline-duration">
+                {format_duration(timeline_operation.operation.duration_ms)}
+              </span>
+            </div>
+          </div>
+          <p data-part="timeline-note">
+            {dgettext(
+              "dashboard_gradle",
+              "Operations can overlap. Build timing includes its settings and project configuration."
+            )}
+          </p>
+        </.card_section>
+        <.card_section
+          :if={@configuration_operations != []}
+          data-part="configuration-operations-table-section"
+        >
+          <div data-part="filters">
+            <.form
+              id="gradle-configuration-operations-search-form"
+              for={%{}}
+              phx-change="search-configuration-operations"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="search-configuration-operations"
+                name="search"
+                placeholder={dgettext("dashboard_gradle", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@configuration_operations_filter}
+              />
+            </.form>
+            <.dropdown
+              id="configuration-operations-sort-by"
+              label={configuration_operations_sort_label(@configuration_operations_sort_by)}
+              secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+            >
+              <.dropdown_item
+                value="started_at"
+                label={dgettext("dashboard_gradle", "Started after")}
+                patch={configuration_operations_sort_patch(@uri.query, "started_at", "asc")}
+                data-selected={@configuration_operations_sort_by == "started_at"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration_ms"
+                label={dgettext("dashboard_gradle", "Duration")}
+                patch={configuration_operations_sort_patch(@uri.query, "duration_ms", "desc")}
+                data-selected={@configuration_operations_sort_by == "duration_ms"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="phase"
+                label={dgettext("dashboard_gradle", "Phase")}
+                patch={configuration_operations_sort_patch(@uri.query, "phase", "asc")}
+                data-selected={@configuration_operations_sort_by == "phase"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="scope"
+                label={dgettext("dashboard_gradle", "Configured unit")}
+                patch={configuration_operations_sort_patch(@uri.query, "scope", "asc")}
+                data-selected={@configuration_operations_sort_by == "scope"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+            <.filter_dropdown
+              id="configuration-operations-filter-dropdown"
+              label={dgettext("dashboard_gradle", "Filter")}
+              available_filters={@configuration_operations_available_filters}
+              active_filters={@configuration_operations_active_filters}
+            />
+          </div>
+          <div
+            :if={Enum.any?(@configuration_operations_active_filters)}
+            data-part="active-filters"
+          >
+            <.active_filter
+              :for={filter <- @configuration_operations_active_filters}
+              filter={filter}
+            />
+          </div>
+          <.table
+            id="gradle-configuration-operations-table"
+            rows={@configuration_operations_table}
+          >
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Phase")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "phase",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "phase" &&
+                  @configuration_operations_sort_order
+              }
+            >
+              <.text_cell label={configuration_phase_label(operation.phase)} />
+            </:col>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Configured unit")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "scope",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "scope" &&
+                  @configuration_operations_sort_order
+              }
+            >
+              <.badge_cell
+                label={
+                  if root_build_configuration_operation?(operation),
+                    do: dgettext("dashboard_gradle", "Root build"),
+                    else: configuration_operation_scope(operation)
+                }
+                color="neutral"
+                style="light-fill"
+              />
+            </:col>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Started after")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "started_at",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "started_at" &&
+                  @configuration_operations_sort_order
+              }
+            >
+              <.text_cell label={started_after(operation, @configuration_timeline_range.start_at)} />
+            </:col>
+            <:col
+              :let={operation}
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                configuration_operations_column_sort_patch(
+                  @uri.query,
+                  "duration_ms",
+                  @configuration_operations_sort_by,
+                  @configuration_operations_sort_order
+                )
+              }
+              sort_order={
+                @configuration_operations_sort_by == "duration_ms" &&
+                  @configuration_operations_sort_order
+              }
+            >
+              <.text_cell label={format_duration(operation.duration_ms)} icon="history" />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="settings"
+                title={dgettext("dashboard_gradle", "No configuration operations")}
+                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or filters.")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@configuration_operations_page_count > 1}
+            current_page={@configuration_operations_page}
+            number_of_pages={@configuration_operations_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "configuration-operations-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+      <.card
+        :if={@artifact_transforms != []}
+        title={dgettext("dashboard_gradle", "Artifact Transforms")}
+        icon="subtask"
+        data-part="artifact-transforms-card"
+      >
+        <.card_section data-part="artifact-transforms-summary">
+          <.widget
+            title={dgettext("dashboard_gradle", "Transforms")}
+            description={
+              dgettext("dashboard_gradle", "Artifact transforms recorded for this build.")
+            }
+            value={length(@artifact_transforms)}
+            id="widget-artifact-transforms"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Transform time")}
+            description={
+              dgettext("dashboard_gradle", "Total time spent in recorded artifact transforms.")
+            }
+            value={format_duration(@artifact_transform_duration_ms)}
+            id="widget-artifact-transform-time"
+          />
+        </.card_section>
+        <.card_section data-part="artifact-transforms-table-section">
+          <div data-part="filters">
+            <.form
+              id="gradle-artifact-transforms-search-form"
+              for={%{}}
+              phx-change="search-artifact-transforms"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="search-artifact-transforms"
+                name="search"
+                placeholder={dgettext("dashboard_gradle", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@artifact_transforms_filter}
+              />
+            </.form>
+            <.dropdown
+              id="artifact-transforms-sort-by"
+              label={artifact_transforms_sort_label(@artifact_transforms_sort_by)}
+              secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+            >
+              <.dropdown_item
+                value="transformer_name"
+                label={dgettext("dashboard_gradle", "Transform")}
+                patch={artifact_transforms_sort_patch(@uri.query, "transformer_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "transformer_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="artifact_name"
+                label={dgettext("dashboard_gradle", "Artifact")}
+                patch={artifact_transforms_sort_patch(@uri.query, "artifact_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "artifact_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="subject_name"
+                label={dgettext("dashboard_gradle", "Subject")}
+                patch={artifact_transforms_sort_patch(@uri.query, "subject_name", "asc")}
+                data-selected={@artifact_transforms_sort_by == "subject_name"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="duration_ms"
+                label={dgettext("dashboard_gradle", "Duration")}
+                patch={artifact_transforms_sort_patch(@uri.query, "duration_ms", "desc")}
+                data-selected={@artifact_transforms_sort_by == "duration_ms"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+            <.filter_dropdown
+              id="artifact-transforms-filter-dropdown"
+              label={dgettext("dashboard_gradle", "Filter")}
+              available_filters={@artifact_transforms_available_filters}
+              active_filters={@artifact_transforms_active_filters}
+            />
+          </div>
+          <div :if={Enum.any?(@artifact_transforms_active_filters)} data-part="active-filters">
+            <.active_filter :for={filter <- @artifact_transforms_active_filters} filter={filter} />
+          </div>
+          <.table id="gradle-artifact-transforms-table" rows={@artifact_transforms_table}>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Transform")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "transformer_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "transformer_name" &&
+                  @artifact_transforms_sort_order
+              }
+            >
+              <.text_cell label={transform.transformer_name} />
+            </:col>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Artifact")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "artifact_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "artifact_name" && @artifact_transforms_sort_order
+              }
+            >
+              <.text_cell label={transform.artifact_name} />
+            </:col>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Subject")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "subject_name",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "subject_name" && @artifact_transforms_sort_order
+              }
+            >
+              <.text_cell label={transform.subject_name} />
+            </:col>
+            <:col
+              :let={transform}
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                artifact_transforms_column_sort_patch(
+                  @uri.query,
+                  "duration_ms",
+                  @artifact_transforms_sort_by,
+                  @artifact_transforms_sort_order
+                )
+              }
+              sort_order={
+                @artifact_transforms_sort_by == "duration_ms" && @artifact_transforms_sort_order
+              }
+            >
+              <.text_cell label={format_duration(transform.duration_ms)} icon="history" />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="subtask"
+                title={dgettext("dashboard_gradle", "No artifact transforms")}
+                subtitle={dgettext("dashboard_gradle", "Try adjusting your search or filters.")}
+              />
+            </:empty_state>
+          </.table>
+          <.pagination_group
+            :if={@artifact_transforms_page_count > 1}
+            current_page={@artifact_transforms_page}
+            number_of_pages={@artifact_transforms_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "artifact-transforms-page", page)}"
+              end
+            }
+          />
+        </.card_section>
+      </.card>
+    </div>
   <% end %>
   <%= if @selected_tab == "gradle-cache" do %>
     <div data-part="cache">
@@ -376,7 +912,7 @@
                 {dgettext("dashboard_gradle", "Cacheable tasks:")}
               </span>
               <span data-part="value">
-                {@build.cacheable_tasks_count || 0}
+                {format_number(@build.cacheable_tasks_count || 0)}
               </span>
             </div>
             <.chart
@@ -505,9 +1041,14 @@
                   "Average download throughput in megabits per second."
                 )
               }
-              value={ThroughputFormatter.format_throughput(@download_throughput)}
+              value={
+                if(is_nil(@download_throughput),
+                  do: "—",
+                  else: ThroughputFormatter.format_throughput(@download_throughput)
+                )
+              }
               id="widget-download-throughput"
-              empty={@download_throughput == 0}
+              empty={@download_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
             <.widget
@@ -518,14 +1059,24 @@
                   "Average upload throughput in megabits per second."
                 )
               }
-              value={ThroughputFormatter.format_throughput(@upload_throughput)}
+              value={
+                if(is_nil(@upload_throughput),
+                  do: "—",
+                  else: ThroughputFormatter.format_throughput(@upload_throughput)
+                )
+              }
               id="widget-upload-throughput"
-              empty={@upload_throughput == 0}
+              empty={@upload_throughput in [nil, 0]}
               empty_label={dgettext("dashboard_gradle", "No data")}
             />
           </div>
           <div data-part="filters">
-            <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+            <.form
+              id="gradle-cacheable-tasks-search-form"
+              for={%{}}
+              phx-change="search-cacheable-tasks"
+              phx-debounce="200"
+            >
               <.text_input
                 type="search"
                 id="search-cacheable-tasks"
@@ -586,7 +1137,15 @@
           >
             <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
           </div>
-          <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
+          <.table
+            id="gradle-cacheable-tasks-table"
+            rows={@cacheable_tasks}
+            row_navigate={
+              fn task ->
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{@build.id}/tasks/#{task.id}"
+              end
+            }
+          >
             <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
               <.text_cell label={task.task_path} />
             </:col>
@@ -639,6 +1198,9 @@
               }
             >
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />
+            </:col>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Why it missed")}>
+              <.text_cell label={cache_miss_reason(task)} />
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Cache key")}>
               <.text_cell label={task.cache_key || dgettext("dashboard_gradle", "—")} />

@@ -1,0 +1,172 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: rackapplesiliconmachinetemplates.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: RackAppleSiliconMachineTemplate
+    listKind: RackAppleSiliconMachineTemplateList
+    plural: rackapplesiliconmachinetemplates
+    shortNames:
+      - rasmt
+    singular: rackapplesiliconmachinetemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            RackAppleSiliconMachineTemplate is the template MachineDeployment +
+            MachineSet objects clone Machines from. Scaling the fleet is a replica count
+            against this one template because nothing host-specific lives in it: the
+            per-box facts are on the RackHost objects the clones then claim.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackAppleSiliconMachineTemplateSpec wraps the per-Machine spec into the
+                template shape CAPI expects.
+              properties:
+                template:
+                  description: |-
+                    RackAppleSiliconMachineTemplateResource is the embedded "spec" CAPI's
+                    MachineSet controller clones from when scaling up a MachineDeployment.
+                  properties:
+                    spec:
+                      description: |-
+                        RackAppleSiliconMachineSpec is the desired state of one Mac mini we own.
+
+                        It is the adopt-only sibling of ScalewayAppleSiliconMachine: same host
+                        bootstrap, same host-config drift loop, same tailnet egress Service, but the
+                        host comes from a RackHost in the cluster's own inventory rather than from a
+                        provider's server list, and there is no order, no reinstall and no release
+                        path, because nobody bills us per host and no API can wipe one.
+
+                        Everything about the HOST lives on the RackHost (address, serial, outlet,
+                        position). Everything about the WORKLOAD lives here (sizing, fleet
+                        membership, kubelet version). That split is the point of having two kinds: a
+                        MachineDeployment clones this spec N times, and a spec carrying an address
+                        could not be cloned more than once.
+                      properties:
+                        adoptPool:
+                          description: |-
+                            AdoptPool is the RackHost pool this Machine claims from: the analog of
+                            the Scaleway kind's adoptPoolPrefix. The controller claims the first free
+                            RackHost whose `spec.pool` matches.
+
+                            Optional on purpose, even though every chart-rendered MachineTemplate
+                            sets it. A required field here is a schema constraint on a resource CAPI
+                            CLONES, so a MachineTemplate that lacks it fails
+                            `InfrastructureTemplateCloningFailed` on every MachineSet scale-up: and
+                            that drift stays invisible until the next scale-up, which is typically
+                            an operator recovering a host by deleting its Machine. The controller
+                            surfaces an empty value as a `NoAdoptPool` condition instead of scanning
+                            every RackHost in the namespace.
+                          type: string
+                        fleetName:
+                          description: |-
+                            FleetName groups Machines that share an SSH key and a sudo password. Set
+                            by the MachineTemplate to the parent MachineDeployment's name. Unlike the
+                            Scaleway fleets, the keypair is NOT minted in-cluster: rack hosts are
+                            provisioned out of band by MDM, which authorizes a key the operator never
+                            generated, so the fleet Secret is synced from 1Password by ESO and the
+                            controller only ever reads it.
+                          type: string
+                        guestCapacity:
+                          description: |-
+                            GuestCapacity is how many Tart guests this host is expected to run
+                            concurrently. It sizes the per-guest host resources (the VNC relay port
+                            range, the disk-pressure goldens floor); it does not create capacity,
+                            which HostCPU/HostMemoryMB and Tart's own two-guest SLA ceiling bind
+                            first. Falls back to the operator's global default when unset.
+                          type: integer
+                        hostCPU:
+                          description: |-
+                            HostCPU is the CPU-core count the host advertises on the Node it
+                            registers (Node.Status.Capacity), via tart-kubelet's `--host-cpu`. Falls
+                            back to the operator's global default when unset.
+
+                            Per-Machine for the same reason it is on the Scaleway kind, and more so
+                            here: a rack fills up over time and the boxes bought in month 12 are not
+                            the boxes bought in month 1.
+                          type: integer
+                        hostMemoryMB:
+                          description: |-
+                            HostMemoryMB is the memory advertised on the Node: the box's RAM minus
+                            the ~2 GB Apple's Virtualization.framework reserves for the host, below
+                            which `tart run` fails with `memorySize > maximumAllowedMemorySize`.
+                            Falls back to the operator's global default when unset.
+                          type: integer
+                        kubeletVersion:
+                          description: |-
+                            KubeletVersion override; defaults to the operator's chart-level value
+                            when empty.
+                          type: string
+                        maxPods:
+                          description: |-
+                            MaxPods is the Pod ceiling tart-kubelet advertises (`--max-pods`). Sized
+                            as guests x 2 + 1: a Pod stays bound to its Node after it finishes and the
+                            scheduler counts it against pods capacity until GC deletes it, so each
+                            guest slot can transiently hold its running Pod plus a predecessor, and
+                            the +1 is margin. It is not the concurrent-VM limit; Apple's cap of two is
+                            enforced by Tart. Falls back to the operator's global default when unset.
+                          type: integer
+                        providerID:
+                          description: |-
+                            ProviderID, set by the controller once a RackHost is claimed, takes the
+                            shape `rack-applesilicon://<site>/<serial>`; composed from the two
+                            durable physical facts, so re-cabling a host to a new address does not
+                            change its identity to CAPI. CAPI core expects this to populate; without
+                            it the parent Machine never goes Ready. The scheme is deliberately
+                            foreign to the Hetzner CCM so it never reaps the node, the same guard
+                            every other kind here uses.
+                          type: string
+                        runnerCacheVolumeGiB:
+                          description: |-
+                            RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS volume
+                            bootstrap provisions to hold per-account cache-volume images. Unset
+                            (nil) falls back to the operator's global default; an explicit 0
+                            disables cache volumes on this host entirely.
+
+                            A pointer, unlike its sizing siblings, because 0 is a meaningful value
+                            here and nonsense for them. Staging a new host cold and enabling the
+                            cache once it is validated is how this feature gets rolled out, and with
+                            a scalar that intent would collapse into "unset" and silently inherit
+                            the fleet default, which matters more on a rack than on rented
+                            capacity, since the prototype box has a 256 GB disk that cannot hold the
+                            fleet's normal quota at all.
+                          type: integer
+                      type: object
+                  required:
+                    - spec
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true

@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BuildCacheTasksController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Builds
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
 
@@ -114,7 +115,8 @@ defmodule TuistWeb.API.BuildCacheTasksController do
            required: [:tasks, :pagination_metadata]
          }},
       not_found: {"Build not found", "application/json", Error},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 

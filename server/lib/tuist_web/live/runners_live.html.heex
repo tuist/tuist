@@ -122,7 +122,7 @@
             "Workflow jobs received from GitHub in the selected window."
           )
         }
-        value={if @jobs_count.ok?, do: Integer.to_string(@jobs_count.result.count)}
+        value={if @jobs_count.ok?, do: format_number(@jobs_count.result.count)}
         loading={!@jobs_count.ok?}
         selected={@analytics_selected_widget == "total_jobs"}
         phx_click="select_widget"

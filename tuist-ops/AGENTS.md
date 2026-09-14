@@ -17,7 +17,9 @@ Pomerium).
 - `lib/tuist_ops/jit/` — core business logic
   - `approvals.ex` — state machine for Request → Elevation
   - `elevation.ex`, `request.ex` — Ecto schemas
-  - `policy.ex` — role-based self-approve + approver-allowed gates
+  - `policy.ex` — role-based self-approve + approver-allowed gates, plus
+    `always_write_env?/1` (staging's write tier is standing access, so
+    it is outside the elevation flow and `/elevate staging` is rejected)
   - `slack_blocks.ex`, `slack_client.ex` — Slack Block Kit + HTTP client
   - `tailscale_client.ex` — Tailscale users API (role lookup, cached 30s)
   - `workers/revert_worker.ex` — Oban job that marks elevation reverted at TTL

@@ -81,6 +81,67 @@ defmodule TuistWeb.Storybook.NeutralButton do
         ]
       },
       %VariationGroup{
+        id: :text_sizes,
+        description: "Text labels from small to large",
+        variations: [
+          %Variation{
+            id: :text_small,
+            attributes: %{
+              id: "neutral-button-text-small",
+              size: "small",
+              label: "Button"
+            }
+          },
+          %Variation{
+            id: :text_medium,
+            attributes: %{
+              id: "neutral-button-text-medium",
+              size: "medium",
+              label: "Button"
+            }
+          },
+          %Variation{
+            id: :text_large,
+            attributes: %{
+              id: "neutral-button-text-large",
+              size: "large",
+              label: "Button"
+            }
+          }
+        ]
+      },
+      %VariationGroup{
+        id: :text_states,
+        description: "Text label states and icons",
+        variations: [
+          %Variation{
+            id: :text_with_icons,
+            attributes: %{
+              id: "neutral-button-text-with-icons",
+              size: "large",
+              label: "Button"
+            },
+            slots: [
+              """
+              <:icon_left><.chevron_left /></:icon_left>
+              """,
+              """
+              <:icon_right><.chevron_right /></:icon_right>
+              """
+            ]
+          },
+          %Variation{
+            id: :text_disabled,
+            attributes: %{
+              id: "neutral-button-text-disabled",
+              size: "large",
+              label: "Button",
+              disabled: true
+            }
+          }
+        ]
+      },
+      %VariationGroup{
         id: :different_icons,
         description: "Neutral buttons with various icon types",
         variations: [

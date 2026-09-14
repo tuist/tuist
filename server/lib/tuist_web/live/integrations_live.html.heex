@@ -61,6 +61,34 @@
           />
         </form>
       </div>
+      <.alert
+        :if={
+          is_nil(@github_app_installation) and not @github_app_configured? and
+            not @show_github_enterprise_input
+        }
+        status="information"
+        type="secondary"
+        size="large"
+        title={dgettext("dashboard_integrations", "No github.com App is configured")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "This Tuist server needs its own GitHub App on github.com before it can install one. Register the App, then set TUIST_GITHUB_APP_NAME, TUIST_GITHUB_APP_CLIENT_ID, TUIST_GITHUB_APP_CLIENT_SECRET, and TUIST_GITHUB_APP_PRIVATE_KEY_BASE64 and restart the server."
+          )
+        }
+      >
+        <:action>
+          <.button
+            label={dgettext("dashboard_integrations", "Read the setup guide")}
+            variant="secondary"
+            size="medium"
+            href="/en/docs/guides/server/self-host/server#platform-github"
+            target="_blank"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.button>
+        </:action>
+      </.alert>
       <div data-part="actions">
         <.button
           :if={is_nil(@github_app_installation)}
@@ -223,6 +251,295 @@
           </.inline_dropdown>
         </div>
       </.card_section>
+    </div>
+  </.card_section>
+  <.card_section :if={@runner_integrations_visible?} data-part="gitlab-card-section">
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">{dgettext("dashboard_integrations", "GitLab CI")}</span>
+        <span data-part="subtitle">{dgettext(
+          "dashboard_integrations",
+          "Run GitLab CI jobs on Tuist runners. Choose a machine for each job using pipeline tags."
+        )}</span>
+      </div>
+      <div :if={@gitlab_connections != []} data-part="actions">
+        <.button
+          :for={connection <- @gitlab_connections}
+          type="button"
+          label={dgettext("dashboard_integrations", "Disconnect")}
+          variant="secondary"
+          phx-click="disconnect-gitlab"
+          disabled={not connection.enabled}
+          phx-value-id={connection.id}
+        />
+      </div>
+      <form :if={@gitlab_connections == []} id="connect-gitlab-form" phx-submit="save-gitlab">
+        <.modal
+          id="connect-gitlab-modal"
+          title={dgettext("dashboard_integrations", "Connect GitLab CI")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Create a GitLab runner with your Tuist profile tags, disable untagged jobs, and paste its token here. Select the machine in your pipeline with tags such as [tuist-macos]."
+            )
+          }
+          header_size="large"
+          on_dismiss="close-connect-gitlab-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_integrations", "Connect")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="connect-gitlab">
+            <.alert
+              :if={@gitlab_error}
+              status="error"
+              type="secondary"
+              size="small"
+              title={@gitlab_error}
+            />
+            <.text_input
+              id="gitlab-url"
+              name="url"
+              type="basic"
+              label={dgettext("dashboard_integrations", "GitLab URL")}
+              value="https://gitlab.com"
+              required
+            />
+            <.text_input
+              id="gitlab-token"
+              name="runner_token"
+              type="password"
+              input_type="password"
+              label={dgettext("dashboard_integrations", "Runner authentication token")}
+              placeholder="glrt-…"
+              value=""
+              required
+            />
+            <div data-part="actions">
+              <.button
+                type="submit"
+                label={dgettext("dashboard_integrations", "Connect")}
+                variant="primary"
+              />
+            </div>
+          </div>
+        </.modal>
+      </form>
+    </div>
+    <.alert
+      :if={@gitlab_error && @gitlab_connections != []}
+      status="error"
+      type="secondary"
+      size="small"
+      title={@gitlab_error}
+    />
+    <form
+      :for={connection <- @gitlab_connections}
+      id={"gitlab-connection-#{connection.id}"}
+      phx-submit="save-gitlab"
+    >
+      <.alert
+        :if={connection.last_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={connection.last_error}
+      />
+      <.alert
+        :if={not connection.enabled}
+        status="information"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_integrations",
+            "Disconnecting: waiting for GitLab to settle queued assignments."
+          )
+        }
+      />
+      <input type="hidden" name="_id" value={connection.id} />
+      <div data-part="fields">
+        <.text_input
+          id={"gitlab-url-#{connection.id}"}
+          name="url"
+          type="basic"
+          label={dgettext("dashboard_integrations", "GitLab URL")}
+          value={connection.url}
+          required
+        />
+        <.text_input
+          id={"gitlab-token-#{connection.id}"}
+          name="runner_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Runner authentication token")}
+          value=""
+          placeholder="••••••••••••"
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+        />
+      </div>
+    </form>
+  </.card_section>
+
+  <.card_section :if={@runner_integrations_visible?} data-part="buildkite-card-section">
+    <%!-- Connected: the whole card is the save form, with the actions on
+          the header line and the fields below. A blank token keeps the
+          current one, which is never shown again. --%>
+    <form
+      :if={@buildkite_installation}
+      id="buildkite-form"
+      phx-change="validate-buildkite"
+      phx-submit="save-buildkite"
+    >
+      <div data-part="header-row">
+        <.buildkite_header />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_integrations", "Disconnect")}
+            variant="secondary"
+            phx-click="disconnect-buildkite"
+          />
+        </div>
+      </div>
+      <.alert
+        :if={@buildkite_flash}
+        status={elem(@buildkite_flash, 0)}
+        type="secondary"
+        size="small"
+        title={elem(@buildkite_flash, 1)}
+      />
+      <.alert
+        :if={@buildkite_installation.last_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@buildkite_installation.last_error}
+      />
+      <div data-part="fields">
+        <.text_input
+          id="buildkite-organization"
+          name="organization_slug"
+          type="basic"
+          label={dgettext("dashboard_integrations", "Organization")}
+          value={@buildkite_form_values["organization_slug"]}
+          error={@buildkite_field_errors["organization_slug"]}
+          required
+        />
+        <.text_input
+          id="buildkite-token"
+          name="agent_token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_integrations", "Cluster agent token")}
+          value={@buildkite_form_values["agent_token"]}
+          placeholder="••••••••••••"
+          error={@buildkite_field_errors["agent_token"]}
+        />
+      </div>
+      <div data-part="actions">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_integrations", "Save changes")}
+          variant="primary"
+          disabled={not @buildkite_has_changes}
+        />
+      </div>
+    </form>
+    <%!-- Not connected: the header line and one button, with the fields in
+          a modal, so an account that does not use Buildkite gives up no
+          space to it. --%>
+    <div :if={is_nil(@buildkite_installation)} data-part="header-row">
+      <.buildkite_header />
+      <div data-part="actions">
+        <form id="connect-buildkite-form" phx-submit="connect-buildkite">
+          <.modal
+            id="connect-buildkite-modal"
+            title={dgettext("dashboard_integrations", "Connect Buildkite")}
+            description={
+              dgettext(
+                "dashboard_integrations",
+                "Create an agent token under your cluster's Agent Tokens in Buildkite. Jobs are picked up from self-hosted queues named after your runner profiles."
+              )
+            }
+            header_size="large"
+            on_dismiss="close-connect-buildkite-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_integrations", "Connect")}
+                variant="primary"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <div data-part="connect-buildkite">
+              <.alert
+                :if={@buildkite_form_error}
+                status="error"
+                type="secondary"
+                size="small"
+                title={@buildkite_form_error}
+              />
+              <.text_input
+                id="buildkite-organization-slug"
+                name="organization_slug"
+                type="basic"
+                label={dgettext("dashboard_integrations", "Organization slug")}
+                placeholder="acme"
+                error={@buildkite_field_errors["organization_slug"]}
+                required
+                show_required
+              />
+              <.text_input
+                id="buildkite-agent-token"
+                name="agent_token"
+                type="password"
+                input_type="password"
+                label={dgettext("dashboard_integrations", "Cluster agent token")}
+                placeholder="bkct_..."
+                hint={
+                  dgettext("dashboard_integrations", "Stored encrypted and never shown again.")
+                }
+                error={@buildkite_field_errors["agent_token"]}
+                required
+                show_required
+              />
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_integrations", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-connect-buildkite-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_integrations", "Connect")}
+                    variant="primary"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </form>
+      </div>
     </div>
   </.card_section>
 </div>

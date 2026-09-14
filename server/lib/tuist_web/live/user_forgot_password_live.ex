@@ -19,12 +19,7 @@ defmodule TuistWeb.UserForgotPasswordLive do
     <div id="forgot-password">
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src={~p"/images/tuist_logo_32x32@2x.png"}
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-            decoding="async"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />

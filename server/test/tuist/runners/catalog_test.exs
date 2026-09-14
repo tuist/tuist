@@ -86,6 +86,32 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end
+
+    test ":macos default shape keeps the shape-free pool name" do
+      # The pools that existed before the catalog gained a second macOS
+      # shape must not be renamed: a `queued` row's `fleet_name` is what a
+      # runner claims against, so a rename strands in-flight work.
+      default = Catalog.default_shape(:macos)
+
+      assert Catalog.pool_name(%{
+               platform: :macos,
+               xcode_version: "26.5",
+               vcpus: default.vcpus,
+               memory_gb: default.memory_gb
+             }) == "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5"
+    end
+
+    test ":macos non-default shapes append the shape key" do
+      shape = non_default_macos_shape()
+
+      assert Catalog.pool_name(%{
+               platform: :macos,
+               xcode_version: "26.5",
+               vcpus: shape.vcpus,
+               memory_gb: shape.memory_gb
+             }) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
+    end
   end
 
   describe "resources_for_fleet/1" do
@@ -107,6 +133,24 @@ defmodule Tuist.Runners.CatalogTest do
 
       assert Catalog.resources_for_fleet("macos-26-5") ==
                {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "resolves a macOS pool name through the configured shape catalog" do
+      default = Catalog.default_shape(:macos)
+      shape = non_default_macos_shape()
+
+      Enum.each([default, shape], fn s ->
+        fleet_name =
+          Catalog.pool_name(%{
+            platform: :macos,
+            xcode_version: "26.5",
+            vcpus: s.vcpus,
+            memory_gb: s.memory_gb
+          })
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :macos, vcpus: s.vcpus, memory_gb: s.memory_gb}}
+      end)
     end
 
     test "does not infer resources from an unconfigured Linux pool suffix" do
@@ -231,5 +275,16 @@ defmodule Tuist.Runners.CatalogTest do
       refute Catalog.fleet_on_cluster_network?("linux-amd64")
       refute Catalog.fleet_on_cluster_network?("macos-26-5")
     end
+  end
+
+  # The catalog ships more than one macOS shape (see
+  # `config/config.exs`); the tests above assert on whichever entry is
+  # not the default rather than pinning a specific one.
+  defp non_default_macos_shape do
+    shape = Enum.find(Catalog.shapes(:macos), &(not &1.default?))
+
+    refute is_nil(shape), "the macOS shape catalog needs a non-default shape for this test"
+
+    shape
   end
 end

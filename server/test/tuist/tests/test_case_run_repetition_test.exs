@@ -43,12 +43,12 @@ defmodule Tuist.Tests.TestCaseRunRepetitionTest do
       assert changeset.changes.status == "failure"
     end
 
-    test "rejects status 'skipped'" do
+    test "accepts status 'skipped'" do
       attrs = Map.put(@valid_attrs, :status, "skipped")
       changeset = TestCaseRunRepetition.create_changeset(%TestCaseRunRepetition{}, attrs)
 
-      refute changeset.valid?
-      assert "is invalid" in errors_on(changeset).status
+      assert changeset.valid?
+      assert changeset.changes.status == "skipped"
     end
 
     test "rejects invalid status string" do

@@ -9,7 +9,9 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
@@ -36,7 +38,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -57,6 +59,8 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
+        buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -70,10 +74,12 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -213,6 +219,19 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def github_job_url(_), do: nil
+
+  @doc """
+  The Buildkite build a job belongs to, or `nil` for a GitHub job.
+
+  Buildkite's own job-level anchor is not part of any documented URL
+  contract, so this stops at the build, which is stable.
+  """
+  def buildkite_build_url(%{organization_slug: org, pipeline_slug: pipeline, build_number: number})
+      when is_binary(org) and org != "" and is_binary(pipeline) and pipeline != "" and is_integer(number) and number > 0 do
+    "https://buildkite.com/#{org}/#{pipeline}/builds/#{number}"
+  end
+
+  def buildkite_build_url(_), do: nil
 
   @doc """
   Builds the deep link to a single workflow_job. Mirrors GitHub's
@@ -478,8 +497,8 @@ defmodule TuistWeb.RunnerJobLive do
     }
   end
 
-  defp assign_runner_insights(socket, selected_account, job) do
-    case Jobs.projects_for_runner_job(selected_account, job) do
+  defp assign_runner_insights(socket, selected_account, job, buildkite_job) do
+    case Jobs.projects_for_runner_job(selected_account, job, buildkite_job) do
       {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
@@ -491,8 +510,8 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
       {:ok, projects} ->
-        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
-        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id, buildkite_job)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id, buildkite_job)
 
         build_command_events = Jobs.command_events_for_runs(build_runs, :build)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
@@ -616,12 +635,12 @@ defmodule TuistWeb.RunnerJobLive do
 
   def terminal_tab_visible?(_interactive, true), do: true
 
-  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+  def terminal_tab_visible?(%{can_attach?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
     do: true
 
   def terminal_tab_visible?(_, _), do: false
 
-  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+  def vnc_tab_visible?(%{can_attach?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
     do: true
 
   def vnc_tab_visible?(_), do: false
@@ -630,7 +649,7 @@ defmodule TuistWeb.RunnerJobLive do
     terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
   end
 
-  def interactive_vnc_unavailable_reason(%{can_read?: false}),
+  def interactive_vnc_unavailable_reason(%{can_attach?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
 
   def interactive_vnc_unavailable_reason(%{macos?: false}),
@@ -760,7 +779,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.vnc_requestable? ->
@@ -791,7 +810,7 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      not interactive.can_read? ->
+      not can_attach?(current_user, selected_account) ->
         socket
 
       not interactive.shell_requestable? ->
@@ -834,11 +853,16 @@ defmodule TuistWeb.RunnerJobLive do
   defp maybe_auto_request_interactive_sessions(socket), do: socket
 
   # A public account lets anyone mount this LiveView, and any client can push
-  # the disconnect event regardless of which tabs were rendered, so re-check
-  # `:runners_read` here rather than trusting that the interactive tabs were
-  # visible. `close_for_job/5` additionally scopes the close to the user who
-  # holds the session.
-  defp close_interactive_session(%{assigns: %{interactive: %{can_read?: false}}} = socket, kind)
+  # the disconnect event regardless of which tabs were rendered, so gate the
+  # close rather than trusting that the interactive tabs were visible.
+  # `close_for_job/5` additionally scopes the close to the user who holds the
+  # session.
+  #
+  # This reads the mount-time snapshot on purpose, where requesting a session
+  # resolves the permission afresh. Closing only ever ends access, so a member
+  # demoted mid-session should still be able to hang up rather than leave their
+  # session running until it times out.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_attach?: false}}} = socket, kind)
        when kind in [:vnc, :shell] do
     socket
   end
@@ -1070,6 +1094,18 @@ defmodule TuistWeb.RunnerJobLive do
     assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
   end
 
+  # `:runners_interactive_access`, not the page's `:runners_read`:
+  # attaching to a running VM executes commands on it, so it stays with members
+  # that can write.
+  #
+  # Resolved per call rather than read off the socket. `InteractiveSessions`
+  # mints tokens without authorizing, and a socket outlives the role that
+  # opened it, so a member demoted while the page is open would otherwise keep
+  # requesting sessions until they reload.
+  defp can_attach?(current_user, selected_account) do
+    Authorization.authorize(:runners_interactive_access, current_user, selected_account) == :ok
+  end
+
   defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
     platform = Catalog.fleet_platform(job.fleet_name)
     macos? = platform == :macos
@@ -1077,13 +1113,11 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
-    # `:runners_read`, not the page's `:account_dashboard_read`: attaching to a
-    # running VM stays members-only even when the account is public.
-    can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
+    can_attach? = can_attach?(current_user, selected_account)
 
-    vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
+    vnc_requestable? = can_attach? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
-    shell_requestable? = can_read? and InteractiveSessions.shell_requestable?(job)
+    shell_requestable? = can_attach? and InteractiveSessions.shell_requestable?(job)
 
     vnc_session =
       selected_account.id
@@ -1096,7 +1130,7 @@ defmodule TuistWeb.RunnerJobLive do
       |> with_shell_session_token(shell_session_token)
 
     %{
-      can_read?: can_read?,
+      can_attach?: can_attach?,
       macos?: macos?,
       linux?: linux?,
       running?: running?,

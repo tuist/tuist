@@ -1,0 +1,53 @@
+# Imported from the live tuist.dev custom firewall entry-point ruleset on
+# 2026-09-06. The public dashboard rule excludes Cloudflare-verified crawlers,
+# which are bounded separately by the verified crawler rate-limit rule.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: public-dashboard-bot-protection
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Bot protection"
+  expression: |-
+    (
+      http.request.uri.path eq "/tuist" or
+      starts_with(http.request.uri.path, "/tuist/projects") or
+      starts_with(http.request.uri.path, "/tuist/runners") or
+      starts_with(http.request.uri.path, "/tuist/usage") or
+      starts_with(http.request.uri.path, "/tuist/tuist") or
+      starts_with(http.request.uri.path, "/tuist/gradle-plugin") or
+      starts_with(http.request.uri.path, "/tuist/ios_app_with_frameworks") or
+      starts_with(http.request.uri.path, "/tuist/android")
+    ) and not (
+      ends_with(http.request.uri.path, "/manifest.plist") or
+      ends_with(http.request.uri.path, "/app.ipa") or
+      ends_with(http.request.uri.path, "/app.apk") or
+      ends_with(http.request.uri.path, "/qr-code.svg") or
+      ends_with(http.request.uri.path, "/qr-code.png") or
+      ends_with(http.request.uri.path, "/icon.png") or
+      (
+        ends_with(http.request.uri.path, "/download") and
+        not starts_with(http.request.uri.path, "/tuist/runners/")
+      )
+    ) and not cf.client.bot
+  action: managed_challenge
+  enabled: true
+  mode: active
+  adopt:
+    ruleId: 6d023cf1e6b24525af4c727a4ebe730f
+  retainOnDelete: true
+---
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: leaked-credentials-challenge
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Leaked credentials detected - managed challenge"
+  expression: "cf.waf.credential_check.password_leaked"
+  action: managed_challenge
+  enabled: true
+  mode: active
+  adopt:
+    ruleId: b7afe460a4a241cbabe975d698397da9
+  retainOnDelete: true

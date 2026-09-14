@@ -26,7 +26,6 @@ defaults:
     working-directory: search
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   # Install only this project's tools and stop mise auto-installing the rest of the
   # merged root toolset when `mise run` executes (which would hit the GitHub API).
@@ -42,7 +41,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           working-directory: search
       - name: Build and verify health
         run: mise run test

@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
   An automation alert — a rule that evaluates a monitor condition and runs trigger/recovery actions.
   """
   alias OpenApiSpex.Schema
+  alias Tuist.Automations
   alias TuistWeb.API.Schemas.AutomationAlertAction
 
   require OpenApiSpex
@@ -43,10 +44,10 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       monitor_type: alert.monitor_type,
       trigger_config: alert.trigger_config,
       cadence: alert.cadence,
-      trigger_actions: alert.trigger_actions,
+      trigger_actions: Enum.map(alert.trigger_actions, &Automations.redact_action/1),
       recovery_enabled: alert.recovery_enabled,
       recovery_config: alert.recovery_config,
-      recovery_actions: alert.recovery_actions
+      recovery_actions: Enum.map(alert.recovery_actions, &Automations.redact_action/1)
     }
   end
 end

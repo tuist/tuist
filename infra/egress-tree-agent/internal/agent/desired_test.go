@@ -50,9 +50,9 @@ func TestPriorityForMinor(t *testing.T) {
 // that keeps node-local replication sync off the tenant bucket.
 func TestDesiredSharedClassAndSiblings(t *testing.T) {
 	classes, attachments := Desired([]PodShape{
-		{Namespace: "kura", Name: "kura-acme-0", IP: "10.0.0.10", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
-		{Namespace: "kura", Name: "kura-acme-1", IP: "10.0.0.11", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
-		{Namespace: "kura", Name: "kura-other-0", IP: "10.0.0.12", Minor: 0x103, FloorMbps: 300, BurstMbps: 0},
+		{Namespace: "kura", Name: "kura-acme-0", IP: "10.0.0.10", Account: "acme", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
+		{Namespace: "kura", Name: "kura-acme-1", IP: "10.0.0.11", Account: "acme", Minor: 0x102, FloorMbps: 700, BurstMbps: 1500},
+		{Namespace: "kura", Name: "kura-other-0", IP: "10.0.0.12", Account: "other", Minor: 0x103, FloorMbps: 300, BurstMbps: 0},
 	})
 
 	if len(classes) != 2 {
@@ -63,6 +63,12 @@ func TestDesiredSharedClassAndSiblings(t *testing.T) {
 	}
 	if classes[0x103].FloorMbps != 300 || classes[0x103].BurstMbps != 0 {
 		t.Fatalf("class 0x103 = %+v", classes[0x103])
+	}
+	// The account each class's metrics are labelled with: a classid is
+	// reused across accounts over time, so it does not identify a tenant on
+	// its own.
+	if classes[0x102].Account != "acme" || classes[0x103].Account != "other" {
+		t.Fatalf("accounts = %q / %q", classes[0x102].Account, classes[0x103].Account)
 	}
 
 	if len(attachments) != 3 {
@@ -128,5 +134,79 @@ func TestDiffStrings(t *testing.T) {
 	added, removed = diffStrings(nil, nil)
 	if added != nil || removed != nil {
 		t.Fatalf("empty diff = %v / %v", added, removed)
+	}
+}
+
+// Whatever the annotation says, the class tc is given has to be buildable and
+// has to stay inside the box. The dangerous case is a floor above the node
+// budget: the ceiling is raised to meet the floor, so an unbounded floor would
+// drag a tenant's ceiling past the cap the whole tree exists to hold.
+func TestClassRatesStayInsideTheBox(t *testing.T) {
+	const node int64 = 1000
+
+	for _, tc := range []struct {
+		name                string
+		class               TenantClass
+		wantFloor, wantCeil int64
+	}{
+		{"ordinary pair", TenantClass{FloorMbps: 25, BurstMbps: 500}, 25, 500},
+		{"no floor gets a trickle", TenantClass{FloorMbps: 0, BurstMbps: 500}, 1, 500},
+		{"uncapped burst takes the box", TenantClass{FloorMbps: 25, BurstMbps: 0}, 25, node},
+		{"burst over the box is capped", TenantClass{FloorMbps: 25, BurstMbps: 5000}, 25, node},
+		{"floor over the box is capped", TenantClass{FloorMbps: 2000, BurstMbps: 1500}, node, node},
+		{"ceiling under its floor is raised", TenantClass{FloorMbps: 400, BurstMbps: 100}, 400, 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			floor, ceil := classRates(tc.class, node)
+			if floor != tc.wantFloor || ceil != tc.wantCeil {
+				t.Fatalf("rates = %d/%d, want %d/%d", floor, ceil, tc.wantFloor, tc.wantCeil)
+			}
+			if ceil > node {
+				t.Fatalf("ceiling %d escaped the node budget %d", ceil, node)
+			}
+			if floor > ceil {
+				t.Fatalf("floor %d above ceiling %d is unbuildable", floor, ceil)
+			}
+		})
+	}
+}
+
+// A pod whose account label has not been rendered yet must not blank out a
+// class its labelled replica already names, in either arrival order.
+func TestDesiredUnlabelledPodKeepsAccount(t *testing.T) {
+	for _, pods := range [][]PodShape{
+		{
+			{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Account: "acme", Minor: 0x102},
+			{Namespace: "kura", Name: "a-1", IP: "10.0.0.11", Minor: 0x102},
+		},
+		{
+			{Namespace: "kura", Name: "a-1", IP: "10.0.0.11", Minor: 0x102},
+			{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Account: "acme", Minor: 0x102},
+		},
+	} {
+		classes, _ := Desired(pods)
+		if classes[0x102].Account != "acme" {
+			t.Fatalf("account = %q, want acme", classes[0x102].Account)
+		}
+	}
+}
+
+// The controller gives one classid to one account, so a class's pods agree by
+// construction; the merge still has to settle on one handle by value rather
+// than by arrival order, because pod order is not stable across cycles and a
+// flapping label would break the series.
+func TestDesiredAccountIsOrderIndependent(t *testing.T) {
+	pods := []PodShape{
+		{Namespace: "kura", Name: "a-0", IP: "10.0.0.10", Account: "zeta", Minor: 0x102},
+		{Namespace: "kura", Name: "b-0", IP: "10.0.0.11", Account: "acme", Minor: 0x102},
+		{Namespace: "kura", Name: "c-0", IP: "10.0.0.12", Account: "other", Minor: 0x103},
+	}
+	classes, _ := Desired(pods)
+	if classes[0x102].Account != "acme" {
+		t.Fatalf("account = %q, want the lowest handle", classes[0x102].Account)
+	}
+	reversed := []PodShape{pods[1], pods[0], pods[2]}
+	if classesReversed, _ := Desired(reversed); classesReversed[0x102].Account != "acme" {
+		t.Fatalf("account = %q under reversed pod order", classesReversed[0x102].Account)
 	}
 }

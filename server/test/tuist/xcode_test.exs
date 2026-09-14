@@ -11,6 +11,95 @@ defmodule Tuist.XcodeTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "Tuist.Xcode" do
+    test "round-trips individual hash inputs through ClickHouse analytics" do
+      event = CommandEventsFixtures.command_event_fixture()
+
+      inputs = fn destinations ->
+        %{
+          "destinations" => destinations,
+          "foreign_build" => "foreign",
+          "test_device" => "",
+          "test_runtime" => "",
+          "project_settings" => "same-settings",
+          "embedded_product_references" => "embedded"
+        }
+      end
+
+      with_flushed_ingestion_buffers(fn ->
+        Xcode.create_xcode_graph(%{
+          command_event: event,
+          xcode_graph: %{
+            name: "Graph",
+            projects: [
+              %{
+                "name" => "Project",
+                "path" => ".",
+                "targets" => [
+                  %{
+                    "name" => "Library",
+                    "dependencies" => ["Core", "Networking"],
+                    "destinations" => ["iphone", "ipad", "mac"],
+                    "binary_cache_metadata" => %{"hash" => "binary", "subhashes" => inputs.(["iPad", "iPhone", "mac"])}
+                  },
+                  %{
+                    "name" => "Tests",
+                    "dependencies" => ["Library"],
+                    "destinations" => ["iphone", "ipad", "mac"],
+                    "selective_testing_metadata" => %{"hash" => "testing", "subhashes" => inputs.(["iPad", "iPhone"])}
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      end)
+
+      {binary, _} = Xcode.binary_cache_analytics(event)
+      {testing, _} = Xcode.selective_testing_analytics(event)
+      assert [binary_target] = binary.cacheable_targets
+      assert [testing_target] = testing.test_modules
+      assert binary_target.hashed_destinations == ["iPad", "iPhone", "mac"]
+      assert testing_target.hashed_destinations == ["iPad", "iPhone"]
+      assert binary_target.embedded_product_references_hash == "embedded"
+      assert binary_target.dependencies == ["Core", "Networking"]
+      assert testing_target.dependencies == ["Library"]
+      assert binary_target.foreign_build_hash == "foreign"
+      assert testing_target.test_device == ""
+      assert testing_target.test_runtime == ""
+      assert binary_target.project_settings_hash == testing_target.project_settings_hash
+      assert binary_target.destinations == testing_target.destinations
+    end
+
+    test "analytics distinguish empty inputs using the command event CLI version" do
+      for {version, expected} <- [{"4.207.0", nil}, {"4.208.0", []}] do
+        event = CommandEventsFixtures.command_event_fixture(tuist_version: version)
+
+        with_flushed_ingestion_buffers(fn ->
+          Xcode.create_xcode_graph(%{
+            command_event: event,
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  "name" => "Project",
+                  "path" => ".",
+                  "targets" =>
+                    Enum.map(["binary_cache_metadata", "selective_testing_metadata"], fn purpose ->
+                      %{"name" => purpose, purpose => %{"hash" => "hash", "subhashes" => %{"destinations" => []}}}
+                    end)
+                }
+              ]
+            }
+          })
+        end)
+
+        {binary, _} = Xcode.binary_cache_analytics(event)
+        {testing, _} = Xcode.selective_testing_analytics(event)
+        assert [%{hashed_destinations: ^expected}] = binary.cacheable_targets
+        assert [%{hashed_destinations: ^expected}] = testing.test_modules
+      end
+    end
+
     test "creates an Xcode graph with projects and targets" do
       # Given
       command_event = CommandEventsFixtures.command_event_fixture()

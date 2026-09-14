@@ -159,16 +159,34 @@
                 } else {
                     await circuitBreaker.recordFailure(attempt)
                 }
-                response.outcome = .error
+                // A 404 is the cache answering, not failing: the object is simply
+                // not there, which is a miss and should end in a recompile.
+                // Reporting it as `.error` instead made the compiler treat an
+                // absent object as a broken cache and abort the build — fatal on
+                // the clang lane — for a condition whose correct response is to
+                // rebuild the artifact. `KeyValueService` has always mapped its
+                // equivalent to `.keyNotFound`; this lane never used the outcome
+                // the protocol provides for it.
+                var isMiss = false
+                if let error = error as? LoadCacheCASServiceError, case .notFound = error {
+                    isMiss = true
+                }
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
+                response.outcome = isMiss ? .objectNotFound : .error
                 response.error = responseError
                 response.contents = .error(responseError)
 
                 let duration = ProcessInfo.processInfo.systemUptime - startTime
-                Logger.current.error(
-                    "CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)"
-                )
+                if isMiss {
+                    Logger.current.debug(
+                        "CAS.load completed in \(String(format: "%.3f", duration))s - object not found for casID: \(casID)"
+                    )
+                } else {
+                    Logger.current.error(
+                        "CAS.load failed after \(String(format: "%.3f", duration))s for casID: \(casID): \(error)"
+                    )
+                }
             }
 
             return response

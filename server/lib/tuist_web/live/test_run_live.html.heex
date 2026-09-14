@@ -96,6 +96,21 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.build_system == "bazel" && @run.bazel_invocation_id != ""}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name: test_run_label(@selected_project, @run.scheme)
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button
@@ -226,6 +241,13 @@
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@run.build_system == "bazel"}
+      label={dgettext("dashboard_tests", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
 
   <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
@@ -323,7 +345,7 @@
                 data-part="value"
               />
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -332,7 +354,7 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div :if={@run.build_system != "gradle"} data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -382,7 +404,10 @@
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
             description={
-              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
+              )
             }
             value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
@@ -492,7 +517,7 @@
               )
             }
           >
-            <.text_cell label={"#{shard.target_count}"} />
+            <.text_cell label={format_number(shard.target_count)} />
           </:col>
           <:col :let={shard} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
@@ -579,7 +604,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {@failures_count}
+            {format_number(@failures_count)}
           </span>
           <.button
             variant="secondary"
@@ -628,7 +653,7 @@
                     </span>
                   </div>
                   <.badge
-                    label={length(test_case_run.failures)}
+                    label={format_number(length(test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
                     size="large"
@@ -984,11 +1009,11 @@
                   </span>
                   <div data-part="passed-count">
                     <.circle_check />
-                    <span data-part="label">{group.passed_count}</span>
+                    <span data-part="label">{format_number(group.passed_count)}</span>
                   </div>
                   <div data-part="failed-count">
                     <.circle_x />
-                    <span data-part="label">{group.failed_count}</span>
+                    <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
                 <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -1101,6 +1126,7 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@show_test_suites}
         label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
@@ -1203,6 +1229,17 @@
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :for={
+                      candidate <-
+                        [stress_candidate_for(@stress_candidates_by_identity, test_case)]
+                        |> Enum.reject(&is_nil/1)
+                    }
+                    label={stress_badge_label(candidate)}
+                    color={stress_badge_color(candidate)}
                     style="light-fill"
                     size="large"
                   />
@@ -1422,7 +1459,7 @@
             }
             sort_order={@test_suites_sort_by == "test_case_count" && @test_suites_sort_order}
           >
-            <.text_cell label={"#{test_suite.test_case_count}"} />
+            <.text_cell label={format_number(test_suite.test_case_count)} />
           </:col>
           <:col
             :let={test_suite}
@@ -1638,7 +1675,7 @@
             }
             sort_order={@test_modules_sort_by == "test_suite_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_suite_count}"} />
+            <.text_cell label={format_number(test_module.test_suite_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1649,7 +1686,7 @@
             }
             sort_order={@test_modules_sort_by == "test_case_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_case_count}"} />
+            <.text_cell label={format_number(test_module.test_case_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1725,6 +1762,7 @@
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
     <.selective_testing_tab
+      project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
       selective_testing_page={@selective_testing_page}
@@ -1741,6 +1779,7 @@
 
   <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>
     <.module_cache_tab
+      project={@selected_project}
       binary_cache_analytics={@binary_cache_analytics}
       binary_cache_filter={@binary_cache_filter}
       binary_cache_page={@binary_cache_page}
@@ -1749,7 +1788,7 @@
       binary_cache_sort_order={@binary_cache_sort_order}
       expanded_target_names={@expanded_target_names}
       uri={@uri}
-      run={@command_event}
+      run={@binary_cache_command_event}
       module_cache_metrics={@module_cache_metrics}
       available_filters={@binary_cache_available_filters}
       binary_cache_active_filters={@binary_cache_active_filters}
@@ -1771,7 +1810,7 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@failures_count}
+          {format_number(@failures_count)}
         </span>
       </div>
       <div data-part="failures-list">
@@ -1814,7 +1853,7 @@
                   </span>
                 </div>
                 <.badge
-                  label={length(test_case_run.failures)}
+                  label={format_number(length(test_case_run.failures))}
                   color="destructive"
                   style="light-fill"
                   size="large"
@@ -2006,7 +2045,7 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@flaky_runs_meta.total_runs_count}
+          {format_number(@flaky_runs_meta.total_runs_count)}
         </span>
       </div>
       <div
@@ -2061,11 +2100,11 @@
               </span>
               <div data-part="passed-count">
                 <.circle_check />
-                <span data-part="label">{group.passed_count}</span>
+                <span data-part="label">{format_number(group.passed_count)}</span>
               </div>
               <div data-part="failed-count">
                 <.circle_x />
-                <span data-part="label">{group.failed_count}</span>
+                <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
             <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -2175,4 +2214,21 @@
       />
     </.card_section>
   </.card>
+
+  <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      id="bazel-invocation-logs-list"
+      logs={@bazel_invocation_logs}
+      empty_message={
+        dgettext("dashboard_tests", "No logs were captured for this Bazel invocation.")
+      }
+    />
+    <.pagination_group
+      :if={@bazel_invocation_logs_meta.total_pages > 1}
+      current_page={@bazel_invocation_logs_meta.current_page}
+      number_of_pages={@bazel_invocation_logs_meta.total_pages}
+      page_patch={fn page -> "?#{Query.put(@uri.query, "logs-page", page)}" end}
+    />
+  </div>
 </div>

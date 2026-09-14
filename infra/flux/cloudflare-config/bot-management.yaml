@@ -1,0 +1,40 @@
+# tuist.dev zone-scoped bot management: Bot Fight Mode + Super Bot
+# Fight Mode. See infra/cloudflare-operator/AGENTS.md for the CRD's
+# reconciliation model.
+#
+# Adopts and enforces in one commit following a residential-proxy
+# scraper incident on 2026-09-10 that saturated the ClickHouse pool
+# by walking public build/test-run pagination for a public project
+# (Hive issue 58c2dd00-c05e-5cee-91e7-d28ef9b16f08). At import time,
+# Super Bot Fight Mode was enabled on the Business plan but every
+# bucket was set to "allow" — the feature was effectively off. Bot
+# Fight Mode's JS challenge was on.
+#
+# Change vs. the live-adopted state:
+#   superBotFightMode.definitelyAutomated: allow -> managed_challenge
+#
+# "Definitely automated" is the Cloudflare classifier's high-confidence
+# bucket; challenging it catches spoofed-Chrome-over-residential-proxy
+# scrapers like today's without the false-positive risk of the
+# "likely automated" bucket, which stays on allow for now.
+#
+# Fields the operator does not model (AI Crawl Control) round-trip
+# verbatim on the PUT because the reconciler GETs live state and
+# overlays only CR-managed fields before writing.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareBotManagement
+metadata:
+  name: tuist-dev
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  mode: active
+  paused: false
+  botFightMode:
+    enableJs: true
+    suppressSessionScore: false
+  superBotFightMode:
+    definitelyAutomated: managed_challenge
+    likelyAutomated: allow
+    verifiedBots: allow
+    staticResourceProtection: false
+    optimizeWordpress: false

@@ -30,6 +30,8 @@ public struct RetryProvider: RetryProviding {
             } catch let error as CancellationError {
                 throw error
             } catch {
+                guard ServerErrorClassifier.isRetryable(error) else { throw error }
+
                 #if canImport(TuistSupport)
                     Logger.current.debug("""
                     The following error happened for retry \(retry): \(error.localizedDescription).

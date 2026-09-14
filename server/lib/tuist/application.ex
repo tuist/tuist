@@ -20,8 +20,11 @@ defmodule Tuist.Application do
   alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Environment
   alias Tuist.Gradle
+  alias Tuist.Gradle.ArtifactTransform
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
@@ -44,7 +47,6 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
-    start_posthog()
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
@@ -64,25 +66,11 @@ defmodule Tuist.Application do
     Environment.put_application_secrets(Environment.decrypt_secrets())
   end
 
-  defp start_posthog do
-    if Environment.analytics_enabled?() do
-      case Application.start(:posthog) do
-        :ok ->
-          Logger.info("PostHog analytics started")
-
-        {:error, {:already_started, _}} ->
-          Logger.info("PostHog analytics already started")
-
-        {:error, reason} ->
-          Logger.warning("Failed to start PostHog analytics: #{inspect(reason)}")
-      end
-    end
-  end
-
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     TuistCommon.ObanTelemetry.attach()
     TransportLogger.attach(:tuist)
+    QueryErrorContext.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -311,6 +299,7 @@ defmodule Tuist.Application do
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
         Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
+        Supervisor.child_spec(Tuist.Bazel.Action.Buffer, id: Tuist.Bazel.Action.Buffer),
         Supervisor.child_spec(BuildFile.Buffer, id: BuildFile.Buffer),
         Supervisor.child_spec(BuildIssue.Buffer, id: BuildIssue.Buffer),
         Supervisor.child_spec(BuildMachineMetric.Buffer, id: BuildMachineMetric.Buffer),
@@ -323,6 +312,8 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(ConfigurationOperation.Buffer, id: ConfigurationOperation.Buffer),
+        Supervisor.child_spec(ArtifactTransform.Buffer, id: ArtifactTransform.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
@@ -345,10 +336,12 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
+        Tuist.Kura.Origins,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
+        shadow_ingest_children() ++
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
@@ -407,6 +400,28 @@ defmodule Tuist.Application do
         do: [],
         else: RuntimeChildren.marketing_stats(Environment.mode())
     )
+  end
+
+  # Only in the tree while a destination is configured, which is only during
+  # the migration off ClickHouse Cloud (spec #73). Its absence is what makes
+  # the write mirroring in `Tuist.IngestRepo` inert everywhere else.
+  defp shadow_ingest_children do
+    if Environment.clickhouse_bare_metal_url() do
+      [
+        {Tuist.ShadowIngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_write}},
+        # Where mirrored inserts run, so they are off the request path. The
+        # bound is a memory one rather than a throughput one: the destination's
+        # pool is small, so tasks queue on it, and this caps how much is held
+        # waiting if it stops draining. Past it the mirror is dropped and
+        # counted, which is the same outcome as a failed write.
+        {Task.Supervisor, name: Tuist.IngestRepo.ShadowWrite.TaskSupervisor, max_children: 100},
+        # The read side of the same server. Reads move onto it a flag at a
+        # time, so both have to be connected at once.
+        {Tuist.ShadowClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_shadow_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp ops_clickhouse_children do
@@ -538,21 +553,6 @@ defmodule Tuist.Application do
               ]
             ],
             size: 10,
-            count: 1,
-            protocols: [:http2, :http1],
-            start_pool_metrics?: true
-          ],
-          Environment.posthog_url() => [
-            conn_opts: [
-              log: true,
-              protocols: [:http2, :http1],
-              transport_opts: [
-                inet6: Environment.use_ipv6?() in ~w(true 1),
-                cacertfile: CAStore.file_path(),
-                verify: :verify_peer
-              ]
-            ],
-            size: 5,
             count: 1,
             protocols: [:http2, :http1],
             start_pool_metrics?: true
