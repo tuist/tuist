@@ -4,6 +4,7 @@ category: "product"
 tags: ["product", "build-infrastructure", "build-systems", "remote-caching", "remote-execution", "once", "design"]
 excerpt: "Tuist is becoming vertically integrated build infrastructure for Xcode, Gradle, and Bazel, spanning insights, caching, execution, and owned hardware."
 author: pepicrft
+og_image_path: /marketing/images/blog/2026/09/12/og.png
 live: true
 ---
 
