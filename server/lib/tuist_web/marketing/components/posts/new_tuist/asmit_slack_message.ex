@@ -296,7 +296,51 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.AsmitSlackMessage do
       };
     </script>
 
-    <div id={@id} data-part="asmit-slack-message" phx-hook=".AsmitReactionIntro" aria-label="Slack message from Asmit Malakannawar in #general"><div data-part="row"><span data-part="avatar" role="img" aria-label="Asmit Malakannawar" style="background-image: url('/marketing/images/about/team/asmit.svg');"></span><div data-part="content"><div data-part="header"><span data-part="name">Asmit Malakannawar</span><span data-part="timestamp">10:00 AM</span></div><div data-part="body"><p>Over the weekend, I spent some time thinking about Tuist as a brand, our identity and how we present our products, and ended up going down a bit of a rabbit hole with a few observations:</p><p>Starting with the logo, it currently gives the impression that we only support iOS/macOS apps. While the product has evolved significantly over time, the design hasn't fully evolved alongside it. As we continue to grow and expand our ecosystem, it feels like the right time to revisit our branding.</p><p>With that in mind, I'd like to explore a rebrand, defining a clearer product identity and making our visual assets more adaptable and accessible. This wouldn't drastically change the Noora design system, aside from some updates to colors and shadows, but I'm aiming to work on something more foundational and impactful.</p><p>Would love to hear your thoughts.</p></div><div data-part="reactions"><button type="button" data-part="reaction" data-reacted={to_string(@reacted)} phx-click="toggle_heart" phx-target={@myself} aria-pressed={to_string(@reacted)} aria-label={if @reacted, do: "Remove your purple heart reaction", else: "React with a purple heart"}><span data-part="emoji">💜</span><span data-part="count">{@base_reactions + if @reacted, do: 1, else: 0}</span></button><span data-part="add-reaction" aria-hidden="true">+</span></div></div></div></div>
+    <div
+      id={@id}
+      data-part="asmit-slack-message"
+      phx-hook=".AsmitReactionIntro"
+      aria-label="Slack message from Asmit Malakannawar in #general"
+    >
+      <div data-part="row">
+        <span
+          data-part="avatar"
+          role="img"
+          aria-label="Asmit Malakannawar"
+          style="background-image: url('/marketing/images/about/team/asmit.svg');"
+        ></span><div data-part="content">
+          <div data-part="header">
+            <span data-part="name">Asmit Malakannawar</span><span data-part="timestamp">10:00 AM</span>
+          </div><div data-part="body">
+            <p>
+              Over the weekend, I spent some time thinking about Tuist as a brand, our identity and how we present our products, and ended up going down a bit of a rabbit hole with a few observations:
+            </p><p>
+              Starting with the logo, it currently gives the impression that we only support iOS/macOS apps. While the product has evolved significantly over time, the design hasn't fully evolved alongside it. As we continue to grow and expand our ecosystem, it feels like the right time to revisit our branding.
+            </p><p>
+              With that in mind, I'd like to explore a rebrand, defining a clearer product identity and making our visual assets more adaptable and accessible. This wouldn't drastically change the Noora design system, aside from some updates to colors and shadows, but I'm aiming to work on something more foundational and impactful.
+            </p><p>Would love to hear your thoughts.</p>
+          </div><div data-part="reactions">
+            <button
+              type="button"
+              data-part="reaction"
+              data-reacted={to_string(@reacted)}
+              phx-click="toggle_heart"
+              phx-target={@myself}
+              aria-pressed={to_string(@reacted)}
+              aria-label={
+                if @reacted,
+                  do: "Remove your purple heart reaction",
+                  else: "React with a purple heart"
+              }
+            ><span data-part="emoji">💜</span><span data-part="count">{@base_reactions +
+              if @reacted, do: 1, else: 0}</span></button><span
+              data-part="add-reaction"
+              aria-hidden="true"
+            >+</span>
+          </div>
+        </div>
+      </div>
+    </div>
     """
   end
 end
