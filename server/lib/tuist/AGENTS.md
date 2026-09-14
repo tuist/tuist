@@ -20,6 +20,8 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Boundaries
 
+- Application startup and shutdown ordering: `server/lib/tuist/application/AGENTS.md`.
+
 - Bazel profile processing needs `SELECT` on `bazel_profile_uploads` and
   `UPDATE` on `compressed`, `state`, `error`, and `updated_at`. Keep the
   migrate-time processor grants and CNPG fallback SQL in sync; profile upload

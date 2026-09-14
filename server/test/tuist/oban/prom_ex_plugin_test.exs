@@ -229,6 +229,20 @@ defmodule Tuist.Oban.PromExPluginTest do
                Enum.find(slots, fn {_, meta} -> meta.queue == "process_xcresult" end)
     end
 
+    test "reports configured queue limits when consumers are started after Oban", %{handler_id: handler_id} do
+      attach_collector(handler_id, @node_slots_event)
+      config = Oban.config()
+      stub(Oban, :config, fn -> %{config | queues: [], plugins: []} end)
+
+      {queue, options} = List.first(Application.fetch_env!(:tuist, Oban)[:queues])
+      limit = if is_integer(options), do: options, else: Keyword.fetch!(options, :limit)
+
+      PromExPlugin.execute_queue_metrics()
+
+      assert {%{executing: 0, limit: ^limit}, _} =
+               Enum.find(collect(@node_slots_event), fn {_, meta} -> meta.queue == to_string(queue) end)
+    end
+
     # Without an explicit zero the `last_value` gauge holds its final
     # non-zero sample, so a node that has stopped taking work entirely
     # would keep reporting a full complement of slots.

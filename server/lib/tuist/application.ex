@@ -6,6 +6,7 @@ defmodule Tuist.Application do
 
   alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.RuntimeChildren
+  alias Tuist.Application.WebSupervisor
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -285,12 +286,6 @@ defmodule Tuist.Application do
   end
 
   defp get_children do
-    # Oban starts after the endpoint (and, because a :one_for_one supervisor
-    # stops children in reverse order, drains before it). Workers building
-    # Phoenix.VerifiedRoutes URLs read the endpoint's persistent term, which
-    # only exists while the endpoint runs; starting Oban first raised
-    # "could not find persistent term for endpoint" on boot/shutdown during
-    # rollouts (Sentry TUIST-3R9).
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
@@ -326,9 +321,6 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
-        # Oban starts last (after the endpoint, see below), so every dependency
-        # queued jobs rely on — Repo, Finch, Cachex, PubSub — is already
-        # available by the time the first job runs.
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Cachex, [:tuist, []]},
         Cache,
@@ -345,7 +337,7 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
+        [{WebSupervisor, oban: Application.fetch_env!(:tuist, Oban)}]
 
     children
     |> Kernel.++(
