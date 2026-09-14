@@ -97,6 +97,12 @@ defmodule Tuist.Kura.PromExPlugin do
             tags: [:plan, :region, :reason]
           ),
           counter(
+            @metric_prefix ++ [:claim_apply_refused, :count],
+            event_name: Telemetry.event_name_claim_apply_refused(),
+            description: "Storage-claim applies capacity admission refused, leaving the proposal open to be retried.",
+            tags: [:region, :reason]
+          ),
+          counter(
             @metric_prefix ++ [:archive_cancelled, :count],
             event_name: Telemetry.event_name_archive_cancelled(),
             description: "Archivals cancelled because cache demand returned mid-drain.",

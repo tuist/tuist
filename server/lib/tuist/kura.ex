@@ -727,6 +727,9 @@ defmodule Tuist.Kura do
     end
   end
 
+  # A claim is account-wide, so the refusal can come from any region the account
+  # runs in, not only the one whose demand proposed it. The refusing region
+  # travels with the reason.
   defp admit_claim_growths(changes) do
     changes
     |> Enum.filter(fn {_server, _candidate, raised?} -> raised? end)
@@ -740,7 +743,7 @@ defmodule Tuist.Kura do
              ) do
         {:cont, :ok}
       else
-        {:error, _reason} = error -> {:halt, error}
+        {:error, reason} -> {:halt, {:error, {region_id, reason}}}
       end
     end)
   end

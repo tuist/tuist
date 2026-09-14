@@ -1302,7 +1302,7 @@ label_replace(sum by (cluster, region) (
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
-  floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
+  floor((0.85 * max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
   * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
@@ -1333,8 +1333,10 @@ label_replace(sum by (cluster, region) (
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
   ephemeral-storage request (the storage claim, 50 GiB per replica today)
-  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25
-  Mbps per replica) against the box's advertised budget. Zero means the
+  against 85% of allocatable disk, where capacity admission refuses before the
+  scheduler would (Tuist.Kura.Capacity @pressure_fraction), "egress" is the
+  tuist.dev/egress-mbps floor (25 Mbps per replica) against the box's
+  advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
   does shrinking claims (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
@@ -1369,10 +1371,11 @@ admission control the claim has), and the scheduler bin-packs that against
 allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
 `Tuist.Kura.ClaimSizing`), 50 GiB per replica on nearly every live instance,
-so the disk row counts in units of two replicas at 50 GiB. This is the same
-question `Tuist.Kura.Capacity` answers with its 85% pressure line to shorten
-Air's archival window; the count is the form whose summary is true at every
-threshold. Shrinking claims is a lever here as well as a node.
+so the disk row counts in units of two replicas at 50 GiB, measured against 85%
+of allocatable: the pressure line at which `Tuist.Kura.Capacity` admission
+refuses a new instance or a claim growth and Air's archival window shortens,
+which sits below where the scheduler would refuse. Shrinking claims is a lever
+here as well as a node.
 
 The fourth constraint is egress. On a governed region every replica requests
 the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the
