@@ -316,7 +316,7 @@ defmodule L10n.IncrementalTranslationTest do
 
   defp run(root, opts) do
     L10n.Translator.translate_all(
-      @pot,
+      Keyword.get(opts, :pot_content, @pot),
       @targets,
       "context",
       "test:model",
@@ -413,5 +413,99 @@ defmodule L10n.IncrementalTranslationTest do
     assert [{:skipped, "es"}] = run(root, batch_fn: recorder(self()))
 
     refute_received {:batch, _}
+  end
+
+  test "each successful batch survives an interruption before the next batch finishes", %{
+    root: root
+  } do
+    pot = Enum.map_join(1..41, "\n", &~s|msgid "Entry #{&1}"\nmsgstr ""\n|)
+    recorder = recorder(self())
+
+    interrupted = fn batch, l, lang, c, o, m, t ->
+      if length(batch) == 1, do: raise("interrupted")
+      recorder.(batch, l, lang, c, o, m, t)
+    end
+
+    assert [{:error, "es", "interrupted"}] = run(root, pot_content: pot, batch_fn: interrupted)
+    assert_received {:batch, first_batch}
+    assert length(first_batch) == 40
+    refute File.exists?(lock_path(root))
+
+    assert [{:translated, "es"}] = run(root, pot_content: pot, batch_fn: recorder)
+    assert_received {:batch, ["Entry 41"]}
+    refute_received {:batch, _}
+  end
+
+  test "a provider-wide failure stops later batches and later catalogs", %{root: root} do
+    pot = Enum.map_join(1..81, "\n", &~s|msgid "Entry #{&1}"\nmsgstr ""\n|)
+    test_pid = self()
+
+    failing = fn _, _, _, _, _, _, _ ->
+      send(test_pid, :provider_request)
+      {:error, {:provider_unavailable, 402}}
+    end
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert [{:error, "es", _}] =
+               run(root, pot_content: pot, batch_fn: failing, provider_gate: gate)
+
+      assert_received :provider_request
+      refute_received :provider_request
+      assert [{:error, "es", _}] = run(root, batch_fn: failing, provider_gate: gate)
+      refute_received :provider_request
+    end)
+  end
+end
+
+defmodule L10n.ProviderGateTest do
+  use ExUnit.Case, async: true
+
+  test "a record-specific validation error does not block unrelated work" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, "Invalid translation"} =
+               L10n.ProviderGate.call(gate, fn -> {:error, "Invalid translation"} end)
+
+      assert {:ok, "translated"} = L10n.ProviderGate.call(gate, fn -> {:ok, "translated"} end)
+    end)
+  end
+
+  test "provider failures are shared with other tasks but not other runs" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 503}} =
+               L10n.ProviderGate.call(gate, fn -> {:error, %{status: 503}} end)
+
+      assert {:error, message} =
+               Task.async(fn ->
+                 L10n.ProviderGate.call(gate, fn -> flunk("must not call the provider") end)
+               end)
+               |> Task.await()
+
+      assert message == {:provider_unavailable, 503}
+    end)
+
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:ok, "recovered"} = L10n.ProviderGate.call(gate, fn -> {:ok, "recovered"} end)
+    end)
+  end
+
+  test "a raised provider error also stops queued work" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn ->
+                 raise ReqLLM.Error.API.Request.exception(reason: "Payment required", status: 402)
+               end)
+
+      assert {:error, {:provider_unavailable, 402}} =
+               L10n.ProviderGate.call(gate, fn -> flunk("must not call provider") end)
+    end)
+  end
+
+  test "numbers in validation messages do not look like provider failures" do
+    L10n.ProviderGate.with_gate(fn gate ->
+      assert {:error, "Invalid translation of entry 402"} =
+               L10n.ProviderGate.call(gate, fn -> {:error, "Invalid translation of entry 402"} end)
+
+      assert :ok = L10n.ProviderGate.call(gate, fn -> :ok end)
+    end)
   end
 end
