@@ -1899,7 +1899,7 @@ let package = Package(
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.98")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.99")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
