@@ -731,8 +731,8 @@ defmodule Tuist.Tests do
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
           xcode_coverage = Map.get(attrs, :xcode_coverage)
-          coverage_attrs = XcodeCoverage.merge_run_attrs(existing_test, xcode_coverage)
           XcodeCoverage.insert_files(existing_test, xcode_coverage)
+          coverage_attrs = XcodeCoverage.merge_run_attrs(existing_test, xcode_coverage)
 
           updated_test =
             merged_test

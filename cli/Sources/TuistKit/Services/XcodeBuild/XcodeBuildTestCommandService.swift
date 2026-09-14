@@ -371,9 +371,11 @@ struct XcodeBuildTestCommandService {
             let resultBundlePath = try AbsolutePath(validating: resultBundlePathString, relativeTo: currentWorkingDirectory)
             return (additionalArguments: [], resultBundlePath: resultBundlePath)
         } else {
+            // With the extension: xcodebuild writes the bundle exactly there, and xccov only
+            // accepts a path that ends in `.xcresult`.
             let resultBundlePath = try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: uniqueIDGenerator.uniqueID())
+                .appending(component: "\(uniqueIDGenerator.uniqueID()).xcresult")
             return (
                 additionalArguments: ["-resultBundlePath", resultBundlePath.pathString],
                 resultBundlePath: resultBundlePath
@@ -401,7 +403,6 @@ struct XcodeBuildTestCommandService {
         return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
 
-    /// Adds `-enableCodeCoverage YES` unless the caller already decided the flag either way.
     static func enablingCodeCoverage(_ arguments: [String], when enabled: Bool) -> [String] {
         guard enabled, !arguments.contains("-enableCodeCoverage") else { return arguments }
         return arguments + ["-enableCodeCoverage", "YES"]
@@ -549,15 +550,10 @@ extension XcodeBuildTestCommandService {
         do {
             switch mode {
             case .local:
-                guard var testSummary else { break }
-                if let resultBundlePath {
-                    testSummary.coverage = try await xcResultService.parseCoverage(
-                        path: resultBundlePath,
-                        rootDirectory: await rootDirectory()
-                    )
-                }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,

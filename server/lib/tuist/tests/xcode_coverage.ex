@@ -34,22 +34,17 @@ defmodule Tuist.Tests.XcodeCoverage do
   end
 
   @doc """
-  Folds a shard's `xcode_coverage` block into the merged run.
-
-  The files earlier shards stored are read back with sequential consistency,
-  since a plain read can miss rows another request inserted moments ago, and
-  the result never drops below what the run already carries: two shards that
-  report at the same time each see the other's rows or not, and the one that
-  writes last must not shrink the run's coverage.
+  Folds a shard's `xcode_coverage` block into the merged run, after its files
+  are stored. The totals are aggregated in ClickHouse over every shard's rows,
+  read with sequential consistency since a plain read can miss rows another
+  request inserted moments ago, and never drop below what the run already
+  carries: two shards that report at the same time each see the other's rows
+  or not, and the one that writes last must not shrink the run's coverage.
   """
   def merge_run_attrs(%Test{}, nil), do: %{}
 
-  def merge_run_attrs(%Test{id: test_run_id} = existing, coverage) do
-    totals =
-      test_run_id
-      |> stored_files(settings: [select_sequential_consistency: 1])
-      |> Enum.concat(files(coverage))
-      |> unique_totals()
+  def merge_run_attrs(%Test{id: test_run_id} = existing, _coverage) do
+    totals = stored_totals(test_run_id)
 
     totals_attrs(%{
       covered_lines: max(totals.covered_lines, existing.coverage_covered_lines || 0),
@@ -95,23 +90,17 @@ defmodule Tuist.Tests.XcodeCoverage do
   end
 
   @doc """
-  One page of the run's files, least covered first, with the page count.
+  One page of the run's files, least covered first. The page count is the
+  targets' file counts summed, which the caller already has.
   """
   def list_files(test_run_id, page, page_size) do
-    query = per_file_query(test_run_id)
-
-    files =
-      ClickHouseRepo.all(
-        from(f in subquery(query),
-          order_by: [asc: fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines), asc: f.path],
-          limit: ^page_size,
-          offset: ^((page - 1) * page_size)
-        )
+    ClickHouseRepo.all(
+      from(f in subquery(per_file_query(test_run_id)),
+        order_by: [asc: fragment("? / greatest(?, 1)", f.covered_lines, f.executable_lines), asc: f.path],
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size)
       )
-
-    total = ClickHouseRepo.one(from(f in subquery(query), select: count())) || 0
-
-    {files, %{current_page: page, total_pages: max(1, ceil(total / page_size))}}
+    )
   end
 
   def percentage(_covered, 0), do: 0.0
@@ -131,14 +120,22 @@ defmodule Tuist.Tests.XcodeCoverage do
     )
   end
 
-  defp stored_files(test_run_id, opts) do
-    ClickHouseRepo.all(
+  defp stored_totals(test_run_id) do
+    per_path =
       from(f in XcodeCoverageFile,
         where: f.test_run_id == ^test_run_id,
-        select: %{path: f.path, covered_lines: f.covered_lines, executable_lines: f.executable_lines}
-      ),
-      opts
+        group_by: f.path,
+        select: %{covered_lines: max(f.covered_lines), executable_lines: max(f.executable_lines)}
+      )
+
+    from(f in subquery(per_path),
+      select: %{covered_lines: sum(f.covered_lines), executable_lines: sum(f.executable_lines)}
     )
+    |> ClickHouseRepo.one(settings: [select_sequential_consistency: 1])
+    |> case do
+      nil -> %{covered_lines: 0, executable_lines: 0}
+      totals -> Map.new(totals, fn {key, value} -> {key, value || 0} end)
+    end
   end
 
   defp files(coverage) do

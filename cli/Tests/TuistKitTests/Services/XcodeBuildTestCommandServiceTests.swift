@@ -134,7 +134,7 @@ struct XcodeBuildTestCommandServiceTests {
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
         // Then
-        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
+        let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", "\(uniqueID).xcresult")
         verify(xcodeBuildController)
             .run(arguments: .value([
                 "test",
@@ -284,6 +284,7 @@ struct XcodeBuildTestCommandServiceTests {
             given(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -301,6 +302,7 @@ struct XcodeBuildTestCommandServiceTests {
             verify(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -364,6 +366,7 @@ struct XcodeBuildTestCommandServiceTests {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -391,6 +394,7 @@ struct XcodeBuildTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -453,6 +457,7 @@ struct XcodeBuildTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,

@@ -479,8 +479,6 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
-    /// Coverage is read off the bundle on this machine in every processing mode, because
-    /// only this checkout can relativize the paths xccov reports.
     private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
         report.map { report in
             Components.Schemas.XcodeCoverage(

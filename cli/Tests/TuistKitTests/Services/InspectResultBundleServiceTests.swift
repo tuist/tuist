@@ -833,6 +833,54 @@ struct UploadResultBundleServiceTests {
     // MARK: - uploadResultBundle (remote)
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_attachesTheBundlesCoverage() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        let coverage = XcodeCoverageReport(targets: [
+            XcodeCoverageTarget(name: "App", coveredLines: 1, executableLines: 2, files: []),
+        ])
+        given(xcResultService)
+            .parseCoverage(path: .value(xcresultPath), rootDirectory: .any)
+            .willReturn(coverage)
+
+        _ = try await subject.uploadTestSummary(
+            testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+            resultBundlePath: xcresultPath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .matching { $0.coverage == coverage },
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_sendsTheBundlesCoverageWithTheProcessingTest() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")

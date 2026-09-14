@@ -90,8 +90,7 @@ defmodule Tuist.Tests.XcodeCoverageTest do
 
       # Least covered first, so the gaps surface at the top; the shared file
       # appears once per target it was reported under.
-      {files, meta} = XcodeCoverage.list_files(test.id, 1, 20)
-      assert meta == %{current_page: 1, total_pages: 1}
+      files = XcodeCoverage.list_files(test.id, 1, 20)
 
       assert Enum.map(files, &{&1.target_name, &1.path}) == [
                {"Calculator", "Sources/Calculator/Untested.swift"},
@@ -104,10 +103,9 @@ defmodule Tuist.Tests.XcodeCoverageTest do
     test "pages the files", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: @coverage})
 
-      {page_one, meta} = XcodeCoverage.list_files(test.id, 1, 3)
-      {page_two, _} = XcodeCoverage.list_files(test.id, 2, 3)
+      page_one = XcodeCoverage.list_files(test.id, 1, 3)
+      page_two = XcodeCoverage.list_files(test.id, 2, 3)
 
-      assert meta.total_pages == 2
       assert length(page_one) == 3
       assert Enum.map(page_two, & &1.path) == ["Tests/CalculatorTests.swift"]
     end

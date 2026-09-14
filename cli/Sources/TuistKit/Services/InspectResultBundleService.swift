@@ -39,6 +39,7 @@ public enum UploadResultBundleServiceError: Equatable, LocalizedError {
 public protocol UploadResultBundleServicing {
     func uploadTestSummary(
         testSummary: TestSummary,
+        resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String?,
@@ -115,6 +116,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
     public func uploadTestSummary(
         testSummary: TestSummary,
+        resultBundlePath: AbsolutePath? = nil,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
@@ -145,6 +147,16 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
            )
         {
             buildRunId = mostRecentActivityLogFile.path.basenameWithoutExt
+        }
+
+        // Every entry point relativizes coverage against the same root as the remote path,
+        // so a file keeps one spelling across commands and processing modes.
+        var testSummary = testSummary
+        if let resultBundlePath {
+            testSummary.coverage = try await xcResultService.parseCoverage(
+                path: resultBundlePath,
+                rootDirectory: rootDirectory
+            )
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
@@ -264,8 +276,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             }
         }
 
-        // The server parses the bundle's tests, but coverage paths only make sense relative to
-        // this checkout, so the coverage report is read here and travels with the run.
+        // The server parses the bundle's tests; coverage paths only make sense relative to this
+        // checkout, so the report is read here and travels with the run.
         let coverage = try await xcResultService.parseCoverage(
             path: resolvedResultBundlePath,
             rootDirectory: rootDirectory

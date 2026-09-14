@@ -91,39 +91,51 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  # `test_runs` is append-only: the xcresult worker and every shard rewrite a
+  # run's row, so only the latest version of each run may count.
+  defp latest_coverage_rows(project_id, start_datetime, end_datetime, opts) do
+    apply_test_run_filters(
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        where: t.coverage_executable_lines > 0,
+        group_by: t.id,
+        select: %{
+          id: t.id,
+          ran_at: min(t.ran_at),
+          covered_lines: fragment("argMax(?, ?)", t.coverage_covered_lines, t.inserted_at),
+          executable_lines: fragment("argMax(?, ?)", t.coverage_executable_lines, t.inserted_at)
+        }
+      ),
+      opts
+    )
+  end
+
   defp coverage_by_bucket(project_id, start_datetime, end_datetime, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
 
-    from(t in Test,
-      where: t.project_id == ^project_id,
-      where: t.ran_at >= ^start_datetime,
-      where: t.ran_at <= ^end_datetime,
-      where: t.coverage_executable_lines > 0,
-      group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
-      select: %{
-        date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
-        covered_lines: sum(t.coverage_covered_lines),
-        executable_lines: sum(t.coverage_executable_lines)
-      },
-      order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+    ClickHouseRepo.all(
+      from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
+        group_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
+          covered_lines: sum(r.covered_lines),
+          executable_lines: sum(r.executable_lines)
+        },
+        order_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format)
+      )
     )
-    |> apply_test_run_filters(opts)
-    |> ClickHouseRepo.all()
   end
 
   defp coverage_totals(project_id, start_datetime, end_datetime, opts) do
-    from(t in Test,
-      where: t.project_id == ^project_id,
-      where: t.ran_at >= ^start_datetime,
-      where: t.ran_at <= ^end_datetime,
-      where: t.coverage_executable_lines > 0,
+    from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
       select: %{
-        covered_lines: sum(t.coverage_covered_lines),
-        executable_lines: sum(t.coverage_executable_lines),
-        runs_count: count(t.id)
+        covered_lines: sum(r.covered_lines),
+        executable_lines: sum(r.executable_lines),
+        runs_count: count(r.id)
       }
     )
-    |> apply_test_run_filters(opts)
     |> ClickHouseRepo.one()
     |> case do
       nil -> %{covered_lines: 0, executable_lines: 0, runs_count: 0}

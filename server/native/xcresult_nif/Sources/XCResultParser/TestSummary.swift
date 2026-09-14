@@ -7,7 +7,6 @@ public struct TestSummary: Encodable, Sendable {
     public var testModules: [TestModule]
     public let runDestinations: [RunDestination]
     public let errors: [TestRunError]
-    /// Line coverage the run gathered, when it ran with code coverage enabled.
     public var coverage: XcodeCoverageReport?
 
     enum CodingKeys: String, CodingKey {

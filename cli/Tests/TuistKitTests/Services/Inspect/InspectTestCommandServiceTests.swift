@@ -55,6 +55,7 @@ struct InspectTestCommandServiceTests {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -99,6 +100,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
@@ -140,6 +142,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -184,6 +187,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -254,6 +258,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -332,6 +337,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -373,6 +379,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,

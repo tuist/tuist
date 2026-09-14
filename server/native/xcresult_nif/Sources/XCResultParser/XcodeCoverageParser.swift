@@ -46,6 +46,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         guard let output else { return nil }
 
         let report = try JSONDecoder().decode(XccovReport.self, from: Data(output.utf8))
+        let root = rootDirectory.map(Self.canonical)
 
         return XcodeCoverageReport(
             targets: report.targets.map { target in
@@ -55,7 +56,7 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
                     executableLines: target.executableLines,
                     files: target.files.map { file in
                         XcodeCoverageFile(
-                            path: relativize(file.path, to: rootDirectory),
+                            path: Self.relativize(file.path, to: root),
                             coveredLines: file.coveredLines,
                             executableLines: file.executableLines
                         )
@@ -86,22 +87,26 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         stderr.contains("No coverage data") || stderr.contains("No coverage archive present")
     }
 
-    /// Compared after resolving symlinks on both sides: xccov reports the real path, while the
-    /// root the caller knows can sit behind a link (`/tmp` is `/private/tmp` on macOS).
-    private func relativize(_ path: String, to rootDirectory: AbsolutePath?) -> String {
-        guard let rootDirectory,
-              let root = try? AbsolutePath(validating: Self.canonical(rootDirectory.pathString)),
-              let absolutePath = try? AbsolutePath(validating: Self.canonical(path)),
+    /// The root is canonicalized once; xccov reports real paths, so a prefix check settles
+    /// almost every file without touching the filesystem, and only a file outside that prefix
+    /// pays for its own canonicalization (a checkout reached through a link, `/tmp` being
+    /// `/private/tmp` on macOS).
+    private static func relativize(_ path: String, to root: AbsolutePath?) -> String {
+        guard let root, path.hasPrefix("/") else { return path }
+        let resolved = path.hasPrefix(root.pathString + "/") ? path : canonical(path)
+        guard let absolutePath = try? AbsolutePath(validating: resolved),
               absolutePath.isDescendant(of: root)
         else { return path }
         return absolutePath.relative(to: root).pathString
     }
 
     /// `realpath` of the longest existing prefix with the rest appended, so a file the report
-    /// names but the checkout no longer has still canonicalizes through the directories that exist.
-    /// Foundation's `resolvingSymlinksInPath` is avoided: it strips `/private` from some paths and
-    /// not others, which is the very mismatch this guards against.
+    /// names but the checkout no longer has still canonicalizes through the directories that
+    /// exist. Foundation's `resolvingSymlinksInPath` is avoided: it strips `/private` from some
+    /// paths and not others, which is the very mismatch this guards against. Only absolute
+    /// paths are walked; `deletingLastPathComponent` never reaches "/" from a relative one.
     private static func canonical(_ path: String) -> String {
+        guard path.hasPrefix("/") else { return path }
         var existing = path
         var rest: [String] = []
         while !FileManager.default.fileExists(atPath: existing), existing != "/" {
@@ -111,6 +116,10 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         guard let resolved = realpath(existing, nil) else { return path }
         defer { free(resolved) }
         return ([String(cString: resolved)] + rest).joined(separator: "/")
+    }
+
+    private static func canonical(_ path: AbsolutePath) -> AbsolutePath {
+        (try? AbsolutePath(validating: canonical(path.pathString))) ?? path
     }
 }
 

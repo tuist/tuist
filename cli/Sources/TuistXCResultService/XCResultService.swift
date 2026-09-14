@@ -11,7 +11,6 @@ import XCResultParser
 public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
     func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
-    /// The bundle's coverage report on its own, or nil when the run gathered none.
     func parseCoverage(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> XcodeCoverageReport?
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }

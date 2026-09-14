@@ -8,9 +8,17 @@ import Testing
 /// Stands in for `xccov`: streams the canned report on stdout, or fails the
 /// way the tool does on a bundle without coverage. Records the bundle path it
 /// was handed, since xccov only accepts one that ends in `.xcresult`.
+///
+/// `@unchecked` because the recorded arguments are the only mutable state and
+/// every access to them goes through `lock`.
 private final class XccovStub: CommandRunning, @unchecked Sendable {
     let reportJSON: String?
-    private(set) var bundleArguments: [String] = []
+    private let lock = NSLock()
+    private var recorded: [String] = []
+
+    var bundleArguments: [String] {
+        lock.withLock { recorded }
+    }
 
     init(reportJSON: String?) {
         self.reportJSON = reportJSON
@@ -21,7 +29,7 @@ private final class XccovStub: CommandRunning, @unchecked Sendable {
         environment _: [String: String],
         workingDirectory _: AbsolutePath?
     ) -> AsyncThrowingStream<CommandEvent, any Error> {
-        if let last = arguments.last { bundleArguments.append(last) }
+        if let last = arguments.last { lock.withLock { recorded.append(last) } }
         return AsyncThrowingStream { continuation in
             guard let reportJSON else {
                 continuation.finish(
@@ -118,6 +126,26 @@ struct XcodeCoverageParserTests {
             let got = try #require(await subject.parse(
                 resultBundlePath: real.appending(component: "run.xcresult"),
                 rootDirectory: link
+            ))
+
+            #expect(got.targets[0].files.map(\.path) == ["Sources/F.swift"])
+        }
+    }
+
+    @Test
+    func leavesRelativePathsAlone() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcode-coverage-parser-tests") { root in
+            let json = """
+            {"coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "targets": [
+              {"name": "A", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "buildProductPath": "/a",
+               "files": [{"name": "F.swift", "path": "Sources/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
+            ]}
+            """
+            let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json))
+
+            let got = try #require(await subject.parse(
+                resultBundlePath: root.appending(component: "run.xcresult"),
+                rootDirectory: root
             ))
 
             #expect(got.targets[0].files.map(\.path) == ["Sources/F.swift"])

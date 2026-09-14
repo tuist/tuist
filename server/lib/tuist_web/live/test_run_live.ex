@@ -102,7 +102,6 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:failures_count, failures_count)
       |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign_stress_gate(run)
-      |> assign(:has_coverage, run.coverage_executable_lines > 0)
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign(:show_test_suites, project.build_system != :bazel)
       |> assign_initial_analytics_state()
@@ -158,13 +157,16 @@ defmodule TuistWeb.TestRunLive do
     assign(socket, :stress_candidates_by_identity, StressNewTests.candidates_by_identity(run.id))
   end
 
-  @doc false
-  def coverage_percentage(%{coverage_covered_lines: covered, coverage_executable_lines: executable}) do
-    XcodeCoverage.percentage(covered, executable)
-  end
+  attr :covered, :integer, required: true
+  attr :executable, :integer, required: true
 
-  def coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
-    XcodeCoverage.percentage(covered, executable)
+  defp coverage_cell(assigns) do
+    ~H"""
+    <div data-part="coverage-cell">
+      <.progress_bar value={@covered} max={max(@executable, 1)} />
+      <span data-part="percentage">{XcodeCoverage.percentage(@covered, @executable)}%</span>
+    </div>
+    """
   end
 
   @doc false
@@ -464,7 +466,6 @@ defmodule TuistWeb.TestRunLive do
 
         socket
         |> assign(:run, refreshed_run)
-        |> assign(:has_coverage, refreshed_run.coverage_executable_lines > 0)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
@@ -636,16 +637,18 @@ defmodule TuistWeb.TestRunLive do
     run = socket.assigns.run
     page = Query.bounded_page(params["coverage-page"])
 
-    [targets, {files, files_meta}] =
+    [targets, files] =
       Tuist.Tasks.parallel_tasks([
         fn -> XcodeCoverage.targets_for_run(run.id) end,
         fn -> XcodeCoverage.list_files(run.id, page, @table_page_size) end
       ])
 
+    files_count = targets |> Enum.map(& &1.files_count) |> Enum.sum()
+
     socket
     |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
     |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, "#{&1.target_name}/#{&1.path}")))
-    |> assign(:coverage_files_meta, files_meta)
+    |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)

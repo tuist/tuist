@@ -2345,15 +2345,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             switch mode {
             case .local:
-                guard var testSummary else { break }
-                if let resultBundlePath {
-                    testSummary.coverage = try await xcResultService.parseCoverage(
-                        path: resultBundlePath,
-                        rootDirectory: try? await rootDirectory()
-                    )
-                }
+                guard let testSummary else { break }
                 _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
+                    resultBundlePath: resultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     shardPlanId: shardPlanId,
