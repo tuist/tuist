@@ -130,7 +130,7 @@ That becomes trickier when another company operates the build infrastructure, be
 
 Adding your own node starts in the dashboard, where you generate a credential for your account. Following the [self-hosting setup](https://tuist.dev/en/docs/guides/features/cache/self-hosting), you give the node that credential, a persistent data directory, and the addresses its peers and clients can reach, then run the Kura executable or its container image with enrollment and registration enabled. At startup, the runtime derives resource defaults from the memory, processors, and disk available to it, enrolls with the account, and registers its endpoint. An office server can then join the same mesh as our managed regions and your runners, extending the cache to a location you chose while sharing the artifacts already available elsewhere.
 
-![The Tuist dashboard showing the generated client identifier and secret for a self-hosted cache node.](/marketing/images/blog/2026/09/11/kura/node-credential.webp)
+![The Tuist dashboard showing the generated client identifier and secret for a self-hosted cache node.](/marketing/images/blog/2026/09/14/kura/node-credential.webp)
 
 ## A cache for every developer
 
