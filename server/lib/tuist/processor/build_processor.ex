@@ -17,6 +17,21 @@ defmodule Tuist.Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
+  # Reasons `:zip.unzip/2` returns when the archive itself is malformed. The
+  # download layer guarantees the object was fully written before we open it,
+  # so these are customer-side bad uploads (truncated by the client, wrong
+  # bytes, or already corrupt on their disk) rather than a transport problem.
+  # Callers surface them as `{:error, :corrupt_archive}` and skip retrying.
+  @corrupt_archive_zip_reasons ~w(
+    bad_eocd
+    eocd_not_found
+    file_header_not_found
+    bad_local_file_header
+    invalid_zip_file
+    bad_central_directory
+    bad_zip_file
+  )a
+
   def process_build(build_zip_path, xcode_cache_upload_enabled, consume) do
     temp_dir = make_temp_dir()
 
@@ -32,8 +47,25 @@ defmodule Tuist.Processor.BuildProcessor do
   end
 
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled, consume) do
-    with {:ok, _} <- :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
-      process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume)
+    case :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+      {:ok, _} ->
+        process_extracted_build(temp_dir, xcode_cache_upload_enabled, consume)
+
+      {:error, reason} when reason in @corrupt_archive_zip_reasons ->
+        {:error, :corrupt_archive}
+
+      # `:zip.unzip` reports a per-entry failure as `{FileName, Reason}`, most
+      # commonly `:bad_crc` when the archive's entry bytes don't match its
+      # recorded checksum. Same class of problem as a bad EOCD: the customer's
+      # upload is corrupt and retries won't heal it.
+      {:error, {_file, reason}} when reason in @corrupt_archive_zip_reasons ->
+        {:error, :corrupt_archive}
+
+      {:error, {_file, :bad_crc}} ->
+        {:error, :corrupt_archive}
+
+      {:error, _} = error ->
+        error
     end
   end
 
